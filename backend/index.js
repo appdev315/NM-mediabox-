@@ -38,8 +38,9 @@ app.get('/api/stream', async (req, res) => {
     // Перехватываем ссылки на видеопоток в фоновом режиме трафика
     page.on('request', request => {
       const reqUrl = request.url();
-      if ((reqUrl.includes('.m3u8') || reqUrl.includes('.mp4')) && !reqUrl.includes('ads')) {
-        if (!videoUrl) videoUrl = reqUrl;
+      if (reqUrl.includes('.m3u8') || reqUrl.includes('.mp4')) {
+        console.log(`[NETWORK] Found media URL: ${reqUrl}`);
+        if (!videoUrl && !reqUrl.includes('ads') && !reqUrl.includes('trailer')) videoUrl = reqUrl;
       }
     });
 
@@ -71,6 +72,27 @@ app.get('/api/stream', async (req, res) => {
     }
 
     // Ожидаем триггера загрузки плеера для перехвата потока
+    console.log(`[PLAYWRIGHT] Reached final page. Extracting iframes and videos...`);
+    
+    try {
+      const iframes = await page.$$eval('iframe', frames => frames.map(f => f.src));
+      console.log(`[PLAYWRIGHT] Iframes on page:`, iframes);
+      const videos = await page.$$eval('video', vids => vids.map(v => v.src));
+      console.log(`[PLAYWRIGHT] Video tags on page:`, videos);
+      const videoSources = await page.$$eval('source', sources => sources.map(s => s.src));
+      console.log(`[PLAYWRIGHT] Video sources on page:`, videoSources);
+      
+      // Try to click play if there's a play button
+      // const playButton = await page.$('.play-btn, .vjs-play-control');
+      // if (playButton) await playButton.click();
+      
+      // Click center of the page just in case it triggers the player
+      await page.mouse.click(100, 100);
+      await page.mouse.click(200, 200);
+    } catch (e) {
+      console.log(`[PLAYWRIGHT] Error extracting media elements: ${e.message}`);
+    }
+
     console.log(`[PLAYWRIGHT] Waiting 4000ms for video stream to be intercepted...`);
     await page.waitForTimeout(4000);
 
