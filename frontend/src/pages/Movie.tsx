@@ -6,7 +6,7 @@ import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 
-export const BACKEND_URL = "https://evro90-nm.hf.space";
+export const BACKEND_URL = "https://evro90-nm2.hf.space";
 
 export function Movie() {
   const { id } = useParams();
