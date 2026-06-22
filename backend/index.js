@@ -3,7 +3,11 @@ import { chromium } from 'playwright-chromium';
 import cors from 'cors';
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
+}));
 
 const BASE_URL = 'https://mj.anwap.today';
 
