@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: nm-movie-parser
+    env: node
+    rootDir: backend
+    buildCommand: npm run build
+    startCommand: npm start
+    plan: free

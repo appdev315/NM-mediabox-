@@ -1,0 +1,8 @@
+name = "backend"
+main = "src/index.ts"
+compatibility_date = "2024-03-20"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "movie-db"
+database_id = "de9a3ec7-792c-4400-b755-8c4a985f75a1"
