@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+FROM mcr.microsoft.com/playwright:v1.61.0-jammy
 
 # Используем встроенного пользователя Playwright с UID 1000
 USER pwuser
