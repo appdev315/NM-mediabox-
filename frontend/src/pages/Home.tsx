@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export function Home() {
   const navigate = useNavigate();
-  const { fetchTrendingMovies, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
+  const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, setLanguage, t } = useLanguage();
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series'>('movie');
@@ -33,14 +33,14 @@ export function Home() {
       if (searchQuery.trim().length > 0) {
         setIsSearching(true);
         const results = await searchContent(searchQuery);
-        setItems(results);
+        setItems(results.filter((r: any) => r.type === (activeTab === 'movie' ? 'movie' : 'series')));
       } else {
         setIsSearching(false);
         let results;
         
-        // Initial load for popular movies
-        if (!selectedGenre && activeTab === 'movie' && page === 1) {
-          results = await fetchTrendingMovies();
+        // Initial load for popular content
+        if (!selectedGenre && page === 1) {
+          results = await fetchTrending(activeTab === 'movie' ? 'movie' : 'tv');
         } else {
           results = activeTab === 'movie' 
             ? await fetchMovies(page, selectedGenre)
@@ -57,7 +57,7 @@ export function Home() {
 
     const timeoutId = setTimeout(loadContent, 500);
     return () => clearTimeout(timeoutId);
-  }, [activeTab, page, selectedGenre, searchQuery, fetchTrendingMovies, fetchMovies, fetchSeries, searchContent, language]);
+  }, [activeTab, page, selectedGenre, searchQuery, fetchTrending, fetchMovies, fetchSeries, searchContent, language]);
 
   const handleTabChange = (tab: 'movie' | 'series') => {
     setActiveTab(tab);

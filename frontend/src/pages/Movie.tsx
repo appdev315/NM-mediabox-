@@ -4,17 +4,19 @@ import ReactPlayer from 'react-player';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
+import { Player } from '../components/Player';
 
-export const BACKEND_URL = "https://твоя-ссылка-cloud-run.a.run.app";
+export const BACKEND_URL = "https://evro90-nm.hf.space";
 
 export function Movie() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading } = useApi();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -41,6 +43,7 @@ export function Movie() {
     if (!id) return;
     const loadData = async () => {
       setStreamUrl(null);
+      setIframeUrl(null);
       setIsExtracting(false);
       
       try {
@@ -80,6 +83,7 @@ export function Movie() {
     if (!movie) return;
     setIsExtracting(true);
     setStreamUrl(null);
+    setIframeUrl(null);
     document.getElementById('video-player')?.scrollIntoView({ behavior: 'smooth' });
 
     try {
@@ -93,19 +97,25 @@ export function Movie() {
       
       if (data.url) {
         setStreamUrl(data.url);
+      } else if (data.iframe) {
+        setIframeUrl(data.iframe);
       } else {
-        WebApp.showAlert(t('movieNotFound') || "Stream not found");
+        alert(t('movieNotFound') || "Stream not found");
       }
     } catch (err) {
       console.error("Failed to extract stream", err);
-      WebApp.showAlert("Failed to connect to parser server");
+      alert("Не удалось извлечь прямой поток");
     } finally {
       setIsExtracting(false);
     }
   };
 
   const addToFavorites = () => {
-    WebApp.HapticFeedback.notificationOccurred('success');
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch (e) {
+      // Игнорируем ошибку на старых версиях
+    }
   };
 
   if (loading && !movie) {
@@ -192,13 +202,15 @@ export function Movie() {
           {movie.description || t('descriptionMissing')}
         </p>
 
-        {(isExtracting || streamUrl) && (
+        {(isExtracting || streamUrl || iframeUrl) && (
           <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8 flex items-center justify-center">
             {isExtracting ? (
               <div className="flex flex-col items-center justify-center text-white/70">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
                 <p className="font-medium text-sm">Ищем поток...</p>
               </div>
+            ) : iframeUrl ? (
+              <Player iframeUrl={iframeUrl} />
             ) : streamUrl ? (
               <ReactPlayer
                 url={streamUrl}
@@ -206,6 +218,7 @@ export function Movie() {
                 height="100%"
                 controls
                 playing
+                // @ts-ignore: 'file' is valid for ReactPlayer config but missing in local types
                 config={{ file: { forceHLS: streamUrl.includes('.m3u8') } }}
               />
             ) : null}
@@ -222,6 +235,7 @@ export function Movie() {
                   className="min-w-[130px] w-[130px] snap-start cursor-pointer active:scale-95 transition-transform" 
                   onClick={() => {
                     setStreamUrl(null);
+                    setIframeUrl(null);
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
                   }}
                 >

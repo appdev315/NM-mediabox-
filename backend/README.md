@@ -1,21 +1,13 @@
-```txt
-npm install
-npm run dev
-```
+---
+title: NM Parser
+emoji: 🎬
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 7860
+---
 
-```txt
-npm run deploy
-```
+# NM Parser
 
-[For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
-
-```txt
-npm run cf-typegen
-```
-
-Pass the `CloudflareBindings` as generics when instantiating `Hono`:
-
-```ts
-// src/index.ts
-const app = new Hono<{ Bindings: CloudflareBindings }>()
-```
+Бэкенд-парсер для извлечения видеопотоков с помощью Playwright на базе Hugging Face Spaces (Docker).

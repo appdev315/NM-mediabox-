@@ -77,12 +77,12 @@ export function useApi() {
     seasons: item.seasons || []
   });
 
-  const fetchTrendingMovies = useCallback(async () => {
+  const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {
     setLoading(true);
     setError(null);
     try {
-      const data = await tmdbFetch('/trending/all/day');
-      return data.results.map((item: TMDBMovie) => mapTMDB(item));
+      const data = await tmdbFetch(`/trending/${type}/day`);
+      return data.results.map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
     } catch (err: any) {
       console.error('TMDB API Error:', err);
       setError(err.message);
@@ -190,5 +190,5 @@ export function useApi() {
 
 
 
-  return { request, fetchTrendingMovies, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading, error };
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading, error };
 }

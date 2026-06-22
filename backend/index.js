@@ -102,8 +102,14 @@ app.get('/api/stream', async (req, res) => {
       console.log(`[PLAYWRIGHT] SUCCESS! Stream URL found: ${videoUrl}`);
       res.json({ url: videoUrl });
     } else {
-      console.log(`[PLAYWRIGHT] FAILED: Stream URL not found after 4s wait.`);
-      res.status(404).json({ error: "Stream not found" });
+      const iframes = await page.$$eval('iframe', frames => frames.map(f => f.src));
+      if (iframes.length > 0) {
+        console.log(`[PLAYWRIGHT] SUCCESS! Iframe URL found: ${iframes[0]}`);
+        res.json({ iframe: iframes[0] });
+      } else {
+        console.log(`[PLAYWRIGHT] FAILED: Stream URL not found after 4s wait.`);
+        res.status(404).json({ error: "Stream not found" });
+      }
     }
   } catch (err) {
     console.error(`[PLAYWRIGHT ERROR]`, err);
