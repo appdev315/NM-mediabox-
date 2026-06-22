@@ -3,6 +3,12 @@ import { chromium } from 'playwright-chromium';
 import cors from 'cors';
 
 const app = express();
+
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -10,6 +16,8 @@ app.use(cors({
 }));
 
 const BASE_URL = 'https://mj.anwap.today';
+
+app.get('/', (req, res) => res.json({ status: 'OK', message: 'Parser is running' }));
 
 app.get('/api/stream', async (req, res) => {
   const { title, year, type } = req.query;
