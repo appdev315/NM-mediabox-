@@ -1,16 +1,16 @@
 FROM mcr.microsoft.com/playwright:v1.44.0-jammy
 
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+# Используем встроенного пользователя Playwright с UID 1000
+USER pwuser
+ENV HOME=/home/pwuser \
+    PATH=/home/pwuser/.local/bin:$PATH
 
 WORKDIR $HOME/app
 
-COPY --chown=user package*.json ./
+COPY --chown=pwuser package*.json ./
 RUN npm install
 
-COPY --chown=user . .
+COPY --chown=pwuser . .
 
 EXPOSE 7860
 ENV PORT=7860
