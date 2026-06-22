@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import ReactPlayer from 'react-player';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
+
+export const BACKEND_URL = "https://твоя-ссылка-cloud-run.a.run.app";
 
 export function Movie() {
   const { id } = useParams();
@@ -11,8 +14,8 @@ export function Movie() {
   const { fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
   
-  const [isShieldActive, setIsShieldActive] = useState(true);
-  const [playerIdx, setPlayerIdx] = useState(0);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
@@ -37,7 +40,8 @@ export function Movie() {
   useEffect(() => {
     if (!id) return;
     const loadData = async () => {
-      setIsShieldActive(true);
+      setStreamUrl(null);
+      setIsExtracting(false);
       
       try {
         const details = await fetchMovieDetails(id, mediaType);
@@ -72,9 +76,32 @@ export function Movie() {
     }
   }, [selectedSeason, id, mediaType, fetchSeasonDetails]);
 
-  const handleWatch = () => {
-    setIsShieldActive(false);
+  const handleWatch = async () => {
+    if (!movie) return;
+    setIsExtracting(true);
+    setStreamUrl(null);
     document.getElementById('video-player')?.scrollIntoView({ behavior: 'smooth' });
+
+    try {
+      const query = new URLSearchParams({
+        title: movie.title || movie.name || '',
+        year: movie.year || '',
+        type: mediaType
+      });
+      const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
+      const data = await res.json();
+      
+      if (data.url) {
+        setStreamUrl(data.url);
+      } else {
+        WebApp.showAlert(t('movieNotFound') || "Stream not found");
+      }
+    } catch (err) {
+      console.error("Failed to extract stream", err);
+      WebApp.showAlert("Failed to connect to parser server");
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const addToFavorites = () => {
@@ -89,13 +116,7 @@ export function Movie() {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('movieNotFound')}</div>;
   }
 
-  const servers = [
-    { name: "Server 1", url: (type: string, id: string) => `https://vidsrc.pro/embed/${type === 'tv' ? 'tv' : 'movie'}/${id}${type === 'tv' ? `/${selectedSeason}/${selectedEpisode}` : ''}` },
-    { name: "Server 2", url: (_type: string, id: string) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-    { name: "Server 3", url: (type: string, id: string) => `https://autoembed.to/${type === 'tv' ? 'tv' : 'movie'}/tmdb/${id}` }
-  ];
 
-  const iframeUrl = servers[playerIdx].url(mediaType, id as string);
 
   return (
     <div className="pb-20">
@@ -171,45 +192,25 @@ export function Movie() {
           {movie.description || t('descriptionMissing')}
         </p>
 
-        <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8">
-          <iframe 
-            src={iframeUrl} 
-            className="absolute inset-0 w-full h-full border-none z-0" 
-            allowFullScreen 
-            allow="autoplay; fullscreen"
-          />
-          
-          {isShieldActive && (
-            <div 
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-cover bg-center cursor-pointer group" 
-              style={{ backgroundImage: `url(${movie?.poster})` }}
-              onClick={() => setIsShieldActive(false)}
-            >
-              <div className="absolute inset-0 bg-black/60 transition-opacity group-hover:bg-black/40" />
-              <div className="relative z-20 w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
-                <svg className="w-10 h-10 text-white ml-2" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"/></svg>
+        {(isExtracting || streamUrl) && (
+          <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8 flex items-center justify-center">
+            {isExtracting ? (
+              <div className="flex flex-col items-center justify-center text-white/70">
+                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="font-medium text-sm">Ищем поток...</p>
               </div>
-              <span className="relative z-20 mt-4 text-white font-medium text-lg drop-shadow-md">
-                {language === 'ru-RU' ? 'Смотреть' : 'Watch Now'}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 mt-2 mb-8 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
-          {servers.map((s, i) => (
-            <button 
-              key={i} 
-              onClick={() => {
-                setPlayerIdx(i);
-                setIsShieldActive(false); // Отключаем щит при смене сервера, чтобы сразу проверить
-              }} 
-              className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-transform active:scale-95 ${playerIdx === i ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-800 text-gray-300'}`}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
+            ) : streamUrl ? (
+              <ReactPlayer
+                url={streamUrl}
+                width="100%"
+                height="100%"
+                controls
+                playing
+                config={{ file: { forceHLS: streamUrl.includes('.m3u8') } }}
+              />
+            ) : null}
+          </div>
+        )}
 
         {recommendations.length > 0 && (
           <>
@@ -220,7 +221,7 @@ export function Movie() {
                   key={rec.id} 
                   className="min-w-[130px] w-[130px] snap-start cursor-pointer active:scale-95 transition-transform" 
                   onClick={() => {
-                    setIsShieldActive(true);
+                    setStreamUrl(null);
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
                   }}
                 >
