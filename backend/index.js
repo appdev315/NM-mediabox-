@@ -1,6 +1,9 @@
 import express from 'express';
-import { chromium } from 'playwright-chromium';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import cors from 'cors';
+
+chromium.use(StealthPlugin());
 
 const app = express();
 
@@ -21,10 +24,12 @@ app.get('/', (req, res) => res.json({ status: 'OK', message: 'Parser is running'
 
 app.get('/api/stream', async (req, res) => {
   const { title, year, type } = req.query;
+  console.log(`[STREAM REQ] title=${title}, year=${year}, type=${type}`);
   if (!title) return res.status(400).json({ error: "Title is required" });
 
   let browser;
   try {
+    console.log(`[PLAYWRIGHT] Launching browser...`);
     browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const context = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
     const page = await context.newPage();
@@ -40,14 +45,18 @@ app.get('/api/stream', async (req, res) => {
 
     // 1. Поиск на лету
     const searchPath = type === 'tv' ? '/serials/search/?word=' : '/films/search/?slv=';
-    await page.goto(`${BASE_URL}${searchPath}${encodeURIComponent(title)}&vid=1`, { waitUntil: 'domcontentloaded' });
+    const searchUrl = `${BASE_URL}${searchPath}${encodeURIComponent(title)}&vid=1`;
+    console.log(`[PLAYWRIGHT] Going to search URL: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
 
     // 2. Клик по первому совпадению
     const linkSelector = type === 'tv' ? 'a[href*="/serials/"]' : 'a[href*="/films/"]';
-    await page.waitForSelector(linkSelector, { timeout: 5000 });
+    console.log(`[PLAYWRIGHT] Waiting for selector: ${linkSelector}`);
+    await page.waitForSelector(linkSelector, { timeout: 8000 });
     
     // Переходим на страницу найденного контента
     const firstLink = await page.$eval(linkSelector, el => el.getAttribute('href'));
+    console.log(`[PLAYWRIGHT] Found first link: ${firstLink}`);
     await page.goto(`${BASE_URL}${firstLink}`, { waitUntil: 'domcontentloaded' });
 
     // 3. Если это сериал — переходим вглубь на первую серию (для теста)
@@ -62,16 +71,20 @@ app.get('/api/stream', async (req, res) => {
     }
 
     // Ожидаем триггера загрузки плеера для перехвата потока
+    console.log(`[PLAYWRIGHT] Waiting 4000ms for video stream to be intercepted...`);
     await page.waitForTimeout(4000);
 
     await browser.close();
 
     if (videoUrl) {
+      console.log(`[PLAYWRIGHT] SUCCESS! Stream URL found: ${videoUrl}`);
       res.json({ url: videoUrl });
     } else {
+      console.log(`[PLAYWRIGHT] FAILED: Stream URL not found after 4s wait.`);
       res.status(404).json({ error: "Stream not found" });
     }
   } catch (err) {
+    console.error(`[PLAYWRIGHT ERROR]`, err);
     if (browser) await browser.close();
     res.status(500).json({ error: err.message });
   }
