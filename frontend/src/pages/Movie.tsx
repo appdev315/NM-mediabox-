@@ -126,7 +126,8 @@ export function Movie() {
         const queryParams: Record<string, string> = {
           title: movie.title || movie.name || '',
           year: movie.year || '',
-          type: mediaType
+          type: mediaType,
+          tmdb: movie.id?.toString() || ''
         };
         if (mediaType === 'tv') {
           if (selectedSeason) queryParams.season = selectedSeason.toString();

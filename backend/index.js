@@ -45,8 +45,25 @@ app.get('/api/kinobox', async (req, res) => {
 });
 
 app.get('/api/stream', async (req, res) => {
-    const { title, year, type, season, episode } = req.query;
-    console.log(`[STREAM REQ] title=${title}, year=${year}, type=${type}, season=${season}, episode=${episode}`);
+    let { title, year, type, season, episode, tmdb } = req.query;
+    console.log(`[STREAM REQ] tmdb=${tmdb}, title=${title}, year=${year}, type=${type}, season=${season}, episode=${episode}`);
+    
+    // Fetch Russian title if TMDB ID is provided (Anwap only works with Russian titles)
+    if (tmdb) {
+        try {
+            const tmdbUrl = `https://api.themoviedb.org/3/${type === 'tv' ? 'tv' : 'movie'}/${tmdb}?api_key=cd5b69242e715dc87d65957d7460eba2&language=ru-RU`;
+            const fetchFn = global.fetch || (await import('node-fetch')).default;
+            const tmdbRes = await fetchFn(tmdbUrl);
+            const tmdbData = await tmdbRes.json();
+            if (tmdbData && (tmdbData.title || tmdbData.name)) {
+                title = tmdbData.title || tmdbData.name;
+                console.log(`[TMDB] Fetched Russian title: ${title}`);
+            }
+        } catch (e) {
+            console.error("[TMDB] Error fetching Russian title:", e.message);
+        }
+    }
+
     if (!title) return res.status(400).json({ error: "Title is required" });
 
     let browser;
