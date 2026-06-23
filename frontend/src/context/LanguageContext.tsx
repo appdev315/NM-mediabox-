@@ -46,7 +46,7 @@ interface LanguageContextProps {
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('ru-RU');
+  const [language, setLanguage] = useState<Language>('en-US');
 
   const t = (key: TranslationKey) => {
     return translations[language][key] || translations['ru-RU'][key];
