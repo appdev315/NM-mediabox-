@@ -1,7 +1,4 @@
 import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-chromium.use(StealthPlugin());
 
 (async () => {
   const browser = await chromium.launch({ headless: false });
@@ -18,11 +15,6 @@ chromium.use(StealthPlugin());
   console.log("Going to episode download page...");
   const episodeLink = await page.$eval('a[href*="/serials/down/"]', el => el.getAttribute('href'));
   await page.goto(`https://mj.anwap.today${episodeLink}`, { waitUntil: 'domcontentloaded' });
-
-  console.log("Extracting links...");
-  const links = await page.$$eval('a', anchors => anchors.map(a => a.href));
-  console.log("All links found:");
-  console.log(links);
 
   const iframes = await page.$$eval('iframe', frames => frames.map(f => f.src));
   console.log("Iframes:", iframes);

@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useApi } from '../hooks/useApi';
+
 import { WebApp } from '../telegram';
 
 export function Profile() {
-  const { request, loading } = useApi();
   const [favorites, setFavorites] = useState<any[]>([]);
 
   const user = WebApp.initDataUnsafe?.user || { first_name: 'Demo', id: 1 };
 
   useEffect(() => {
-    const fetchFavorites = async () => {
-      const data = await request('/user/favorites');
-      if (data?.favorites) setFavorites(data.favorites);
+    const fetchFavorites = () => {
+      const saved = JSON.parse(localStorage.getItem('favorites') || '[]');
+      setFavorites(saved);
     };
     fetchFavorites();
   }, []);
@@ -27,25 +26,27 @@ export function Profile() {
         </div>
         <div>
           <h1 className="font-bold text-xl">{user?.first_name} {user?.last_name}</h1>
-          {user?.username && <p className="opacity-60 text-sm">@{user.username}</p>}
+          {user?.username && <p className="opacity-90 text-sm">@{user.username}</p>}
         </div>
       </div>
 
       <h2 className="font-bold text-lg mb-4">Мое избранное</h2>
-      {loading ? (
-        <div className="skeleton h-20 w-full rounded-lg" />
-      ) : favorites.length === 0 ? (
-        <p className="text-center opacity-50 mt-10">Тут пока пусто 🎬</p>
+      {favorites.length === 0 ? (
+        <p className="text-center opacity-80 mt-10">Тут пока пусто 🎬</p>
       ) : (
         <div className="space-y-3">
           {favorites.map((fav) => (
             <div 
-              key={fav.movie_id} 
-              className="p-4 rounded-lg flex items-center justify-between"
+              key={fav.id} 
+              className="p-4 rounded-lg flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
               style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+              onClick={() => window.location.href = `/movie/${fav.id}?type=${fav.type}`}
             >
-              <span>ID фильма: {fav.movie_id}</span>
-              <span className="text-xs opacity-60">Сохранено</span>
+              <div className="flex items-center gap-3">
+                {fav.poster && <img src={fav.poster} alt={fav.title} className="w-10 h-14 object-cover rounded-md shadow-sm" />}
+                <span className="font-bold text-sm line-clamp-2">{fav.title}</span>
+              </div>
+              <span className="text-xs font-bold" style={{ color: 'var(--button-color)' }}>★</span>
             </div>
           ))}
         </div>

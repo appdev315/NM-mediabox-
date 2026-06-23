@@ -151,16 +151,16 @@ export function Home() {
             />
             <div>
               <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.title}</h3>
-              <p className="text-xs opacity-60 mt-1">{item.year}</p>
+              <p className="text-xs opacity-90 mt-1">{item.year}</p>
             </div>
           </div>
         ))}
       </div>
       
-      {loading && <div className="text-center mt-6 mb-6 opacity-50 font-medium">{t('loading')}</div>}
+      {loading && <div className="text-center mt-6 mb-6 opacity-80 font-medium">{t('loading')}</div>}
 
       {!loading && items.length === 0 && (
-        <div className="text-center mt-12 opacity-50 flex flex-col items-center gap-2">
+        <div className="text-center mt-12 opacity-80 flex flex-col items-center gap-2">
           <span className="text-4xl">🎬</span>
           <p>{t('notFound')}</p>
         </div>

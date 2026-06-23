@@ -20,6 +20,7 @@ export function Movie() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   // TV specific states
   const [selectedSeason, setSelectedSeason] = useState<number | ''>('');
@@ -49,6 +50,9 @@ export function Movie() {
       try {
         const details = await fetchMovieDetails(id, mediaType);
         setMovie(details);
+        
+        const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+        setIsFavorite(favs.some((f: any) => f.id === details.id));
 
         if (mediaType === 'tv' && details.seasons?.length > 0) {
           const validSeason = details.seasons.find((s: any) => s.season_number > 0) || details.seasons[0];
@@ -87,20 +91,64 @@ export function Movie() {
     document.getElementById('video-player')?.scrollIntoView({ behavior: 'smooth' });
 
     try {
-      const query = new URLSearchParams({
-        title: movie.title || movie.name || '',
-        year: movie.year || '',
-        type: mediaType
-      });
-      const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
-      const data = await res.json();
-      
-      if (data.url) {
-        setStreamUrl(data.url);
-      } else if (data.iframe) {
-        setIframeUrl(data.iframe);
+      let finalIframe = null;
+      let finalStreamUrl = null;
+
+      // Primary source: Kinobox API (via our Backend Proxy to bypass ISP blocks)
+      try {
+        const kinoboxRes = await fetch(`${BACKEND_URL}/api/kinobox?tmdb=${movie.id}`);
+        const players = await kinoboxRes.json();
+        if (players && players.length > 0) {
+          // Find first working player (prioritize Kodik or Videocdn if needed, or just take first)
+          let url = players[0].iframeUrl;
+          if (url.startsWith('//')) url = 'https:' + url;
+          
+          if (mediaType === 'tv' && selectedSeason) {
+            try {
+              const urlObj = new URL(url);
+              urlObj.searchParams.set('season', selectedSeason.toString());
+              if (selectedEpisode) {
+                urlObj.searchParams.set('episode', selectedEpisode.toString());
+              }
+              url = urlObj.toString();
+            } catch (e) {
+               console.error(e);
+            }
+          }
+          finalIframe = url;
+        }
+      } catch (kinoboxErr) {
+        console.log("Kinobox direct fetch failed, falling back to Anwap...", kinoboxErr);
+      }
+
+      // Fallback: Our Anwap Playwright Backend
+      if (!finalIframe && !finalStreamUrl) {
+        const queryParams: Record<string, string> = {
+          title: movie.title || movie.name || '',
+          year: movie.year || '',
+          type: mediaType
+        };
+        if (mediaType === 'tv') {
+          if (selectedSeason) queryParams.season = selectedSeason.toString();
+          if (selectedEpisode) queryParams.episode = selectedEpisode.toString();
+        }
+        const query = new URLSearchParams(queryParams);
+        const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
+        const data = await res.json();
+        
+        if (data.url) {
+          finalStreamUrl = data.url;
+        } else if (data.iframe) {
+          finalIframe = data.iframe;
+        }
+      }
+
+      if (finalStreamUrl) {
+        setStreamUrl(finalStreamUrl);
+      } else if (finalIframe) {
+        setIframeUrl(finalIframe);
       } else {
-        alert(t('movieNotFound') || "Stream not found");
+        alert(t('movieNotFound') || "Стрим не найден");
       }
     } catch (err) {
       console.error("Failed to extract stream", err);
@@ -112,9 +160,21 @@ export function Movie() {
 
   const addToFavorites = () => {
     try {
-      WebApp.HapticFeedback.notificationOccurred('success');
+      if (!movie) return;
+      let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+      if (!isFavorite) {
+        favs.unshift({ id: movie.id, title: movie.title, type: mediaType, poster: movie.poster });
+        localStorage.setItem('favorites', JSON.stringify(favs));
+        setIsFavorite(true);
+        WebApp.HapticFeedback.notificationOccurred('success');
+      } else {
+        favs = favs.filter((f: any) => f.id !== movie.id);
+        localStorage.setItem('favorites', JSON.stringify(favs));
+        setIsFavorite(false);
+        WebApp.HapticFeedback.notificationOccurred('warning');
+      }
     } catch (e) {
-      // Игнорируем ошибку на старых версиях
+      console.error(e);
     }
   };
 
@@ -144,14 +204,17 @@ export function Movie() {
           <h1 className="text-3xl font-extrabold leading-tight shadow-sm drop-shadow-sm">{movie.title}</h1>
           <button 
             onClick={addToFavorites}
-            style={{ backgroundColor: 'var(--hint-color)', color: 'var(--button-color)' }}
+            style={{ 
+              backgroundColor: isFavorite ? 'var(--button-color)' : 'var(--hint-color)', 
+              color: isFavorite ? 'var(--button-text-color)' : 'var(--button-color)' 
+            }}
             className="p-3 rounded-full shadow-lg ml-4 active:scale-95 transition-transform flex-shrink-0"
           >
             ★
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-sm opacity-70 mb-6 font-medium drop-shadow-sm">
+        <div className="flex flex-wrap gap-2 text-sm opacity-100 mb-6 font-medium drop-shadow-sm">
           {movie.year && <span>{movie.year}</span>}
           {movie.year && movie.country && <span>•</span>}
           {movie.country && <span>{movie.country}</span>}
@@ -198,7 +261,7 @@ export function Movie() {
           </button>
         </div>
 
-        <p className="text-[15px] opacity-80 mb-8 leading-relaxed font-medium">
+        <p className="text-[15px] opacity-100 mb-8 leading-relaxed font-medium">
           {movie.description || t('descriptionMissing')}
         </p>
 
@@ -207,7 +270,7 @@ export function Movie() {
             {isExtracting ? (
               <div className="flex flex-col items-center justify-center text-white/70">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="font-medium text-sm">Ищем поток...</p>
+                <p className="font-medium text-sm">Searching for stream...</p>
               </div>
             ) : iframeUrl ? (
               <Player iframeUrl={iframeUrl} />

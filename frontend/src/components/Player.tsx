@@ -20,7 +20,7 @@ export function Player({ iframeUrl }: PlayerProps) {
       <iframe 
         src={iframeUrl}
         allowFullScreen
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        referrerPolicy="no-referrer"
         style={{ width: '100%', height: '100%', border: 'none' }}
       />
     </div>
