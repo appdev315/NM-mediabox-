@@ -94,31 +94,18 @@ export function Movie() {
       let finalIframe = null;
       let finalStreamUrl = null;
 
-      // Primary source: Kinobox API (via our Backend Proxy to bypass ISP blocks)
+      // Primary source: VidSrc (International CDN for English audience)
       try {
-        const kinoboxRes = await fetch(`${BACKEND_URL}/api/kinobox?tmdb=${movie.id}`);
-        const players = await kinoboxRes.json();
-        if (players && players.length > 0) {
-          // Find first working player (prioritize Kodik or Videocdn if needed, or just take first)
-          let url = players[0].iframeUrl;
-          if (url.startsWith('//')) url = 'https:' + url;
-          
-          if (mediaType === 'tv' && selectedSeason) {
-            try {
-              const urlObj = new URL(url);
-              urlObj.searchParams.set('season', selectedSeason.toString());
-              if (selectedEpisode) {
-                urlObj.searchParams.set('episode', selectedEpisode.toString());
-              }
-              url = urlObj.toString();
-            } catch (e) {
-               console.error(e);
-            }
-          }
-          finalIframe = url;
+        let url = '';
+        if (mediaType === 'tv' && selectedSeason) {
+          url = `https://vidsrc.to/embed/tv/${movie.id}/${selectedSeason}/${selectedEpisode || 1}`;
+        } else {
+          url = `https://vidsrc.to/embed/movie/${movie.id}`;
         }
-      } catch (kinoboxErr) {
-        console.log("Kinobox direct fetch failed, falling back to Anwap...", kinoboxErr);
+        // VidSrc iframes work instantly
+        finalIframe = url;
+      } catch (vidsrcErr) {
+        console.log("VidSrc failed, falling back to Anwap...", vidsrcErr);
       }
 
       // Fallback: Our Anwap Playwright Backend

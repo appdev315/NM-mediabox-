@@ -19,30 +19,7 @@ const BASE_URL = 'https://mj.anwap.today';
 
 app.get('/', (req, res) => res.json({ status: 'OK', message: 'Parser is running' }));
 
-app.get('/api/kinobox', async (req, res) => {
-    try {
-        const { tmdb } = req.query;
-        if (!tmdb) return res.status(400).json({ error: "tmdb param is required" });
-        
-        // Use dynamically imported node-fetch or native fetch
-        const fetchFn = global.fetch || (await import('node-fetch')).default;
-        const response = await fetchFn(`https://kinobox.tv/api/players?tmdb=${tmdb}`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-            }
-        });
-        
-        if (!response.ok) {
-            return res.status(response.status).json({ error: "Kinobox API error" });
-        }
-        
-        const data = await response.json();
-        res.json(data);
-    } catch(e) {
-        console.error("Kinobox Error:", e);
-        res.status(500).json({ error: e.message });
-    }
-});
+
 
 app.get('/api/stream', async (req, res) => {
     let { title, year, type, season, episode, tmdb } = req.query;
