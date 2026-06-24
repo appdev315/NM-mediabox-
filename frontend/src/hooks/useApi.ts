@@ -74,7 +74,8 @@ export function useApi() {
     type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
     country: item.production_countries?.[0]?.name || '',
     genre: item.genres?.map((g: any) => g.name).join(', ') || '',
-    seasons: item.seasons || []
+    seasons: item.seasons || [],
+    imdb_id: item.imdb_id || item.external_ids?.imdb_id || ''
   });
 
   const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {
@@ -157,7 +158,7 @@ export function useApi() {
     setLoading(true);
     setError(null);
     try {
-      const data = await tmdbFetch(`/${type}/${id}`);
+      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids' });
       return mapTMDB(data, type === 'tv' ? 'series' : 'movie');
     } catch (err: any) {
       console.error('TMDB API Error:', err);

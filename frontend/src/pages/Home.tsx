@@ -77,7 +77,16 @@ export function Home() {
     <div className="p-4 pb-20">
       {/* Header & Language Switcher */}
       <div className="flex justify-between items-center mb-6 mt-2">
-        <h1 className="text-2xl font-extrabold tracking-tight">NM Movie</h1>
+        <h1 
+          className="text-2xl font-extrabold tracking-tight cursor-pointer active:scale-95 transition-transform"
+          onClick={() => {
+            navigate('/');
+            setPage(1);
+            setSearchQuery('');
+          }}
+        >
+          MovieManiak
+        </h1>
         <button 
           onClick={() => setLanguage(language === 'ru-RU' ? 'en-US' : 'ru-RU')}
           className="px-4 py-2 text-sm font-bold rounded-xl transition-transform active:scale-95 shadow-sm"

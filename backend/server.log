@@ -1,0 +1,3 @@
+Server running on port 7860 with Anwap Smart Mirror selector
+[Stream API] Search request for: Game of Thrones (any year) type: tv tmdb: none imdb: tt0944947
+[Stream API] Found IMDb ID: tt0944947, returning native Anwap player (ortified.ws)!

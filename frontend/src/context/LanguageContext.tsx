@@ -16,7 +16,9 @@ export const translations = {
     loading: 'Загрузка...',
     notFound: 'Ничего не найдено',
     movieNotFound: 'Фильм не найден',
-    descriptionMissing: 'Описание отсутствует.'
+    descriptionMissing: 'Описание отсутствует.',
+    myFavorites: 'Мое избранное',
+    emptyFavorites: 'Тут пока пусто 🎬'
   },
   'en-US': {
     movies: 'Movies',
@@ -31,7 +33,9 @@ export const translations = {
     loading: 'Loading...',
     notFound: 'Nothing found',
     movieNotFound: 'Movie not found',
-    descriptionMissing: 'No description available.'
+    descriptionMissing: 'No description available.',
+    myFavorites: 'My Favorites',
+    emptyFavorites: 'It is empty here so far 🎬'
   }
 };
 
@@ -45,8 +49,20 @@ interface LanguageContextProps {
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
+import { WebApp } from '../telegram';
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('en-US');
+  const [language, setLanguage] = useState<Language>(() => {
+    try {
+      const tgLang = WebApp.initDataUnsafe?.user?.language_code;
+      if (tgLang === 'ru') {
+        return 'ru-RU';
+      }
+    } catch (e) {
+      console.error("Failed to get TG language", e);
+    }
+    return 'en-US';
+  });
 
   const t = (key: TranslationKey) => {
     return translations[language][key] || translations['ru-RU'][key];

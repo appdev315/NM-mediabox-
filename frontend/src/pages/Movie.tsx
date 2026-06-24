@@ -6,13 +6,13 @@ import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 
-export const BACKEND_URL = "https://evro90-nm2.hf.space";
+export const BACKEND_URL = "https://evro90-nm3.hf.space";
 
 export function Movie() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading } = useApi();
+  const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
   const { t } = useLanguage();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
@@ -21,11 +21,6 @@ export function Movie() {
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
-
-  // TV specific states
-  const [selectedSeason, setSelectedSeason] = useState<number | ''>('');
-  const [selectedEpisode, setSelectedEpisode] = useState<number | ''>('');
-  const [episodesList, setEpisodesList] = useState<any[]>([]);
 
   // Validate media type
   const queryType = searchParams.get('type');
@@ -54,11 +49,6 @@ export function Movie() {
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
         setIsFavorite(favs.some((f: any) => f.id === details.id));
 
-        if (mediaType === 'tv' && details.seasons?.length > 0) {
-          const validSeason = details.seasons.find((s: any) => s.season_number > 0) || details.seasons[0];
-          if (validSeason) setSelectedSeason(validSeason.season_number);
-        }
-
         const recs = await fetchRecommendations(id, mediaType);
         setRecommendations(recs);
       } catch (err) {
@@ -68,20 +58,6 @@ export function Movie() {
     loadData();
     window.scrollTo(0, 0);
   }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
-
-  // Load episodes when season changes
-  useEffect(() => {
-    if (mediaType === 'tv' && selectedSeason !== '') {
-      const loadEpisodes = async () => {
-        const data = await fetchSeasonDetails(id as string, Number(selectedSeason));
-        if (data && data.episodes) {
-          setEpisodesList(data.episodes);
-          setSelectedEpisode(data.episodes[0]?.episode_number || '');
-        }
-      };
-      loadEpisodes();
-    }
-  }, [selectedSeason, id, mediaType, fetchSeasonDetails]);
 
   const handleWatch = async () => {
     if (!movie) return;
@@ -94,34 +70,22 @@ export function Movie() {
       let finalIframe = null;
       let finalStreamUrl = null;
 
-      // Primary source: VidSrc (International CDN for English audience)
-      try {
-        let url = '';
-        if (mediaType === 'tv' && selectedSeason) {
-          url = `https://vidsrc.to/embed/tv/${movie.id}/${selectedSeason}/${selectedEpisode || 1}`;
-        } else {
-          url = `https://vidsrc.to/embed/movie/${movie.id}`;
-        }
-        // VidSrc iframes work instantly
-        finalIframe = url;
-      } catch (vidsrcErr) {
-        console.log("VidSrc failed, falling back to Anwap...", vidsrcErr);
-      }
-
-      // Fallback: Our Anwap Playwright Backend
+      // Primary source: Our Anwap Playwright Backend (Russian dubbing)
       if (!finalIframe && !finalStreamUrl) {
         const queryParams: Record<string, string> = {
           title: movie.title || movie.name || '',
           year: movie.year || '',
           type: mediaType,
-          tmdb: movie.id?.toString() || ''
+          tmdb: movie.id?.toString() || '',
+          imdb: movie.imdb_id || ''
         };
         if (mediaType === 'tv') {
-          if (selectedSeason) queryParams.season = selectedSeason.toString();
-          if (selectedEpisode) queryParams.episode = selectedEpisode.toString();
+          // Defaults are handled by the backend
         }
         const query = new URLSearchParams(queryParams);
-        const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
+        // Add timestamp to bypass browser cache
+      query.append('_t', Date.now().toString());
+      const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
         const data = await res.json();
         
         if (data.url) {
@@ -179,6 +143,15 @@ export function Movie() {
   return (
     <div className="pb-20">
       <div className="relative">
+        {/* MovieManiak Home Button */}
+        <button 
+          onClick={() => navigate('/')}
+          className="absolute top-4 left-4 z-50 px-4 py-2 rounded-xl font-bold backdrop-blur-md shadow-lg active:scale-95 transition-transform flex items-center gap-2"
+          style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
+        >
+          <span>←</span> MovieManiak
+        </button>
+
         <img 
           src={movie.poster} 
           alt={movie.title} 
@@ -211,34 +184,6 @@ export function Movie() {
         </div>
 
         <div className="flex flex-col gap-4 mb-6">
-          {mediaType === 'tv' && movie.seasons?.length > 0 && (
-            <div className="flex gap-4">
-              <select 
-                className="flex-1 p-3 rounded-xl outline-none text-sm border-none shadow-sm"
-                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                value={selectedSeason}
-                onChange={(e) => setSelectedSeason(Number(e.target.value))}
-              >
-                <option value="" disabled>Сезон</option>
-                {movie.seasons.filter((s: any) => s.season_number > 0).map((s: any) => (
-                  <option key={s.id} value={s.season_number}>Сезон {s.season_number}</option>
-                ))}
-              </select>
-
-              <select 
-                className="flex-1 p-3 rounded-xl outline-none text-sm border-none shadow-sm"
-                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                value={selectedEpisode}
-                onChange={(e) => setSelectedEpisode(Number(e.target.value))}
-                disabled={episodesList.length === 0}
-              >
-                <option value="" disabled>Серия</option>
-                {episodesList.map((ep: any) => (
-                  <option key={ep.id} value={ep.episode_number}>{ep.episode_number} серия</option>
-                ))}
-              </select>
-            </div>
-          )}
           
           <button
             onClick={handleWatch}

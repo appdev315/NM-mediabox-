@@ -4,12 +4,18 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "build": "npm install && npx playwright install chromium --with-deps",
     "start": "node index.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "playwright": "^1.49.1"
+    "@supabase/supabase-js": "^2.100.1",
+    "axios": "^1.18.1",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "google-translate-api-x": "^10.7.2",
+    "iconv-lite": "^0.7.2",
+    "node-cache": "^5.1.2",
+    "tsx": "^4.21.0",
+    "undici": "^6.19.2"
   }
 }

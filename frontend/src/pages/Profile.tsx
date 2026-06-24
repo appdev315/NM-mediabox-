@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 
 import { WebApp } from '../telegram';
+import { useLanguage } from '../context/LanguageContext';
 
 export function Profile() {
+  const { t } = useLanguage();
   const [favorites, setFavorites] = useState<any[]>([]);
 
   const user = WebApp.initDataUnsafe?.user || { first_name: 'Demo', id: 1 };
@@ -30,9 +32,9 @@ export function Profile() {
         </div>
       </div>
 
-      <h2 className="font-bold text-lg mb-4">Мое избранное</h2>
+      <h2 className="font-bold text-lg mb-4">{t('myFavorites')}</h2>
       {favorites.length === 0 ? (
-        <p className="text-center opacity-80 mt-10">Тут пока пусто 🎬</p>
+        <p className="text-center opacity-80 mt-10">{t('emptyFavorites')}</p>
       ) : (
         <div className="space-y-3">
           {favorites.map((fav) => (
