@@ -8,6 +8,7 @@ import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
 import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
 import { translateItems, initTmdbCache } from './tmdbCache.js';
+import { getCurrentPhase } from './monetization.js';
 import { createClient } from 'redis';
 const redisClient = createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379'
@@ -361,6 +362,10 @@ app.get('/api/stream', async (req, res) => {
     }
 });
 
+app.get('/api/config', (req, res) => {
+    return res.json(getCurrentPhase());
+});
+
 app.post('/api/invoice', express.json(), async (req, res) => {
     try {
         const { plan, userId } = req.body;
@@ -375,13 +380,18 @@ app.post('/api/invoice', express.json(), async (req, res) => {
         let title = '';
         let payload = '';
 
+        const phaseConfig = getCurrentPhase();
+        
         if (plan === '1_month') {
-            amount = 75;
-            label = '1 Month VIP';
+            amount = phaseConfig.priceMonth;
+            label = `1 Month VIP`;
             title = 'VIP Subscription (1 Month)';
             payload = `vip_1month_${userId}_${Date.now()}`;
         } else if (plan === 'lifetime') {
-            amount = 500;
+            if (phaseConfig.priceLifetime === null) {
+                return res.status(400).json({ error: 'Lifetime subscription not available in this phase' });
+            }
+            amount = phaseConfig.priceLifetime;
             label = 'Lifetime VIP';
             title = 'VIP Subscription (Lifetime)';
             payload = `vip_lifetime_${userId}_${Date.now()}`;

@@ -6,9 +6,10 @@ interface VipModalProps {
   isOpen: boolean;
   onClose: () => void;
   onBuy: (plan: '1_month' | 'lifetime') => void;
+  config: any;
 }
 
-const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose, onBuy }) => {
+const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose, onBuy, config }) => {
   
   const [isAdultConfirmed, setIsAdultConfirmed] = useState(false);
 
@@ -85,20 +86,22 @@ const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose, onBuy }) => {
                 : 'bg-white/5 text-white/30 cursor-not-allowed'
             }`}
           >
-            Купить 1 месяц — 75 ⭐️
+            Купить 1 месяц — {config?.priceMonth || 75} ⭐️
           </button>
           
-          <button
-            disabled={!isAdultConfirmed}
-            onClick={() => onBuy('lifetime')}
-            className={`w-full py-3.5 rounded-2xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 ${
-              isAdultConfirmed 
-                ? 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-[0_4px_15px_rgba(236,72,153,0.3)] active:scale-95'
-                : 'bg-white/5 text-white/30 cursor-not-allowed'
-            }`}
-          >
-            VIP Навсегда — 500 ⭐️
-          </button>
+          {config?.priceLifetime !== null && (
+            <button
+              disabled={!isAdultConfirmed}
+              onClick={() => onBuy('lifetime')}
+              className={`w-full py-3.5 rounded-2xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 ${
+                isAdultConfirmed 
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-[0_4px_15px_rgba(236,72,153,0.3)] active:scale-95'
+                  : 'bg-white/5 text-white/30 cursor-not-allowed'
+              }`}
+            >
+              VIP Навсегда — {config?.priceLifetime} ⭐️
+            </button>
+          )}
         </div>
       </div>
     </div>

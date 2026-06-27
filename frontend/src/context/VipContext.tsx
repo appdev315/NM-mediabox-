@@ -3,10 +3,19 @@ import type { ReactNode } from 'react';
 import { WebApp } from '../telegram';
 import VipModal from '../components/VipModal';
 
+interface PhaseConfig {
+  phase: number;
+  priceMonth: number;
+  priceLifetime: number | null;
+  freeLimits: boolean;
+  ads: boolean;
+}
+
 interface VipContextType {
   isVip: boolean;
   loading: boolean;
   showVipModal: () => void;
+  config: PhaseConfig | null;
 }
 
 const VipContext = createContext<VipContextType | undefined>(undefined);
@@ -17,9 +26,10 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isVip, setIsVip] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [config, setConfig] = useState<PhaseConfig | null>(null);
 
   useEffect(() => {
-    const checkVipStatus = async () => {
+    const checkStatusAndConfig = async () => {
       try {
         const initData = WebApp?.initData || '';
         if (!initData) {
@@ -28,20 +38,28 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setLoading(false);
           return;
         }
-        const res = await fetch(`${BACKEND_URL}/api/vip/status`, {
-          headers: { 'Authorization': `tma ${initData}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
+        const [statusRes, configRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/vip/status`, {
+            headers: { 'Authorization': `tma ${initData}` }
+          }),
+          fetch(`${BACKEND_URL}/api/config`)
+        ]);
+        
+        if (statusRes.ok) {
+          const data = await statusRes.json();
           setIsVip(data.isVip);
         }
+        if (configRes.ok) {
+          const cfg = await configRes.json();
+          setConfig(cfg);
+        }
       } catch (e) {
-        console.error('Failed to check VIP status', e);
+        console.error('Failed to check VIP status or config', e);
       } finally {
         setLoading(false);
       }
     };
-    checkVipStatus();
+    checkStatusAndConfig();
   }, []);
 
   const showVipModal = useCallback(() => {
@@ -85,13 +103,16 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   return (
-    <VipContext.Provider value={{ isVip, loading, showVipModal }}>
+    <VipContext.Provider value={{ isVip, loading, showVipModal, config }}>
       {children}
-      <VipModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onBuy={handleBuy} 
-      />
+      {isModalOpen && config && (
+        <VipModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          onBuy={handleBuy} 
+          config={config}
+        />
+      )}
     </VipContext.Provider>
   );
 };

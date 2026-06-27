@@ -10,7 +10,7 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
-  const { isVip, showVipModal } = useVip();
+  const { isVip, showVipModal, config } = useVip();
   const showPrivate = localStorage.getItem('showPrivate') !== 'false';
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads' | 'private'>('movie');
@@ -62,8 +62,8 @@ export function Home() {
         if (page === 1) {
           setItems(results);
         } else {
-          // Apply VIP limit
-          if (!isVip) {
+          // Apply VIP limit only if freeLimits config is true
+          if (!isVip && config?.freeLimits) {
             setItems(prev => prev);
           } else {
             setItems(prev => [...prev, ...results]);
@@ -87,8 +87,8 @@ export function Home() {
       
       // If user has scrolled to within 100px of the bottom
       if (scrollY + windowHeight >= documentHeight - 100) {
-        if (!isVip && page >= 1) {
-          // Do not increment page if not VIP
+        if (!isVip && config?.freeLimits && page >= 1) {
+          // Do not increment page if not VIP and freeLimits are active
         } else {
           setPage(p => p + 1);
         }
@@ -97,7 +97,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching]);
+  }, [loading, isSearching, isVip, config, page]);
 
   const handleTabChange = (tab: 'movie' | 'series' | 'downloads') => {
     setActiveTab(tab);
@@ -225,21 +225,18 @@ export function Home() {
                 {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
               </div>
             ) : (
-              <div className="mt-8 mb-4 col-span-full">
-                <div className="bg-gradient-to-r from-pink-500/10 to-violet-500/10 rounded-2xl p-6 border border-pink-500/20 text-center">
-                  <h3 className="font-bold text-lg mb-2">Хотите смотреть больше? 💎</h3>
-                  <p className="text-sm opacity-80 mb-4">
-                    Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!
-                  </p>
-                  <button
+              config?.freeLimits && (
+                <div className="w-full max-w-md mx-auto mt-8 bg-black/10 dark:bg-white/5 rounded-3xl p-6 text-center border" style={{ borderColor: 'var(--hint-color)' }}>
+                  <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-color)' }}>Хотите смотреть больше? 💎</h3>
+                  <p className="text-sm opacity-70 mb-4" style={{ color: 'var(--text-color)' }}>Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!</p>
+                  <button 
                     onClick={showVipModal}
-                    className="w-full py-3 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform"
-                    style={{ background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
+                    className="px-6 py-3 rounded-xl font-bold transition-transform active:scale-95 bg-blue-500 hover:bg-blue-600 text-white"
                   >
-                    Разблокировать всё за 75 ⭐️
+                    ⭐️ Разблокировать всё за {config?.priceMonth || 75} ⭐️
                   </button>
                 </div>
-              </div>
+              )
             )
           )}
         </>

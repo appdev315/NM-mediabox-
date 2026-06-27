@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
+import AdBanner from './components/AdBanner';
 
 import { Home } from './pages/Home';
 import { Movie } from './pages/Movie';
@@ -88,6 +89,7 @@ export default function App() {
               <Route path="/adult" element={<Adult />} />
               <Route path="/adult/:id" element={<AdultVideo />} />
             </Routes>
+            <AdBanner />
           </div>
           <GlobalAudioPlayer />
           <BottomNav />

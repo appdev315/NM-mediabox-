@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useVip } from '../context/VipContext';
 
 export function Downloads() {
-  const { isVip, showVipModal } = useVip();
+  const { isVip, showVipModal, config } = useVip();
   const { language } = useLanguage();
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
@@ -39,7 +39,7 @@ export function Downloads() {
 
         if (Array.isArray(finalData)) {
             // Apply VIP limits
-            if (!isVip && page > 1) {
+            if (!isVip && config?.freeLimits && page > 1) {
               setItems(prev => prev); // Prevent loading more
             } else {
               if (page === 1) setItems(finalData);
@@ -138,7 +138,7 @@ export function Downloads() {
 
       {/* Load More Button or VIP Call to Action */}
       {!isSearching && items.length > 0 && !loading && (
-        isVip ? (
+        (isVip || !config?.freeLimits) ? (
           <button
             onClick={() => setPage(p => p + 1)}
             className="w-full mt-6 p-4 rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
@@ -158,7 +158,7 @@ export function Downloads() {
                 className="w-full py-3 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform"
                 style={{ background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
               >
-                Разблокировать всё за 75 ⭐️
+                Разблокировать всё за {config?.priceMonth || 75} ⭐️
               </button>
             </div>
           </div>
