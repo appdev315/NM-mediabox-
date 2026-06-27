@@ -64,19 +64,26 @@ app.get('/api/health', (req, res) => {
 
 import crypto from 'crypto';
 
-// Middleware for Telegram Authentication and VIP verification
+// Middleware for Telegram Authentication
 async function requireVip(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('tma ')) {
-        return res.status(401).json({ error: 'Unauthorized: Missing Telegram WebApp data' });
+        req.user = null; // Guest user
+        return next();
     }
 
     const initData = authHeader.substring(4);
+    if (!initData) {
+        req.user = null;
+        return next();
+    }
+
     const BOT_TOKEN = process.env.BOT_TOKEN;
     
     if (!BOT_TOKEN) {
         console.error('Server configuration error: missing BOT_TOKEN');
-        return res.status(500).json({ error: 'Server configuration error' });
+        req.user = null;
+        return next();
     }
 
     try {
@@ -92,26 +99,22 @@ async function requireVip(req, res, next) {
         const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
         
         if (hmac !== hash) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
+            req.user = null;
+            return next();
         }
 
         const userJson = q.get('user');
-        if (!userJson) return res.status(401).json({ error: 'Unauthorized: No user data' });
+        if (!userJson) {
+            req.user = null;
+            return next();
+        }
         
         const user = JSON.parse(userJson);
-        const userId = user.id;
-
-        // Check VIP status in Redis
-        // TODO: Enable strict VIP check once payment is integrated. For now we just verify auth.
-        // const isVip = await redisClient.get(`vip:${userId}`);
-        // if (!isVip) {
-        //     return res.status(403).json({ error: 'Forbidden: VIP required' });
-        // }
-        
         req.user = user;
         next();
     } catch (e) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid token format' });
+        req.user = null;
+        next();
     }
 }
 
