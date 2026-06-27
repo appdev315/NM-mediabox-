@@ -1,0 +1,357 @@
+import { useState, useEffect, useRef } from 'react';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useLanguage } from '../context/LanguageContext';
+import { Header } from '../components/Header';
+
+interface Station {
+  id: string;
+  name: string;
+  url: string;
+  logo: string;
+  group?: string;
+  type?: 'radio' | 'tv';
+}
+
+const COUNTRIES = [
+  { code: 'ru', name: 'Russia', radioName: 'Russia' },
+  { code: 'us', name: 'USA', radioName: 'United States' },
+  { code: 'gb', name: 'UK', radioName: 'United Kingdom' },
+  { code: 'de', name: 'Germany', radioName: 'Germany' },
+  { code: 'fr', name: 'France', radioName: 'France' },
+  { code: 'by', name: 'Belarus', radioName: 'Belarus' },
+  { code: 'kz', name: 'Kazakhstan', radioName: 'Kazakhstan' },
+];
+
+export function RadioTV() {
+  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
+  const [country, setCountry] = useState(localStorage.getItem('radio_tv_country') || 'ru');
+  const [stations, setStations] = useState<Station[]>([]);
+  const [tvChannels, setTvChannels] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(50);
+  const playerRef = useRef<HTMLDivElement>(null);
+  
+  const [activeTvChannel, setActiveTvChannel] = useState<Station | null>(null);
+  const [tvError, setTvError] = useState(false);
+  const [tvLoading, setTvLoading] = useState(false);
+  
+  // Favorites State
+  const [favorites, setFavorites] = useState<Station[]>([]);
+
+  const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
+  const { t } = useLanguage();
+
+  useEffect(() => {
+    const savedFavs = localStorage.getItem('radio_tv_favs');
+    if (savedFavs) {
+      try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
+    }
+  }, []);
+
+  const toggleFavorite = (e: React.MouseEvent, item: Station) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const isFav = prev.some(f => f.id === item.id);
+      const newFavs = isFav ? prev.filter(f => f.id !== item.id) : [...prev, item];
+      localStorage.setItem('radio_tv_favs', JSON.stringify(newFavs));
+      return newFavs;
+    });
+  };
+
+  useEffect(() => {
+    localStorage.setItem('radio_tv_country', country);
+    setLoading(true);
+    fetchRadio();
+    fetchTV();
+  }, [country]);
+
+  const fetchRadio = async () => {
+    try {
+      const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
+      const res = await fetch(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
+      const data = await res.json();
+      
+      const parsed: Station[] = data.map((d: any) => ({
+        id: d.stationuuid,
+        name: d.name,
+        url: d.url_resolved,
+        logo: d.favicon || '',
+        group: d.tags,
+        type: 'radio'
+      })).filter((s: Station) => s.url);
+      
+      setStations(parsed);
+    } catch (e) {
+      console.error("Failed to fetch radio", e);
+    }
+  };
+
+  const fetchTV = async () => {
+    try {
+      const resText = await fetch(`https://iptv-org.github.io/iptv/countries/${country}.m3u`).then(r => r.text()).catch(() => '');
+
+      const parseM3u = (text: string) => {
+        const lines = text.split('\n');
+        const channels: Station[] = [];
+        let current: Partial<Station> = {};
+        
+        lines.forEach(line => {
+          if (line.startsWith('#EXTINF:')) {
+            const logoMatch = line.match(/tvg-logo="([^"]+)"/);
+            const groupMatch = line.match(/group-title="([^"]+)"/);
+            const name = line.split(',').pop()?.trim() || 'Unknown';
+            
+            current = {
+              id: Math.random().toString(36).substring(7),
+              name,
+              logo: logoMatch ? logoMatch[1] : '',
+              group: groupMatch ? groupMatch[1] : '',
+              type: 'tv'
+            };
+          } else if (line.startsWith('http')) {
+            if (current.name) {
+              const streamUrl = line.trim();
+              channels.push({ ...current, url: streamUrl } as Station);
+              current = {};
+            }
+          }
+        });
+        return channels;
+      };
+
+      const parsedTv = parseM3u(resText);
+      setTvChannels(parsedTv);
+    } catch (e) {
+      console.error("Failed to fetch TV", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlayRadio = (station: Station) => {
+    // If a TV channel is playing, we could stop it
+    setActiveTvChannel(null);
+    playTrack({
+      id: station.id,
+      title: station.name,
+      artist: station.group || 'Live Radio',
+      url: station.url,
+      coverUrl: station.logo,
+      type: 'radio'
+    });
+  };
+
+  const handlePlayTv = (channel: Station) => {
+    // Stop global audio when TV plays
+    stop();
+    setTvError(false);
+    setTvLoading(true);
+    setActiveTvChannel(channel);
+    setTimeout(() => {
+      playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleTabSwitch = (tab: 'radio' | 'tv') => {
+    setActiveTab(tab);
+    setVisibleCount(50);
+    setSearch('');
+  };
+
+  // Infinite scroll for Radio / TV
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const windowH = window.innerHeight;
+      const docH = document.documentElement.scrollHeight;
+      if (scrollY + windowH >= docH - 100) {
+        setVisibleCount(v => v + 50);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const listToRender = activeTab === 'radio' ? stations : tvChannels;
+  const filteredList = listToRender.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+  const displayedList = filteredList.slice(0, visibleCount);
+
+  return (
+    <div className="p-4 pt-6 flex flex-col h-full">
+      <Header />
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 p-1 rounded-xl" style={{ backgroundColor: 'var(--secondary-bg-color)' }}>
+        <button 
+          onClick={() => handleTabSwitch('radio')}
+          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'radio' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
+          style={activeTab === 'radio' ? {} : { color: 'var(--text-color)' }}
+        >
+          Radio
+        </button>
+        <button 
+          onClick={() => handleTabSwitch('tv')}
+          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'tv' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
+          style={activeTab === 'tv' ? {} : { color: 'var(--text-color)' }}
+        >
+          TV
+        </button>
+      </div>
+
+      {/* Country Filter */}
+      <div className="mb-4">
+        <select 
+          value={country} 
+          onChange={(e) => {
+            setCountry(e.target.value);
+            setVisibleCount(50);
+          }}
+          className="w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+          style={{ 
+            backgroundColor: 'var(--bg-color)', 
+            color: 'var(--text-color)',
+            borderColor: 'var(--hint-color)'
+          }}
+        >
+          {COUNTRIES.map(c => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Search */}
+      <input 
+        type="text" 
+        placeholder={t('searchPlaceholderRadio')} 
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setVisibleCount(50);
+        }}
+        className="w-full p-3 rounded-xl mb-4 border focus:outline-none focus:ring-2 focus:ring-blue-500"
+        style={{ 
+          backgroundColor: 'var(--bg-color)', 
+          color: 'var(--text-color)',
+          borderColor: 'var(--hint-color)'
+        }}
+      />
+
+      {/* TV Player Modal/Inline */}
+      {activeTvChannel && activeTab === 'tv' && (
+        <div ref={playerRef} className="mb-6 rounded-2xl overflow-hidden shadow-xl border md:w-[80%] mx-auto scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
+          <div className="bg-black flex justify-between items-center p-3">
+            <div className="flex items-center gap-3">
+              {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-8 h-8 rounded-full" />}
+              <span className="font-bold text-white truncate">{activeTvChannel.name}</span>
+            </div>
+            <button onClick={() => setActiveTvChannel(null)} className="text-white opacity-70 hover:opacity-100 font-bold px-2">✕</button>
+          </div>
+          <div className="relative pt-[56.25%] bg-black flex items-center justify-center">
+            {tvError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 text-center">
+                <span className="text-3xl mb-2">⚠️</span>
+                <p className="font-bold">Stream Unavailable</p>
+                <p className="text-sm opacity-70">The channel might be blocked by CORS, Geo-restrictions, or is currently offline.</p>
+              </div>
+            ) : (
+              <>
+                {tvLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+                <video 
+                  src={activeTvChannel.url}
+                  autoPlay
+                  controls 
+                  playsInline
+                  className={`absolute top-0 left-0 w-full h-full object-contain relative z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity`}
+                  onError={() => { setTvError(true); setTvLoading(false); }}
+                  onCanPlay={() => setTvLoading(false)}
+                  onPlaying={() => setTvLoading(false)}
+                  onLoadStart={() => setTvLoading(true)}
+                  onWaiting={() => setTvLoading(true)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto pb-8">
+        {loading ? (
+          <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('loading')}</div>
+        ) : filteredList.length === 0 ? (
+          <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('notFound')}</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pb-24">
+            {displayedList.map((item) => {
+              const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
+              const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
+              const isActive = isRadioActive || isTvActive;
+
+              return (
+                <div 
+                  key={item.id} 
+                  onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
+                  className={`p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                  style={{ 
+                    backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
+                    borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
+                  }}
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                    {item.logo ? (
+                      <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    ) : (
+                      <span className="text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
+                    )}
+                  </div>
+                  
+                  <div className="w-full flex-1 min-w-0 mt-1">
+                    <div className="font-bold truncate text-sm" style={{ color: 'var(--text-color)' }}>
+                      {item.name}
+                    </div>
+                    {item.group && (
+                      <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>
+                        {item.group}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex w-full justify-between items-center px-1 mt-auto">
+                    <button 
+                      onClick={(e) => toggleFavorite(e, item)}
+                      className="text-xl hover:scale-110 transition-transform p-1"
+                      style={{ color: favorites.some(f => f.id === item.id) ? '#fbbf24' : 'var(--hint-color)' }}
+                    >
+                      {favorites.some(f => f.id === item.id) ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    ) : (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="transparent" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md opacity-90 hover:opacity-100">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    )}
+                    </button>
+                    <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
+                      {isActive ? (activeTab === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {loading && filteredList.length === 0 && (
+          <div className="flex justify-center mt-6">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

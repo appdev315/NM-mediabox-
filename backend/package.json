@@ -7,15 +7,28 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "@supabase/supabase-js": "^2.100.1",
     "axios": "^1.18.1",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^4.22.2",
     "google-translate-api-x": "^10.7.2",
     "iconv-lite": "^0.7.2",
     "node-cache": "^5.1.2",
+    "play-dl": "^1.9.7",
+    "playwright-chromium": "^1.61.1",
+    "puppeteer": "^25.2.1",
+    "redis": "^6.0.1",
+    "saavnapi": "^1.0.1",
+    "soundcloud-scraper": "^5.0.3",
+    "soundcloud.ts": "^0.7.4",
     "tsx": "^4.21.0",
-    "undici": "^6.19.2"
+    "undici": "^6.19.2",
+    "youtube-dl-exec": "^3.1.8",
+    "youtube-ext": "^1.1.25",
+    "youtubei.js": "^17.2.0",
+    "ytmusic-api": "^5.3.1"
   }
 }

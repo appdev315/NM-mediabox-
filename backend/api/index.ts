@@ -1982,4 +1982,197 @@ app.post("/api/log", async (req, res) => {
   }
 });
 
+import YTMusicLib from "ytmusic-api";
+import ytdl from "@distube/ytdl-core";
+
+// Singleton YTMusic instance
+const YTMusicClass = (YTMusicLib as any).default || YTMusicLib;
+let _ytmusic: any = null;
+async function getYTMusic() {
+  if (!_ytmusic) {
+    _ytmusic = new YTMusicClass();
+    await _ytmusic.initialize();
+  }
+  return _ytmusic;
+}
+
+// --- Daily Trending Rotation ---
+// Each day, we use a different mix of queries so the list feels fresh
+const TRENDING_SEEDS_POOL = [
+  'Top Hits 2024', 'Billboard Hot 100', 'Spotify Global Top 50',
+  'Best Pop Songs 2024', 'Global Music Hits', 'Chart Toppers 2024',
+  'Viral Hits 2024', 'Most Popular Songs 2024', 'New Music Friday',
+  'Summer Hits 2024', 'Dance Hits 2024', 'Hip Hop Top Songs 2024',
+  'Pop Music Top Charts', 'Trending Music 2024', 'Best Songs Right Now'
+];
+
+function getDailyTrendingSeeds(): string[] {
+  const today = new Date();
+  const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
+  // Always use 3 queries; rotate the "fresh" 1-2 queries based on day
+  const base = TRENDING_SEEDS_POOL.slice(0, 2);
+  const rotating = TRENDING_SEEDS_POOL.slice(2);
+  const freshIdx1 = dayOfYear % rotating.length;
+  const freshIdx2 = (dayOfYear + 3) % rotating.length;
+  return [...base, rotating[freshIdx1], rotating[freshIdx2]];
+}
+
+// --- MUSIC API (YouTube Music via ytmusic-api) ---
+
+// GET /api/music/trending - 100 top daily trending songs
+app.get("/api/music/trending", async (req, res) => {
+  try {
+    const yt = await getYTMusic();
+    const seeds = getDailyTrendingSeeds();
+    
+    // Fetch in parallel from 4 different queries
+    const results = await Promise.all(seeds.map(q => yt.searchSongs(q).catch(() => [])));
+    
+    // Merge, deduplicate by videoId, and shuffle the "new" portion
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const batch of results) {
+      for (const song of (batch as any[])) {
+        if (!seen.has(song.videoId)) {
+          seen.add(song.videoId);
+          merged.push(song);
+        }
+      }
+    }
+    
+    // Keep first 60 stable, shuffle the rest (creates 20-40% daily rotation)
+    const stable = merged.slice(0, 60);
+    const fresh = merged.slice(60).sort(() => Math.random() - 0.5);
+    const final = [...stable, ...fresh].slice(0, 100);
+    
+    res.json(final);
+  } catch (error: any) {
+    console.error("Failed to fetch trending:", error.message);
+    res.status(500).json({ error: "Failed to fetch trending" });
+  }
+});
+
+// GET /api/music/playlist/:name - Thematic playlists
+app.get("/api/music/playlist/:name", async (req, res) => {
+  const PLAYLIST_QUERIES: Record<string, string> = {
+    'workout':   'Best Workout Gym Music 2024',
+    'driving':   'Best Driving Car Music Bass 2024',
+    '90s':       'Best 90s Hits Classic Songs',
+    '2000s':     'Best 2000s Hits Songs',
+    'relax':     'Relaxing Chill Music Calm Songs',
+    'party':     'Best Party Dance Music 2024',
+    'sad':       'Sad Songs Emotional Music Playlist',
+    'romance':   'Best Romantic Love Songs',
+    'focus':     'Focus Study Music Concentration',
+  };
+  const query = PLAYLIST_QUERIES[req.params.name];
+  if (!query) return res.status(404).json({ error: 'Playlist not found' });
+  
+  try {
+    const yt = await getYTMusic();
+    const results = await yt.searchSongs(query);
+    res.json((results as any[]).slice(0, 40));
+  } catch (error: any) {
+    console.error(`Failed to fetch playlist ${req.params.name}:`, error.message);
+    res.status(500).json({ error: 'Failed to fetch playlist' });
+  }
+});
+
+// GET /api/music/search - Search songs with pagination
+app.get("/api/music/search", async (req, res) => {
+  const query = req.query.q;
+  const page = parseInt((req.query.page as string) || '1', 10);
+  const limit = parseInt((req.query.limit as string) || '20', 10);
+  if (!query) return res.status(400).json({ error: "Query is required" });
+  try {
+    const yt = await getYTMusic();
+    const allResults: any[] = await yt.searchSongs(query.toString());
+    
+    // Manual pagination
+    const start = (page - 1) * limit;
+    const paged = allResults.slice(start, start + limit);
+    
+    res.json(paged);
+  } catch (error: any) {
+    console.error("Failed to search music:", error.message);
+    res.status(500).json({ error: "Failed to search music" });
+  }
+});
+
+// GET /api/music/artists/search - Search artists with real YT thumbnails
+app.get("/api/music/artists/search", async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.status(400).json({ error: "Query is required" });
+  try {
+    const yt = await getYTMusic();
+    const results: any[] = await yt.searchArtists(query.toString());
+    res.json(results.slice(0, 10));
+  } catch (error: any) {
+    console.error("Failed to search artists:", error.message);
+    res.status(500).json({ error: "Failed to search artists" });
+  }
+});
+
+// GET /api/music/artist/:id/songs - Get artist full discography with pagination
+app.get("/api/music/artist/:id/songs", async (req, res) => {
+  const { id } = req.params;
+  const page = parseInt((req.query.page as string) || '1', 10);
+  const limit = parseInt((req.query.limit as string) || '20', 10);
+  try {
+    const yt = await getYTMusic();
+    const songs: any[] = await yt.getArtistSongs(id);
+    
+    const start = (page - 1) * limit;
+    const paged = songs.slice(start, start + limit);
+    
+    res.json({ songs: paged, total: songs.length, hasMore: start + limit < songs.length });
+  } catch (error: any) {
+    console.error("Failed to fetch artist songs:", error.message);
+    res.status(500).json({ error: "Failed to fetch artist songs" });
+  }
+});
+
+// GET /api/music/song/:id - Get song details + stream URL via ytdl-core
+app.get("/api/music/song/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const yt = await getYTMusic();
+    
+    // Get metadata from ytmusic-api
+    const songData: any = await yt.getSong(id);
+    
+    if (!songData) {
+      return res.status(404).json({ error: "Song not found" });
+    }
+    
+    const image = songData.thumbnails?.length > 0
+      ? songData.thumbnails[songData.thumbnails.length - 1].url
+      : '';
+    
+    // Get streaming URL via ytdl-core
+    let streamUrl = '';
+    try {
+      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${id}`);
+      const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+      const bestAudio = audioFormats.sort((a: any, b: any) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+      streamUrl = bestAudio?.url || '';
+    } catch (streamErr: any) {
+      console.warn(`Stream URL fetch failed for ${id}:`, streamErr.message);
+    }
+    
+    res.json({
+      id: songData.videoId,
+      title: songData.name,
+      artist: songData.artist?.name || 'Unknown Artist',
+      album: songData.album?.name || '',
+      image: image,
+      duration: songData.duration,
+      streamUrl: streamUrl
+    });
+  } catch (error: any) {
+    console.error("Music stream extraction error:", error.message);
+    res.status(500).json({ error: "Failed to fetch song details" });
+  }
+});
+
 export default app;

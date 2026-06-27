@@ -6,7 +6,9 @@ import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 
-export const BACKEND_URL = "https://evro90-nm3.hf.space";
+export const BACKEND_URL = import.meta.env.PROD 
+  ? "https://evro90-nm6.hf.space" 
+  : "http://localhost:7860";
 
 export function Movie() {
   const { id } = useParams();
@@ -21,7 +23,8 @@ export function Movie() {
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
-
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  
   // Validate media type
   const queryType = searchParams.get('type');
   const mediaType = queryType === 'series' || queryType === 'tv' ? 'tv' : 'movie';
@@ -37,26 +40,34 @@ export function Movie() {
   // Load movie/series details and recommendations
   useEffect(() => {
     if (!id) return;
+    let isMounted = true;
+    
     const loadData = async () => {
       setStreamUrl(null);
       setIframeUrl(null);
       setIsExtracting(false);
-      
+      setMovie(null);
       try {
         const details = await fetchMovieDetails(id, mediaType);
+        if (!isMounted) return;
         setMovie(details);
         
         const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
         setIsFavorite(favs.some((f: any) => f.id === details.id));
 
         const recs = await fetchRecommendations(id, mediaType);
-        setRecommendations(recs);
+        if (isMounted) setRecommendations(recs);
       } catch (err) {
         console.error("Failed to load movie data", err);
       }
     };
+    
     loadData();
     window.scrollTo(0, 0);
+    
+    return () => {
+      isMounted = false;
+    };
   }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
 
   const handleWatch = async () => {
@@ -64,35 +75,34 @@ export function Movie() {
     setIsExtracting(true);
     setStreamUrl(null);
     setIframeUrl(null);
-    document.getElementById('video-player')?.scrollIntoView({ behavior: 'smooth' });
+    
+    // Scroll to player placeholder immediately
+    setTimeout(() => {
+      document.getElementById('video-player-container')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
 
     try {
       let finalIframe = null;
       let finalStreamUrl = null;
 
-      // Primary source: Our Anwap Playwright Backend (Russian dubbing)
-      if (!finalIframe && !finalStreamUrl) {
-        const queryParams: Record<string, string> = {
-          title: movie.title || movie.name || '',
-          year: movie.year || '',
-          type: mediaType,
-          tmdb: movie.id?.toString() || '',
-          imdb: movie.imdb_id || ''
-        };
-        if (mediaType === 'tv') {
-          // Defaults are handled by the backend
-        }
-        const query = new URLSearchParams(queryParams);
-        // Add timestamp to bypass browser cache
+      const queryParams: Record<string, string> = {
+        title: (movie as any).title || (movie as any).name || '',
+        year: (movie as any).year || '',
+        type: mediaType,
+        tmdb: (movie as any).id?.toString() || '',
+        imdb: (movie as any).imdb_id || ''
+      };
+      
+      const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
+      
       const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
-        const data = await res.json();
-        
-        if (data.url) {
-          finalStreamUrl = data.url;
-        } else if (data.iframe) {
-          finalIframe = data.iframe;
-        }
+      const data = await res.json();
+      
+      if (data.url) {
+        finalStreamUrl = data.url;
+      } else if (data.iframe) {
+        finalIframe = data.iframe;
       }
 
       if (finalStreamUrl) {
@@ -100,13 +110,16 @@ export function Movie() {
       } else if (finalIframe) {
         setIframeUrl(finalIframe);
       } else {
-        alert(t('movieNotFound') || "Стрим не найден");
+        alert("Stream not found");
       }
     } catch (err) {
       console.error("Failed to extract stream", err);
-      alert("Не удалось извлечь прямой поток");
+      alert("Failed to load stream");
     } finally {
       setIsExtracting(false);
+      setTimeout(() => {
+        document.getElementById('video-player-container')?.scrollIntoView({ behavior: 'smooth' });
+      }, 300);
     }
   };
 
@@ -143,15 +156,14 @@ export function Movie() {
   return (
     <div className="pb-20">
       <div className="relative">
-        {/* MovieManiak Home Button */}
         <button 
-          onClick={() => navigate('/')}
-          className="absolute top-4 left-4 z-50 px-4 py-2 rounded-xl font-bold backdrop-blur-md shadow-lg active:scale-95 transition-transform flex items-center gap-2"
-          style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 z-50 p-2 bg-black/50 backdrop-blur-md rounded-full shadow-md text-white hover:scale-110 transition-transform"
         >
-          <span>←</span> MovieManiak
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
         </button>
-
         <img 
           src={movie.poster} 
           alt={movie.title} 
@@ -162,17 +174,64 @@ export function Movie() {
 
       <div className="-mt-16 relative z-10 p-4">
         <div className="flex justify-between items-start mb-2">
-          <h1 className="text-3xl font-extrabold leading-tight shadow-sm drop-shadow-sm">{movie.title}</h1>
-          <button 
-            onClick={addToFavorites}
-            style={{ 
-              backgroundColor: isFavorite ? 'var(--button-color)' : 'var(--hint-color)', 
-              color: isFavorite ? 'var(--button-text-color)' : 'var(--button-color)' 
-            }}
-            className="p-3 rounded-full shadow-lg ml-4 active:scale-95 transition-transform flex-shrink-0"
-          >
-            ★
-          </button>
+          <h1 className="text-3xl font-extrabold leading-tight shadow-sm drop-shadow-sm pr-2">{movie.title}</h1>
+          <div className="flex gap-2 relative z-50">
+            <button 
+              onClick={() => setShowShareMenu(!showShareMenu)}
+              style={{ backgroundColor: 'var(--hint-color)', color: 'var(--button-color)' }}
+              className="p-3 rounded-full shadow-lg active:scale-95 transition-transform flex-shrink-0"
+            >
+              ➦
+            </button>
+            <button 
+              onClick={addToFavorites}
+              style={{ 
+                backgroundColor: isFavorite ? 'var(--button-color)' : 'var(--hint-color)', 
+                color: isFavorite ? 'var(--button-text-color)' : 'var(--button-color)' 
+              }}
+              className="p-3 rounded-full shadow-lg active:scale-95 transition-transform flex-shrink-0"
+            >
+              ★
+            </button>
+
+            {showShareMenu && (
+              <div 
+                className="absolute top-14 right-0 shadow-2xl rounded-xl p-3 w-52 flex flex-col gap-2 border"
+                style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
+              >
+                <button
+                  onClick={() => {
+                    setShowShareMenu(false);
+                    const tgLink = `https://t.me/moviemaniakbot/app?startapp=${movie?.id}`;
+                    const text = `Watch "${movie?.title}" for free on MovieManiak!`;
+                    WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(tgLink)}&text=${encodeURIComponent(text)}`);
+                  }}
+                  className="flex items-center gap-3 p-2 text-sm font-semibold rounded-lg hover:opacity-80 active:opacity-60 transition-all text-left"
+                  style={{ color: '#0088cc' }}
+                >
+                  <span className="text-lg">🚀</span> Share to Telegram
+                </button>
+                
+                <div className="h-px w-full" style={{ backgroundColor: 'var(--hint-color)' }}></div>
+                
+                <button
+                  onClick={() => {
+                    setShowShareMenu(false);
+                    const webLink = `https://moviemaniak5555.xyz/movie/${movie?.id}`;
+                    navigator.clipboard.writeText(webLink).then(() => {
+                      WebApp.HapticFeedback.notificationOccurred('success');
+                      if (WebApp.showAlert) WebApp.showAlert('Link copied to clipboard!');
+                      else alert('Link copied to clipboard!');
+                    });
+                  }}
+                  className="flex items-center gap-3 p-2 text-sm font-semibold rounded-lg hover:opacity-80 active:opacity-60 transition-all text-left"
+                  style={{ color: 'var(--text-color)' }}
+                >
+                  <span className="text-lg">🔗</span> Copy Link
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 text-sm opacity-100 mb-6 font-medium drop-shadow-sm">
@@ -183,27 +242,29 @@ export function Movie() {
           {movie.genre && <span>{movie.genre}</span>}
         </div>
 
-        <div className="flex flex-col gap-4 mb-6">
-          
-          <button
-            onClick={handleWatch}
-            className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
-            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-          >
-            ▶ {t('watch')}
-          </button>
-        </div>
+        {!(isExtracting || streamUrl || iframeUrl) && (
+          <div className="flex flex-col gap-3 mb-6">
+            <button
+              onClick={handleWatch}
+              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+            >
+              ▶ {t('watch')}
+            </button>
+          </div>
+        )}
 
         <p className="text-[15px] opacity-100 mb-8 leading-relaxed font-medium">
           {movie.description || t('descriptionMissing')}
         </p>
 
-        {(isExtracting || streamUrl || iframeUrl) && (
-          <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8 flex items-center justify-center">
+        <div id="video-player-container">
+          {(isExtracting || streamUrl || iframeUrl) && (
+            <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8 flex items-center justify-center">
             {isExtracting ? (
               <div className="flex flex-col items-center justify-center text-white/70">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="font-medium text-sm">Searching for stream...</p>
+                <p className="font-medium text-sm">{t('loading')}</p>
               </div>
             ) : iframeUrl ? (
               <Player iframeUrl={iframeUrl} />
@@ -213,13 +274,14 @@ export function Movie() {
                 width="100%"
                 height="100%"
                 controls
-                playing
-                // @ts-ignore: 'file' is valid for ReactPlayer config but missing in local types
-                config={{ file: { forceHLS: streamUrl.includes('.m3u8') } }}
+                playsinline
+                // @ts-ignore
+                config={{ file: { forceVideo: true, forceHLS: false } }}
               />
             ) : null}
           </div>
         )}
+        </div>
 
         {recommendations.length > 0 && (
           <>

@@ -1,6 +1,9 @@
 FROM mcr.microsoft.com/playwright:v1.61.0-jammy
 
 # Используем встроенного пользователя Playwright с UID 1000
+USER root
+RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
+
 USER pwuser
 ENV HOME=/home/pwuser \
     PATH=/home/pwuser/.local/bin:$PATH

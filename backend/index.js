@@ -1,7 +1,51 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import xvideosScraper from './xvideos.js';
+import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
+import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
+import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
+import { translateItems, initTmdbCache } from './tmdbCache.js';
+import { createClient } from 'redis';
+const redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
+});
+
+redisClient.on('error', (err) => console.error('[Redis] Error', err));
+redisClient.connect().then(() => {
+    console.log('[Redis] Connected');
+    initTmdbCache(redisClient);
+}).catch(e => console.error('[Redis] Connection failed', e));
+
+const pendingMoviePromises = new Map();
+
+async function withMovieCache(key, ttlSeconds, fetcher) {
+    try {
+        const cached = await redisClient.get(key);
+        if (cached) return JSON.parse(cached);
+    } catch(e) {
+        console.error('[Redis] GET Error', e);
+    }
+    
+    if (pendingMoviePromises.has(key)) {
+        return pendingMoviePromises.get(key);
+    }
+    
+    const promise = fetcher().then(data => {
+        redisClient.setEx(key, ttlSeconds, JSON.stringify(data)).catch(e => console.error('[Redis] SET Error', e));
+        pendingMoviePromises.delete(key);
+        return data;
+    }).catch(err => {
+        pendingMoviePromises.delete(key);
+        throw err;
+    });
+    
+    pendingMoviePromises.set(key, promise);
+    return promise;
+}
+
 
 const app = express();
 const port = process.env.PORT || 7860;
@@ -11,6 +55,101 @@ app.use(cors({
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'Origin', 'Accept']
 }));
+
+// --- HEALTH ENDPOINT (For Cron-Job Ping to prevent Sleep) ---
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// --- VIP DOWNLOADS API ---
+app.get('/api/vip/downloads/latest', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const targetLanguage = req.query.lang || 'en-US';
+        const cacheKey = `movies_latest_${page}_${targetLanguage}`;
+
+        const finalData = await withMovieCache(cacheKey, 7200, async () => {
+            let results = [];
+            if (page === 1) {
+                const [kinozuma, kinovasek] = await Promise.all([
+                    kinozumaLatest(),
+                    kinovasekLatest(page)
+                ]);
+                results = [...kinozuma, ...kinovasek];
+            } else {
+                results = await kinovasekLatest(page);
+            }
+
+            // Deduplicate
+            const seen = new Set();
+            results = results.filter(item => {
+                if (!item.title) return false;
+                if (seen.has(item.title)) return false;
+                seen.add(item.title);
+                return true;
+            });
+
+            return await translateItems(results, targetLanguage);
+        });
+
+        res.json(finalData);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/vip/downloads/search', async (req, res) => {
+    try {
+        const q = req.query.q;
+        const targetLanguage = req.query.lang || 'en-US';
+        if (!q) return res.status(400).json({ error: 'Query required' });
+        const cacheKey = `movies_search_${q}_${targetLanguage}`;
+
+        const finalData = await withMovieCache(cacheKey, 7200, async () => {
+            const [kinozuma, kinovasek] = await Promise.all([
+                kinozumaSearch(q),
+                kinovasekSearch(q)
+            ]);
+            
+            let results = [...kinozuma, ...kinovasek];
+            
+            // Deduplicate
+            const seen = new Set();
+            results = results.filter(item => {
+                if (!item.title) return false;
+                if (seen.has(item.title)) return false;
+                seen.add(item.title);
+                return true;
+            });
+
+            return await translateItems(results, targetLanguage);
+        });
+
+        res.json(finalData);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/vip/downloads/links', async (req, res) => {
+    try {
+        const urlStr = req.query.url;
+        if (!urlStr) return res.status(400).json({ error: 'URL required' });
+        const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
+        
+        let responseLinks = [];
+        if (decodedUrl.includes('kinozuma.net')) {
+            responseLinks = await kinozumaLinks(decodedUrl);
+        } else {
+            const data = await kinovasekLinks(decodedUrl);
+            responseLinks = data.links || [];
+        }
+
+        res.json({ links: responseLinks });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 const MIRRORS = [
     'https://mj.anwap.today',
@@ -117,6 +256,114 @@ app.get('/api/stream', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
+app.post('/api/invoice', express.json(), async (req, res) => {
+    try {
+        const { plan, userId } = req.body;
+        const BOT_TOKEN = process.env.BOT_TOKEN;
+        if (!BOT_TOKEN) {
+            console.error('Missing BOT_TOKEN in environment variables!');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
+        let amount = 0;
+        let label = '';
+        let title = '';
+        let payload = '';
+
+        if (plan === '1_month') {
+            amount = 75;
+            label = '1 Month VIP';
+            title = 'VIP Subscription (1 Month)';
+            payload = `vip_1month_${userId}_${Date.now()}`;
+        } else if (plan === 'lifetime') {
+            amount = 250;
+            label = 'Lifetime VIP';
+            title = 'VIP Subscription (Lifetime)';
+            payload = `vip_lifetime_${userId}_${Date.now()}`;
+        } else {
+            return res.status(400).json({ error: 'Invalid plan' });
+        }
+
+        const invoiceData = {
+            title: title,
+            description: 'Watch movies without ads, directly from our servers.',
+            payload: payload,
+            provider_token: '', // Required empty string for Telegram Stars
+            currency: 'XTR',
+            prices: [{ label: label, amount: amount }]
+        };
+
+        const response = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, invoiceData);
+        
+        if (response.data.ok) {
+            return res.json({ invoiceUrl: response.data.result });
+        } else {
+            console.error('[Invoice API] Error from Telegram:', response.data.description);
+            return res.status(500).json({ error: response.data.description });
+        }
+    } catch (e) {
+        console.error('[Invoice API] Request failed:', e.message);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// --- VIP Download (Anwap Scraper) ---
+
+app.get('/api/vip/download/info', async (req, res) => {
+    const { title, isTv } = req.query;
+    if (!title) return res.status(400).json({ error: 'Title required' });
+    
+    try {
+        const info = await getAnwapDownloadInfo(title, isTv === 'true');
+        return res.json(info);
+    } catch (e) {
+        console.error('[VIP Download Info]', e.message);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/vip/download/link', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL required' });
+    
+    try {
+        const info = await getAnwapSeriesLink(url);
+        return res.json(info);
+    } catch (e) {
+        console.error('[VIP Download Link]', e.message);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+
+
+// --- Adult (18+) Endpoints ---
+
+// --- Adult (18+) Endpoints ---
+app.get('/api/adult/search', async (req, res) => {
+    const { q, page } = req.query;
+    try {
+        const p = page ? parseInt(page) : 0;
+        const results = await xvideosScraper.search(q, p);
+        return res.json(results);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/adult/stream', async (req, res) => {
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    
+    try {
+        const details = await xvideosScraper.getVideoDetails(id);
+        if (details) {
+            return res.json(details);
+        } else {
+            return res.status(404).json({ error: 'Video not found' });
+        }
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port} with Anwap Smart Mirror selector`);
 });

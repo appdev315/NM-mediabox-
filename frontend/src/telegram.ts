@@ -5,7 +5,7 @@ export const WebApp = window.Telegram?.WebApp || {
   enableClosingConfirmation: () => {},
   disableClosingConfirmation: () => {},
   initData: '',
-  BackButton: { show: () => {}, hide: () => {}, onClick: () => {} },
+  BackButton: { show: () => {}, hide: () => {}, onClick: (_fn: any) => {}, offClick: (_fn: any) => {} },
   HapticFeedback: { notificationOccurred: () => {} },
   initDataUnsafe: { user: { first_name: 'Тест', last_name: 'Браузер' } }
 };
