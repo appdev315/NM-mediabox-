@@ -22,10 +22,14 @@ export function Downloads() {
         let res;
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
-          res = await fetch(`${BACKEND_URL}/api/vip/downloads/search?q=${encodeURIComponent(searchQuery)}&lang=${language}`);
+          const initData = window.Telegram?.WebApp?.initData || '';
+          const headers = { 'Authorization': `tma ${initData}` };
+          res = await fetch(`${BACKEND_URL}/api/vip/downloads/search?q=${encodeURIComponent(searchQuery)}&lang=${language}`, { headers });
         } else {
           setIsSearching(false);
-          res = await fetch(`${BACKEND_URL}/api/vip/downloads/latest?page=${page}&lang=${language}`);
+          const initData = window.Telegram?.WebApp?.initData || '';
+          const headers = { 'Authorization': `tma ${initData}` };
+          res = await fetch(`${BACKEND_URL}/api/vip/downloads/latest?page=${page}&lang=${language}`, { headers });
         }
         
         const data = await res.json();
@@ -56,7 +60,9 @@ export function Downloads() {
     setDownloadLinks([]);
     setLoadingLinks(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/vip/downloads/links?url=${item.id}`);
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const headers = { 'Authorization': `tma ${initData}` };
+      const res = await fetch(`${BACKEND_URL}/api/vip/downloads/links?url=${item.id}`, { headers });
       const data = await res.json();
       setDownloadLinks(data.links || []);
     } catch (e) {

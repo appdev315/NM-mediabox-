@@ -98,7 +98,9 @@ export function Adult() {
     }
     
     try {
-      const res = await fetch(`${BACKEND_URL}/api/adult/search?q=${encodeURIComponent(searchQuery)}&page=${pageNum}`);
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const headers = { 'Authorization': `tma ${initData}` };
+      const res = await fetch(`${BACKEND_URL}/api/adult/search?q=${encodeURIComponent(searchQuery)}&page=${pageNum}`, { headers });
       const data = await res.json();
       if (Array.isArray(data)) {
         // Shuffle the array so even the same page feels different

@@ -61,8 +61,73 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+import crypto from 'crypto';
+
+// Middleware for Telegram Authentication and VIP verification
+async function requireVip(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('tma ')) {
+        return res.status(401).json({ error: 'Unauthorized: Missing Telegram WebApp data' });
+    }
+
+    const initData = authHeader.substring(4);
+    const BOT_TOKEN = process.env.BOT_TOKEN;
+    
+    if (!BOT_TOKEN) {
+        console.error('Server configuration error: missing BOT_TOKEN');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    try {
+        const q = new URLSearchParams(initData);
+        const hash = q.get('hash');
+        q.delete('hash');
+        
+        const keys = Array.from(q.keys());
+        keys.sort();
+        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+        
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+        
+        if (hmac !== hash) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
+        }
+
+        const userJson = q.get('user');
+        if (!userJson) return res.status(401).json({ error: 'Unauthorized: No user data' });
+        
+        const user = JSON.parse(userJson);
+        const userId = user.id;
+
+        // Check VIP status in Redis
+        // TODO: Enable strict VIP check once payment is integrated. For now we just verify auth.
+        // const isVip = await redisClient.get(`vip:${userId}`);
+        // if (!isVip) {
+        //     return res.status(403).json({ error: 'Forbidden: VIP required' });
+        // }
+        
+        req.user = user;
+        next();
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid token format' });
+    }
+}
+
+// Function to validate URL for SSRF protection
+function isValidUrl(urlStr) {
+    try {
+        const parsed = new URL(urlStr);
+        const hostname = parsed.hostname;
+        const allowedDomains = ['kinozuma.net', 'kinovasek.net', 'anwap.tube', 'anwap.im', 'anwap.bio', 'anwap.site', 'anwap.pm', 'anwap.best', 'mj.anwap.today', 'mm.anwap.media', 'm.anwap.media'];
+        return allowedDomains.includes(hostname) || hostname.endsWith('.anwap.tube');
+    } catch (e) {
+        return false;
+    }
+}
+
 // --- VIP DOWNLOADS API ---
-app.get('/api/vip/downloads/latest', async (req, res) => {
+app.get('/api/vip/downloads/latest', requireVip, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const targetLanguage = req.query.lang || 'en-US';
@@ -98,7 +163,7 @@ app.get('/api/vip/downloads/latest', async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/search', async (req, res) => {
+app.get('/api/vip/downloads/search', requireVip, async (req, res) => {
     try {
         const q = req.query.q;
         const targetLanguage = req.query.lang || 'en-US';
@@ -131,11 +196,15 @@ app.get('/api/vip/downloads/search', async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/links', async (req, res) => {
+app.get('/api/vip/downloads/links', requireVip, async (req, res) => {
     try {
         const urlStr = req.query.url;
         if (!urlStr) return res.status(400).json({ error: 'URL required' });
         const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
+        
+        if (!isValidUrl(decodedUrl)) {
+            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
+        }
         
         let responseLinks = [];
         if (decodedUrl.includes('kinozuma.net')) {
@@ -309,7 +378,7 @@ app.post('/api/invoice', express.json(), async (req, res) => {
 
 // --- VIP Download (Anwap Scraper) ---
 
-app.get('/api/vip/download/info', async (req, res) => {
+app.get('/api/vip/download/info', requireVip, async (req, res) => {
     const { title, isTv } = req.query;
     if (!title) return res.status(400).json({ error: 'Title required' });
     
@@ -322,11 +391,14 @@ app.get('/api/vip/download/info', async (req, res) => {
     }
 });
 
-app.get('/api/vip/download/link', async (req, res) => {
+app.get('/api/vip/download/link', requireVip, async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL required' });
     
     try {
+        if (!isValidUrl(url)) {
+            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
+        }
         const info = await getAnwapSeriesLink(url);
         return res.json(info);
     } catch (e) {
@@ -340,7 +412,7 @@ app.get('/api/vip/download/link', async (req, res) => {
 // --- Adult (18+) Endpoints ---
 
 // --- Adult (18+) Endpoints ---
-app.get('/api/adult/search', async (req, res) => {
+app.get('/api/adult/search', requireVip, async (req, res) => {
     const { q, page } = req.query;
     try {
         const p = page ? parseInt(page) : 0;
@@ -351,7 +423,7 @@ app.get('/api/adult/search', async (req, res) => {
     }
 });
 
-app.get('/api/adult/stream', async (req, res) => {
+app.get('/api/adult/stream', requireVip, async (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     

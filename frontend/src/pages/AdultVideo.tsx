@@ -26,7 +26,9 @@ export function AdultVideo() {
     const fetchVideo = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/adult/stream?id=${encodeURIComponent(id)}`);
+        const initData = window.Telegram?.WebApp?.initData || '';
+        const headers = { 'Authorization': `tma ${initData}` };
+        const res = await fetch(`${BACKEND_URL}/api/adult/stream?id=${encodeURIComponent(id)}`, { headers });
         const data = await res.json();
         setDetails(data);
       } catch (e) {

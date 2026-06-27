@@ -12,7 +12,9 @@ export function EpisodeSelector({ seasonUrl, onSelectEpisode }: { seasonUrl: str
     const fetchEps = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/vip/download/link?url=${encodeURIComponent(seasonUrl)}`);
+        const initData = window.Telegram?.WebApp?.initData || '';
+        const headers = { 'Authorization': `tma ${initData}` };
+        const res = await fetch(`${BACKEND_URL}/api/vip/download/link?url=${encodeURIComponent(seasonUrl)}`, { headers });
         const data = await res.json();
         if (!isMounted) return;
         if (data.type === 'season_episodes') {
