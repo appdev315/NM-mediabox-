@@ -65,7 +65,9 @@ export const translations = {
     tab_music: 'Музыка',
     tab_private: 'Private',
     emptyList: 'Список пуст',
-    comingSoon: 'Скоро здесь будет...'
+    comingSoon: 'Скоро здесь будет...',
+    player1: 'Плеер 1',
+    player2: 'Плеер 2'
   },
   'en-US': {
     movies: 'Movies',
@@ -128,7 +130,9 @@ export const translations = {
     tab_music: 'Music',
     tab_private: 'Private',
     emptyList: 'List is empty',
-    comingSoon: 'Coming soon...'
+    comingSoon: 'Coming soon...',
+    player1: 'Player 1',
+    player2: 'Player 2'
   }
 };
 

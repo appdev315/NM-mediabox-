@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
-import { useLanguage, type Language } from '../context/LanguageContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useVip } from '../context/VipContext';
 
@@ -101,42 +101,64 @@ export function Profile() {
       {/* Settings Section */}
       <div className="p-4 rounded-2xl shadow-sm flex flex-col gap-4" style={{ backgroundColor: 'var(--hint-color)' }}>
         
-        {/* Language Picker */}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
+        {/* Language Segmented Control */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🌍</span>
             <h2 className="font-bold text-md">{t('language')}</h2>
           </div>
-          <select 
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as Language)}
-            className="p-1 rounded bg-black/10 dark:bg-white/10 outline-none text-sm font-medium"
-            style={{ color: 'var(--text-color)' }}
-          >
-            <option value="ru-RU">Русский (RU)</option>
-            <option value="en-US">English (US)</option>
-            <option value="de-DE">Deutsch (DE)</option>
-            <option value="fr-FR">Français (FR)</option>
-            <option value="es-ES">Español (ES)</option>
-          </select>
+          <div className="flex w-full bg-black/10 dark:bg-white/5 rounded-lg p-1 relative">
+            <button
+              onClick={() => setLanguage('ru-RU')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
+                language === 'ru-RU' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Русский
+            </button>
+            <button
+              onClick={() => setLanguage('en-US')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
+                language === 'en-US' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              English
+            </button>
+          </div>
         </div>
 
-        {/* Theme Picker */}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
+        {/* Theme Segmented Control */}
+        <div className="flex flex-col gap-2 mt-2">
+          <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🎨</span>
             <h2 className="font-bold text-md">{t('theme')}</h2>
           </div>
-          <select 
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as any)}
-            className="p-1 rounded bg-black/10 dark:bg-white/10 outline-none text-sm font-medium"
-            style={{ color: 'var(--text-color)' }}
-          >
-            <option value="auto">{t('themeAuto')}</option>
-            <option value="light">{t('themeLight')}</option>
-            <option value="dark">{t('themeDark')}</option>
-          </select>
+          <div className="flex w-full bg-black/10 dark:bg-white/5 rounded-lg p-1 relative">
+            <button
+              onClick={() => setTheme('auto')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
+                theme === 'auto' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {t('themeAuto')}
+            </button>
+            <button
+              onClick={() => setTheme('light')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
+                theme === 'light' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {t('themeLight')}
+            </button>
+            <button
+              onClick={() => setTheme('dark')}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
+                theme === 'dark' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {t('themeDark')}
+            </button>
+          </div>
         </div>
       </div>
 

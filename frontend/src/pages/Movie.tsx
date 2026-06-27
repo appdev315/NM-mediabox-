@@ -275,19 +275,6 @@ export function Movie() {
               </div>
             ) : iframeUrl ? (
               <div className="w-full h-full flex flex-col">
-                {sources.length > 1 && (
-                  <div className="flex flex-wrap gap-2 p-2 bg-[#1a1a1a] border-b border-white/10 z-10 w-full overflow-x-auto" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-                    {sources.map((s, idx) => (
-                      <button 
-                        key={idx} 
-                        onClick={() => setIframeUrl(s.url)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${iframeUrl === s.url ? 'bg-primary text-black' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'}`}
-                      >
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <div className="flex-1 w-full h-full">
                   <Player iframeUrl={iframeUrl} />
                 </div>
@@ -306,6 +293,21 @@ export function Movie() {
           </div>
         )}
         </div>
+
+        {/* Source selection buttons below the player */}
+        {sources.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
+            {sources.map((s, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => setIframeUrl(s.url)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${iframeUrl === s.url ? 'bg-primary text-black' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'}`}
+              >
+                {idx === 0 ? t('player1') : t('player2')}
+              </button>
+            ))}
+          </div>
+        )}
 
         {recommendations.length > 0 && (
           <>
