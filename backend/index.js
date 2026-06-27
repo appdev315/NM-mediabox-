@@ -350,15 +350,28 @@ app.get('/api/stream', async (req, res) => {
         }
 
         if (imdbId) {
-            console.log(`[Stream API] Found IMDb ID: ${imdbId}, returning native Anwap player (ortified.ws)!`);
-            return res.json({ iframe: `https://api.ortified.ws/embed/imdb/${imdbId}` });
+            console.log(`[Stream API] Found IMDb ID: ${imdbId}, returning multiple sources!`);
+            const sources = [
+                { name: "Основной (Anwap)", url: `https://api.ortified.ws/embed/imdb/${imdbId}` },
+                { name: "Резерв 1 (Vidsrc RU)", url: `https://vidsrc.ru/embed/imdb/${imdbId}` },
+                { name: "Резерв 2 (Vidsrc EN)", url: type === 'tv' || type === 'series' ? `https://vidsrc.me/embed/tv?imdb=${imdbId}` : `https://vidsrc.me/embed/movie?imdb=${imdbId}` }
+            ];
+            return res.json({ 
+                iframe: sources[0].url,
+                sources: sources
+            });
         } else {
-            console.log(`[Stream API] No IMDb ID found. Falling back to vidsrc.me for TMDB: ${tmdb}`);
+            console.log(`[Stream API] No IMDb ID found. Falling back to TMDB: ${tmdb}`);
             if (tmdb) {
-                const fallbackUrl = (type === 'tv' || type === 'series') 
-                    ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}`
-                    : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
-                return res.json({ iframe: fallbackUrl });
+                const isTv = type === 'tv' || type === 'series';
+                const sources = [
+                    { name: "Резерв 1 (Vidsrc RU)", url: `https://vidsrc.ru/embed/tmdb/${tmdb}` },
+                    { name: "Резерв 2 (Vidsrc EN)", url: isTv ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}` : `https://vidsrc.me/embed/movie?tmdb=${tmdb}` }
+                ];
+                return res.json({ 
+                    iframe: sources[0].url,
+                    sources: sources
+                });
             }
             return res.status(404).json({ error: 'Not found' });
         }

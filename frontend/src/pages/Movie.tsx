@@ -19,6 +19,7 @@ export function Movie() {
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [sources, setSources] = useState<{name: string, url: string}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -45,6 +46,7 @@ export function Movie() {
     const loadData = async () => {
       setStreamUrl(null);
       setIframeUrl(null);
+      setSources([]);
       setIsExtracting(false);
       setMovie(null);
       try {
@@ -75,6 +77,7 @@ export function Movie() {
     setIsExtracting(true);
     setStreamUrl(null);
     setIframeUrl(null);
+    setSources([]);
     
     // Scroll to player placeholder immediately
     setTimeout(() => {
@@ -103,6 +106,10 @@ export function Movie() {
         finalStreamUrl = data.url;
       } else if (data.iframe) {
         finalIframe = data.iframe;
+      }
+      
+      if (data.sources && data.sources.length > 0) {
+        setSources(data.sources);
       }
 
       if (finalStreamUrl) {
@@ -267,7 +274,24 @@ export function Movie() {
                 <p className="font-medium text-sm">{t('loading')}</p>
               </div>
             ) : iframeUrl ? (
-              <Player iframeUrl={iframeUrl} />
+              <div className="w-full h-full flex flex-col">
+                {sources.length > 1 && (
+                  <div className="flex flex-wrap gap-2 p-2 bg-[#1a1a1a] border-b border-white/10 z-10 w-full overflow-x-auto" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
+                    {sources.map((s, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => setIframeUrl(s.url)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${iframeUrl === s.url ? 'bg-primary text-black' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'}`}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex-1 w-full h-full">
+                  <Player iframeUrl={iframeUrl} />
+                </div>
+              </div>
             ) : streamUrl ? (
               <ReactPlayer
                 url={streamUrl}
@@ -294,6 +318,7 @@ export function Movie() {
                   onClick={() => {
                     setStreamUrl(null);
                     setIframeUrl(null);
+                    setSources([]);
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
                   }}
                 >
