@@ -533,6 +533,41 @@ app.get('/api/adult/stream', requireVip, async (req, res) => {
     }
 });
 
+app.get('/api/vip/downloads/proxy', async (req, res) => {
+    try {
+        const urlStr = req.query.url;
+        if (!urlStr) return res.status(400).send('URL required');
+        const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
+        
+        let referer = 'https://kinozuma.net';
+        if (decodedUrl.includes('vasqa.org') || decodedUrl.includes('serversimka.net') || decodedUrl.includes('kinovasek.net')) {
+            referer = 'https://kinovasek.net';
+        }
+
+        const response = await axios({
+            url: decodedUrl,
+            method: 'GET',
+            responseType: 'stream',
+            headers: {
+                'Referer': referer,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            }
+        });
+        
+        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp4');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        res.setHeader('Content-Disposition', 'attachment; filename="movie.mp4"');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        response.data.pipe(res);
+    } catch (e) {
+        console.error('Proxy error:', e.message);
+        res.status(500).send('Proxy error');
+    }
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port} with Anwap Smart Mirror selector`);
 });

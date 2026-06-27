@@ -135,8 +135,7 @@ export function Home() {
                 else navigate('/adult');
               }
               else if (tab.id === 'radio-tv') {
-                if (!isVip) showVipModal();
-                else navigate('/radio-tv');
+                navigate('/radio-tv');
               }
               else handleTabChange(tab.id as 'movie' | 'series' | 'downloads');
             }}

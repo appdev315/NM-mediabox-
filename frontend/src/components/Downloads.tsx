@@ -81,8 +81,8 @@ export function Downloads() {
 
   const triggerDownload = (url: string) => {
     try {
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      if (WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch (e) {}
 
