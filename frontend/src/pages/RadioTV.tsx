@@ -61,7 +61,25 @@ export function RadioTV() {
 
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
-    setLoading(true);
+    
+    // Attempt to load from cache first
+    const cachedRadio = localStorage.getItem(`cache_radio_${country}`);
+    const cachedTv = localStorage.getItem(`cache_tv_${country}`);
+    let hasCache = false;
+    
+    if (cachedRadio) {
+      try { setStations(JSON.parse(cachedRadio)); hasCache = true; } catch(e){}
+    }
+    if (cachedTv) {
+      try { setTvChannels(JSON.parse(cachedTv)); hasCache = true; } catch(e){}
+    }
+    
+    if (!hasCache) {
+      setLoading(true);
+    } else {
+      setLoading(false); // Instantly show cache, still fetch in background
+    }
+    
     fetchRadio();
     fetchTV();
   }, [country]);
@@ -82,6 +100,7 @@ export function RadioTV() {
       })).filter((s: Station) => s.url);
       
       setStations(parsed);
+      localStorage.setItem(`cache_radio_${country}`, JSON.stringify(parsed));
     } catch (e) {
       console.error("Failed to fetch radio", e);
     }
@@ -122,6 +141,7 @@ export function RadioTV() {
 
       const parsedTv = parseM3u(resText);
       setTvChannels(parsedTv);
+      localStorage.setItem(`cache_tv_${country}`, JSON.stringify(parsedTv));
     } catch (e) {
       console.error("Failed to fetch TV", e);
     } finally {

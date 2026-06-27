@@ -4,6 +4,7 @@ import { WebApp } from '../telegram';
 import { BACKEND_URL } from './Movie';
 import { useLanguage } from '../context/LanguageContext';
 import { VIP_USERS } from '../config/vipUsers';
+import { useVip } from '../context/VipContext';
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -34,7 +35,7 @@ export function Adult() {
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  const [isVip, setIsVip] = useState(false);
+  const { isVip, showVipModal } = useVip();
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   
   const [favorites, setFavorites] = useState<any[]>([]);
@@ -57,30 +58,15 @@ export function Adult() {
       try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
     }
 
-    let vipStatus = localStorage.getItem('vip_until');
-    try {
-      if (WebApp.isVersionAtLeast && WebApp.isVersionAtLeast('6.9')) {
-        const cloudVip = WebApp.CloudStorage?.getItem('vip_until');
-        if (cloudVip) vipStatus = cloudVip;
-      }
-    } catch (e) {
-      console.warn("CloudStorage not supported", e);
-    }
     
     const user = WebApp.initDataUnsafe?.user;
     const isConfigVip = user?.username && VIP_USERS.map((u: string) => u.toLowerCase()).includes(user.username.toLowerCase());
-    
-    let hasVip = false;
-    if (isConfigVip || vipStatus === 'lifetime' || (vipStatus && Number(vipStatus) > Date.now())) {
-      hasVip = true;
-      setIsVip(true);
-    }
     
     // Check if age was already confirmed
     const confirmed = isConfigVip || localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
-    if (hasVip && confirmed) {
+    if (isVip && confirmed) {
       // Pick random initial query and random page to ensure fresh content
       const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
       const randomPage = Math.floor(Math.random() * 10);
@@ -88,7 +74,7 @@ export function Adult() {
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [isVip]);
 
   const loadVideos = async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
     if (append) {
@@ -219,13 +205,7 @@ export function Adult() {
           <button 
             onClick={() => {
               WebApp.HapticFeedback.impactOccurred('heavy');
-              setIsVip(true);
-              localStorage.setItem('vip_until', 'lifetime');
-              if (ageConfirmed) {
-                const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-                const randomPage = Math.floor(Math.random() * 10);
-                loadVideos(randomCat, randomPage);
-              }
+              showVipModal();
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform mt-4"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}

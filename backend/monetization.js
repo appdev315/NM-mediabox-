@@ -7,41 +7,23 @@ export function getCurrentPhase() {
     // Total months roughly
     const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.44);
 
-    if (diffMonths < 2) {
-        // Phase 1 (Months 1-2): private is 50, no lifetime, no free limits on movies/tv
+    if (diffMonths < 3) {
+        // Phase 1 (Months 1-3): Month 50, Lifetime 500
         return {
             phase: 1,
             priceMonth: 50,
-            priceLifetime: null,
+            priceLifetime: 500,
             freeLimits: false,
             ads: true
         };
-    } else if (diffMonths < 6) {
-        // Phase 2 (Months 3-6)
+    } else {
+        // Phase 2 (Months 3+): Month 75, Lifetime 500
         return {
             phase: 2,
-            priceMonth: 50,
-            priceLifetime: 200,
-            freeLimits: true,
-            ads: false
-        };
-    } else if (diffMonths < 12) {
-        // Phase 3 (Months 7-12)
-        return {
-            phase: 3,
-            priceMonth: 75,
-            priceLifetime: 350,
-            freeLimits: true,
-            ads: false
-        };
-    } else {
-        // Phase 4 (Month 12+)
-        return {
-            phase: 4,
             priceMonth: 75,
             priceLifetime: 500,
-            freeLimits: true,
-            ads: false
+            freeLimits: false,
+            ads: true
         };
     }
 }
