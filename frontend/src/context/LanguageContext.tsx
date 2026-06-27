@@ -67,7 +67,10 @@ export const translations = {
     emptyList: 'Список пуст',
     comingSoon: 'Скоро здесь будет...',
     player1: 'Плеер 1',
-    player2: 'Плеер 2'
+    player2: 'Плеер 2',
+    buyVip: 'Купить VIP ⭐️',
+    supportCreator: 'Поддержать создателя',
+    supportSubtitle: 'Криптоперевод (USDT / TON)'
   },
   'en-US': {
     movies: 'Movies',
@@ -132,7 +135,10 @@ export const translations = {
     emptyList: 'List is empty',
     comingSoon: 'Coming soon...',
     player1: 'Player 1',
-    player2: 'Player 2'
+    player2: 'Player 2',
+    buyVip: 'Buy VIP ⭐️',
+    supportCreator: 'Support Creator',
+    supportSubtitle: 'Crypto Transfer (USDT / TON)'
   }
 };
 

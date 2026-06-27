@@ -92,7 +92,7 @@ export function Profile() {
               onClick={showVipModal}
               className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors border border-white/20 text-white/90 font-medium text-xs shadow-sm active:scale-95"
             >
-              Купить VIP ⭐️
+              {t('buyVip')}
             </button>
           )}
         </div>
@@ -173,8 +173,8 @@ export function Profile() {
               <span className="text-xl">☕️</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-base" style={{ color: 'var(--text-color)' }}>Поддержать создателя</span>
-              <span className="text-xs opacity-70" style={{ color: 'var(--text-color)' }}>Криптоперевод (USDT / TON)</span>
+              <span className="font-bold text-base" style={{ color: 'var(--text-color)' }}>{t('supportCreator')}</span>
+              <span className="text-xs opacity-70" style={{ color: 'var(--text-color)' }}>{t('supportSubtitle')}</span>
             </div>
           </div>
           <div className="opacity-50 text-xl" style={{ color: 'var(--text-color)' }}>›</div>
