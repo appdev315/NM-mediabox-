@@ -12,6 +12,7 @@ import { AdultVideo } from './pages/AdultVideo';
 import { RadioTV } from './pages/RadioTV';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
+import { VipProvider } from './context/VipContext';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -72,7 +73,8 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AudioPlayerProvider>
+      <VipProvider>
+        <AudioPlayerProvider>
         <BrowserRouter>
           <DeepLinkHandler />
           <div className="pb-16 min-h-screen relative">
@@ -91,6 +93,7 @@ export default function App() {
           <BottomNav />
         </BrowserRouter>
       </AudioPlayerProvider>
+      </VipProvider>
     </ThemeProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { WebApp } from '../telegram';
 import { useState, useEffect } from 'react';
 import { BACKEND_URL } from '../pages/Movie';
 
@@ -12,7 +13,7 @@ export function EpisodeSelector({ seasonUrl, onSelectEpisode }: { seasonUrl: str
     const fetchEps = async () => {
       setLoading(true);
       try {
-        const initData = window.Telegram?.WebApp?.initData || '';
+        const initData = WebApp?.initData || '';
         const headers = { 'Authorization': `tma ${initData}` };
         const res = await fetch(`${BACKEND_URL}/api/vip/download/link?url=${encodeURIComponent(seasonUrl)}`, { headers });
         const data = await res.json();

@@ -3,18 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage, type Language } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useVip } from '../context/VipContext';
 
-import { VIP_USERS } from '../config/vipUsers';
+
 
 export function Profile() {
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
+  const { isVip, showVipModal } = useVip();
   const [favorites, setFavorites] = useState<any[]>([]);
   // Use favorites to avoid unused var warning
   console.log(favorites.length);
   const [showPrivate, setShowPrivate] = useState(true);
-  const [isVip, setIsVip] = useState(false);
 
   const user = WebApp.initDataUnsafe?.user || { first_name: 'Demo', id: 1 };
 
@@ -35,26 +36,9 @@ export function Profile() {
     };
     fetchFavorites();
     
-    // Read showPrivate and isVip
+    // Read showPrivate
     const savedShowPrivate = localStorage.getItem('showPrivate');
     if (savedShowPrivate !== null) setShowPrivate(savedShowPrivate === 'true');
-    
-    let vipStatus = localStorage.getItem('vip_until');
-    try {
-      if (WebApp.CloudStorage) {
-        const cloudVip = WebApp.CloudStorage?.getItem('vip_until');
-        if (cloudVip) vipStatus = cloudVip;
-      }
-    } catch (e) {
-      console.warn("CloudStorage not supported", e);
-    }
-    
-    // Check config first
-    const isConfigVip = user?.username && VIP_USERS.map((u: string) => u.toLowerCase()).includes(user.username.toLowerCase());
-    
-    if (isConfigVip || vipStatus === 'lifetime' || (vipStatus && Number(vipStatus) > Date.now())) {
-      setIsVip(true);
-    }
   }, [user?.id, user?.username]);
 
   const handleTogglePrivate = () => {
@@ -95,7 +79,19 @@ export function Profile() {
         </div>
         <div>
           <h1 className="font-bold text-xl">{user?.first_name} {user?.last_name}</h1>
-          {user?.username && <p className="opacity-90 text-sm">@{user.username}</p>}
+          {user?.username && <p className="opacity-90 text-sm mb-1">@{user.username}</p>}
+          {isVip ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 mt-1 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-pink-500 font-bold text-xs">
+              💎 VIP Member
+            </div>
+          ) : (
+            <button 
+              onClick={showVipModal}
+              className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors border border-white/20 text-white/90 font-medium text-xs shadow-sm active:scale-95"
+            >
+              Купить VIP ⭐️
+            </button>
+          )}
         </div>
       </div>
 
@@ -139,7 +135,28 @@ export function Profile() {
             <option value="dark">{t('themeDark')}</option>
           </select>
         </div>
+      </div>
 
+      {/* Support Creator */}
+      <div className="mb-4">
+        <div className="p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:bg-black/10 transition-colors border border-orange-500/20"
+             style={{ backgroundColor: 'var(--hint-color)' }}
+             onClick={() => {
+               WebApp?.openLink('https://t.me/wallet');
+               alert('Криптокошелек (Адрес: ваш_адрес_кошелька). Спасибо за поддержку!');
+             }}
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-500/20 text-orange-500">
+              <span className="text-xl">☕️</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-base" style={{ color: 'var(--text-color)' }}>Поддержать создателя</span>
+              <span className="text-xs opacity-70" style={{ color: 'var(--text-color)' }}>Криптоперевод (USDT / TON)</span>
+            </div>
+          </div>
+          <div className="opacity-50 text-xl" style={{ color: 'var(--text-color)' }}>›</div>
+        </div>
       </div>
 
       {/* Private Mode Toggle */}

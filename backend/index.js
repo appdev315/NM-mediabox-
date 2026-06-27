@@ -126,6 +126,42 @@ function isValidUrl(urlStr) {
     }
 }
 
+// --- VIP STATUS API ---
+app.get('/api/vip/status', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('tma ')) {
+            return res.json({ isVip: false });
+        }
+        const initData = authHeader.substring(4);
+        const BOT_TOKEN = process.env.BOT_TOKEN;
+        if (!BOT_TOKEN) return res.json({ isVip: false });
+        
+        const q = new URLSearchParams(initData);
+        const hash = q.get('hash');
+        q.delete('hash');
+        const keys = Array.from(q.keys());
+        keys.sort();
+        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+        
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+        
+        if (hmac !== hash) return res.json({ isVip: false });
+        
+        const userJson = q.get('user');
+        if (!userJson) return res.json({ isVip: false });
+        
+        const user = JSON.parse(userJson);
+        const userId = user.id;
+        
+        const isVip = await redisClient.get(`vip:${userId}`);
+        return res.json({ isVip: !!isVip });
+    } catch (e) {
+        return res.json({ isVip: false });
+    }
+});
+
 // --- VIP DOWNLOADS API ---
 app.get('/api/vip/downloads/latest', requireVip, async (req, res) => {
     try {
@@ -345,7 +381,7 @@ app.post('/api/invoice', express.json(), async (req, res) => {
             title = 'VIP Subscription (1 Month)';
             payload = `vip_1month_${userId}_${Date.now()}`;
         } else if (plan === 'lifetime') {
-            amount = 250;
+            amount = 500;
             label = 'Lifetime VIP';
             title = 'VIP Subscription (Lifetime)';
             payload = `vip_lifetime_${userId}_${Date.now()}`;
@@ -367,12 +403,51 @@ app.post('/api/invoice', express.json(), async (req, res) => {
         if (response.data.ok) {
             return res.json({ invoiceUrl: response.data.result });
         } else {
-            console.error('[Invoice API] Error from Telegram:', response.data.description);
-            return res.status(500).json({ error: response.data.description });
-        }
     } catch (e) {
         console.error('[Invoice API] Request failed:', e.message);
         return res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/telegram/webhook', express.json(), async (req, res) => {
+    try {
+        const update = req.body;
+        
+        // Handle Pre Checkout Query
+        if (update.pre_checkout_query) {
+            const preCheckoutQueryId = update.pre_checkout_query.id;
+            const BOT_TOKEN = process.env.BOT_TOKEN;
+            await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+                pre_checkout_query_id: preCheckoutQueryId,
+                ok: true
+            });
+            return res.json({ ok: true });
+        }
+
+        // Handle Successful Payment
+        if (update.message && update.message.successful_payment) {
+            const payment = update.message.successful_payment;
+            const payload = payment.invoice_payload;
+            const userId = update.message.from.id;
+            
+            // payload format: vip_1month_userId_timestamp
+            if (payload.startsWith('vip_')) {
+                // Grant VIP status in Redis
+                const isMonthly = payload.includes('_1month_');
+                if (isMonthly) {
+                    await redisClient.setEx(`vip:${userId}`, 30 * 24 * 60 * 60, 'true');
+                } else {
+                    await redisClient.set(`vip:${userId}`, 'true');
+                }
+                console.log(`[Webhook] VIP granted for user ${userId}, monthly: ${isMonthly}`);
+            }
+            return res.json({ ok: true });
+        }
+
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('[Webhook] Error handling update:', e.message);
+        res.status(500).json({ error: e.message });
     }
 });
 

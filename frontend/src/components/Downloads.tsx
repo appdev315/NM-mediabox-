@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from '../pages/Movie';
 import { useLanguage } from '../context/LanguageContext';
+import { useVip } from '../context/VipContext';
 
 export function Downloads() {
+  const { isVip, showVipModal } = useVip();
   const { language } = useLanguage();
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
@@ -22,12 +24,12 @@ export function Downloads() {
         let res;
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
-          const initData = window.Telegram?.WebApp?.initData || '';
+          const initData = WebApp?.initData || '';
           const headers = { 'Authorization': `tma ${initData}` };
           res = await fetch(`${BACKEND_URL}/api/vip/downloads/search?q=${encodeURIComponent(searchQuery)}&lang=${language}`, { headers });
         } else {
           setIsSearching(false);
-          const initData = window.Telegram?.WebApp?.initData || '';
+          const initData = WebApp?.initData || '';
           const headers = { 'Authorization': `tma ${initData}` };
           res = await fetch(`${BACKEND_URL}/api/vip/downloads/latest?page=${page}&lang=${language}`, { headers });
         }
@@ -36,8 +38,13 @@ export function Downloads() {
         const finalData = data;
 
         if (Array.isArray(finalData)) {
-            if (page === 1) setItems(finalData);
-            else setItems(prev => [...prev, ...finalData]);
+            // Apply VIP limits
+            if (!isVip && page > 1) {
+              setItems(prev => prev); // Prevent loading more
+            } else {
+              if (page === 1) setItems(finalData);
+              else setItems(prev => [...prev, ...finalData]);
+            }
         }
       } catch(e) {
         console.error(e);
@@ -60,7 +67,7 @@ export function Downloads() {
     setDownloadLinks([]);
     setLoadingLinks(true);
     try {
-      const initData = window.Telegram?.WebApp?.initData || '';
+      const initData = WebApp?.initData || '';
       const headers = { 'Authorization': `tma ${initData}` };
       const res = await fetch(`${BACKEND_URL}/api/vip/downloads/links?url=${item.id}`, { headers });
       const data = await res.json();
@@ -129,15 +136,33 @@ export function Downloads() {
         </div>
       )}
 
-      {/* Load More Button */}
+      {/* Load More Button or VIP Call to Action */}
       {!isSearching && items.length > 0 && !loading && (
-        <button
-          onClick={() => setPage(p => p + 1)}
-          className="w-full mt-6 p-4 rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
-          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-        >
-          Load More
-        </button>
+        isVip ? (
+          <button
+            onClick={() => setPage(p => p + 1)}
+            className="w-full mt-6 p-4 rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
+            style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+          >
+            Load More
+          </button>
+        ) : (
+          <div className="mt-8 mb-4">
+            <div className="bg-gradient-to-r from-pink-500/10 to-violet-500/10 rounded-2xl p-6 border border-pink-500/20 text-center">
+              <h3 className="font-bold text-lg mb-2">Хотите больше контента? 💎</h3>
+              <p className="text-sm opacity-80 mb-4">
+                Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!
+              </p>
+              <button
+                onClick={showVipModal}
+                className="w-full py-3 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform"
+                style={{ background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
+              >
+                Разблокировать всё за 75 ⭐️
+              </button>
+            </div>
+          </div>
+        )
       )}
 
       {/* Download Modal */}

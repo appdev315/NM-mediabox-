@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
+import { useVip } from '../context/VipContext';
 import { Downloads } from '../components/Downloads';
 import { Header } from '../components/Header';
 
@@ -9,6 +10,7 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
+  const { isVip, showVipModal } = useVip();
   const showPrivate = localStorage.getItem('showPrivate') !== 'false';
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads' | 'private'>('movie');
@@ -60,7 +62,12 @@ export function Home() {
         if (page === 1) {
           setItems(results);
         } else {
-          setItems(prev => [...prev, ...results]);
+          // Apply VIP limit
+          if (!isVip) {
+            setItems(prev => prev);
+          } else {
+            setItems(prev => [...prev, ...results]);
+          }
         }
       }
     };
@@ -80,7 +87,11 @@ export function Home() {
       
       // If user has scrolled to within 100px of the bottom
       if (scrollY + windowHeight >= documentHeight - 100) {
-        setPage(p => p + 1);
+        if (!isVip && page >= 1) {
+          // Do not increment page if not VIP
+        } else {
+          setPage(p => p + 1);
+        }
       }
     };
     
@@ -119,8 +130,14 @@ export function Home() {
           <button
             key={tab.id}
             onClick={() => {
-              if (tab.id === 'private') navigate('/adult');
-              else if (tab.id === 'radio-tv') navigate('/radio-tv');
+              if (tab.id === 'private') {
+                if (!isVip) showVipModal();
+                else navigate('/adult');
+              }
+              else if (tab.id === 'radio-tv') {
+                if (!isVip) showVipModal();
+                else navigate('/radio-tv');
+              }
               else handleTabChange(tab.id as 'movie' | 'series' | 'downloads');
             }}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
@@ -201,11 +218,29 @@ export function Home() {
             </div>
           )}
 
-          {/* Infinite Scroll Indicator */}
+          {/* Infinite Scroll Indicator or VIP Banner */}
           {!isSearching && items.length > 0 && (
-            <div className="h-10 w-full mt-4 flex items-center justify-center">
-              {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
-            </div>
+            isVip ? (
+              <div className="h-10 w-full mt-4 flex items-center justify-center">
+                {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
+              </div>
+            ) : (
+              <div className="mt-8 mb-4 col-span-full">
+                <div className="bg-gradient-to-r from-pink-500/10 to-violet-500/10 rounded-2xl p-6 border border-pink-500/20 text-center">
+                  <h3 className="font-bold text-lg mb-2">Хотите смотреть больше? 💎</h3>
+                  <p className="text-sm opacity-80 mb-4">
+                    Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!
+                  </p>
+                  <button
+                    onClick={showVipModal}
+                    className="w-full py-3 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform"
+                    style={{ background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
+                  >
+                    Разблокировать всё за 75 ⭐️
+                  </button>
+                </div>
+              </div>
+            )
           )}
         </>
       )}
