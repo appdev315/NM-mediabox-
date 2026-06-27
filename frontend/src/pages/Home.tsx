@@ -62,12 +62,7 @@ export function Home() {
         if (page === 1) {
           setItems(results);
         } else {
-          // Apply VIP limit only if freeLimits config is true
-          if (!isVip && config?.freeLimits) {
-            setItems(prev => prev);
-          } else {
-            setItems(prev => [...prev, ...results]);
-          }
+          setItems(prev => [...prev, ...results]);
         }
       }
     };
@@ -87,11 +82,7 @@ export function Home() {
       
       // If user has scrolled to within 100px of the bottom
       if (scrollY + windowHeight >= documentHeight - 100) {
-        if (!isVip && config?.freeLimits && page >= 1) {
-          // Do not increment page if not VIP and freeLimits are active
-        } else {
-          setPage(p => p + 1);
-        }
+        setPage(p => p + 1);
       }
     };
     

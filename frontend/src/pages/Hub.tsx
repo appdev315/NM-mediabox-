@@ -1,45 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Hub() {
-  const [isVip, setIsVip] = useState(false);
-  const [showPrivate, setShowPrivate] = useState(true);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const [showVipPopup, setShowVipPopup] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
-
-  useEffect(() => {
-    // Check showPrivate setting
-    const savedShowPrivate = localStorage.getItem('showPrivate');
-    if (savedShowPrivate === 'false') {
-      setShowPrivate(false);
-    }
-
-    const checkVip = () => {
-      const isLifetime = localStorage.getItem('vip_until') === 'lifetime';
-      if (isLifetime) {
-        setIsVip(true);
-        return;
-      }
-      WebApp.CloudStorage.getItem('vip_until', (err: any, value: string | undefined) => {
-        if (!err && value) {
-          if (value === 'lifetime') {
-            setIsVip(true);
-          } else {
-            const until = parseInt(value, 10);
-            if (until > Date.now()) {
-              setIsVip(true);
-            }
-          }
-        }
-      });
-    };
-    checkVip();
-  }, []);
 
   const allTiles = [
     {
@@ -75,16 +44,15 @@ export function Hub() {
       title: t('privateContent'),
       subtitle: t('subtitle_adult'),
       icon: '🍓',
-      locked: !isVip,
+      locked: false,
       gradient: 'from-pink-500/15 to-rose-600/15 border-pink-500/20',
       animClass: 'animate-adult-strawberry',
       isPrivate: true
     },
   ];
 
-  // Always show all tiles; Private is always visible but locked for non-VIP
-  // For VIP, respect showPrivate toggle (hide if they chose to hide it)
-  const tiles = allTiles.filter(t => !t.isPrivate || !isVip || showPrivate);
+  // Always show all tiles; Private is always visible
+  const tiles = allTiles;
 
   const scrollLeft = () => {
     if (scrollRef.current) {
