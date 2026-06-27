@@ -350,8 +350,16 @@ app.get('/api/stream', async (req, res) => {
         }
 
         if (imdbId) {
-            console.log(`[Stream API] Found IMDb ID: ${imdbId}, returning native Anwap player (ortified.ws)!`);
-            return res.json({ iframe: `https://api.ortified.ws/embed/imdb/${imdbId}` });
+            try {
+                // Check if the primary CDN has the video
+                await axios.get(`https://api.ortified.ws/embed/imdb/${imdbId}`, { timeout: 3000 });
+                console.log(`[Stream API] Found IMDb ID: ${imdbId}, returning native Anwap player (ortified.ws)!`);
+                return res.json({ iframe: `https://api.ortified.ws/embed/imdb/${imdbId}` });
+            } catch (err) {
+                console.log(`[Stream API] Primary CDN returned 404 for ${imdbId}. Falling back to vidsrc.ru`);
+                // Fallback to vidsrc.ru which has better anime coverage
+                return res.json({ iframe: `https://vidsrc.ru/embed/imdb/${imdbId}` });
+            }
         } else {
             console.log(`[Stream API] No IMDb ID found. Falling back to vidsrc.me for TMDB: ${tmdb}`);
             if (tmdb) {
