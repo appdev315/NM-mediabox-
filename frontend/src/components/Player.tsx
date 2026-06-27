@@ -33,7 +33,6 @@ export function Player({ iframeUrl }: PlayerProps) {
         src={iframeUrl}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
         referrerPolicy="no-referrer"
         style={{ width: '100%', height: '100%', border: 'none' }}
       />
