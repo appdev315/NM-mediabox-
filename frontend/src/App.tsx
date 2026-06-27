@@ -23,7 +23,14 @@ function DeepLinkHandler() {
   useEffect(() => {
     const startParam = WebApp.initDataUnsafe?.start_param;
     if (startParam) {
-      navigate(`/movie/${startParam}`, { replace: true });
+      if (startParam === 'vip') {
+        navigate(`/adult`, { replace: true });
+      } else if (startParam.includes('_')) {
+        const [type, id] = startParam.split('_');
+        navigate(`/movie/${id}?type=${type}`, { replace: true });
+      } else {
+        navigate(`/movie/${startParam}`, { replace: true });
+      }
     }
   }, [navigate]);
 

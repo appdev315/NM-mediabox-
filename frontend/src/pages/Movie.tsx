@@ -202,7 +202,7 @@ export function Movie() {
                 <button
                   onClick={() => {
                     setShowShareMenu(false);
-                    const tgLink = `https://t.me/mediaboxxxbot/app?startapp=${movie?.id}`;
+                    const tgLink = `https://t.me/mediaboxxxbot/app?startapp=${mediaType}_${movie?.id}`;
                     const text = `Watch "${movie?.title}" for free on MovieManiak!`;
                     WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(tgLink)}&text=${encodeURIComponent(text)}`);
                   }}
@@ -217,7 +217,7 @@ export function Movie() {
                 <button
                   onClick={() => {
                     setShowShareMenu(false);
-                    const webLink = `https://moviemaniak5555.xyz/movie/${movie?.id}`;
+                    const webLink = `https://moviemaniak5555.xyz/movie/${movie?.id}?type=${mediaType}`;
                     navigator.clipboard.writeText(webLink).then(() => {
                       WebApp.HapticFeedback.notificationOccurred('success');
                       if (WebApp.showAlert) WebApp.showAlert('Link copied to clipboard!');
