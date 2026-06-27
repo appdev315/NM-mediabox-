@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
 import { useLanguage, type Language } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,6 +17,8 @@ export function Profile() {
   // Use favorites to avoid unused var warning
   console.log(favorites.length);
   const [showPrivate, setShowPrivate] = useState(true);
+  const [showDonationModal, setShowDonationModal] = useState(false);
+  const cryptoAddress = 'TKA34UexUySwB4CTbPaam4WEKGQjb4sU1U';
 
   const user = WebApp.initDataUnsafe?.user || { first_name: 'Demo', id: 1 };
 
@@ -141,10 +144,7 @@ export function Profile() {
       <div className="mb-4">
         <div className="p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:bg-black/10 transition-colors border border-orange-500/20"
              style={{ backgroundColor: 'var(--hint-color)' }}
-             onClick={() => {
-               WebApp?.openLink('https://t.me/wallet');
-               alert('Криптокошелек (Адрес: ваш_адрес_кошелька). Спасибо за поддержку!');
-             }}
+             onClick={() => setShowDonationModal(true)}
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-500/20 text-orange-500">
@@ -188,7 +188,50 @@ export function Profile() {
           </p>
         )}
       </div>
-
+      {showDonationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+             onClick={() => setShowDonationModal(false)}>
+          <div className="rounded-3xl p-6 max-w-sm w-full border shadow-2xl relative"
+               style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
+               onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-xl" style={{ color: 'var(--text-color)' }}>Поддержать проект</h3>
+              <button onClick={() => setShowDonationModal(false)} className="opacity-50 p-1" style={{ color: 'var(--text-color)' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            
+            <div className="flex flex-col items-center mb-6">
+              <div className="bg-white p-4 rounded-2xl shadow-sm mb-4">
+                <QRCodeSVG value={cryptoAddress} size={200} level={"H"} />
+              </div>
+              <p className="font-medium opacity-90 text-center mb-1" style={{ color: 'var(--text-color)' }}>USDT (TRC20)</p>
+              <p className="text-xs opacity-60 text-center mb-4" style={{ color: 'var(--text-color)' }}>Сканируйте QR или скопируйте адрес ниже</p>
+              
+              <div className="w-full bg-black/5 dark:bg-white/5 rounded-xl p-3 flex items-center justify-between border" style={{ borderColor: 'var(--hint-color)' }}>
+                <span className="text-xs font-mono truncate mr-2" style={{ color: 'var(--text-color)' }}>{cryptoAddress}</span>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(cryptoAddress);
+                    WebApp?.showAlert('Адрес скопирован в буфер обмена!');
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                >
+                  Копировать
+                </button>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowDonationModal(false)}
+              className="w-full py-3 rounded-xl font-bold transition-transform active:scale-[0.98] bg-black/10 dark:bg-white/10"
+              style={{ color: 'var(--text-color)' }}
+            >
+              Закрыть
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
