@@ -1,14 +1,33 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useVip } from '../context/VipContext';
 
 const AdBanner: React.FC = () => {
   const { isVip, config } = useVip();
 
-  // Показывать баннер только если включена реклама (config.ads === true) и пользователь не VIP
+  // Load Adsgram script dynamically
+  useEffect(() => {
+    // Only load if ads are enabled in the current phase and user is not VIP
+    if (config?.ads && !isVip) {
+      const script = document.createElement('script');
+      script.src = 'https://sad.adsgram.ai/js/sad.min.js';
+      script.async = true;
+      document.head.appendChild(script);
+
+      return () => {
+        document.head.removeChild(script);
+      };
+    }
+  }, [config?.ads, isVip]);
+
+  // Показывать баннер только если включена реклама и пользователь не VIP
   if (!config?.ads || isVip) {
     return null;
   }
 
+  // TODO: Когда будет получен blockId от Adsgram, 
+  // здесь будет логика вызова баннера (например: window.Adsgram.init({ blockId: "..." }).show())
+  // Пока оставляем визуальную заглушку для тестирования верстки
+  
   return (
     <div className="fixed bottom-20 left-0 right-0 z-[100] p-2 flex justify-center pointer-events-none">
       <div 
@@ -25,11 +44,21 @@ const AdBanner: React.FC = () => {
           </div>
           <div>
             <h4 className="font-bold text-sm">Место для рекламы</h4>
-            <p className="text-xs opacity-70">Здесь будет баннер Adsgram</p>
+            <p className="text-xs opacity-70">Ожидание Block ID от Adsgram</p>
           </div>
         </div>
-        <button className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-          Открыть
+        <button 
+          className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+          onClick={() => {
+            // Эмуляция вызова рекламы
+            if ((window as any).Adsgram) {
+              alert('Adsgram SDK загружен! Для показа нужен Block ID.');
+            } else {
+              alert('Скрипт загружается...');
+            }
+          }}
+        >
+          Тест
         </button>
       </div>
     </div>
