@@ -124,7 +124,10 @@ function isValidUrl(urlStr) {
         const parsed = new URL(urlStr);
         const hostname = parsed.hostname;
         const allowedDomains = ['kinozuma.net', 'kinovasek.net', 'anwap.tube', 'anwap.im', 'anwap.bio', 'anwap.site', 'anwap.pm', 'anwap.best', 'mj.anwap.today', 'mm.anwap.media', 'm.anwap.media'];
-        return allowedDomains.includes(hostname) || hostname.endsWith('.anwap.tube');
+        return allowedDomains.includes(hostname) || 
+               hostname.endsWith('.anwap.tube') || 
+               hostname.endsWith('.kinozuma.net') || 
+               hostname.endsWith('.kinovasek.net');
     } catch (e) {
         return false;
     }
