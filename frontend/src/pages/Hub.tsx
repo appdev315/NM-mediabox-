@@ -180,7 +180,7 @@ export function Hub() {
             </div>
             <button 
               onClick={() => {
-                WebApp.openTelegramLink('https://t.me/moviemaniakbot');
+                WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
                 setShowVipPopup(false);
               }}
               className="w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 transition-all active:scale-95"

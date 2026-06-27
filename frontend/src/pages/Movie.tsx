@@ -202,7 +202,7 @@ export function Movie() {
                 <button
                   onClick={() => {
                     setShowShareMenu(false);
-                    const tgLink = `https://t.me/moviemaniakbot/app?startapp=${movie?.id}`;
+                    const tgLink = `https://t.me/mediaboxxxbot/app?startapp=${movie?.id}`;
                     const text = `Watch "${movie?.title}" for free on MovieManiak!`;
                     WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(tgLink)}&text=${encodeURIComponent(text)}`);
                   }}

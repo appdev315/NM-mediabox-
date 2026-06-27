@@ -165,7 +165,7 @@ export function Profile() {
           <p 
             className="text-sm font-bold mt-3 cursor-pointer" 
             style={{ color: 'var(--button-color)' }}
-            onClick={() => window.location.href = 'https://t.me/moviemaniakbot'}
+            onClick={() => window.location.href = 'https://t.me/mediaboxxxbot'}
           >
             ⭐️ Unlock VIP in Telegram Bot
           </p>

@@ -205,7 +205,7 @@ export function Adult() {
             </div>
             <button 
               onClick={() => {
-                window.location.href = 'https://t.me/moviemaniakbot';
+                window.location.href = 'https://t.me/mediaboxxxbot';
               }}
               className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
               style={{ backgroundColor: '#0088cc', color: '#ffffff' }}
