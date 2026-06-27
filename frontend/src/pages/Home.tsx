@@ -116,7 +116,7 @@ export function Home() {
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
           ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
-          ...(showPrivate ? [{ id: 'private', label: 'Private 💎' }] : [])
+          ...(showPrivate ? [{ id: 'private', label: 'Private 🍓' }] : [])
         ].map(tab => (
           <button
             key={tab.id}
