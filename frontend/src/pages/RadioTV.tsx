@@ -266,7 +266,7 @@ export function RadioTV() {
                   autoPlay
                   controls 
                   playsInline
-                  className={`absolute top-0 left-0 w-full h-full object-contain relative z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity`}
+                  className={`absolute top-0 left-0 w-full h-full object-contain z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity`}
                   onError={() => { setTvError(true); setTvLoading(false); }}
                   onCanPlay={() => setTvLoading(false)}
                   onPlaying={() => setTvLoading(false)}
