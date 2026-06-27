@@ -364,6 +364,9 @@ app.get('/api/adult/stream', async (req, res) => {
         }
     } catch (e) {
         return res.status(500).json({ error: e.message });
+    }
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port} with Anwap Smart Mirror selector`);
 });
