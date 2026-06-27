@@ -403,6 +403,9 @@ app.post('/api/invoice', express.json(), async (req, res) => {
         if (response.data.ok) {
             return res.json({ invoiceUrl: response.data.result });
         } else {
+            console.error('[Invoice API] Error from Telegram:', response.data.description);
+            return res.status(500).json({ error: response.data.description });
+        }
     } catch (e) {
         console.error('[Invoice API] Request failed:', e.message);
         return res.status(500).json({ error: e.message });
