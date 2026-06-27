@@ -62,12 +62,7 @@ export function Home() {
         if (page === 1) {
           setItems(results);
         } else {
-          // Apply VIP limit only if freeLimits config is true
-          if (!isVip && config?.freeLimits) {
-            setItems(prev => prev);
-          } else {
-            setItems(prev => [...prev, ...results]);
-          }
+          setItems(prev => [...prev, ...results]);
         }
       }
     };
@@ -87,11 +82,7 @@ export function Home() {
       
       // If user has scrolled to within 100px of the bottom
       if (scrollY + windowHeight >= documentHeight - 100) {
-        if (!isVip && config?.freeLimits && page >= 1) {
-          // Do not increment page if not VIP and freeLimits are active
-        } else {
-          setPage(p => p + 1);
-        }
+        setPage(p => p + 1);
       }
     };
     
@@ -217,26 +208,11 @@ export function Home() {
             </div>
           )}
 
-          {/* Infinite Scroll Indicator or VIP Banner */}
+          {/* Infinite Scroll Indicator */}
           {!isSearching && items.length > 0 && (
-            isVip ? (
-              <div className="h-10 w-full mt-4 flex items-center justify-center">
-                {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
-              </div>
-            ) : (
-              config?.freeLimits && (
-                <div className="w-full max-w-md mx-auto mt-8 bg-black/10 dark:bg-white/5 rounded-3xl p-6 text-center border" style={{ borderColor: 'var(--hint-color)' }}>
-                  <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-color)' }}>Хотите смотреть больше? 💎</h3>
-                  <p className="text-sm opacity-70 mb-4" style={{ color: 'var(--text-color)' }}>Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!</p>
-                  <button 
-                    onClick={showVipModal}
-                    className="px-6 py-3 rounded-xl font-bold transition-transform active:scale-95 bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    ⭐️ Разблокировать всё за {config?.priceMonth || 75} ⭐️
-                  </button>
-                </div>
-              )
-            )
+            <div className="h-10 w-full mt-4 flex items-center justify-center">
+              {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
+            </div>
           )}
         </>
       )}
