@@ -87,7 +87,7 @@ export async function getDownloadLinks(url) {
 
     $('a').each((i, el) => {
       const href = $(el).attr('href');
-      if (href && href.endsWith('.mp4')) {
+      if (href && (href.includes('.mp4') || href.includes('vsimk') || href.includes('download') || href.includes('dl'))) {
         let quality = $(el).text().trim() || 'Download';
         // Cleanup text "Скачать 476MB"
         quality = quality.replace(/скачать/i, '').trim();

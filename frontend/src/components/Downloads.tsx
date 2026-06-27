@@ -80,11 +80,18 @@ export function Downloads() {
   };
 
   const triggerDownload = (url: string) => {
-    WebApp.HapticFeedback.notificationOccurred('success');
+    try {
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+    } catch (e) {}
+
+    const proxyUrl = `${BACKEND_URL}/api/vip/downloads/proxy?url=${btoa(url)}`;
+    
     const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.download = '';
+    a.href = proxyUrl;
+    a.target = '_self'; // Open in same tab or trigger download directly
+    a.download = 'movie.mp4';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

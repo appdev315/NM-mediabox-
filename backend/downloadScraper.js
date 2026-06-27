@@ -48,7 +48,7 @@ export async function getDownloadLinks(url) {
             const encodedUrl = $(el).attr('href');
             if (encodedUrl && encodedUrl.includes('url=')) {
                 try {
-                    const base64Str = encodedUrl.split('url=')[1];
+                    const base64Str = decodeURIComponent(encodedUrl.split('url=')[1]);
                     const decodedUrl = Buffer.from(base64Str, 'base64').toString('utf8');
                     const text = $(el).text();
                     
