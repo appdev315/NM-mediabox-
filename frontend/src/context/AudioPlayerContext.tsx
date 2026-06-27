@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 
 export interface Track {
   id: string;

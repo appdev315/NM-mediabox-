@@ -8,13 +8,6 @@ export function Favorites() {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
-  const TABS = [
-    { id: 'Movies', label: t('tab_movies') },
-    { id: 'Series', label: t('tab_series') },
-    { id: 'Radio', label: t('tab_radio') },
-    { id: 'TV', label: t('tab_tv') },
-    { id: 'Private', label: t('tab_private') },
-  ];
 
   const [activeTab, setActiveTab] = useState('movie');
   

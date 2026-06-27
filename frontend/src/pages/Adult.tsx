@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from './Movie';
@@ -39,7 +39,6 @@ export function Adult() {
   
   const [favorites, setFavorites] = useState<any[]>([]);
   
-  const observerTarget = useRef(null);
 
   useEffect(() => {
     const handleBack = () => navigate(-1);
