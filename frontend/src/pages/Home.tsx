@@ -9,7 +9,7 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
-  const showPrivate = localStorage.getItem('showPrivate') === 'true';
+  const showPrivate = localStorage.getItem('showPrivate') !== 'false';
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads' | 'private'>('movie');
   const [items, setItems] = useState<any[]>([]);

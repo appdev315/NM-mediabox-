@@ -143,27 +143,34 @@ export function Profile() {
       </div>
 
       {/* Private Mode Toggle */}
-      {isVip && (
-        <div className="p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'var(--hint-color)' }}>
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">💎</span>
-              <h2 className="font-bold text-lg">{t('privateModeTitle')}</h2>
-            </div>
-            <div 
-              onClick={handleTogglePrivate}
-              className={`w-12 h-6 rounded-full flex items-center p-1 cursor-pointer transition-colors`}
-              style={{ backgroundColor: showPrivate ? 'var(--button-color)' : 'rgba(128,128,128,0.5)' }}
-            >
-              <div 
-                className="bg-white w-4 h-4 rounded-full shadow-md transition-transform"
-                style={{ transform: showPrivate ? 'translateX(24px)' : 'translateX(0)' }}
-              />
-            </div>
+      <div className="p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'var(--hint-color)' }}>
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">💎</span>
+            <h2 className="font-bold text-lg">{t('privateModeTitle')}</h2>
           </div>
-          <p className="text-sm opacity-90">{t('privateModeDesc')}</p>
+          <div 
+            onClick={handleTogglePrivate}
+            className={`w-12 h-6 rounded-full flex items-center p-1 ${isVip ? 'cursor-pointer' : 'opacity-50'} transition-colors`}
+            style={{ backgroundColor: (isVip && showPrivate) ? 'var(--button-color)' : 'rgba(128,128,128,0.5)' }}
+          >
+            <div 
+              className="bg-white w-4 h-4 rounded-full shadow-md transition-transform"
+              style={{ transform: showPrivate ? 'translateX(24px)' : 'translateX(0)' }}
+            />
+          </div>
         </div>
-      )}
+        <p className="text-sm opacity-90">{t('privateModeDesc')}</p>
+        {!isVip && (
+          <p 
+            className="text-sm font-bold mt-3 cursor-pointer" 
+            style={{ color: 'var(--button-color)' }}
+            onClick={() => window.location.href = 'https://t.me/moviemaniakbot'}
+          >
+            ⭐️ Unlock VIP in Telegram Bot
+          </p>
+        )}
+      </div>
 
     </div>
   );

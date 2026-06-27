@@ -227,7 +227,7 @@ export function Favorites() {
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
           ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
-          ...(localStorage.getItem('showPrivate') === 'true' ? [{ id: 'private', label: 'Private 💎' }] : [])
+          ...(localStorage.getItem('showPrivate') !== 'false' ? [{ id: 'private', label: 'Private 💎' }] : [])
         ].map(tab => (
           <button 
             key={tab.id}
