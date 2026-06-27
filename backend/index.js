@@ -352,9 +352,8 @@ app.get('/api/stream', async (req, res) => {
         if (imdbId) {
             console.log(`[Stream API] Found IMDb ID: ${imdbId}, returning multiple sources!`);
             const sources = [
-                { name: "Основной (Anwap)", url: `https://api.ortified.ws/embed/imdb/${imdbId}` },
-                { name: "Резерв 1 (Vidsrc RU)", url: `https://vidsrc.ru/embed/imdb/${imdbId}` },
-                { name: "Резерв 2 (Vidsrc EN)", url: type === 'tv' || type === 'series' ? `https://vidsrc.me/embed/tv?imdb=${imdbId}` : `https://vidsrc.me/embed/movie?imdb=${imdbId}` }
+                { name: "Основной", url: `https://api.ortified.ws/embed/imdb/${imdbId}` },
+                { name: "Резерв", url: type === 'tv' || type === 'series' ? `https://vidsrc.me/embed/tv?imdb=${imdbId}` : `https://vidsrc.me/embed/movie?imdb=${imdbId}` }
             ];
             return res.json({ 
                 iframe: sources[0].url,
@@ -365,8 +364,7 @@ app.get('/api/stream', async (req, res) => {
             if (tmdb) {
                 const isTv = type === 'tv' || type === 'series';
                 const sources = [
-                    { name: "Резерв 1 (Vidsrc RU)", url: `https://vidsrc.ru/embed/tmdb/${tmdb}` },
-                    { name: "Резерв 2 (Vidsrc EN)", url: isTv ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}` : `https://vidsrc.me/embed/movie?tmdb=${tmdb}` }
+                    { name: "Резерв", url: isTv ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}` : `https://vidsrc.me/embed/movie?tmdb=${tmdb}` }
                 ];
                 return res.json({ 
                     iframe: sources[0].url,
@@ -584,3 +582,4 @@ app.get('/api/vip/downloads/proxy', async (req, res) => {
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port} with Anwap Smart Mirror selector`);
 });
+// trigger deploy
