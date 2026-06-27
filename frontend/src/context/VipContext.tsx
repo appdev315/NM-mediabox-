@@ -11,7 +11,7 @@ interface VipContextType {
 
 const VipContext = createContext<VipContextType | undefined>(undefined);
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://server.moviemaniak5555.xyz';
+import { BACKEND_URL } from '../pages/Movie';
 
 export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isVip, setIsVip] = useState(false);
