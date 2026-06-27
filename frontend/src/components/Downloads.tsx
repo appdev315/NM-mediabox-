@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from '../pages/Movie';
 import { useLanguage } from '../context/LanguageContext';
+import { useVip } from '../context/VipContext';
 
 export function Downloads() {
+  const { isVip, showVipModal, config } = useVip();
   const { language } = useLanguage();
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
@@ -36,8 +38,13 @@ export function Downloads() {
         const finalData = data;
 
         if (Array.isArray(finalData)) {
+            // Apply VIP limits
+            if (!isVip && config?.freeLimits && page > 1) {
+              setItems(prev => prev); // Prevent loading more
+            } else {
               if (page === 1) setItems(finalData);
               else setItems(prev => [...prev, ...finalData]);
+            }
         }
       } catch(e) {
         console.error(e);
@@ -138,6 +145,7 @@ export function Downloads() {
 
       {/* Load More Button or VIP Call to Action */}
       {!isSearching && items.length > 0 && !loading && (
+        (isVip || !config?.freeLimits) ? (
           <button
             onClick={() => setPage(p => p + 1)}
             className="w-full mt-6 p-4 rounded-xl font-bold transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2"
@@ -145,6 +153,23 @@ export function Downloads() {
           >
             Load More
           </button>
+        ) : (
+          <div className="mt-8 mb-4">
+            <div className="bg-gradient-to-r from-pink-500/10 to-violet-500/10 rounded-2xl p-6 border border-pink-500/20 text-center">
+              <h3 className="font-bold text-lg mb-2">Хотите больше контента? 💎</h3>
+              <p className="text-sm opacity-80 mb-4">
+                Бесплатно доступны только первые фильмы. Поддержите создателя, чтобы открыть полную библиотеку без ограничений!
+              </p>
+              <button
+                onClick={showVipModal}
+                className="w-full py-3 px-6 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform"
+                style={{ background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
+              >
+                Разблокировать всё за {config?.priceMonth || 75} ⭐️
+              </button>
+            </div>
+          </div>
+        )
       )}
 
       {/* Download Modal */}

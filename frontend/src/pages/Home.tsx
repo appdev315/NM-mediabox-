@@ -62,7 +62,12 @@ export function Home() {
         if (page === 1) {
           setItems(results);
         } else {
-          setItems(prev => [...prev, ...results]);
+          // Apply VIP limit only if freeLimits config is true
+          if (!isVip && config?.freeLimits) {
+            setItems(prev => prev);
+          } else {
+            setItems(prev => [...prev, ...results]);
+          }
         }
       }
     };
@@ -82,7 +87,11 @@ export function Home() {
       
       // If user has scrolled to within 100px of the bottom
       if (scrollY + windowHeight >= documentHeight - 100) {
-        setPage(p => p + 1);
+        if (!isVip && config?.freeLimits && page >= 1) {
+          // Do not increment page if not VIP and freeLimits are active
+        } else {
+          setPage(p => p + 1);
+        }
       }
     };
     
@@ -122,7 +131,8 @@ export function Home() {
             key={tab.id}
             onClick={() => {
               if (tab.id === 'private') {
-                navigate('/adult');
+                if (!isVip) showVipModal();
+                else navigate('/adult');
               }
               else if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');

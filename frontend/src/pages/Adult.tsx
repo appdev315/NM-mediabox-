@@ -125,7 +125,7 @@ export function Adult() {
   };
 
   const loadMore = useCallback(() => {
-    if (loading || isLoadingMore || !ageConfirmed) return;
+    if (loading || isLoadingMore || !isVip || !ageConfirmed) return;
     
     if (category === '' && query === '') {
       // Infinite mix mode
@@ -138,7 +138,7 @@ export function Adult() {
       setPage(nextPage);
       loadVideos(query || category, nextPage, true);
     }
-  }, [loading, isLoadingMore, ageConfirmed, category, query, page]);
+  }, [loading, isLoadingMore, isVip, ageConfirmed, category, query, page]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -180,16 +180,64 @@ export function Adult() {
     setCategory(val);
     setQuery('');
     setPage(0);
-    if (val === '') {
-      const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-      const randomPage = Math.floor(Math.random() * 10);
-      loadVideos(randomCat, randomPage, false);
-    } else {
-      loadVideos(val, 0, false);
+    if (isVip) {
+      if (val === '') {
+        const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
+        const randomPage = Math.floor(Math.random() * 10);
+        loadVideos(randomCat, randomPage, false);
+      } else {
+        loadVideos(val, 0, false);
+      }
     }
   };
 
-  if (!ageConfirmed) {
+  if (!isVip) {
+    return (
+      <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
+        <div className="text-6xl mb-6">💎</div>
+        <h1 className="text-2xl font-bold mb-4">{t('privateCollection')}</h1>
+        <p className="opacity-70 mb-8 max-w-xs leading-relaxed">
+          {t('privateCollectionDesc')}
+        </p>
+        
+        {WebApp.platform === 'unknown' ? (
+          <div className="w-full flex flex-col gap-3 mt-4">
+            <div className="bg-black/10 p-4 rounded-xl border border-white/10 text-sm font-medium mb-2">
+              ⚠️ VIP purchases and Adult content are strictly available only within the official Telegram Bot.
+            </div>
+            <button 
+              onClick={() => {
+                window.location.href = 'https://t.me/mediaboxxxbot';
+              }}
+              className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#0088cc', color: '#ffffff' }}
+            >
+              <span className="text-2xl">🚀</span> Open in Telegram
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => {
+              WebApp.HapticFeedback.impactOccurred('heavy');
+              setIsVip(true);
+              localStorage.setItem('vip_until', 'lifetime');
+              if (ageConfirmed) {
+                const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
+                const randomPage = Math.floor(Math.random() * 10);
+                loadVideos(randomCat, randomPage);
+              }
+            }}
+            className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform mt-4"
+            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+          >
+            ⭐️ {t('unlockWithStars')}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (isVip && !ageConfirmed) {
     return (
       <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
         <div className="text-6xl mb-6">🔞</div>
