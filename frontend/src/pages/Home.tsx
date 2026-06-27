@@ -131,8 +131,7 @@ export function Home() {
             key={tab.id}
             onClick={() => {
               if (tab.id === 'private') {
-                if (!isVip) showVipModal();
-                else navigate('/adult');
+                navigate('/adult');
               }
               else if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');

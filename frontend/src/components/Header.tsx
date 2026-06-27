@@ -19,7 +19,7 @@ export function Header({ title = "MovieManiak" }: { title?: string }) {
         style={{ borderColor: 'var(--button-color)', color: 'var(--text-color)' }}
       >
         {user?.photo_url ? (
-          <img src={user.photo_url} alt="Profile" className="w-full h-full object-cover" />
+          <img src={user.photo_url} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         ) : (
           <span className="font-bold">{user?.first_name?.[0] || '👤'}</span>
         )}
