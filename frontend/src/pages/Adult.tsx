@@ -195,7 +195,7 @@ export function Adult() {
             <div 
               className="bg-[#54a9eb] hover:bg-[#4a98d4] text-white py-3 px-8 rounded-full flex items-center justify-center gap-3 cursor-pointer shadow-md transition-colors mt-2"
               onClick={() => {
-                alert("Здесь будет официальный виджет Telegram Login. После входа вы сможете купить VIP.");
+                window.location.href = 'https://t.me/mediaboxxxbot?start=vip';
               }}
             >
               <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">

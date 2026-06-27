@@ -130,10 +130,6 @@ export function Hub() {
               style={{ backdropFilter: tile.locked ? 'blur(2px)' : 'blur(20px)' }}
               onClick={(e) => {
                 e.preventDefault();
-                if (tile.locked) {
-                  setShowVipPopup(true);
-                  return;
-                }
                 if (animatingId) return;
                 setAnimatingId(tile.id);
                 setTimeout(() => {

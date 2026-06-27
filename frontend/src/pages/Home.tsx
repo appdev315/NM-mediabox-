@@ -10,7 +10,7 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
-  const { isVip, showVipModal, config } = useVip();
+  const { isVip, config } = useVip();
   const showPrivate = localStorage.getItem('showPrivate') !== 'false';
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads' | 'private'>('movie');
@@ -122,8 +122,7 @@ export function Home() {
             key={tab.id}
             onClick={() => {
               if (tab.id === 'private') {
-                if (!isVip) showVipModal();
-                else navigate('/adult');
+                navigate('/adult');
               }
               else if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');
