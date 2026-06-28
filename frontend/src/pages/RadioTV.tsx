@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
@@ -23,6 +24,8 @@ const COUNTRIES = [
 ];
 
 export function RadioTV() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(localStorage.getItem('radio_tv_country') || 'ru');
   const [stations, setStations] = useState<Station[]>([]);
@@ -193,6 +196,66 @@ export function RadioTV() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // HLS logic
+  useEffect(() => {
+    if (activeTvChannel && activeTab === 'tv' && videoRef.current) {
+      const video = videoRef.current;
+      const url = activeTvChannel.url;
+
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+        });
+        hlsRef.current = hls;
+        
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(e => console.log('Autoplay prevented', e));
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error('fatal network error encountered, try to recover');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error('fatal media error encountered, try to recover');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                setTvError(true);
+                setTvLoading(false);
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
+        video.addEventListener('loadedmetadata', () => {
+          video.play().catch(e => console.log('Autoplay prevented', e));
+        });
+      }
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [activeTvChannel, activeTab]);
+
   const listToRender = activeTab === 'radio' ? stations : tvChannels;
   const filteredList = listToRender.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
   const displayedList = filteredList.slice(0, visibleCount);
@@ -282,7 +345,7 @@ export function RadioTV() {
                   </div>
                 )}
                 <video 
-                  src={activeTvChannel.url}
+                  ref={videoRef}
                   autoPlay
                   controls 
                   playsInline
