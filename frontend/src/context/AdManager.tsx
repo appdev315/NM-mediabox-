@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
 
 interface AdContextType {
@@ -16,7 +16,7 @@ export const useAdManager = () => {
 };
 
 interface AdProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
