@@ -5,6 +5,8 @@ import { BACKEND_URL } from './Movie';
 import { useLanguage } from '../context/LanguageContext';
 import { VIP_USERS } from '../config/vipUsers';
 import { useVip } from '../context/VipContext';
+import { BannerAd } from '../components/BannerAd';
+import React from 'react';
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -308,9 +310,9 @@ export function Adult() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4">
-            {videos.map(v => (
+            {videos.map((v, idx) => (
+              <React.Fragment key={v.id}>
               <div 
-                key={v.id} 
                 className="cursor-pointer active:scale-95 transition-transform"
                 onClick={() => navigate(`/adult/${v.id}`)}
               >
@@ -330,6 +332,8 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
+              {(idx + 1) % 15 === 0 && <BannerAd />}
+              </React.Fragment>
             ))}
           </div>
           {isLoadingMore && (

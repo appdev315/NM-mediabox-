@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { Header } from '../components/Header';
+import { BannerAd } from '../components/BannerAd';
+import React from 'react';
 
 export function Favorites() {
   const { t, language } = useLanguage();
@@ -75,8 +77,8 @@ export function Favorites() {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
         {list.map((item: any, idx) => (
+          <React.Fragment key={`${item.id}-${idx}`}>
           <div 
-            key={`${item.id}-${idx}`} 
             onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
             className="flex flex-col gap-2 cursor-pointer group"
           >
@@ -99,6 +101,8 @@ export function Favorites() {
               <h3 className="font-bold text-sm leading-tight line-clamp-1" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
             </div>
           </div>
+          {(idx + 1) % 15 === 0 && <BannerAd />}
+          </React.Fragment>
         ))}
       </div>
     );

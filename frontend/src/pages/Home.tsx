@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useVip } from '../context/VipContext';
 import { Downloads } from '../components/Downloads';
 import { Header } from '../components/Header';
+import { BannerAd } from '../components/BannerAd';
 
 export function Home() {
   const navigate = useNavigate();
@@ -178,11 +179,11 @@ export function Home() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
             {items.map((item, idx) => (
-              <div 
-                key={`${item.id}-${idx}`} 
-                onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
-                className="flex flex-col gap-2 cursor-pointer group"
-              >
+              <React.Fragment key={`${item.id}-${idx}`}>
+                <div 
+                  onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
+                  className="flex flex-col gap-2 cursor-pointer group"
+                >
             <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl">
                   <img 
                     src={item.poster} 
@@ -195,6 +196,8 @@ export function Home() {
                   <p className="text-xs opacity-90 mt-1">{item.year}</p>
                 </div>
               </div>
+              {(idx + 1) % 15 === 0 && <BannerAd />}
+              </React.Fragment>
             ))}
           </div>
           

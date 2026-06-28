@@ -5,6 +5,7 @@ import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
+import { useAdManager } from '../context/AdManager';
 
 export const BACKEND_URL = import.meta.env.PROD 
   ? "https://evro90-nm6.hf.space" 
@@ -16,6 +17,7 @@ export function Movie() {
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
   const { t } = useLanguage();
+  const { triggerMovieAd } = useAdManager();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -71,6 +73,11 @@ export function Movie() {
       isMounted = false;
     };
   }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
+
+  // Trigger ad when navigating to movie
+  useEffect(() => {
+    triggerMovieAd();
+  }, [id]); // re-trigger when movie id changes
 
   const handleWatch = async () => {
     if (!movie) return;

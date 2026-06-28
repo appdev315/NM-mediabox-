@@ -14,6 +14,7 @@ import { RadioTV } from './pages/RadioTV';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { VipProvider } from './context/VipContext';
+import { AdProvider } from './context/AdManager';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -82,26 +83,28 @@ export default function App() {
   return (
     <ThemeProvider>
       <VipProvider>
-        <AudioPlayerProvider>
-        <BrowserRouter>
-          <DeepLinkHandler />
-          <div className="pb-16 min-h-screen relative">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/movies" element={<Home />} />
-              <Route path="/radio-tv" element={<RadioTV />} />
-              <Route path="/movie/:id" element={<Movie />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/favorites" element={<Favorites />} />
-              <Route path="/adult" element={<Adult />} />
-              <Route path="/adult/:id" element={<AdultVideo />} />
-            </Routes>
-            <AdBanner />
-          </div>
-          <GlobalAudioPlayer />
-          <BottomNav />
-        </BrowserRouter>
-      </AudioPlayerProvider>
+        <AdProvider>
+          <AudioPlayerProvider>
+            <BrowserRouter>
+              <DeepLinkHandler />
+              <div className="pb-16 min-h-screen relative">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/movies" element={<Home />} />
+                  <Route path="/radio-tv" element={<RadioTV />} />
+                  <Route path="/movie/:id" element={<Movie />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/favorites" element={<Favorites />} />
+                  <Route path="/adult" element={<Adult />} />
+                  <Route path="/adult/:id" element={<AdultVideo />} />
+                </Routes>
+                <AdBanner />
+              </div>
+              <GlobalAudioPlayer />
+              <BottomNav />
+            </BrowserRouter>
+          </AudioPlayerProvider>
+        </AdProvider>
       </VipProvider>
     </ThemeProvider>
   );
