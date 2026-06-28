@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
+import { useVip } from './VipContext';
 
 interface AdContextType {
   triggerMovieAd: () => void;
@@ -22,6 +23,7 @@ interface AdProviderProps {
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [adType, setAdType] = useState<'adsgram' | 'monetag' | null>(null);
+  const { isVip, config } = useVip();
   
   // Cooldown setting (5 minutes)
   const COOLDOWN_MS = 5 * 60 * 1000; 
@@ -30,16 +32,18 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // On app startup (only for Telegram)
-    if (isTelegram) {
+    if (isTelegram && config?.ads && !isVip) {
       const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
       if (!hasSeenStartup) {
         sessionStorage.setItem('hasSeenStartupAd', 'true');
         playAd('adsgram');
       }
     }
-  }, [isTelegram]);
+  }, [isTelegram, isVip, config?.ads]);
 
   const triggerMovieAd = () => {
+    if (!config?.ads || isVip) return;
+
     if (isTelegram) {
       // For Telegram, we only show startup ad, no movie prerolls
       return;
