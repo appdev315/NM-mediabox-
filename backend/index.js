@@ -4,6 +4,7 @@ import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import xvideosScraper from './xvideos.js';
+import epornerScraper from './epornerScraper.js';
 import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
 import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
@@ -527,8 +528,20 @@ app.get('/api/adult/search', requireVip, async (req, res) => {
     const { q, page } = req.query;
     try {
         const p = page ? parseInt(page) : 0;
-        const results = await xvideosScraper.search(q, p);
-        return res.json(results);
+        const [xvideosResults, epornerResults] = await Promise.all([
+            xvideosScraper.search(q, p),
+            epornerScraper.search(q, p)
+        ]);
+        
+        // Interleave the arrays to mix them nicely
+        const mixed = [];
+        const maxLen = Math.max(xvideosResults.length, epornerResults.length);
+        for(let i=0; i<maxLen; i++) {
+            if (epornerResults[i]) mixed.push(epornerResults[i]);
+            if (xvideosResults[i]) mixed.push(xvideosResults[i]);
+        }
+        
+        return res.json(mixed);
     } catch (e) {
         return res.status(500).json({ error: e.message });
     }
@@ -539,7 +552,13 @@ app.get('/api/adult/stream', requireVip, async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Missing id' });
     
     try {
-        const details = await xvideosScraper.getVideoDetails(id);
+        let details;
+        if (id.startsWith('eporner_')) {
+            details = await epornerScraper.getVideoDetails(id);
+        } else {
+            details = await xvideosScraper.getVideoDetails(id);
+        }
+        
         if (details) {
             return res.json(details);
         } else {
