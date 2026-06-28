@@ -47,16 +47,6 @@ export function Adult() {
   
 
   useEffect(() => {
-    const handleBack = () => navigate(-1);
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(handleBack);
-    return () => {
-      WebApp.BackButton.hide();
-      WebApp.BackButton.offClick(handleBack);
-    };
-  }, [navigate]);
-
-  useEffect(() => {
     
     const savedFavs = localStorage.getItem('private_favs');
     if (savedFavs) {
