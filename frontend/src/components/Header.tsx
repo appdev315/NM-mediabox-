@@ -11,7 +11,7 @@ export function Header({ title = "MovieManiak" }: { title?: string }) {
         className="text-2xl font-extrabold tracking-tight cursor-pointer active:scale-95 transition-transform flex items-center gap-2"
         onClick={() => navigate('/')}
       >
-        {title}
+        
       </h1>
       <button 
         onClick={() => navigate('/profile')}

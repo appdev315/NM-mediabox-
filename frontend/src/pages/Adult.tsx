@@ -286,15 +286,6 @@ export function Adult() {
   return (
     <div className="p-4 pb-20 pt-6">
       <div className="flex items-center gap-3 mb-6">
-        <button 
-          onClick={() => navigate(-1)}
-          className="p-2 bg-black/20 rounded-full shadow-md hover:scale-110 transition-transform"
-          style={{ color: 'var(--text-color)' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
         <h1 className="text-2xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
       
