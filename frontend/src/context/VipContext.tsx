@@ -107,6 +107,7 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }, (buttonId: string) => {
               if (buttonId === 'open_bot') {
                 WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+                WebApp.close();
               }
             });
 

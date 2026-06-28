@@ -189,7 +189,10 @@ export function Profile() {
         
         {isVip ? (
           <button 
-            onClick={() => WebApp.openTelegramLink('https://t.me/mediaboxxxbot')}
+            onClick={() => {
+              WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+              WebApp.close();
+            }}
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
           >
