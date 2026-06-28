@@ -3,8 +3,6 @@ import { WebApp } from '../telegram';
 
 export function Header() {
   const navigate = useNavigate();
-  const user = WebApp.initDataUnsafe?.user;
-  const isTelegram = WebApp.initData !== '';
 
   return (
     <button 
