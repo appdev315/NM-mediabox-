@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { WebApp } from '../telegram';
@@ -27,6 +27,7 @@ export function Movie() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
   // Validate media type
   const queryType = searchParams.get('type');
@@ -170,14 +171,16 @@ export function Movie() {
   return (
     <div className="pb-20">
       <div className="relative">
-        <button 
-          onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 z-50 p-2 bg-black/50 backdrop-blur-md rounded-full shadow-md text-white hover:scale-110 transition-transform"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
+        {WebApp.platform === 'unknown' && (
+          <button 
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 z-50 p-2 bg-black/50 backdrop-blur-md rounded-full shadow-md text-white hover:scale-110 transition-transform"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+        )}
         <img 
           src={movie.poster} 
           alt={movie.title} 
@@ -318,8 +321,27 @@ export function Movie() {
 
         {recommendations.length > 0 && (
           <>
-            <h2 className="font-bold text-xl mb-4">{t('recommendations')}</h2>
-            <div className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: 'none' }}>
+          <div className="relative group">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-bold text-xl">{t('recommendations')}</h2>
+              {WebApp.platform === 'unknown' && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  </button>
+                  <button 
+                    onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: 'none' }}>
               {recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
@@ -340,6 +362,7 @@ export function Movie() {
                 </div>
               ))}
             </div>
+          </div>
           </>
         )}
       </div>

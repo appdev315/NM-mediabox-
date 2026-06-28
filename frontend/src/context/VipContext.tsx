@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from 'react';
 import { WebApp } from '../telegram';
 import VipModal from '../components/VipModal';
+import { VIP_USERS } from '../config/vipUsers';
 
 interface PhaseConfig {
   phase: number;
@@ -32,9 +33,20 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const checkStatusAndConfig = async () => {
       try {
         const initData = WebApp?.initData || '';
+        
+        // Check if Web user logged in via Widget
+        const webUserStr = localStorage.getItem('telegramUser');
+        let webUser = null;
+        if (webUserStr) {
+          try { webUser = JSON.parse(webUserStr); } catch(e) {}
+        }
+        
+        const currentUser = WebApp?.initDataUnsafe?.user || webUser;
+        const isHardcodedVip = currentUser?.username && VIP_USERS.includes(currentUser.username);
+
         if (!initData) {
-          // Local testing fallback
-          setIsVip(false);
+          // Local testing fallback / Web
+          setIsVip(!!isHardcodedVip);
           setLoading(false);
           return;
         }
@@ -47,7 +59,9 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         if (statusRes.ok) {
           const data = await statusRes.json();
-          setIsVip(data.isVip);
+          setIsVip(isHardcodedVip || data.isVip);
+        } else if (isHardcodedVip) {
+          setIsVip(true);
         }
         if (configRes.ok) {
           const cfg = await configRes.json();
