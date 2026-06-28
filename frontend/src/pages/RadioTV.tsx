@@ -247,8 +247,12 @@ export function RadioTV() {
 
       if (Hls.isSupported()) {
         const hls = new Hls({
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          enableWorker: true,
+          lowLatencyMode: false,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 10,
         });
         hlsRef.current = hls;
         

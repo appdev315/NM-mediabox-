@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import xvideosScraper from './xvideos.js';
@@ -51,6 +53,23 @@ async function withMovieCache(key, ttlSeconds, fetcher) {
 
 const app = express();
 const port = process.env.PORT || 7860;
+
+// Security Headers
+app.use(helmet({
+    crossOriginResourcePolicy: false, // allow remote fetching
+}));
+
+// Rate limiting (100 requests per 10 minutes per IP)
+const limiter = rateLimit({
+    windowMs: 10 * 60 * 1000, 
+    max: 100, 
+    standardHeaders: true, 
+    legacyHeaders: false, 
+    message: { error: "Too many requests from this IP, please try again after 10 minutes" }
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
 
 app.use(cors({
     origin: '*',
@@ -602,6 +621,12 @@ app.get('/api/vip/downloads/proxy', async (req, res) => {
         console.error('Proxy error:', e.message);
         res.status(500).send('Proxy error');
     }
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
 });
 
 app.listen(port, '0.0.0.0', () => {

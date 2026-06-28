@@ -1,0 +1,33 @@
+name: Backend Health Check
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping API Health Endpoint
+        id: health
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://romanbushuev-media-box-api.hf.space/api/health)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Health endpoint returned $HTTP_STATUS"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Send Telegram Notification on Failure
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${BOT_TOKEN}/sendMessage \
+            -d chat_id=${CHAT_ID} \
+            -d text="🚨 Внимание! Сервер Hugging Face (media-box API) недоступен. Проверка Health Check не пройдена."
