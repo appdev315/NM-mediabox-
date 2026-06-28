@@ -13,37 +13,77 @@ class XvideosScraper {
 
     async search(query = '', page = 0) {
         try {
-            // Eporner pages start at 1
-            const epPage = (page || 0) + 1;
-            const searchQ = query ? encodeURIComponent(query) : 'popular';
-            const url = `https://www.eporner.com/api/v2/video/search/?query=${searchQ}&per_page=30&page=${epPage}&thumbsize=big`;
-            
+            // URL format: https://xv-ru.com/?k=query&p=page
+            // Home page: https://xv-ru.com/
+            let url = this.baseUrl;
+            if (query) {
+                url += `/?k=${encodeURIComponent(query)}&p=${page}`;
+            } else if (page > 0) {
+                url += `/new/${page}/`;
+            }
+
             const res = await axios.get(url, { headers: this.headers, timeout: 8000 });
-            
-            if (!res.data || !res.data.videos) return [];
-            
-            return res.data.videos.map(v => ({
-                id: v.id,
-                title: v.title,
-                poster: v.default_thumb?.src || '',
-                duration: v.length_min || '',
-                type: 'adult',
-                href: v.url
-            }));
+            const $ = cheerio.load(res.data);
+            const videos = [];
+
+            $('.mozaique .thumb-block').each((i, el) => {
+                const titleNode = $(el).find('p.title a');
+                let title = titleNode.text().trim() || $(el).find('a').attr('title');
+                
+                // Clean up title (remove "XX мин." at the end if present)
+                if (title) {
+                    title = title.replace(/\s*\d+\s*(мин\.|sec\.|min\.)/i, '').trim();
+                }
+
+                const href = $(el).find('a').attr('href');
+                let img = $(el).find('img').attr('data-src') || $(el).find('img').attr('src');
+                if (img && img.includes('THUMBNUM')) {
+                    img = img.replace('THUMBNUM', '1');
+                }
+                
+                // Duration
+                const duration = $(el).find('.duration').text().trim();
+
+                if (title && href && img && !href.includes('promo')) {
+                    // Xvideos IDs look like /video.ohblphhf4c8/_
+                    const idMatch = href.match(/\/video\.([^\/]+)/);
+                    const id = idMatch ? idMatch[1] : Buffer.from(href).toString('base64');
+
+                    videos.push({
+                        id,
+                        title,
+                        poster: img,
+                        duration,
+                        type: 'adult',
+                        href
+                    });
+                }
+            });
+
+            return videos;
         } catch (error) {
-            console.error('[AdultScraper] Search error:', error.message);
+            console.error('[Xvideos] Search error:', error.message);
             return [];
         }
     }
 
-    async getVideoDetails(id) {
+    async getVideoDetails(hrefOrId) {
         try {
+            // Extract the actual ID if it's passed as a full ID string
+            let id = hrefOrId;
+            if (hrefOrId.startsWith('video.')) {
+                id = hrefOrId.split('.')[1];
+            } else if (hrefOrId.startsWith('/video.')) {
+                const match = hrefOrId.match(/\/video\.([^\/]+)/);
+                if (match) id = match[1];
+            }
+            
             return {
-                iframe: `https://www.eporner.com/embed/${id}/`,
+                iframe: `https://www.xvideos.com/embedframe/${id}`,
                 mp4: null
             };
         } catch (error) {
-            console.error('[AdultScraper] Detail error:', error.message);
+            console.error('[Xvideos] Detail error:', error.message);
             return null;
         }
     }

@@ -34,7 +34,7 @@ export function Adult() {
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('teen');
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
@@ -72,10 +72,8 @@ export function Adult() {
     if (confirmed) setAgeConfirmed(true);
     
     if (isVip && confirmed) {
-      // Pick random initial query and random page to ensure fresh content
-      const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-      const randomPage = Math.floor(Math.random() * 10);
-      loadVideos(randomCat, randomPage);
+      // Pick initial query as teen and page 0
+      loadVideos('teen', 0);
     } else {
       setLoading(false);
     }
@@ -119,10 +117,11 @@ export function Adult() {
     if (loading || isLoadingMore || !isVip || !ageConfirmed) return;
     
     if (category === '' && query === '') {
-      // Infinite mix mode
+      // Infinite mode
       const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-      const randomPage = Math.floor(Math.random() * 10);
-      loadVideos(randomCat, randomPage, true);
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadVideos(randomCat, nextPage, true);
     } else {
       // Specific search/category mode
       const nextPage = page + 1;
@@ -259,9 +258,9 @@ export function Adult() {
               WebApp.HapticFeedback.impactOccurred('heavy');
               setAgeConfirmed(true);
               localStorage.setItem('age_confirmed', 'true');
-              const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-              const randomPage = Math.floor(Math.random() * 10);
-              loadVideos(randomCat, randomPage);
+              setCategory('teen');
+              setPage(0);
+              loadVideos('teen', 0);
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
