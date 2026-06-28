@@ -358,9 +358,9 @@ export function RadioTV() {
               borderColor: 'var(--hint-color)'
             }}
           >
-            <option value="1">Источник 1</option>
-            <option value="2">Источник 2</option>
-            <option value="3">Источник 3</option>
+            <option value="1">{t('source1')}</option>
+            <option value="2">{t('source2')}</option>
+            <option value="3">{t('source3')}</option>
           </select>
         )}
       </div>

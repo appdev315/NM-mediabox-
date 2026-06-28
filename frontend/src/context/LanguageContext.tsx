@@ -72,7 +72,10 @@ export const translations = {
     buyVip: 'Купить VIP ⭐️',
     supportCreator: 'Поддержать автора',
     supportSubtitle: 'Крипто-перевод (USDT / TON)',
-    tvWarning: 'Внимание: некоторые каналы могут не работать из-за геоблокировок или отключения серверов поставщика. Если канал не работает — просто выберите другой.'
+    tvWarning: 'Внимание: некоторые каналы могут не работать из-за геоблокировок или отключения серверов поставщика. Если канал не работает — просто выберите другой.',
+    source1: 'Источник 1',
+    source2: 'Источник 2',
+    source3: 'Источник 3'
   },
   'en-US': {
     movies: 'Movies',
@@ -142,7 +145,10 @@ export const translations = {
     buyVip: 'Buy VIP ⭐️',
     supportCreator: 'Support Creator',
     supportSubtitle: 'Crypto Transfer (USDT / TON)',
-    tvWarning: 'Note: some channels might not work due to geo-blocks or offline provider servers. If a channel doesn\'t load, just try another one.'
+    tvWarning: 'Note: some channels might not work due to geo-blocks or offline provider servers. If a channel doesn\'t load, just try another one.',
+    source1: 'Source 1',
+    source2: 'Source 2',
+    source3: 'Source 3'
   }
 };
 
