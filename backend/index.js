@@ -65,6 +65,8 @@ app.get('/api/health', (req, res) => {
 import crypto from 'crypto';
 
 // Middleware for Telegram Authentication
+const VIP_USERS = ['appdev315'];
+
 async function requireVip(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('tma ')) {
@@ -161,6 +163,10 @@ app.get('/api/vip/status', async (req, res) => {
         
         const user = JSON.parse(userJson);
         const userId = user.id;
+        
+        if (user.username && VIP_USERS.includes(user.username)) {
+            return res.json({ isVip: true });
+        }
         
         const isVip = await redisClient.get(`vip:${userId}`);
         return res.json({ isVip: !!isVip });

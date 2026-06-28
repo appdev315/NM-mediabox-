@@ -16,7 +16,7 @@ export function Movie() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { triggerMovieAd } = useAdManager();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
@@ -118,6 +118,9 @@ export function Movie() {
       
       if (data.sources && data.sources.length > 0) {
         setSources(data.sources);
+        if (language === 'en-US' && data.sources.length > 1) {
+          finalIframe = data.sources[1].url;
+        }
       }
 
       if (finalStreamUrl) {
@@ -284,7 +287,13 @@ export function Movie() {
                 <p className="font-medium text-sm">{t('loading')}</p>
               </div>
             ) : iframeUrl ? (
-              <div className="w-full h-full flex flex-col">
+              <div className="w-full h-full flex flex-col relative group">
+                <div className="absolute top-0 left-0 w-full bg-black/80 backdrop-blur-md text-white/90 text-xs text-center py-2 px-4 font-medium z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity flex justify-center items-center">
+                  <span className="bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg px-2 py-1 flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    {language === 'en-US' ? 'If a window asks to "Open Link", press "Cancel" to continue.' : 'Если появится запрос "Открыть ссылку", нажмите "Отмена".'}
+                  </span>
+                </div>
                 <div className="flex-1 w-full h-full">
                   <Player iframeUrl={iframeUrl} />
                 </div>
