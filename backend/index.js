@@ -120,7 +120,8 @@ app.use((req, res, next) => {
 // Stats endpoint
 app.get('/api/stats', (req, res) => {
     const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${process.env.BOT_TOKEN}`) {
+    const expectedToken = process.env.BOT_TOKEN_MAIN || process.env.BOT_TOKEN;
+    if (authHeader !== `Bearer ${expectedToken}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -180,6 +181,83 @@ import crypto from 'crypto';
 // Middleware for Telegram Authentication
 const VIP_USERS = ['appdev315'];
 
+// Helper to verify Telegram WebAppData against dual tokens
+function verifyTelegramWebAppData(initData) {
+    const BOT_TOKEN_MAIN = process.env.BOT_TOKEN_MAIN || process.env.BOT_TOKEN;
+    const BOT_TOKEN_ADULT = process.env.BOT_TOKEN_ADULT;
+    
+    if (!BOT_TOKEN_MAIN && !BOT_TOKEN_ADULT) {
+        throw new Error('Missing BOT_TOKENs');
+    }
+
+    const q = new URLSearchParams(initData);
+    const hash = q.get('hash');
+    q.delete('hash');
+    
+    const keys = Array.from(q.keys());
+    keys.sort();
+    const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+    
+    const validateToken = (token) => {
+        if (!token) return false;
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
+        const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+        return hmac === hash;
+    };
+
+    let matchedToken = null;
+    let isAdultBot = false;
+    
+    if (validateToken(BOT_TOKEN_MAIN)) {
+        matchedToken = BOT_TOKEN_MAIN;
+    } else if (validateToken(BOT_TOKEN_ADULT)) {
+        matchedToken = BOT_TOKEN_ADULT;
+        isAdultBot = true;
+    }
+    
+    if (!matchedToken) {
+        return null; // Invalid signature
+    }
+
+    const userJson = q.get('user');
+    if (!userJson) return null;
+    
+    return {
+        user: JSON.parse(userJson),
+        botToken: matchedToken,
+        isAdultBot
+    };
+}
+
+async function requireAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('tma ')) {
+        return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
+    }
+
+    const initData = authHeader.substring(4);
+    if (!initData) {
+        return res.status(401).json({ error: 'Unauthorized: Empty token data' });
+    }
+
+    try {
+        const authData = verifyTelegramWebAppData(initData);
+        if (!authData) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
+        }
+        
+        req.user = authData.user;
+        req.botToken = authData.botToken;
+        req.isAdultBot = authData.isAdultBot;
+        next();
+    } catch (e) {
+        if (e.message === 'Missing BOT_TOKENs') {
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        return res.status(401).json({ error: 'Unauthorized: Token parsing failed' });
+    }
+}
+
 async function requireVip(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('tma ')) {
@@ -191,36 +269,17 @@ async function requireVip(req, res, next) {
         return res.status(401).json({ error: 'Unauthorized: Empty token data' });
     }
 
-    const BOT_TOKEN = process.env.BOT_TOKEN;
-    
-    if (!BOT_TOKEN) {
-        console.error('Server configuration error: missing BOT_TOKEN');
-        return res.status(500).json({ error: 'Server configuration error' });
-    }
-
     try {
-        const q = new URLSearchParams(initData);
-        const hash = q.get('hash');
-        q.delete('hash');
-        
-        const keys = Array.from(q.keys());
-        keys.sort();
-        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
-        
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-        const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-        
-        if (hmac !== hash) {
+        const authData = verifyTelegramWebAppData(initData);
+        if (!authData) {
             return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
         }
-
-        const userJson = q.get('user');
-        if (!userJson) {
-            return res.status(401).json({ error: 'Unauthorized: User data missing' });
-        }
         
-        const user = JSON.parse(userJson);
+        const user = authData.user;
         const userId = user.id;
+
+        req.botToken = authData.botToken;
+        req.isAdultBot = authData.isAdultBot;
 
         // Check if user is VIP
         let isVip = false;
@@ -239,6 +298,9 @@ async function requireVip(req, res, next) {
         next();
     } catch (e) {
         console.error('[requireVip] Error:', e.message);
+        if (e.message === 'Missing BOT_TOKENs') {
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
         return res.status(401).json({ error: 'Unauthorized: Token parsing failed' });
     }
 }
@@ -273,25 +335,11 @@ app.get('/api/vip/status', async (req, res) => {
             return res.json({ isVip: false });
         }
         const initData = authHeader.substring(4);
-        const BOT_TOKEN = process.env.BOT_TOKEN;
-        if (!BOT_TOKEN) return res.json({ isVip: false });
         
-        const q = new URLSearchParams(initData);
-        const hash = q.get('hash');
-        q.delete('hash');
-        const keys = Array.from(q.keys());
-        keys.sort();
-        const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
+        const authData = verifyTelegramWebAppData(initData);
+        if (!authData) return res.json({ isVip: false });
         
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-        const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-        
-        if (hmac !== hash) return res.json({ isVip: false });
-        
-        const userJson = q.get('user');
-        if (!userJson) return res.json({ isVip: false });
-        
-        const user = JSON.parse(userJson);
+        const user = authData.user;
         const userId = user.id;
         
         if (user.username && VIP_USERS.includes(user.username)) {
@@ -519,10 +567,10 @@ app.get('/api/config', (req, res) => {
     return res.json(getCurrentPhase());
 });
 
-app.post('/api/invoice', express.json(), async (req, res) => {
+app.post('/api/invoice', requireAuth, express.json(), async (req, res) => {
     try {
         const { plan, userId } = req.body;
-        const BOT_TOKEN = process.env.BOT_TOKEN;
+        const BOT_TOKEN = req.botToken;
         if (!BOT_TOKEN) {
             console.error('Missing BOT_TOKEN in environment variables!');
             return res.status(500).json({ error: 'Server configuration error' });
@@ -575,14 +623,19 @@ app.post('/api/invoice', express.json(), async (req, res) => {
     }
 });
 
-app.post('/api/telegram/webhook', express.json(), async (req, res) => {
+app.post('/api/telegram/webhook/:botType', express.json(), async (req, res) => {
     try {
         const update = req.body;
+        const botType = req.params.botType;
+        let BOT_TOKEN = process.env.BOT_TOKEN_MAIN;
+        if (botType === 'adult') {
+            BOT_TOKEN = process.env.BOT_TOKEN_ADULT;
+        }
+        if (!BOT_TOKEN) BOT_TOKEN = process.env.BOT_TOKEN; // fallback
         
         // Handle Pre Checkout Query
         if (update.pre_checkout_query) {
             const preCheckoutQueryId = update.pre_checkout_query.id;
-            const BOT_TOKEN = process.env.BOT_TOKEN;
             await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
                 pre_checkout_query_id: preCheckoutQueryId,
                 ok: true
@@ -605,7 +658,7 @@ app.post('/api/telegram/webhook', express.json(), async (req, res) => {
                 } else {
                     await redisClient.set(`vip:${userId}`, 'true');
                 }
-                console.log(`[Webhook] VIP granted for user ${userId}, monthly: ${isMonthly}`);
+                console.log(`[Webhook] VIP granted for user ${userId}, monthly: ${isMonthly} via bot ${botType}`);
             }
             return res.json({ ok: true });
         }

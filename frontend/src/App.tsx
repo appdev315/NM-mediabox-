@@ -15,45 +15,42 @@ import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { VipProvider } from './context/VipContext';
 import { AdProvider } from './context/AdManager';
-
+import { ThemeProvider } from './context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import { VIP_USERS } from './config/vipUsers';
 
-function DeepLinkHandler() {
+function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
   
   useEffect(() => {
     const startParam = WebApp.initDataUnsafe?.start_param;
     if (startParam) {
-      if (startParam === 'vip') {
-        navigate(`/adult`, { replace: true });
-      } else if (startParam.includes('_')) {
+      if (startParam === 'vip' && !isAdultApp) {
+         // It used to redirect to /adult, but now adult is a different app.
+         // We might just send them to profile in Main app so they can see the link
+         navigate(`/profile`, { replace: true });
+      } else if (startParam.includes('_') && !isAdultApp) {
         const [type, id] = startParam.split('_');
         navigate(`/movie/${id}?type=${type}`, { replace: true });
-      } else {
+      } else if (!isAdultApp) {
         navigate(`/movie/${startParam}`, { replace: true });
       }
     }
-  }, [navigate]);
+  }, [navigate, isAdultApp]);
 
   return null;
 }
-
-import { VIP_USERS } from './config/vipUsers';
 
 function BottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
   
-  // Hide on video player pages
-  if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) return null;
+  if (location.pathname.includes('/movie/')) return null;
 
   return (
     <div 
       className="fixed bottom-0 left-0 right-0 flex justify-around p-3 border-t backdrop-blur-md z-40"
-      style={{ 
-        backgroundColor: 'var(--bg-color)', 
-        borderColor: 'var(--hint-color)' 
-      }}
+      style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
     >
       <Link 
         to={location.pathname === '/favorites' ? '/' : '/favorites'} 
@@ -66,13 +63,49 @@ function BottomNav() {
   );
 }
 
-import { ThemeProvider } from './context/ThemeContext';
+function MainApp() {
+  return (
+    <BrowserRouter>
+      <DeepLinkHandler isAdultApp={false} />
+      <div className="pb-16 min-h-screen relative">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/movies" element={<Home />} />
+          <Route path="/radio-tv" element={<RadioTV />} />
+          <Route path="/movie/:id" element={<Movie />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/favorites" element={<Favorites />} />
+          {/* Adult route removed! */}
+        </Routes>
+        <AdBanner />
+      </div>
+      <GlobalAudioPlayer />
+      <BottomNav />
+    </BrowserRouter>
+  );
+}
+
+function AdultApp() {
+  return (
+    <BrowserRouter>
+      <DeepLinkHandler isAdultApp={true} />
+      <div className="min-h-screen relative">
+        <Routes>
+          <Route path="/" element={<Adult />} />
+          <Route path="/adult" element={<Adult />} />
+          <Route path="/adult/:id" element={<AdultVideo />} />
+          <Route path="/profile" element={<Profile />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
+  );
+}
 
 export default function App() {
   useEffect(() => {
     WebApp.ready();
     
-    // Auto-grant VIP to users in the VIP list
+    // Auto-grant VIP to users in the VIP list (legacy local storage grant, backend handles actual logic)
     const user = WebApp.initDataUnsafe?.user;
     if (user?.username && VIP_USERS.includes(user.username)) {
       localStorage.setItem('vip_until', 'lifetime');
@@ -80,29 +113,19 @@ export default function App() {
     }
   }, []);
 
+  const hostname = window.location.hostname;
+  const isAdultDomain = hostname === 'media-box.xyz' || 
+                        (hostname === 'localhost' && window.location.port === '3001');
+  const isAdultQuery = window.location.search.includes('app=adult');
+  
+  const isAdultApp = isAdultDomain || isAdultQuery;
+
   return (
     <ThemeProvider>
       <VipProvider>
         <AdProvider>
           <AudioPlayerProvider>
-            <BrowserRouter>
-              <DeepLinkHandler />
-              <div className="pb-16 min-h-screen relative">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/movies" element={<Home />} />
-                  <Route path="/radio-tv" element={<RadioTV />} />
-                  <Route path="/movie/:id" element={<Movie />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/favorites" element={<Favorites />} />
-                  <Route path="/adult" element={<Adult />} />
-                  <Route path="/adult/:id" element={<AdultVideo />} />
-                </Routes>
-                <AdBanner />
-              </div>
-              <GlobalAudioPlayer />
-              <BottomNav />
-            </BrowserRouter>
+            {isAdultApp ? <AdultApp /> : <MainApp />}
           </AudioPlayerProvider>
         </AdProvider>
       </VipProvider>

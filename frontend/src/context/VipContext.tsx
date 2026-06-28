@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from 'react';
 import { WebApp } from '../telegram';
 import VipModal from '../components/VipModal';
-import { VIP_USERS } from '../config/vipUsers';
 
 interface PhaseConfig {
   phase: number;
@@ -84,7 +83,10 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       const res = await fetch(`${BACKEND_URL}/api/invoice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `tma ${WebApp?.initData || ''}`
+        },
         body: JSON.stringify({ plan, userId: user?.id })
       });
       const data = await res.json();
@@ -94,7 +96,20 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (status === 'paid') {
             setIsVip(true);
             setIsModalOpen(false);
-            WebApp?.showAlert('Спасибо за покупку! VIP-доступ активирован 💎');
+            
+            WebApp?.showPopup({
+              title: 'VIP Активирован 💎',
+              message: 'Спасибо за покупку! Теперь вы можете смотреть фильмы без рекламы, а также вам доступен наш приватный 18+ бот.',
+              buttons: [
+                { id: 'open_bot', type: 'default', text: '🔞 Открыть 18+ бота' },
+                { type: 'close', text: 'Закрыть' }
+              ]
+            }, (buttonId: string) => {
+              if (buttonId === 'open_bot') {
+                WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+              }
+            });
+
           } else if (status === 'failed') {
             WebApp?.showAlert('Оплата не удалась. Попробуйте еще раз.');
           }

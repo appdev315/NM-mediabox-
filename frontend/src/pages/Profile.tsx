@@ -16,7 +16,6 @@ export function Profile() {
   const [favorites, setFavorites] = useState<any[]>([]);
   // Use favorites to avoid unused var warning
   console.log(favorites.length);
-  const [showPrivate, setShowPrivate] = useState(true);
   const [showDonationModal, setShowDonationModal] = useState(false);
   const cryptoAddress = 'TKA34UexUySwB4CTbPaam4WEKGQjb4sU1U';
 
@@ -40,19 +39,9 @@ export function Profile() {
     fetchFavorites();
     
     // Read showPrivate
-    const savedShowPrivate = localStorage.getItem('showPrivate');
-    if (savedShowPrivate !== null) setShowPrivate(savedShowPrivate === 'true');
   }, [user?.id, user?.username]);
 
-  const handleTogglePrivate = () => {
-    if (!isVip) {
-      if (WebApp.showAlert) WebApp.showAlert('This feature is only available for VIP users.');
-      return;
-    }
-    const newVal = !showPrivate;
-    setShowPrivate(newVal);
-    localStorage.setItem('showPrivate', String(newVal));
-  };
+
 
   return (
     <div className="p-4 pt-6 flex flex-col gap-4">
@@ -188,33 +177,32 @@ export function Profile() {
         </div>
       </div>
 
-      {/* Private Mode Toggle */}
+      {/* 18+ Adult Bot Link */}
       <div className="p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'var(--hint-color)' }}>
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xl">💎</span>
-            <h2 className="font-bold text-lg">{t('privateModeTitle')}</h2>
-          </div>
-          <div 
-            onClick={handleTogglePrivate}
-            className={`w-12 h-6 rounded-full flex items-center p-1 ${isVip ? 'cursor-pointer' : 'opacity-50'} transition-colors`}
-            style={{ backgroundColor: (isVip && showPrivate) ? 'var(--button-color)' : 'rgba(128,128,128,0.5)' }}
-          >
-            <div 
-              className="bg-white w-4 h-4 rounded-full shadow-md transition-transform"
-              style={{ transform: showPrivate ? 'translateX(24px)' : 'translateX(0)' }}
-            />
+            <span className="text-xl">🔞</span>
+            <h2 className="font-bold text-lg">Приватный 18+ Бот</h2>
           </div>
         </div>
-        <p className="text-sm opacity-90">{t('privateModeDesc')}</p>
-        {!isVip && (
-          <p 
-            className="text-sm font-bold mt-3 cursor-pointer" 
-            style={{ color: 'var(--button-color)' }}
-            onClick={() => window.location.href = 'https://t.me/mediaboxxxbot'}
+        <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент для взрослых. Доступен только VIP подписчикам.'}</p>
+        
+        {isVip ? (
+          <button 
+            onClick={() => WebApp.openTelegramLink('https://t.me/mediaboxxxbot')}
+            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
           >
-            ⭐️ Unlock VIP in Telegram Bot
-          </p>
+            <span>🚀</span> Открыть 18+ Бота
+          </button>
+        ) : (
+          <button 
+            onClick={showVipModal}
+            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform bg-black/10 dark:bg-white/10"
+            style={{ color: 'var(--text-color)' }}
+          >
+            <span>⭐️</span> Купить VIP для доступа
+          </button>
         )}
       </div>
       {showDonationModal && (

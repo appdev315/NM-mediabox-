@@ -29,20 +29,29 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   const COOLDOWN_MS = 5 * 60 * 1000; 
 
   const isTelegram = !!WebApp.initDataUnsafe?.user;
+  
+  const hostname = window.location.hostname;
+  const isAdultApp = hostname === 'media-box.xyz' || 
+                     (hostname === 'localhost' && window.location.port === '3001') ||
+                     window.location.search.includes('app=adult');
 
   useEffect(() => {
     // On app startup (only for Telegram)
-    if (isTelegram && config?.ads && !isVip) {
+    // If it's the Adult App, we ALWAYS show ads. If it's the Main app, we only show if !isVip.
+    const shouldShowAds = config?.ads && (!isVip || isAdultApp);
+    
+    if (isTelegram && shouldShowAds) {
       const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
       if (!hasSeenStartup) {
         sessionStorage.setItem('hasSeenStartupAd', 'true');
         playAd('adsgram');
       }
     }
-  }, [isTelegram, isVip, config?.ads]);
+  }, [isTelegram, isVip, config?.ads, isAdultApp]);
 
   const triggerMovieAd = () => {
-    if (!config?.ads || isVip) return;
+    const shouldShowAds = config?.ads && (!isVip || isAdultApp);
+    if (!shouldShowAds) return;
 
     if (isTelegram) {
       // For Telegram, we only show startup ad, no movie prerolls
