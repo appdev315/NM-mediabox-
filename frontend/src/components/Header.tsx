@@ -4,9 +4,10 @@ import { WebApp } from '../telegram';
 export function Header() {
   const navigate = useNavigate();
   const user = WebApp.initDataUnsafe?.user;
+  const isTelegram = WebApp.initData !== '';
 
   return (
-    <div className="flex justify-between items-center mb-6 mt-2">
+    <div className={`flex justify-between items-center mb-6 mt-2 ${isTelegram ? 'pr-14' : ''}`}>
       <h1 
         className="text-2xl font-extrabold tracking-tight cursor-pointer active:scale-95 transition-transform flex items-center gap-2"
         onClick={() => navigate('/')}
