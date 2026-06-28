@@ -222,7 +222,7 @@ export function Favorites() {
   };
 
   return (
-    <div className="p-4 pt-6 pb-24 h-full flex flex-col">
+    <div className="p-4 pt-16 pb-24 h-full flex flex-col">
       <Header />
       
       <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">

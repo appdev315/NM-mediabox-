@@ -303,7 +303,7 @@ export function RadioTV() {
   const displayedList = filteredList.slice(0, visibleCount);
 
   return (
-    <div className="p-4 pt-6 flex flex-col h-full">
+    <div className="p-4 pt-16 flex flex-col h-full">
       <Header />
 
       {/* Tabs */}
