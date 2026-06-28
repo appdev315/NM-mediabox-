@@ -127,7 +127,7 @@ export function RadioTV() {
       let url = `https://iptv-org.github.io/iptv/countries/${country}.m3u`;
       
       if (tvSource === '2') {
-        url = `https://raw.githubusercontent.com/romaxa55/world_ip_tv/main/output/${country}.m3u`;
+        url = `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`;
       } else if (tvSource === '3') {
         const freeTvCountry = FREE_TV_MAP[country] || country;
         url = `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${freeTvCountry}.m3u8`;
