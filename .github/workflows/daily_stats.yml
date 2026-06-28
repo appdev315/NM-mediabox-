@@ -36,8 +36,7 @@ jobs:
             HOURS=$(($UPTIME / 3600))
             MINUTES=$((($UPTIME % 3600) / 60))
             
-            STATS_MSG=$(cat <<EOF
-            📊 <b>Ежедневная сводка Media-Box</b>
+            STATS_MSG="📊 <b>Ежедневная сводка Media-Box</b>
             
             ⏳ Аптайм (с момента старта/рестарта): ${HOURS}ч ${MINUTES}м
             🌐 Всего запросов за день: <b>${TOTAL}</b>
@@ -47,9 +46,7 @@ jobs:
             Детализация ошибок:
             🚫 Баны от доноров (403): ${BANS}
             🛑 DDoS/Парсеры (Rate Limit 429): ${RL}
-            🔥 Внутренние ошибки парсера (500): ${INTERNAL}
-EOF
-            )
+            🔥 Внутренние ошибки парсера (500): ${INTERNAL}"
             STATS_MSG=$(echo "$STATS_MSG" | sed 's/^[ \t]*//')
             # Use printf to handle newlines correctly for GITHUB_ENV
             echo "STATS_MSG<<EOF" >> $GITHUB_ENV
