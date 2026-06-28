@@ -70,8 +70,9 @@ export const translations = {
     player1: 'Плеер 1',
     player2: 'Плеер 2',
     buyVip: 'Купить VIP ⭐️',
-    supportCreator: 'Поддержать создателя',
-    supportSubtitle: 'Криптоперевод (USDT / TON)'
+    supportCreator: 'Поддержать автора',
+    supportSubtitle: 'Крипто-перевод (USDT / TON)',
+    tvWarning: 'Внимание: некоторые каналы могут не работать из-за геоблокировок или отключения серверов поставщика. Если канал не работает — просто выберите другой.'
   },
   'en-US': {
     movies: 'Movies',
@@ -140,7 +141,8 @@ export const translations = {
     player2: 'Player 2',
     buyVip: 'Buy VIP ⭐️',
     supportCreator: 'Support Creator',
-    supportSubtitle: 'Crypto Transfer (USDT / TON)'
+    supportSubtitle: 'Crypto Transfer (USDT / TON)',
+    tvWarning: 'Note: some channels might not work due to geo-blocks or offline provider servers. If a channel doesn\'t load, just try another one.'
   }
 };
 

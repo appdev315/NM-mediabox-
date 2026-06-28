@@ -26,6 +26,7 @@ const COUNTRIES = [
 export function RadioTV() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const [showTvWarning, setShowTvWarning] = useState(false);
   const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(localStorage.getItem('radio_tv_country') || 'ru');
   const [stations, setStations] = useState<Station[]>([]);
@@ -180,6 +181,15 @@ export function RadioTV() {
     setActiveTab(tab);
     setVisibleCount(50);
     setSearch('');
+    
+    if (tab === 'tv') {
+      setShowTvWarning(true);
+      setTimeout(() => {
+        setShowTvWarning(false);
+      }, 15000);
+    } else {
+      setShowTvWarning(false);
+    }
   };
 
   // Infinite scroll for Radio / TV
@@ -281,6 +291,13 @@ export function RadioTV() {
           TV
         </button>
       </div>
+
+      {/* TV Warning */}
+      {showTvWarning && activeTab === 'tv' && (
+        <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm font-medium text-center animate-pulse">
+          {t('tvWarning')}
+        </div>
+      )}
 
       {/* Country Filter */}
       <div className="mb-4">
