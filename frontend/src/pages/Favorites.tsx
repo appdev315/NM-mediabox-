@@ -15,7 +15,7 @@ export function Favorites() {
   
   const [tmdbFavs, setTmdbFavs] = useState<any[]>([]);
   const [radioTvFavs, setRadioTvFavs] = useState<any[]>([]);
-  const [privateFavs, setPrivateFavs] = useState<any[]>([]);
+
   
   // Player states
   const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
@@ -26,7 +26,6 @@ export function Favorites() {
   useEffect(() => {
     setTmdbFavs(JSON.parse(localStorage.getItem('favorites') || '[]'));
     setRadioTvFavs(JSON.parse(localStorage.getItem('radio_tv_favs') || '[]'));
-    setPrivateFavs(JSON.parse(localStorage.getItem('private_favs') || '[]'));
   }, []);
 
   const removeTmdbFav = (e: React.MouseEvent, id: string) => {
@@ -43,12 +42,7 @@ export function Favorites() {
     localStorage.setItem('radio_tv_favs', JSON.stringify(newFavs));
   };
 
-  const removePrivateFav = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const newFavs = privateFavs.filter(f => f.id !== id);
-    setPrivateFavs(newFavs);
-    localStorage.setItem('private_favs', JSON.stringify(newFavs));
-  };
+
 
   const handlePlayRadio = (station: any) => {
     setActiveTvChannel(null);
@@ -190,36 +184,7 @@ export function Favorites() {
     );
   };
 
-  const renderPrivateList = () => {
-    if (privateFavs.length === 0) return <div className="text-center mt-12 opacity-50" style={{ color: 'var(--text-color)' }}>{t('emptyList')}</div>;
-    return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {privateFavs.map((v: any, idx) => (
-          <div 
-            key={`${v.id}-${idx}`} 
-            className="cursor-pointer active:scale-95 transition-transform group"
-            onClick={() => navigate(`/adult/${v.id}`)}
-          >
-            <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-lg group-hover:shadow-xl transition-shadow">
-              <img src={v.poster} className="w-full h-full object-cover" alt="" />
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-                {v.duration}
-              </div>
-              <button 
-                className="absolute top-2 right-2 p-2 bg-black/50 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md"
-                onClick={(e) => removePrivateFav(e, v.id)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              </button>
-            </div>
-            <p className="text-sm font-bold line-clamp-2 leading-snug" style={{ color: 'var(--text-color)' }}>{v.title}</p>
-          </div>
-        ))}
-      </div>
-    );
-  };
+
 
   return (
     <div className="p-4 pt-24 pb-24 h-full flex flex-col">
@@ -230,8 +195,7 @@ export function Favorites() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
-          ...(localStorage.getItem('showPrivate') !== 'false' ? [{ id: 'private', label: 'Private 🍓' }] : [])
+          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : [])
         ].map(tab => (
           <button 
             key={tab.id}
@@ -268,7 +232,7 @@ export function Favorites() {
             <p style={{ color: 'var(--text-color)' }}>{t('emptyFavorites')}</p>
           </div>
         )}
-        {activeTab === 'private' && renderPrivateList()}
+
       </div>
     </div>
   );

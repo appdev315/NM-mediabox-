@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { Adult } from './pages/Adult';
 import { Favorites } from './pages/Favorites';
 import { AdultVideo } from './pages/AdultVideo';
+import { AdultFavorites } from './pages/AdultFavorites';
 import { RadioTV } from './pages/RadioTV';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
@@ -45,7 +46,7 @@ function BottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
   
-  if (location.pathname.includes('/movie/')) return null;
+  if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) return null;
 
   return (
     <div 
@@ -89,14 +90,16 @@ function AdultApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
-      <div className="min-h-screen relative">
+      <div className="pb-16 min-h-screen relative">
         <Routes>
           <Route path="/" element={<Adult />} />
           <Route path="/adult" element={<Adult />} />
           <Route path="/adult/:id" element={<AdultVideo />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/favorites" element={<AdultFavorites />} />
         </Routes>
       </div>
+      <BottomNav />
     </BrowserRouter>
   );
 }
