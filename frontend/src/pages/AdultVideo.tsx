@@ -54,7 +54,7 @@ export function AdultVideo() {
       </div>
 
 
-      <div className="p-4 pt-16">
+      <div className="p-4 pt-24">
         <div className="flex items-center gap-3 mb-6">
           <button 
             onClick={() => navigate(-1)}

@@ -8,20 +8,20 @@ export function getCurrentPhase() {
     const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.44);
 
     if (diffMonths < 3) {
-        // Phase 1 (Months 1-3): Month 50, Lifetime 500
+        // Phase 1 (Months 1-3): Month 50, Lifetime 250
         return {
             phase: 1,
             priceMonth: 50,
-            priceLifetime: 500,
+            priceLifetime: 250,
             freeLimits: false,
             ads: true
         };
     } else {
-        // Phase 2 (Months 3+): Month 75, Lifetime 500
+        // Phase 2 (Months 3+): Month 50, Lifetime 250
         return {
             phase: 2,
-            priceMonth: 75,
-            priceLifetime: 500,
+            priceMonth: 50,
+            priceLifetime: 250,
             freeLimits: false,
             ads: true
         };

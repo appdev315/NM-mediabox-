@@ -44,7 +44,7 @@ export function Profile() {
 
 
   return (
-    <div className="p-4 pt-16 flex flex-col gap-4">
+    <div className="p-4 pt-24 flex flex-col gap-4">
       <div className="flex items-center gap-3 mb-2">
         <button 
           onClick={() => navigate(-1)}

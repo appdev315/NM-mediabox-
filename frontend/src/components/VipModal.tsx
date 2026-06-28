@@ -86,7 +86,7 @@ const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose, onBuy, config }) =
                 : 'bg-white/5 text-white/30 cursor-not-allowed'
             }`}
           >
-            Купить 1 месяц — {config?.priceMonth || 75} ⭐️
+            Купить 1 месяц — {config?.priceMonth || 50} ⭐️
           </button>
           
           {config?.priceLifetime !== null && (
