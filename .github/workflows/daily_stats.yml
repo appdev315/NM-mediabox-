@@ -1,0 +1,68 @@
+name: Daily Server Stats
+
+on:
+  schedule:
+    # Run every day at 21:00 Moscow time (18:00 UTC)
+    - cron: '0 18 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  send_stats:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch Stats from API
+        id: fetch_stats
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" https://romanbushuev-media-box-api.hf.space/api/stats?reset=true)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Failed to fetch stats, status code: $HTTP_STATUS"
+            echo "ERROR_MSG=⚠️ Не удалось получить статистику с сервера (Код $HTTP_STATUS)" >> $GITHUB_ENV
+          else
+            UPTIME=$(echo "$BODY" | jq -r '.uptime_seconds')
+            TOTAL=$(echo "$BODY" | jq -r '.metrics.totalRequests')
+            SUCCESS=$(echo "$BODY" | jq -r '.metrics.successfulRequests')
+            ERRORS=$(echo "$BODY" | jq -r '.metrics.errors.total')
+            BANS=$(echo "$BODY" | jq -r '.metrics.errors.donorBans')
+            RL=$(echo "$BODY" | jq -r '.metrics.errors.rateLimits')
+            INTERNAL=$(echo "$BODY" | jq -r '.metrics.errors.internal')
+            
+            HOURS=$(($UPTIME / 3600))
+            MINUTES=$((($UPTIME % 3600) / 60))
+            
+            STATS_MSG=$(cat <<EOF
+📊 <b>Ежедневная сводка Media-Box</b>
+
+⏳ Аптайм (с момента старта/рестарта): ${HOURS}ч ${MINUTES}м
+🌐 Всего запросов за день: <b>${TOTAL}</b>
+✅ Успешно: <b>${SUCCESS}</b>
+❌ Всего ошибок: <b>${ERRORS}</b>
+
+Детализация ошибок:
+🚫 Баны от доноров (403): ${BANS}
+🛑 DDoS/Парсеры (Rate Limit 429): ${RL}
+🔥 Внутренние ошибки парсера (500): ${INTERNAL}
+EOF
+)
+            # Use printf to handle newlines correctly for GITHUB_ENV
+            echo "STATS_MSG<<EOF" >> $GITHUB_ENV
+            echo "$STATS_MSG" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Send Telegram Notification
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          MESSAGE="${ERROR_MSG:-$STATS_MSG}"
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d parse_mode="HTML" \
+            -d text="$MESSAGE"

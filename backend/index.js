@@ -54,6 +54,77 @@ async function withMovieCache(key, ttlSeconds, fetcher) {
 const app = express();
 const port = process.env.PORT || 7860;
 
+// Server Metrics
+const serverMetrics = {
+    startTime: Date.now(),
+    totalRequests: 0,
+    successfulRequests: 0,
+    errors: {
+        total: 0,
+        rateLimits: 0,
+        notFounds: 0,
+        internal: 0,
+        donorBans: 0
+    }
+};
+
+app.use((req, res, next) => {
+    serverMetrics.totalRequests++;
+    
+    // Track response finish
+    res.on('finish', () => {
+        if (res.statusCode === 200 || res.statusCode === 304 || res.statusCode === 206) {
+            serverMetrics.successfulRequests++;
+        } else if (res.statusCode === 429) {
+            serverMetrics.errors.rateLimits++;
+            serverMetrics.errors.total++;
+        } else if (res.statusCode === 404) {
+            serverMetrics.errors.notFounds++;
+            serverMetrics.errors.total++;
+        } else if (res.statusCode >= 500) {
+            serverMetrics.errors.internal++;
+            serverMetrics.errors.total++;
+        } else if (res.statusCode === 403) {
+            serverMetrics.errors.donorBans++;
+            serverMetrics.errors.total++;
+        } else {
+            serverMetrics.errors.total++;
+        }
+    });
+    
+    next();
+});
+
+// Stats endpoint
+app.get('/api/stats', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${process.env.BOT_TOKEN}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const uptimeSec = Math.floor((Date.now() - serverMetrics.startTime) / 1000);
+    const stats = {
+        uptime_seconds: uptimeSec,
+        metrics: serverMetrics
+    };
+    
+    // Reset stats after fetching (since we fetch daily)
+    if (req.query.reset === 'true') {
+        serverMetrics.totalRequests = 0;
+        serverMetrics.successfulRequests = 0;
+        serverMetrics.errors = {
+            total: 0,
+            rateLimits: 0,
+            notFounds: 0,
+            internal: 0,
+            donorBans: 0
+        };
+        serverMetrics.startTime = Date.now();
+    }
+    
+    res.json(stats);
+});
+
 // Security Headers
 app.use(helmet({
     crossOriginResourcePolicy: false, // allow remote fetching
