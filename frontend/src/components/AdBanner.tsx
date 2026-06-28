@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useVip } from '../context/VipContext';
+import { WebApp } from '../telegram';
 
 const AdBanner: React.FC = () => {
   const { isVip, config } = useVip();
@@ -20,7 +21,8 @@ const AdBanner: React.FC = () => {
   }, [config?.ads, isVip]);
 
   // Показывать баннер только если включена реклама и пользователь не VIP
-  if (!config?.ads || isVip) {
+  const isTelegram = !!WebApp.initDataUnsafe?.user;
+  if (!config?.ads || isVip || isTelegram) {
     return null;
   }
 

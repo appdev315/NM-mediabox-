@@ -23,8 +23,8 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [adType, setAdType] = useState<'adsgram' | 'monetag' | null>(null);
   
-  // Cooldown setting (1 minute for testing, normally 10 mins)
-  const COOLDOWN_MS = 1 * 60 * 1000; 
+  // Cooldown setting (5 minutes)
+  const COOLDOWN_MS = 5 * 60 * 1000; 
 
   const isTelegram = !!WebApp.initDataUnsafe?.user;
 
