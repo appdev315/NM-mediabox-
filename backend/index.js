@@ -183,22 +183,19 @@ const VIP_USERS = ['appdev315'];
 async function requireVip(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('tma ')) {
-        req.user = null; // Guest user
-        return next();
+        return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
     }
 
     const initData = authHeader.substring(4);
     if (!initData) {
-        req.user = null;
-        return next();
+        return res.status(401).json({ error: 'Unauthorized: Empty token data' });
     }
 
     const BOT_TOKEN = process.env.BOT_TOKEN;
     
     if (!BOT_TOKEN) {
         console.error('Server configuration error: missing BOT_TOKEN');
-        req.user = null;
-        return next();
+        return res.status(500).json({ error: 'Server configuration error' });
     }
 
     try {
@@ -214,22 +211,35 @@ async function requireVip(req, res, next) {
         const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
         
         if (hmac !== hash) {
-            req.user = null;
-            return next();
+            return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
         }
 
         const userJson = q.get('user');
         if (!userJson) {
-            req.user = null;
-            return next();
+            return res.status(401).json({ error: 'Unauthorized: User data missing' });
         }
         
         const user = JSON.parse(userJson);
+        const userId = user.id;
+
+        // Check if user is VIP
+        let isVip = false;
+        if (user.username && VIP_USERS.includes(user.username)) {
+            isVip = true;
+        } else {
+            const redisVip = await redisClient.get(`vip:${userId}`);
+            if (redisVip) isVip = true;
+        }
+
+        if (!isVip) {
+            return res.status(403).json({ error: 'Forbidden: VIP subscription required' });
+        }
+
         req.user = user;
         next();
     } catch (e) {
-        req.user = null;
-        next();
+        console.error('[requireVip] Error:', e.message);
+        return res.status(401).json({ error: 'Unauthorized: Token parsing failed' });
     }
 }
 
@@ -239,10 +249,17 @@ function isValidUrl(urlStr) {
         const parsed = new URL(urlStr);
         const hostname = parsed.hostname;
         const allowedDomains = ['kinozuma.net', 'kinovasek.net', 'anwap.tube', 'anwap.im', 'anwap.bio', 'anwap.site', 'anwap.pm', 'anwap.best', 'mj.anwap.today', 'mm.anwap.media', 'm.anwap.media'];
-        return allowedDomains.includes(hostname) || 
-               hostname.endsWith('.anwap.tube') || 
-               hostname.endsWith('.kinozuma.net') || 
-               hostname.endsWith('.kinovasek.net');
+        
+        // Exact match
+        if (allowedDomains.includes(hostname)) return true;
+        
+        // Strict subdomain match (must end with .domain)
+        const allowedSuffixes = ['.anwap.tube', '.kinozuma.net', '.kinovasek.net'];
+        for (const suffix of allowedSuffixes) {
+            if (hostname.endsWith(suffix)) return true;
+        }
+        
+        return false;
     } catch (e) {
         return false;
     }
@@ -681,11 +698,15 @@ app.get('/api/adult/stream', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/proxy', async (req, res) => {
+app.get('/api/vip/downloads/proxy', requireVip, async (req, res) => {
     try {
         const urlStr = req.query.url;
         if (!urlStr) return res.status(400).send('URL required');
         const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
+        
+        if (!isValidUrl(decodedUrl)) {
+            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
+        }
         
         let referer = 'https://kinozuma.net';
         if (decodedUrl.includes('vasqa.org') || decodedUrl.includes('serversimka.net') || decodedUrl.includes('kinovasek.net')) {

@@ -34,22 +34,13 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const initData = WebApp?.initData || '';
         
-        // Check if Web user logged in via Widget
-        const webUserStr = localStorage.getItem('telegramUser');
-        let webUser = null;
-        if (webUserStr) {
-          try { webUser = JSON.parse(webUserStr); } catch(e) {}
-        }
-        
-        const currentUser = WebApp?.initDataUnsafe?.user || webUser;
-        const isHardcodedVip = currentUser?.username && VIP_USERS.includes(currentUser.username);
-
         if (!initData) {
-          // Local testing fallback / Web
-          setIsVip(!!isHardcodedVip);
+          // No telegram initData (web outside app), disable VIP
+          setIsVip(false);
           setLoading(false);
           return;
         }
+        
         const [statusRes, configRes] = await Promise.all([
           fetch(`${BACKEND_URL}/api/vip/status`, {
             headers: { 'Authorization': `tma ${initData}` }
@@ -59,9 +50,9 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         if (statusRes.ok) {
           const data = await statusRes.json();
-          setIsVip(isHardcodedVip || data.isVip);
-        } else if (isHardcodedVip) {
-          setIsVip(true);
+          setIsVip(!!data.isVip);
+        } else {
+          setIsVip(false);
         }
         if (configRes.ok) {
           const cfg = await configRes.json();
@@ -69,6 +60,7 @@ export const VipProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch (e) {
         console.error('Failed to check VIP status or config', e);
+        setIsVip(false);
       } finally {
         setLoading(false);
       }
