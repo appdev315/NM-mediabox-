@@ -48,7 +48,7 @@ jobs:
             🚫 Баны от доноров (403): ${BANS}
             🛑 DDoS/Парсеры (Rate Limit 429): ${RL}
             🔥 Внутренние ошибки парсера (500): ${INTERNAL}
-            EOF
+EOF
             )
             STATS_MSG=$(echo "$STATS_MSG" | sed 's/^[ \t]*//')
             # Use printf to handle newlines correctly for GITHUB_ENV
