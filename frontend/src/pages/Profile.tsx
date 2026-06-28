@@ -19,7 +19,7 @@ export function Profile() {
   const [showDonationModal, setShowDonationModal] = useState(false);
   const cryptoAddress = 'TKA34UexUySwB4CTbPaam4WEKGQjb4sU1U';
 
-  const user = WebApp.initDataUnsafe?.user || { first_name: 'Demo', id: 1 };
+  const user = WebApp.initDataUnsafe?.user;
 
   useEffect(() => {
     const handleBack = () => navigate(-1);
@@ -65,12 +65,18 @@ export function Profile() {
         >
           {user?.photo_url ? (
             <img src={user.photo_url} alt="Profile" className="w-full h-full object-cover" />
+          ) : user ? (
+            user.first_name?.charAt(0) || 'U'
           ) : (
-            user?.first_name?.charAt(0) || 'U'
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
           )}
         </div>
         <div>
-          <h1 className="font-bold text-xl">{user?.first_name} {user?.last_name}</h1>
+          <h1 className="font-bold text-xl">{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Меню'}</h1>
           {user?.username && <p className="opacity-90 text-sm mb-1">@{user.username}</p>}
           {isVip ? (
             <div className="flex gap-2 items-center flex-wrap mt-1">
