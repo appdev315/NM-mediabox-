@@ -23,12 +23,23 @@ const COUNTRIES = [
   { code: 'kz', name: 'Kazakhstan', radioName: 'Kazakhstan' },
 ];
 
+const FREE_TV_MAP: Record<string, string> = {
+  'ru': 'russia',
+  'us': 'usa',
+  'gb': 'uk',
+  'de': 'germany',
+  'fr': 'france',
+  'by': 'belarus',
+  'kz': 'kazakhstan'
+};
+
 export function RadioTV() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning, setShowTvWarning] = useState(false);
   const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(localStorage.getItem('radio_tv_country') || 'ru');
+  const [tvSource, setTvSource] = useState(localStorage.getItem('tv_source') || '1');
   const [stations, setStations] = useState<Station[]>([]);
   const [tvChannels, setTvChannels] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,10 +76,11 @@ export function RadioTV() {
 
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
+    localStorage.setItem('tv_source', tvSource);
     
     // Attempt to load from cache first
     const cachedRadio = localStorage.getItem(`cache_radio_${country}`);
-    const cachedTv = localStorage.getItem(`cache_tv_${country}`);
+    const cachedTv = localStorage.getItem(`cache_tv_${country}_src${tvSource}`);
     let hasCache = false;
     
     if (cachedRadio) {
@@ -86,7 +98,7 @@ export function RadioTV() {
     
     fetchRadio();
     fetchTV();
-  }, [country]);
+  }, [country, tvSource]);
 
   const fetchRadio = async () => {
     try {
@@ -112,7 +124,23 @@ export function RadioTV() {
 
   const fetchTV = async () => {
     try {
-      const resText = await fetch(`https://iptv-org.github.io/iptv/countries/${country}.m3u`).then(r => r.text()).catch(() => '');
+      let url = `https://iptv-org.github.io/iptv/countries/${country}.m3u`;
+      
+      if (tvSource === '2') {
+        url = `https://raw.githubusercontent.com/romaxa55/world_ip_tv/main/output/${country}.m3u`;
+      } else if (tvSource === '3') {
+        const freeTvCountry = FREE_TV_MAP[country] || country;
+        url = `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${freeTvCountry}.m3u8`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok && tvSource === '3') {
+         // Fallback if country playlist doesn't exist in Free-TV
+         const fbRes = await fetch(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`);
+         var resText = await fbRes.text();
+      } else {
+         var resText = await res.text();
+      }
 
       const parseM3u = (text: string) => {
         const lines = text.split('\n');
@@ -145,7 +173,7 @@ export function RadioTV() {
 
       const parsedTv = parseM3u(resText);
       setTvChannels(parsedTv);
-      localStorage.setItem(`cache_tv_${country}`, JSON.stringify(parsedTv));
+      localStorage.setItem(`cache_tv_${country}_src${tvSource}`, JSON.stringify(parsedTv));
     } catch (e) {
       console.error("Failed to fetch TV", e);
     } finally {
@@ -299,15 +327,15 @@ export function RadioTV() {
         </div>
       )}
 
-      {/* Country Filter */}
-      <div className="mb-4">
+      {/* Country & Source Filters */}
+      <div className="mb-4 flex gap-2">
         <select 
           value={country} 
           onChange={(e) => {
             setCountry(e.target.value);
             setVisibleCount(50);
           }}
-          className="w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+          className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
           style={{ 
             backgroundColor: 'var(--bg-color)', 
             color: 'var(--text-color)',
@@ -318,6 +346,23 @@ export function RadioTV() {
             <option key={c.code} value={c.code}>{c.name}</option>
           ))}
         </select>
+        
+        {activeTab === 'tv' && (
+          <select
+            value={tvSource}
+            onChange={(e) => setTvSource(e.target.value)}
+            className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+            style={{ 
+              backgroundColor: 'var(--bg-color)', 
+              color: 'var(--text-color)',
+              borderColor: 'var(--hint-color)'
+            }}
+          >
+            <option value="1">Источник 1</option>
+            <option value="2">Источник 2</option>
+            <option value="3">Источник 3</option>
+          </select>
+        )}
       </div>
 
       {/* Search */}
