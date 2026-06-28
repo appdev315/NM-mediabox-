@@ -14,12 +14,24 @@ import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch
 import { translateItems, initTmdbCache } from './tmdbCache.js';
 import { getCurrentPhase } from './monetization.js';
 
-// Setup Global Proxy if defined
+// Setup Global Proxy Rotation if defined
 if (process.env.PROXY_URL) {
-    console.log('[Proxy] Configuring global axios proxy:', process.env.PROXY_URL.split('@')[1] || 'URL masked');
-    const proxyAgent = new HttpsProxyAgent(process.env.PROXY_URL);
-    axios.defaults.httpsAgent = proxyAgent;
+    const proxyUrls = process.env.PROXY_URL.split(',').map(u => u.trim()).filter(u => u);
+    const proxyAgents = proxyUrls.map(url => new HttpsProxyAgent(url));
+    console.log(`[Proxy] Configured ${proxyAgents.length} proxy agents for rotation.`);
+    
     axios.defaults.proxy = false; // Disable axios's native proxy logic
+    
+    let proxyIndex = 0;
+    axios.interceptors.request.use((config) => {
+        if (proxyAgents.length > 0) {
+            const agent = proxyAgents[proxyIndex];
+            proxyIndex = (proxyIndex + 1) % proxyAgents.length;
+            config.httpsAgent = agent;
+            config.httpAgent = agent;
+        }
+        return config;
+    });
 }
 
 import { createClient } from 'redis';
