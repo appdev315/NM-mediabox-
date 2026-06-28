@@ -182,7 +182,7 @@ export function Profile() {
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
             <span className="text-xl">🔞</span>
-            <h2 className="font-bold text-lg">Приватный 18+ Бот</h2>
+            <h2 className="font-bold text-lg">{t('privateBotTitle') || 'Приватный 18+ Бот'}</h2>
           </div>
         </div>
         <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент для взрослых. Доступен только VIP подписчикам.'}</p>
@@ -196,7 +196,7 @@ export function Profile() {
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
           >
-            <span>🚀</span> Открыть 18+ Бота
+            <span>🚀</span> {t('open18Bot') || 'Открыть 18+ Бота'}
           </button>
         ) : (
           <button 
@@ -204,7 +204,7 @@ export function Profile() {
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform bg-black/10 dark:bg-white/10"
             style={{ color: 'var(--text-color)' }}
           >
-            <span>⭐️</span> Купить VIP для доступа
+            <span>⭐️</span> {t('buyVipForAccess') || 'Купить VIP для доступа'}
           </button>
         )}
       </div>
