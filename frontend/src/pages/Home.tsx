@@ -12,9 +12,8 @@ export function Home() {
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
   const { isVip, config } = useVip();
-  const showPrivate = localStorage.getItem('showPrivate') !== 'false';
   
-  const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads' | 'private'>('movie');
+  const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads'>('movie');
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [genres, setGenres] = useState<Genre[]>([]);
@@ -116,16 +115,12 @@ export function Home() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
-          ...(showPrivate ? [{ id: 'private', label: 'Private 🍓' }] : [])
+          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : [])
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => {
-              if (tab.id === 'private') {
-                navigate('/adult');
-              }
-              else if (tab.id === 'radio-tv') {
+              if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');
               }
               else handleTabChange(tab.id as 'movie' | 'series' | 'downloads');
