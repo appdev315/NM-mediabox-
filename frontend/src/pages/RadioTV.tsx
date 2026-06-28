@@ -384,7 +384,7 @@ export function RadioTV() {
 
       {/* TV Player Modal/Inline */}
       {activeTvChannel && activeTab === 'tv' && (
-        <div ref={playerRef} className="mb-6 rounded-2xl overflow-hidden shadow-xl border md:w-[80%] mx-auto scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
+        <div ref={playerRef} className="mb-6 -mx-4 rounded-none md:mx-auto md:rounded-2xl overflow-hidden shadow-xl border-y md:border-x md:w-[80%] scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
           <div className="bg-black flex justify-between items-center p-3">
             <div className="flex items-center gap-3">
               {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-8 h-8 rounded-full" />}
@@ -392,7 +392,7 @@ export function RadioTV() {
             </div>
             <button onClick={() => setActiveTvChannel(null)} className="text-white opacity-70 hover:opacity-100 font-bold px-2">✕</button>
           </div>
-          <div className="relative pt-[56.25%] bg-black flex items-center justify-center">
+          <div className="relative pt-[65%] bg-black flex items-center justify-center">
             {tvError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 text-center">
                 <span className="text-3xl mb-2">⚠️</span>
@@ -447,7 +447,7 @@ export function RadioTV() {
                     borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                   }}
                 >
-                  <div className="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                  <div className="w-12 h-12 rounded-xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                     {item.logo ? (
                       <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
