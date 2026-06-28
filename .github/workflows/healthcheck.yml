@@ -14,7 +14,7 @@ jobs:
       - name: Ping API Health Endpoint
         id: health
         run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://romanbushuev-media-box-api.hf.space/api/health)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://evro90-nm6.hf.space/api/health)
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "Health endpoint returned $HTTP_STATUS"
             echo "status=failed" >> $GITHUB_OUTPUT

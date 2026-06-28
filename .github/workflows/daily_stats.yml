@@ -16,7 +16,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" https://romanbushuev-media-box-api.hf.space/api/stats?reset=true)
+          RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" https://evro90-nm6.hf.space/api/stats?reset=true)
           
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
