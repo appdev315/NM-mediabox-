@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 
-export function Header({ title = "MovieManiak" }: { title?: string }) {
+export function Header() {
   const navigate = useNavigate();
   const user = WebApp.initDataUnsafe?.user;
 
