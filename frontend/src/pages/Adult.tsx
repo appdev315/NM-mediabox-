@@ -5,6 +5,7 @@ import { BACKEND_URL } from './Movie';
 import { useLanguage } from '../context/LanguageContext';
 import { VIP_USERS } from '../config/vipUsers';
 import { useVip } from '../context/VipContext';
+import { TelegramLoginWidget } from '../components/TelegramLoginWidget';
 import { BannerAd } from '../components/BannerAd';
 import React from 'react';
 
@@ -38,6 +39,8 @@ export function Adult() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const { isVip, showVipModal } = useVip();
+  // State for triggering re-render if user logs in via web widget
+  const [, setForceRender] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   
   const [favorites, setFavorites] = useState<any[]>([]);
@@ -179,7 +182,25 @@ export function Adult() {
     }
   };
 
-  if (!isVip) {
+  const checkWebVIP = () => {
+    // If not in telegram, maybe logged in via web widget
+    if (WebApp.platform === 'unknown' && !isVip) {
+      const storedUserStr = localStorage.getItem('telegramUser');
+      if (storedUserStr) {
+        try {
+          const user = JSON.parse(storedUserStr);
+          if (user?.username && VIP_USERS.includes(user.username)) {
+            return true;
+          }
+        } catch (e) {}
+      }
+    }
+    return isVip;
+  };
+
+  const hasAccess = checkWebVIP();
+
+  if (!hasAccess) {
     return (
       <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
         <div className="text-6xl mb-6">🍓</div>
@@ -191,24 +212,21 @@ export function Adult() {
         {WebApp.platform === 'unknown' ? (
           <div className="w-full flex flex-col items-center justify-center gap-4 mt-6">
             <p className="text-sm opacity-80 text-center max-w-xs">
-              Для доступа к Приват-разделу необходимо авторизоваться через Telegram
+              {t('tgLoginRequired')}
             </p>
-            {/* Fake Telegram Login Widget Button */}
-            <div 
-              className="bg-[#54a9eb] hover:bg-[#4a98d4] text-white py-3 px-8 rounded-full flex items-center justify-center gap-3 cursor-pointer shadow-md transition-colors mt-2"
-              onClick={() => {
-                window.location.href = 'https://t.me/mediaboxxxbot?start=vip';
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.98 1.25-5.58 3.68-.53.36-1.01.54-1.44.53-.48-.01-1.39-.27-2.07-.49-.83-.27-1.48-.41-1.42-.87.03-.24.38-.48 1.06-.73 4.14-1.8 6.91-2.99 8.3-3.57 3.94-1.63 4.76-1.92 5.3-1.93.12 0 .38.03.53.15.12.09.16.23.18.33.01.07.02.21.01.31z"/>
-              </svg>
-              <span className="font-semibold">Log in with Telegram</span>
-            </div>
             
-            <p className="text-xs opacity-50 mt-4 text-center max-w-xs">
-              Заглушка: позже здесь появится официальный виджет входа через Telegram
-            </p>
+            <TelegramLoginWidget
+              botName="mediaboxxxbot"
+              onAuth={(user) => {
+                localStorage.setItem('telegramUser', JSON.stringify(user));
+                setForceRender(prev => prev + 1);
+                // Also trigger page reload just to ensure all contexts pick it up if needed
+                setTimeout(() => window.location.reload(), 100);
+              }}
+              buttonSize="large"
+              cornerRadius={20}
+              usePic={false}
+            />
           </div>
         ) : (
           <button 
@@ -226,7 +244,7 @@ export function Adult() {
     );
   }
 
-  if (isVip && !ageConfirmed) {
+  if (hasAccess && !ageConfirmed) {
     return (
       <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
         <div className="text-6xl mb-6">🔞</div>
