@@ -17,6 +17,7 @@
     "express-rate-limit": "^8.5.2",
     "google-translate-api-x": "^10.7.2",
     "helmet": "^8.2.0",
+    "https-proxy-agent": "^9.1.0",
     "iconv-lite": "^0.7.2",
     "node-cache": "^5.1.2",
     "play-dl": "^1.9.7",

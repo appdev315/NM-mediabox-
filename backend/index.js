@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import * as cheerio from 'cheerio';
 import xvideosScraper from './xvideos.js';
 import epornerScraper from './epornerScraper.js';
@@ -12,6 +13,15 @@ import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSear
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
 import { translateItems, initTmdbCache } from './tmdbCache.js';
 import { getCurrentPhase } from './monetization.js';
+
+// Setup Global Proxy if defined
+if (process.env.PROXY_URL) {
+    console.log('[Proxy] Configuring global axios proxy:', process.env.PROXY_URL.split('@')[1] || 'URL masked');
+    const proxyAgent = new HttpsProxyAgent(process.env.PROXY_URL);
+    axios.defaults.httpsAgent = proxyAgent;
+    axios.defaults.proxy = false; // Disable axios's native proxy logic
+}
+
 import { createClient } from 'redis';
 const redisClient = createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379'
