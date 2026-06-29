@@ -123,6 +123,10 @@ export default function App() {
   const isAdultQuery = window.location.search.includes('app=adult');
   
   const isAdultApp = isAdultDomain || isAdultQuery;
+  
+  useEffect(() => {
+    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MediaBox 🍿';
+  }, [isAdultApp]);
 
   return (
     <ThemeProvider>
