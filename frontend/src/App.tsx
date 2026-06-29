@@ -118,7 +118,7 @@ export default function App() {
   }, []);
 
   const hostname = window.location.hostname;
-  const isAdultDomain = hostname === 'media-box.xyz' || 
+  const isAdultDomain = hostname.includes('media-box.xyz') || 
                         (hostname === 'localhost' && window.location.port === '3001');
   const isAdultQuery = window.location.search.includes('app=adult');
   
