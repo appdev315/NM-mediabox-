@@ -132,7 +132,7 @@ export default function App() {
       <VipProvider>
         <AdProvider>
           <AudioPlayerProvider>
-            <MonetagScript />
+            {!isAdultApp && <MonetagScript />}
             {isAdultApp ? <AdultApp /> : <MainApp />}
           </AudioPlayerProvider>
         </AdProvider>
