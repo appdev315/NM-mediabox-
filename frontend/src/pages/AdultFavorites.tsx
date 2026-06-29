@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { Header } from '../components/Header';
 
 export function AdultFavorites() {
   const { t } = useLanguage();
@@ -66,6 +67,7 @@ export function AdultFavorites() {
           </div>
         )}
       </div>
+      <Header />
     </div>
   );
 }
