@@ -247,7 +247,7 @@ export function Adult() {
         <h1 className="text-2xl font-bold mb-4">Вам есть 18 лет?</h1>
         <div className="opacity-70 mb-8 leading-relaxed text-sm text-left bg-black/10 p-4 rounded-xl border border-white/10 shadow-inner flex flex-col gap-3">
           <p>
-            <strong>3 правила Тайной Комнаты:</strong><br/>
+            <strong>3 правила Тайной Комнаты 🍓:</strong><br/>
             1. Первое правило тайной комнаты — никому не рассказывать про тайную комнату.<br/>
             2. Второе правило тайной комнаты — никому не рассказывать про первое правило тайной комнаты.<br/>
             3. Третье правило тайной комнаты — обещаю подписаться на тг бота )
