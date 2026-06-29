@@ -69,7 +69,8 @@ function MainApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
-      <div className="pb-16 min-h-screen relative">
+      <div className="pb-16 min-h-screen relative flex flex-col">
+        <AdBanner />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movies" element={<Home />} />
@@ -79,7 +80,6 @@ function MainApp() {
           <Route path="/favorites" element={<Favorites />} />
           {/* Adult route removed! */}
         </Routes>
-        <AdBanner />
       </div>
       <GlobalAudioPlayer />
       <BottomNav />

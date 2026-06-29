@@ -26,6 +26,22 @@ const AdBanner: React.FC = () => {
     return null;
   }
 
+  if (!isTelegram) {
+    // Top banner for Web using Monetag Direct Link
+    return (
+      <div 
+        className="w-full bg-orange-600/20 border-b border-orange-500/30 p-2 text-center cursor-pointer hover:bg-orange-600/30 transition-colors"
+        onClick={() => window.open('https://omg10.com/4/11214508', '_blank')}
+      >
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-xl">🔥</span>
+          <span className="font-bold text-sm md:text-base text-orange-400">Смотреть новинки кино без ограничений!</span>
+          <span className="text-xs bg-orange-500/20 px-2 py-0.5 rounded text-orange-300 ml-2 border border-orange-500/30">Реклама</span>
+        </div>
+      </div>
+    );
+  }
+
   // TODO: Когда будет получен blockId от Adsgram, 
   // здесь будет логика вызова баннера (например: window.Adsgram.init({ blockId: "..." }).show())
   // Пока оставляем визуальную заглушку для тестирования верстки
