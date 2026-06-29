@@ -125,7 +125,7 @@ export default function App() {
   const isAdultApp = isAdultDomain || isAdultQuery;
   
   useEffect(() => {
-    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MediaBox 🍿';
+    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MovieManiak 🍿';
   }, [isAdultApp]);
 
   return (
