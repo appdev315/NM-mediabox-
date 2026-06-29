@@ -115,11 +115,22 @@ export function Home() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : [])
+          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
+          { id: 'private', label: 'Приват 🔞' }
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => {
+            onClick={(e) => {
+              if (tab.id === 'private') {
+                e.preventDefault();
+                const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
+                if (adWindow) {
+                  adWindow.blur();
+                  window.focus();
+                }
+                window.location.href = '?app=adult';
+                return;
+              }
               if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');
               }
@@ -191,7 +202,7 @@ export function Home() {
                   <p className="text-xs opacity-90 mt-1">{item.year}</p>
                 </div>
               </div>
-              {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? 'telegram' : 'adult'} />}
+              {(idx + 1) % 15 === 0 && <BannerAd type="telegram" />}
               </React.Fragment>
             ))}
           </div>

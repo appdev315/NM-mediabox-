@@ -95,7 +95,7 @@ export function Favorites() {
               <h3 className="font-bold text-sm leading-tight line-clamp-1" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
             </div>
           </div>
-          {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? 'telegram' : 'adult'} />}
+          {(idx + 1) % 15 === 0 && <BannerAd type="telegram" />}
           </React.Fragment>
         ))}
       </div>
@@ -195,11 +195,24 @@ export function Favorites() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : [])
+          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
+          { id: 'private', label: 'Приват 🔞' }
         ].map(tab => (
           <button 
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(e) => {
+              if (tab.id === 'private') {
+                e.preventDefault();
+                const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
+                if (adWindow) {
+                  adWindow.blur();
+                  window.focus();
+                }
+                window.location.href = '?app=adult';
+                return;
+              }
+              setActiveTab(tab.id);
+            }}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
               backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
