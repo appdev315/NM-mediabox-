@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -70,7 +70,6 @@ export function RadioTV() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(50);
-  const playerRef = useRef<HTMLDivElement>(null);
   
   const [activeTvChannel, setActiveTvChannel] = useState<Station | null>(null);
   const [tvError, setTvError] = useState(false);
