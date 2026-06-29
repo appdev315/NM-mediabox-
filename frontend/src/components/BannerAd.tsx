@@ -1,9 +1,9 @@
 import React from 'react';
 
-export const BannerAd: React.FC = () => {
+export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 'tall' }) => {
   return (
     <div 
-         className="w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg"
+         className={`w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg ${variant === 'wide' ? 'h-24' : ''}`}
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={() => {
            window.open('https://omg10.com/4/11214508', '_blank');
@@ -11,7 +11,7 @@ export const BannerAd: React.FC = () => {
          }}
     >
       {/* Banner Aspect Ratio with beautiful image */}
-      <div className="w-full relative pt-[40%] sm:pt-[50%] md:pt-[150%] bg-black flex flex-col items-center justify-center min-h-[150px]">
+      <div className={`w-full relative ${variant === 'tall' ? 'pt-[40%] sm:pt-[50%] md:pt-[150%] min-h-[150px]' : 'h-full'} bg-black flex flex-col items-center justify-center`}>
         <img 
           src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop" 
           alt="Cinema Ad" 

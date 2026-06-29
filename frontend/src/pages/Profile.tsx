@@ -76,7 +76,7 @@ export function Profile() {
           )}
         </div>
         <div>
-          <h1 className="font-bold text-xl">{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Меню'}</h1>
+          <h1 className="font-bold text-xl">{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : (t('menu') || 'Menu')}</h1>
           {user?.username && <p className="opacity-90 text-sm mb-1">@{user.username}</p>}
           {isVip ? (
             <div className="flex gap-2 items-center flex-wrap mt-1">
@@ -256,7 +256,7 @@ export function Profile() {
                style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
                onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-xl" style={{ color: 'var(--text-color)' }}>Поддержать проект</h3>
+              <h3 className="font-bold text-xl" style={{ color: 'var(--text-color)' }}>{t('supportProject') || 'Support Project'}</h3>
               <button onClick={() => setShowDonationModal(false)} className="opacity-50 p-1" style={{ color: 'var(--text-color)' }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
@@ -267,18 +267,18 @@ export function Profile() {
                 <QRCodeSVG value={cryptoAddress} size={200} level={"H"} />
               </div>
               <p className="font-medium opacity-90 text-center mb-1" style={{ color: 'var(--text-color)' }}>USDT (TRC20)</p>
-              <p className="text-xs opacity-60 text-center mb-4" style={{ color: 'var(--text-color)' }}>Сканируйте QR или скопируйте адрес ниже</p>
+              <p className="text-xs opacity-60 text-center mb-4" style={{ color: 'var(--text-color)' }}>{t('scanQr') || 'Scan QR or copy the address below'}</p>
               
               <div className="w-full bg-black/5 dark:bg-white/5 rounded-xl p-3 flex items-center justify-between border" style={{ borderColor: 'var(--hint-color)' }}>
                 <span className="text-xs font-mono truncate mr-2" style={{ color: 'var(--text-color)' }}>{cryptoAddress}</span>
                 <button 
                   onClick={() => {
                     navigator.clipboard.writeText(cryptoAddress);
-                    WebApp?.showAlert('Адрес скопирован в буфер обмена!');
+                    WebApp?.showAlert(t('addressCopied') || 'Address copied to clipboard!');
                   }}
                   className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
                 >
-                  Копировать
+                  {t('copy') || 'Copy'}
                 </button>
               </div>
             </div>
@@ -288,7 +288,7 @@ export function Profile() {
               className="w-full py-3 rounded-xl font-bold transition-transform active:scale-[0.98] bg-black/10 dark:bg-white/10"
               style={{ color: 'var(--text-color)' }}
             >
-              Закрыть
+              {t('close') || 'Close'}
             </button>
           </div>
         </div>
