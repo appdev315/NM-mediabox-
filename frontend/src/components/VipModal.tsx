@@ -48,14 +48,6 @@ const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose, onBuy, config }) =
         <div className="flex flex-col gap-3 my-2 bg-white/[0.03] rounded-2xl p-4 border border-white/[0.05]">
           <div className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="text-white/80 text-sm font-medium">Бесконечная лента контента</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="text-white/80 text-sm font-medium">Доступ к ТВ и Радио</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-400" />
             <span className="text-white/80 text-sm font-medium">Приватная коллекция (18+)</span>
           </div>
         </div>
