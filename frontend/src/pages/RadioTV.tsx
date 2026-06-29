@@ -537,7 +537,7 @@ export function RadioTV() {
                 {/* Banner Ad Every 15 items in a full-width container */}
                 {(index + 1) % 15 === 0 && (
                   <div className="col-span-2 md:col-span-3 lg:col-span-4 mt-2 mb-2">
-                    <BannerAd variant="wide" />
+                    <BannerAd variant="wide" type="adult" />
                   </div>
                 )}
               </React.Fragment>
