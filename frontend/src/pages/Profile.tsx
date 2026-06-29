@@ -208,6 +208,32 @@ export function Profile() {
         </div>
       </div>
 
+      {/* Movie Bot Link */}
+      <div className="p-4 rounded-2xl shadow-sm mb-4" style={{ backgroundColor: 'var(--hint-color)' }}>
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🎬</span>
+            <h2 className="font-bold text-lg">{t('mainBotTitle' as any) || 'Основной Бот (Фильмы и ТВ)'}</h2>
+          </div>
+        </div>
+        <p className="text-sm opacity-90 mb-3">{t('mainBotDesc' as any) || 'Смотрите новинки кино и сериалов бесплатно и без ограничений.'}</p>
+        
+        <button 
+          onClick={() => {
+            if (WebApp.platform !== 'unknown') {
+              WebApp.openTelegramLink('https://t.me/M_Box_bot');
+              WebApp.close();
+            } else {
+              window.open('https://t.me/M_Box_bot', '_blank');
+            }
+          }}
+          className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+        >
+          <span>🍿</span> {t('openMainBot' as any) || 'Открыть Бота с Фильмами'}
+        </button>
+      </div>
+
       {/* 18+ Adult Bot Link */}
       <div className="p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'var(--hint-color)' }}>
         <div className="flex justify-between items-center mb-2">

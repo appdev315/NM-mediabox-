@@ -5,6 +5,7 @@ import { BACKEND_URL } from './Movie';
 import ReactPlayer from 'react-player';
 import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
+import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 
 export function AdultVideo() {
@@ -162,6 +163,7 @@ export function AdultVideo() {
           </div>
         )}
       </div>
+      <Header />
     </div>
   );
 }

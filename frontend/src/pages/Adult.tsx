@@ -7,6 +7,7 @@ import { VIP_USERS } from '../config/vipUsers';
 import { useVip } from '../context/VipContext';
 import { TelegramLoginWidget } from '../components/TelegramLoginWidget';
 import { BannerAd } from '../components/BannerAd';
+import { Header } from '../components/Header';
 import React from 'react';
 
 const CATEGORIES = [
@@ -346,6 +347,7 @@ export function Adult() {
           )}
         </>
       )}
+      <Header />
     </div>
   );
 }
