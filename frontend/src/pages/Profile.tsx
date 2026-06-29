@@ -212,11 +212,11 @@ export function Profile() {
       <div className="p-4 rounded-2xl shadow-sm" style={{ backgroundColor: 'var(--hint-color)' }}>
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🔞</span>
-            <h2 className="font-bold text-lg">{t('privateBotTitle') || 'Приватный 18+ Бот'}</h2>
+            <span className="text-xl">🔥</span>
+            <h2 className="font-bold text-lg">{t('privateBotTitle') || 'Приватный VIP Клуб'}</h2>
           </div>
         </div>
-        <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент для взрослых. Доступен только VIP подписчикам.'}</p>
+        <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент без цензуры. Доступен только VIP подписчикам.'}</p>
         
         {isVip ? (
           <button 
