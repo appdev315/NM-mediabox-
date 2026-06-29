@@ -2,12 +2,11 @@ module.exports = {
   apps: [
     {
       name: 'mediabox-backend',
-      script: 'server.js',
+      script: 'index.js',
       instances: 'max', // Use all available CPU cores
       exec_mode: 'cluster', // Enables Node.js cluster mode
       env: {
-        NODE_ENV: 'production',
-        PORT: 3000
+        NODE_ENV: 'production'
       }
     }
   ]
