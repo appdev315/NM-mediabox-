@@ -50,15 +50,15 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   }, [isTelegram, isVip, config?.ads, isAdultApp]);
 
   const triggerMovieAd = () => {
-    const shouldShowAds = config?.ads && (!isVip || isAdultApp);
-    if (!shouldShowAds) return;
+    if (!config?.ads) return;
 
     if (isTelegram) {
-      // For Telegram, we only show startup ad, no movie prerolls
+      // 18+ Telegram Bot: No ads (only VIP subscription)
+      // Telegram White Bot: Only startup ads (no movie prerolls)
       return;
     }
 
-    // For Web, we check the cooldown
+    // Web Version: Monetag for both white and adult apps
     const lastAdTimeStr = localStorage.getItem('lastAdTime');
     const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
     const now = Date.now();
