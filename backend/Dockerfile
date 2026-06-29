@@ -12,10 +12,11 @@ WORKDIR $HOME/app
 
 COPY --chown=pwuser package*.json ./
 RUN npm install
+RUN npm install -g pm2
 
 COPY --chown=pwuser . .
 
 EXPOSE 7860
 ENV PORT=7860
 
-CMD ["node", "index.js"]
+CMD ["npx", "pm2-runtime", "ecosystem.config.cjs"]
