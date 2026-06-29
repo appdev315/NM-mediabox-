@@ -40,7 +40,7 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
     // If it's the Adult App, we ALWAYS show ads. If it's the Main app, we only show if !isVip.
     const shouldShowAds = config?.ads && (!isVip || isAdultApp);
     
-    if (isTelegram && shouldShowAds) {
+    if (isTelegram && shouldShowAds && !isAdultApp) {
       const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
       if (!hasSeenStartup) {
         sessionStorage.setItem('hasSeenStartupAd', 'true');
