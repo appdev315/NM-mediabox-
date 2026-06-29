@@ -7,9 +7,25 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 't
     <div 
          className={`w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg ${variant === 'wide' ? 'h-24' : ''}`}
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
-         onClick={() => {
-           window.open('https://omg10.com/4/11214508', '_blank');
-           WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+         onClick={(e) => {
+           e.preventDefault();
+           // Open the ad in a new tab
+           const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
+           
+           // Try to keep focus on the current window (popunder effect, though browsers may override this)
+           if (adWindow) {
+             adWindow.blur();
+             window.focus();
+           }
+
+           // Redirect the current tab to Telegram bot, which will prompt the user
+           if (WebApp.platform !== 'unknown') {
+             WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+           } else {
+             // In regular browsers, navigating to t.me will show the "Open in Telegram?" prompt
+             // without completely closing the current site.
+             window.location.href = 'https://t.me/mediaboxxxbot';
+           }
          }}
     >
       {/* Banner Aspect Ratio with beautiful image */}
