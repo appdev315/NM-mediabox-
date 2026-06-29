@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
 import AdBanner from './components/AdBanner';
+import { MonetagScript } from './components/MonetagScript';
 
 import { Home } from './pages/Home';
 import { Movie } from './pages/Movie';
@@ -128,6 +129,7 @@ export default function App() {
       <VipProvider>
         <AdProvider>
           <AudioPlayerProvider>
+            <MonetagScript />
             {isAdultApp ? <AdultApp /> : <MainApp />}
           </AudioPlayerProvider>
         </AdProvider>
