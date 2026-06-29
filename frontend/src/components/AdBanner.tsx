@@ -3,24 +3,6 @@ import { useVip } from '../context/VipContext';
 import { WebApp } from '../telegram';
 
 const AdBanner: React.FC = () => {
-  useEffect(() => {
-    const handleFocus = () => {
-      if (localStorage.getItem('pendingBotRedirect') === 'true') {
-        localStorage.removeItem('pendingBotRedirect');
-        setTimeout(() => {
-          WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-        }, 300);
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') handleFocus();
-    });
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
-    };
-  }, []);
 
   const { isVip, config } = useVip();
 
@@ -51,8 +33,8 @@ const AdBanner: React.FC = () => {
       <div 
         className="fixed top-0 left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-b border-orange-500/50 p-3 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-3 overflow-hidden"
         onClick={() => {
-           localStorage.setItem('pendingBotRedirect', 'true');
-           WebApp.openLink('https://omg10.com/4/11214508');
+           window.open('https://omg10.com/4/11214508', '_blank');
+           WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
         }}
       >
         {/* Background texture */}
