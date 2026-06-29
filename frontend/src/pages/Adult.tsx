@@ -43,6 +43,7 @@ const CATEGORIES = [
 
 export function Adult() {
   const navigate = useNavigate();
+  const isTelegram = !!WebApp.initDataUnsafe?.user;
   const { t } = useLanguage();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -344,7 +345,7 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
-              {(idx + 1) % 15 === 0 && <BannerAd />}
+              {!isTelegram && (idx + 1) % 15 === 0 && <BannerAd />}
               </React.Fragment>
             ))}
           </div>

@@ -13,6 +13,7 @@ export function Profile() {
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { isVip, showVipModal } = useVip();
+  const isAdultApp = window.location.hostname === 'media-box.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
   const [favorites, setFavorites] = useState<any[]>([]);
   // Use favorites to avoid unused var warning
   console.log(favorites.length);
@@ -78,24 +79,26 @@ export function Profile() {
         <div>
           <h1 className="font-bold text-xl">{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : (t('menu') || 'Menu')}</h1>
           {user?.username && <p className="opacity-90 text-sm mb-1">@{user.username}</p>}
-          {isVip ? (
-            <div className="flex gap-2 items-center flex-wrap mt-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-pink-500 font-bold text-xs">
-                💎 VIP Member
-              </div>
-              {user?.username === 'appdev315' && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-500 font-bold text-xs">
-                  🛠 Developer
+          {isAdultApp && (
+            isVip ? (
+              <div className="flex gap-2 items-center flex-wrap mt-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-pink-500 font-bold text-xs">
+                  💎 VIP Member
                 </div>
-              )}
-            </div>
-          ) : (
-            <button 
-              onClick={showVipModal}
-              className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors font-medium text-xs shadow-sm active:scale-95" style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-            >
-              {t('buyVip')}
-            </button>
+                {user?.username === 'appdev315' && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-500 font-bold text-xs">
+                    🛠 Developer
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={showVipModal}
+                className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors font-medium text-xs shadow-sm active:scale-95" style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+              >
+                {t('buyVip')}
+              </button>
+            )
           )}
         </div>
       </div>
