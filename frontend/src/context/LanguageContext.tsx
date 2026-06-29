@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { WebApp } from '../telegram';
 
-export type Language = 'ru-RU' | 'en-US' | 'ko-KR' | 'id-ID' | 'hi-IN' | 'fa-IR';
+export type Language = 'ru-RU' | 'en-US' | 'ko-KR' | 'id-ID' | 'hi-IN' | 'fa-IR' | 'es-ES' | 'de-DE' | 'fr-FR';
 
 export const translations = {
   'ru-RU': {
@@ -165,12 +165,15 @@ export const translations = {
 // Auto-fill missing translations with English for new languages
 const enBase = translations['en-US'];
 
-const extendedTranslations = {
+export const extendedTranslations = {
   ...translations,
   'ko-KR': { ...enBase, movies: '영화', series: '시리즈', home: '홈', profile: '프로필', searchPlaceholder: '검색...', watch: '시청하기', language: '언어', radio_and_tv: '라디오 및 TV' },
   'id-ID': { ...enBase, movies: 'Film', series: 'Serial', home: 'Beranda', profile: 'Profil', searchPlaceholder: 'Cari...', watch: 'Tonton', language: 'Bahasa', radio_and_tv: 'Radio & TV' },
   'hi-IN': { ...enBase, movies: 'फिल्में', series: 'सीरीज़', home: 'होम', profile: 'प्रोफ़ाइल', searchPlaceholder: 'खोजें...', watch: 'देखें', language: 'भाषा', radio_and_tv: 'रेडियो और टीवी' },
   'fa-IR': { ...enBase, movies: 'فیلم‌ها', series: 'سریال‌ها', home: 'خانه', profile: 'پروفایل', searchPlaceholder: 'جستجو...', watch: 'تماشا', language: 'زبان', radio_and_tv: 'رادیو و تلویزیون' },
+  'es-ES': { ...enBase, movies: 'Películas', series: 'Series', home: 'Inicio', profile: 'Perfil', searchPlaceholder: 'Buscar...', watch: 'Ver', language: 'Idioma', radio_and_tv: 'Radio y TV' },
+  'de-DE': { ...enBase, movies: 'Filme', series: 'Serien', home: 'Start', profile: 'Profil', searchPlaceholder: 'Suchen...', watch: 'Ansehen', language: 'Sprache', radio_and_tv: 'Radio & TV' },
+  'fr-FR': { ...enBase, movies: 'Films', series: 'Séries', home: 'Accueil', profile: 'Profil', searchPlaceholder: 'Rechercher...', watch: 'Regarder', language: 'Langue', radio_and_tv: 'Radio & TV' },
 };
 
 type TranslationKey = keyof typeof translations['ru-RU'];
@@ -195,6 +198,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (tgLang === 'id') return 'id-ID';
       if (tgLang === 'hi') return 'hi-IN';
       if (tgLang === 'fa') return 'fa-IR';
+      if (tgLang === 'es') return 'es-ES';
+      if (tgLang === 'de') return 'de-DE';
+      if (tgLang === 'fr') return 'fr-FR';
     } catch (e) {
       console.error("Failed to get language", e);
     }

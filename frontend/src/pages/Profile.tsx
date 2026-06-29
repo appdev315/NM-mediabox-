@@ -103,29 +103,32 @@ export function Profile() {
       {/* Settings Section */}
       <div className="p-4 rounded-2xl shadow-sm flex flex-col gap-4" style={{ backgroundColor: 'var(--hint-color)' }}>
         
-        {/* Language Segmented Control */}
+        {/* Language Selector */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🌍</span>
             <h2 className="font-bold text-md">{t('language')}</h2>
           </div>
-          <div className="flex w-full bg-black/10 dark:bg-white/5 rounded-lg p-1 relative">
-            <button
-              onClick={() => setLanguage('ru-RU')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
-                language === 'ru-RU' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
+          <div className="relative">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as any)}
+              className="w-full appearance-none bg-black/10 dark:bg-white/5 rounded-lg p-3 text-sm font-medium outline-none border border-transparent focus:border-[var(--button-color)] transition-colors"
+              style={{ color: 'var(--text-color)' }}
             >
-              Русский
-            </button>
-            <button
-              onClick={() => setLanguage('en-US')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 z-10 ${
-                language === 'en-US' ? 'bg-white dark:bg-[#1c1c1e] shadow-sm text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              English
-            </button>
+              <option value="ru-RU">🇷🇺 Русский (RU)</option>
+              <option value="en-US">🇺🇸 English (US)</option>
+              <option value="ko-KR">🇰🇷 한국어 (KR)</option>
+              <option value="id-ID">🇮🇩 Bahasa Indonesia (ID)</option>
+              <option value="hi-IN">🇮🇳 हिन्दी (IN)</option>
+              <option value="fa-IR">🇮🇷 فارسی (IR)</option>
+              <option value="es-ES">🇪🇸 Español (ES)</option>
+              <option value="de-DE">🇩🇪 Deutsch (DE)</option>
+              <option value="fr-FR">🇫🇷 Français (FR)</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4" style={{ color: 'var(--text-color)' }}>
+              <svg className="fill-current h-4 w-4 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+            </div>
           </div>
         </div>
 
