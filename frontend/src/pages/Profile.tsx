@@ -268,8 +268,8 @@ export function Profile() {
                 window.open('https://t.me/mediaboxxxbot', '_blank');
               }
             }}
-            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform bg-black/10 dark:bg-white/10"
-            style={{ color: 'var(--text-color)' }}
+            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md border border-orange-500/30"
+            style={{ background: 'linear-gradient(to right, #f97316, #eab308)', color: 'white' }}
           >
             <span>⭐️</span> {t('buyVipForAccess') || 'Купить VIP для доступа'}
           </button>
