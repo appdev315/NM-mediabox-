@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { WebApp } from '../telegram';
 
-export type Language = 'ru-RU' | 'en-US';
+export type Language = 'ru-RU' | 'en-US' | 'ko-KR' | 'id-ID' | 'hi-IN' | 'fa-IR';
 
 export const translations = {
   'ru-RU': {
@@ -158,6 +158,17 @@ export const translations = {
   }
 };
 
+// Auto-fill missing translations with English for new languages
+const enBase = translations['en-US'];
+
+const extendedTranslations = {
+  ...translations,
+  'ko-KR': { ...enBase, movies: '영화', series: '시리즈', home: '홈', profile: '프로필', searchPlaceholder: '검색...', watch: '시청하기', language: '언어', radio_and_tv: '라디오 및 TV' },
+  'id-ID': { ...enBase, movies: 'Film', series: 'Serial', home: 'Beranda', profile: 'Profil', searchPlaceholder: 'Cari...', watch: 'Tonton', language: 'Bahasa', radio_and_tv: 'Radio & TV' },
+  'hi-IN': { ...enBase, movies: 'फिल्में', series: 'सीरीज़', home: 'होम', profile: 'प्रोफ़ाइल', searchPlaceholder: 'खोजें...', watch: 'देखें', language: 'भाषा', radio_and_tv: 'रेडियो और टीवी' },
+  'fa-IR': { ...enBase, movies: 'فیلم‌ها', series: 'سریال‌ها', home: 'خانه', profile: 'پروفایل', searchPlaceholder: 'جستجو...', watch: 'تماشا', language: 'زبان', radio_and_tv: 'رادیو و تلویزیون' },
+};
+
 type TranslationKey = keyof typeof translations['ru-RU'];
 
 interface LanguageContextProps {
@@ -172,10 +183,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [language, setLanguageState] = useState<Language>(() => {
     try {
       const saved = localStorage.getItem('app_language') as Language;
-      if (saved && translations[saved]) return saved;
+      if (saved && extendedTranslations[saved]) return saved;
 
       const tgLang = WebApp.initDataUnsafe?.user?.language_code;
       if (tgLang === 'ru') return 'ru-RU';
+      if (tgLang === 'ko') return 'ko-KR';
+      if (tgLang === 'id') return 'id-ID';
+      if (tgLang === 'hi') return 'hi-IN';
+      if (tgLang === 'fa') return 'fa-IR';
     } catch (e) {
       console.error("Failed to get language", e);
     }
@@ -188,7 +203,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = (key: TranslationKey) => {
-    return translations[language]?.[key] || translations['ru-RU'][key];
+    return (extendedTranslations as any)[language]?.[key] || translations['ru-RU'][key];
   };
 
   return (
