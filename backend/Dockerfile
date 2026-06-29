@@ -12,7 +12,7 @@ WORKDIR $HOME/app
 
 COPY --chown=pwuser package*.json ./
 RUN npm install
-RUN npm install -g pm2
+RUN npm install pm2
 
 COPY --chown=pwuser . .
 
