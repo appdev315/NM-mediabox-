@@ -58,13 +58,18 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
       return;
     }
 
-    // Web Version: Monetag for both white and adult apps
-    const lastAdTimeStr = localStorage.getItem('lastAdTime');
-    const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
-    const now = Date.now();
+    // Web Version: Monetag ONLY for white app
+    if (!isAdultApp) {
+      const lastAdTimeStr = localStorage.getItem('lastAdTime');
+      const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
+      const now = Date.now();
 
-    if (now - lastAdTime > COOLDOWN_MS) {
-      playAd('monetag');
+      if (now - lastAdTime > COOLDOWN_MS) {
+        playAd('monetag');
+      }
+    } else {
+      // TODO: Placeholder for new adult ad network
+      console.log('Adult ad network triggered');
     }
   };
 
