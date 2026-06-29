@@ -4,6 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
+import { useNavigate } from 'react-router-dom';
 import { BannerAd } from '../components/BannerAd';
 
 interface Station {
@@ -50,6 +51,18 @@ const FREE_TV_MAP: Record<string, string> = {
 };
 
 export function RadioTV() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleBack = () => navigate(-1);
+    WebApp.BackButton.show();
+    WebApp.BackButton.onClick(handleBack);
+    return () => {
+      WebApp.BackButton.hide();
+      WebApp.BackButton.offClick(handleBack);
+    };
+  }, [navigate]);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning, setShowTvWarning] = useState(false);
@@ -78,7 +91,7 @@ export function RadioTV() {
   // Favorites State
   const [favorites, setFavorites] = useState<Station[]>([]);
 
-  const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
+  const { playTrack, currentTrack, stop } = useAudioPlayer();
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -513,12 +526,8 @@ export function RadioTV() {
                     )}
                     </button>
                     <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
-                      {isActive ? (
-                        activeTab === 'radio' && !isPlaying ? (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                        ) : (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21" /></svg>
-                        )
+                                            {isActive ? (
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></div>
                       ) : (
                         '›'
                       )}

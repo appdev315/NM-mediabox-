@@ -50,13 +50,13 @@ export function GlobalAudioPlayer() {
       className="fixed left-4 right-4 z-50 p-3 rounded-2xl shadow-2xl backdrop-blur-2xl flex items-center gap-3 border"
       style={{
         bottom: '80px',
-        backgroundColor: 'var(--secondary-bg-color, rgba(30, 30, 30, 0.95))',
-        borderColor: 'var(--hint-color, rgba(255, 255, 255, 0.1))'
+        backgroundColor: 'var(--bg-color)',
+        borderColor: 'var(--hint-color)'
       }}
     >
       {/* Cover Art */}
       <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 shadow-md relative"
-        style={{ backgroundColor: 'var(--hint-color, rgba(100, 100, 100, 0.2))' }}
+        style={{ backgroundColor: 'var(--hint-color)' }}
       >
         {currentTrack.coverUrl ? (
           <img src={currentTrack.coverUrl} alt={currentTrack.title} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
