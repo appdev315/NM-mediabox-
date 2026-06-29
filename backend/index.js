@@ -259,6 +259,8 @@ async function requireAuth(req, res, next) {
     }
 }
 
+
+
 async function requireVip(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('tma ')) {
@@ -305,6 +307,17 @@ async function requireVip(req, res, next) {
         return res.status(401).json({ error: 'Unauthorized: Token parsing failed' });
     }
 }
+
+async function checkAdultAccess(req, res, next) {
+    const authHeader = req.headers.authorization;
+    // Allow free access for regular web browsers where Telegram initData is absent
+    if (!authHeader || !authHeader.startsWith('tma ') || authHeader.length < 10) {
+        return next();
+    }
+    // If inside Telegram, fallback to standard VIP check
+    return requireVip(req, res, next);
+}
+
 
 // Function to validate URL for SSRF protection
 function isValidUrl(urlStr) {
@@ -707,7 +720,7 @@ app.get('/api/vip/download/link', requireVip, async (req, res) => {
 // --- Adult (18+) Endpoints ---
 
 // --- Adult (18+) Endpoints ---
-app.get('/api/adult/search', requireVip, async (req, res) => {
+app.get('/api/adult/search', checkAdultAccess, async (req, res) => {
     const { q, page } = req.query;
     try {
         const p = page ? parseInt(page) : 0;
@@ -730,7 +743,7 @@ app.get('/api/adult/search', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/adult/stream', requireVip, async (req, res) => {
+app.get('/api/adult/stream', checkAdultAccess, async (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     
