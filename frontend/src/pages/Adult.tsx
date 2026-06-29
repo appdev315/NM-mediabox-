@@ -56,6 +56,11 @@ export function Adult() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const { isVip, showVipModal } = useVip();
+  const checkWebVIP = () => {
+    if (WebApp.platform === 'unknown') return true;
+    return isVip;
+  };
+  const hasAccess = checkWebVIP();
   // State for triggering re-render if user logs in via web widget
   const [, setForceRender] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -78,13 +83,13 @@ export function Adult() {
     const confirmed = isConfigVip || localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
-    if (isVip && confirmed) {
+    if (hasAccess && confirmed) {
       // Use the randomly initialized category instead of hardcoded 'teen'
       loadVideos(category, 0);
     } else {
       setLoading(false);
     }
-  }, [isVip]);
+  }, [hasAccess]);
 
   const loadVideos = async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
     if (append) {
@@ -121,7 +126,7 @@ export function Adult() {
   };
 
   const loadMore = useCallback(() => {
-    if (loading || isLoadingMore || !isVip || !ageConfirmed) return;
+    if (loading || isLoadingMore || !hasAccess || !ageConfirmed) return;
     
     if (category === '' && query === '') {
       // Infinite mode
@@ -135,7 +140,7 @@ export function Adult() {
       setPage(nextPage);
       loadVideos(query || category, nextPage, true);
     }
-  }, [loading, isLoadingMore, isVip, ageConfirmed, category, query, page]);
+  }, [loading, isLoadingMore, hasAccess, ageConfirmed, category, query, page]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -154,7 +159,7 @@ export function Adult() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isVip) {
+    if (hasAccess) {
       setPage(0);
       loadVideos(query || category, 0, false);
     }
@@ -177,7 +182,7 @@ export function Adult() {
     setCategory(val);
     setQuery('');
     setPage(0);
-    if (isVip) {
+    if (hasAccess) {
       if (val === '') {
         const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
         const randomPage = Math.floor(Math.random() * 10);
@@ -188,15 +193,7 @@ export function Adult() {
     }
   };
 
-  const checkWebVIP = () => {
-    // Completely free access in regular web browsers (outside Telegram)
-    if (WebApp.platform === 'unknown') {
-      return true;
-    }
-    return isVip;
-  };
 
-  const hasAccess = checkWebVIP();
 
   if (!hasAccess) {
     return (
