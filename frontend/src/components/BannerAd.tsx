@@ -1,33 +1,15 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { WebApp } from '../telegram';
 
 export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 'tall' }) => {
-  useEffect(() => {
-    const handleFocus = () => {
-      if (localStorage.getItem('pendingBotRedirect') === 'true') {
-        localStorage.removeItem('pendingBotRedirect');
-        setTimeout(() => {
-          WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-        }, 300);
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') handleFocus();
-    });
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
-    };
-  }, []);
 
   return (
     <div 
          className={`w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg ${variant === 'wide' ? 'h-24' : ''}`}
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={() => {
-           localStorage.setItem('pendingBotRedirect', 'true');
-           WebApp.openLink('https://omg10.com/4/11214508');
+           window.open('https://omg10.com/4/11214508', '_blank');
+           WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
          }}
     >
       {/* Banner Aspect Ratio with beautiful image */}
