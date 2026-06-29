@@ -79,7 +79,7 @@ export function Downloads() {
       }
     } catch (e) {}
 
-    const proxyUrl = `${BACKEND_URL}/api/vip/downloads/proxy?url=${btoa(url)}`;
+    const proxyUrl = `${BACKEND_URL}/api/downloads/proxy?url=${btoa(url)}`;
     
     const a = document.createElement('a');
     a.href = proxyUrl;
