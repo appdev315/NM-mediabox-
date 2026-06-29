@@ -95,7 +95,7 @@ export function Favorites() {
               <h3 className="font-bold text-sm leading-tight line-clamp-1" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
             </div>
           </div>
-          {(idx + 1) % 15 === 0 && <BannerAd />}
+          {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? 'telegram' : 'adult'} />}
           </React.Fragment>
         ))}
       </div>

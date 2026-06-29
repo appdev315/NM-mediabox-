@@ -1,7 +1,7 @@
 import React from 'react';
 import { WebApp } from '../telegram';
 
-export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 'tall' }) => {
+export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' | 'adult' }> = ({ variant = 'tall', type = 'telegram' }) => {
 
   return (
     <div 
@@ -12,19 +12,21 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 't
            // Open the ad in a new tab
            const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
            
-           // Try to keep focus on the current window (popunder effect, though browsers may override this)
            if (adWindow) {
              adWindow.blur();
              window.focus();
            }
 
-           // Redirect the current tab to Telegram bot, which will prompt the user
-           if (WebApp.platform !== 'unknown') {
-             WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+           if (type === 'telegram') {
+             // Redirect the current tab to Telegram bot
+             if (WebApp.platform !== 'unknown') {
+               WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+             } else {
+               window.location.href = 'https://t.me/mediaboxxxbot';
+             }
            } else {
-             // In regular browsers, navigating to t.me will show the "Open in Telegram?" prompt
-             // without completely closing the current site.
-             window.location.href = 'https://t.me/mediaboxxxbot';
+             // Redirect to adult web app on the same domain
+             window.location.href = '?app=adult';
            }
          }}
     >
@@ -40,7 +42,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 't
             <span className="text-2xl">🔞</span>
           </div>
           <span className="font-extrabold text-lg text-center text-white drop-shadow-md">
-            Еще больше приватного контента!
+            {type === 'telegram' ? 'Смотреть без VPN в Telegram' : 'Секретный раздел 18+'}
           </span>
           <span className="text-xs bg-black/50 px-2 py-1 rounded-md text-white/90 text-center mt-2 font-medium">
             Реклама
