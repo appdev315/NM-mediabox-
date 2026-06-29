@@ -2,7 +2,7 @@ import React from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
-export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' | 'adult' }> = ({ variant = 'tall', type = 'telegram' }) => {
+export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' | 'adult' | 'mainbot' }> = ({ variant = 'tall', type = 'telegram' }) => {
   const { t } = useLanguage();
 
   return (
@@ -19,12 +19,13 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
              window.focus();
            }
 
-           if (type === 'telegram') {
+           if (type === 'telegram' || type === 'mainbot') {
              // Redirect the current tab to Telegram bot
+             const botLink = type === 'mainbot' ? 'https://t.me/moviemaniakbot' : 'https://t.me/mediaboxxxbot';
              if (WebApp.platform !== 'unknown') {
-               WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+               WebApp.openTelegramLink(botLink);
              } else {
-               window.location.href = 'https://t.me/mediaboxxxbot';
+               window.location.href = botLink;
              }
            } else {
              // Redirect to adult web app on the same domain
@@ -37,16 +38,18 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
         <img 
           src={type === 'telegram' 
             ? "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=800&auto=format&fit=crop" 
+            : type === 'mainbot'
+            ? "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"
             : "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop"} 
           alt="Ad" 
           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
         />
         <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${variant === 'wide' ? 'p-2' : 'p-4'}`}>
-          <div className={`${variant === 'wide' ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'} ${type === 'telegram' ? 'bg-blue-500/80' : 'bg-red-500/80'} rounded-full flex items-center justify-center shadow-lg animate-bounce`}>
-            <span className={variant === 'wide' ? 'text-lg' : 'text-2xl'}>{type === 'telegram' ? '✈️' : '🔞'}</span>
+          <div className={`${variant === 'wide' ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'} ${type === 'adult' ? 'bg-red-500/80' : (type === 'mainbot' ? 'bg-purple-500/80' : 'bg-blue-500/80')} rounded-full flex items-center justify-center shadow-lg animate-bounce`}>
+            <span className={variant === 'wide' ? 'text-lg' : 'text-2xl'}>{type === 'adult' ? '🔞' : (type === 'mainbot' ? '🍿' : '✈️')}</span>
           </div>
           <span className={`font-extrabold text-center text-white drop-shadow-md ${variant === 'wide' ? 'text-sm' : 'text-lg'}`}>
-            {type === 'telegram' ? t('bannerTelegram') : t('bannerAdult')}
+            {type === 'telegram' ? t('bannerTelegram') : (type === 'mainbot' ? t('bannerMainBot') : t('bannerAdult'))}
           </span>
           {variant !== 'wide' && (
             <span className="text-xs bg-black/50 px-2 py-1 rounded-md text-white/90 text-center mt-2 font-medium">
