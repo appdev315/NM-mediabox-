@@ -33,13 +33,15 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
       {/* Banner Aspect Ratio with beautiful image */}
       <div className={`w-full relative aspect-[4/3] bg-black flex flex-col items-center justify-center`}>
         <img 
-          src="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop" 
-          alt="Cinema Ad" 
+          src={type === 'telegram' 
+            ? "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=800&auto=format&fit=crop" 
+            : "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop"} 
+          alt="Ad" 
           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center p-4 z-10">
-          <div className="w-12 h-12 bg-orange-500/80 rounded-full flex items-center justify-center mb-2 shadow-lg animate-bounce">
-            <span className="text-2xl">🔞</span>
+          <div className={`w-12 h-12 ${type === 'telegram' ? 'bg-blue-500/80' : 'bg-red-500/80'} rounded-full flex items-center justify-center mb-2 shadow-lg animate-bounce`}>
+            <span className="text-2xl">{type === 'telegram' ? '✈️' : '🔞'}</span>
           </div>
           <span className="font-extrabold text-lg text-center text-white drop-shadow-md">
             {type === 'telegram' ? 'Смотреть без VPN в Telegram' : 'Секретный раздел 18+'}
@@ -52,7 +54,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
       
       {/* Bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black via-black/80 to-transparent z-10">
-        <h3 className="font-bold text-sm text-white truncate text-center text-orange-400">Перейти</h3>
+        <h3 className={`font-bold text-sm text-white truncate text-center ${type === 'telegram' ? 'text-blue-400' : 'text-red-400'}`}>Перейти</h3>
       </div>
     </div>
   );
