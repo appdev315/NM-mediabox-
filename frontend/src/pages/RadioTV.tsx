@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
+import { WebApp } from '../telegram';
 
 interface Station {
   id: string;
