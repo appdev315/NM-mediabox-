@@ -13,7 +13,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 't
          }}
     >
       {/* Banner Aspect Ratio with beautiful image */}
-      <div className={`w-full relative ${variant === 'tall' ? 'pt-[40%] sm:pt-[50%] md:pt-[150%] min-h-[150px]' : 'h-full'} bg-black flex flex-col items-center justify-center`}>
+      <div className={`w-full relative aspect-[4/3] bg-black flex flex-col items-center justify-center`}>
         <img 
           src="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop" 
           alt="Cinema Ad" 
