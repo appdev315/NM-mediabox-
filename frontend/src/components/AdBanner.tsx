@@ -33,15 +33,15 @@ const AdBanner: React.FC = () => {
         className="fixed top-0 left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-b border-orange-500/50 p-3 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-3 overflow-hidden"
         onClick={() => {
            window.open('https://omg10.com/4/11214508', '_blank');
-           window.location.href = 'https://t.me/mediaboxxxbot?start=vip';
+           WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
         }}
       >
         {/* Background texture */}
         <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay pointer-events-none"></div>
         
-        <span className="text-2xl animate-pulse relative z-10">🎁</span>
+        <span className="text-2xl animate-pulse relative z-10">🔞</span>
         <span className="font-extrabold text-sm md:text-base text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 relative z-10 drop-shadow-md">
-          VIP Доступ: Фильмы в HD без рекламы!
+          Еще больше приватного контента!
         </span>
         <span className="text-xs bg-orange-500 text-white font-bold px-2 py-0.5 rounded shadow-sm relative z-10 uppercase tracking-wide">
           Получить
