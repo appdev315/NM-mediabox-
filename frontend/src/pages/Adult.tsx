@@ -189,17 +189,9 @@ export function Adult() {
   };
 
   const checkWebVIP = () => {
-    // If not in telegram, maybe logged in via web widget
-    if (WebApp.platform === 'unknown' && !isVip) {
-      const storedUserStr = localStorage.getItem('telegramUser');
-      if (storedUserStr) {
-        try {
-          const user = JSON.parse(storedUserStr);
-          if (user?.username && VIP_USERS.includes(user.username)) {
-            return true;
-          }
-        } catch (e) {}
-      }
+    // Completely free access in regular web browsers (outside Telegram)
+    if (WebApp.platform === 'unknown') {
+      return true;
     }
     return isVip;
   };
