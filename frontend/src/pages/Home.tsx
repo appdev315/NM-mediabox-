@@ -203,7 +203,7 @@ export function Home() {
                   <p className="text-xs opacity-90 mt-1">{item.year}</p>
                 </div>
               </div>
-              {(idx + 1) % 15 === 0 && <BannerAd type="telegram" />}
+              {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
               </React.Fragment>
             ))}
           </div>
