@@ -9,6 +9,8 @@ export const MonetagScript = () => {
     if (!isTelegram) {
       // Prevent multiple injections if component re-mounts
       const scriptId = 'monetag-script';
+      // Temporarily disabled until the correct tags are provided
+      /*
       if (!document.getElementById(scriptId)) {
         const script = document.createElement('script');
         script.id = scriptId;
@@ -18,6 +20,7 @@ export const MonetagScript = () => {
         script.setAttribute('data-cfasync', 'false');
         document.head.appendChild(script);
       }
+      */
     }
   }, []);
 
