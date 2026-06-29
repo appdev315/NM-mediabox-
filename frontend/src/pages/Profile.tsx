@@ -92,7 +92,7 @@ export function Profile() {
           ) : (
             <button 
               onClick={showVipModal}
-              className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors border border-white/20 text-white/90 font-medium text-xs shadow-sm active:scale-95"
+              className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors font-medium text-xs shadow-sm active:scale-95" style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
             >
               {t('buyVip')}
             </button>

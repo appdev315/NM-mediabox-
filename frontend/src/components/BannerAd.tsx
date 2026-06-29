@@ -7,7 +7,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide' }> = ({ variant = 't
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={() => {
            window.open('https://omg10.com/4/11214508', '_blank');
-           window.location.href = 'https://t.me/MovieManiak_bot?start=vip';
+           window.location.href = 'https://t.me/mediaboxxxbot?start=vip';
          }}
     >
       {/* Banner Aspect Ratio with beautiful image */}
