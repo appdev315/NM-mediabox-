@@ -21,6 +21,10 @@ const COUNTRIES = [
   { code: 'fr', name: 'France', radioName: 'France' },
   { code: 'by', name: 'Belarus', radioName: 'Belarus' },
   { code: 'kz', name: 'Kazakhstan', radioName: 'Kazakhstan' },
+  { code: 'in', name: 'India', radioName: 'India' },
+  { code: 'id', name: 'Indonesia', radioName: 'Indonesia' },
+  { code: 'kr', name: 'South Korea', radioName: 'South Korea' },
+  { code: 'ir', name: 'Iran', radioName: 'Iran' },
 ];
 
 const FREE_TV_MAP: Record<string, string> = {
@@ -30,7 +34,11 @@ const FREE_TV_MAP: Record<string, string> = {
   'de': 'germany',
   'fr': 'france',
   'by': 'belarus',
-  'kz': 'kazakhstan'
+  'kz': 'kazakhstan',
+  'in': 'india',
+  'id': 'indonesia',
+  'kr': 'south_korea',
+  'ir': 'iran'
 };
 
 export function RadioTV() {
@@ -38,7 +46,16 @@ export function RadioTV() {
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning, setShowTvWarning] = useState(false);
   const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
-  const [country, setCountry] = useState(localStorage.getItem('radio_tv_country') || 'ru');
+  const [country, setCountry] = useState(() => {
+    const saved = localStorage.getItem('radio_tv_country');
+    if (saved) return saved;
+    const tgLang = WebApp.initDataUnsafe?.user?.language_code;
+    if (tgLang === 'ko') return 'kr';
+    if (tgLang === 'id') return 'id';
+    if (tgLang === 'hi') return 'in';
+    if (tgLang === 'fa') return 'ir';
+    return 'ru';
+  });
   const [tvSource, setTvSource] = useState(localStorage.getItem('tv_source') || '1');
   const [stations, setStations] = useState<Station[]>([]);
   const [tvChannels, setTvChannels] = useState<Station[]>([]);
@@ -200,9 +217,6 @@ export function RadioTV() {
     setTvError(false);
     setTvLoading(true);
     setActiveTvChannel(channel);
-    setTimeout(() => {
-      playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
   };
 
   const handleTabSwitch = (tab: 'radio' | 'tv') => {

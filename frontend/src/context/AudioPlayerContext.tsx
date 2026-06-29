@@ -12,6 +12,7 @@ export interface Track {
 interface AudioPlayerContextType {
   currentTrack: Track | null;
   isPlaying: boolean;
+  isBuffering: boolean;
   playTrack: (track: Track) => void;
   togglePlayPause: () => void;
   stop: () => void;
@@ -23,6 +24,7 @@ const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(und
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Refs to always hold the latest state — avoids stale closures
@@ -39,6 +41,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.src = '';
     }
     setIsPlaying(false);
+    setIsBuffering(false);
     setCurrentTrack(null);
   }, []);
 
@@ -67,9 +70,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // New track
     setCurrentTrack(track);
+    setIsBuffering(true);
     audio.src = track.url;
     audio.load();
-    audio.play().catch(() => {});
+    audio.play().catch(() => setIsBuffering(false));
     setIsPlaying(true);
   }, [togglePlayPause]); // togglePlayPause is stable (no deps)
 
@@ -100,6 +104,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!audio) return;
 
     const onPlay = () => setIsPlaying(true);
+    const onPlaying = () => { setIsPlaying(true); setIsBuffering(false); };
+    const onWaiting = () => setIsBuffering(true);
     const onPause = () => {
       // Only set isPlaying false if it wasn't a transient system interruption
       // (e.g. iOS suspends audio briefly on app switch). Give it a moment.
@@ -117,22 +123,27 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onStalled = () => {
       if (currentTrackRef.current?.type === 'radio') {
         console.warn('Radio stream stalled, attempting reconnect...');
+        setIsBuffering(true);
         const src = audio.src;
         if (src) {
           audio.src = src;
           audio.load();
-          audio.play().catch(() => {});
+          audio.play().catch(() => setIsBuffering(false));
         }
       }
     };
 
     audio.addEventListener('play', onPlay);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('error', onError);
     audio.addEventListener('stalled', onStalled);
 
     return () => {
       audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);
       audio.removeEventListener('stalled', onStalled);
@@ -140,7 +151,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, playTrack, togglePlayPause, stop, audioRef }}>
+    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, playTrack, togglePlayPause, stop, audioRef }}>
       {children}
       <audio ref={audioRef} preload="none" playsInline />
     </AudioPlayerContext.Provider>

@@ -165,7 +165,7 @@ export function Profile() {
       </div>
 
       {/* Support Creator */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-2">
         <div className="p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:bg-black/10 transition-colors border border-orange-500/20"
              style={{ backgroundColor: 'var(--hint-color)' }}
              onClick={() => setShowDonationModal(true)}
@@ -177,6 +177,28 @@ export function Profile() {
             <div className="flex flex-col">
               <span className="font-bold text-base" style={{ color: 'var(--text-color)' }}>{t('supportCreator')}</span>
               <span className="text-xs opacity-70" style={{ color: 'var(--text-color)' }}>{t('supportSubtitle')}</span>
+            </div>
+          </div>
+          <div className="opacity-50 text-xl" style={{ color: 'var(--text-color)' }}>›</div>
+        </div>
+
+        <div className="p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:bg-black/10 transition-colors border border-blue-500/20"
+             style={{ backgroundColor: 'var(--hint-color)' }}
+             onClick={() => {
+               if (WebApp.platform !== 'unknown') {
+                 WebApp.openTelegramLink('https://t.me/appdev315');
+               } else {
+                 window.open('https://t.me/appdev315', '_blank');
+               }
+             }}
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-500/20 text-blue-500">
+              <span className="text-xl">🎧</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-base" style={{ color: 'var(--text-color)' }}>{t('supportContact') || 'Написать в поддержку'}</span>
+              <span className="text-xs opacity-70" style={{ color: 'var(--text-color)' }}>{t('supportContactSubtitle') || 'Связаться с разработчиком'}</span>
             </div>
           </div>
           <div className="opacity-50 text-xl" style={{ color: 'var(--text-color)' }}>›</div>
@@ -196,8 +218,12 @@ export function Profile() {
         {isVip ? (
           <button 
             onClick={() => {
-              WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-              WebApp.close();
+              if (WebApp.platform !== 'unknown') {
+                WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+                WebApp.close();
+              } else {
+                window.open('https://t.me/mediaboxxxbot', '_blank');
+              }
             }}
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
@@ -206,7 +232,13 @@ export function Profile() {
           </button>
         ) : (
           <button 
-            onClick={showVipModal}
+            onClick={() => {
+              if (WebApp.platform !== 'unknown') {
+                showVipModal();
+              } else {
+                window.open('https://t.me/mediaboxxxbot', '_blank');
+              }
+            }}
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform bg-black/10 dark:bg-white/10"
             style={{ color: 'var(--text-color)' }}
           >

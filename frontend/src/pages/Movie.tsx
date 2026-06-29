@@ -287,9 +287,17 @@ export function Movie() {
           {movie.description || t('descriptionMissing')}
         </p>
 
-        <div id="video-player-container">
+        <div id="video-player-container" className="relative">
+          {showTooltip && WebApp.platform !== 'unknown' && (
+            <div className="w-full bg-red-500/10 text-red-400 text-xs text-center py-2 px-4 font-medium rounded-lg mb-2 flex justify-center items-center border border-red-500/20">
+              <span className="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                {language === 'en-US' ? 'If a window asks to "Open Link", press "Cancel" to continue.' : 'Если появится запрос "Открыть ссылку", нажмите "Отмена".'}
+              </span>
+            </div>
+          )}
           {(isExtracting || streamUrl || iframeUrl) && (
-            <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-6 shadow-xl mb-8 flex items-center justify-center">
+            <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-2 shadow-xl mb-8 flex items-center justify-center">
             {isExtracting ? (
               <div className="flex flex-col items-center justify-center text-white/70">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
@@ -297,14 +305,6 @@ export function Movie() {
               </div>
             ) : iframeUrl ? (
               <div className="w-full h-full flex flex-col relative group">
-                {showTooltip && WebApp.platform !== 'unknown' && (
-                  <div className="absolute top-0 left-0 w-full bg-black/80 backdrop-blur-md text-white/90 text-xs text-center py-2 px-4 font-medium z-50 pointer-events-none transition-opacity flex justify-center items-center">
-                    <span className="bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg px-2 py-1 flex items-center gap-2">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                      {language === 'en-US' ? 'If a window asks to "Open Link", press "Cancel" to continue.' : 'Если появится запрос "Открыть ссылку", нажмите "Отмена".'}
-                    </span>
-                  </div>
-                )}
                 <div className="flex-1 w-full h-full">
                   <Player iframeUrl={iframeUrl} />
                 </div>
