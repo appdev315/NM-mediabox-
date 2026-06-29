@@ -244,10 +244,18 @@ export function Adult() {
     return (
       <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
         <div className="text-6xl mb-6">🔞</div>
-        <h1 className="text-2xl font-bold mb-4">Are you 18 or older?</h1>
-        <p className="opacity-70 mb-8 leading-relaxed text-sm text-left bg-black/10 p-4 rounded-xl border border-white/10 shadow-inner">
-          By clicking "I Confirm", you acknowledge that you are at least 18 years of age (or the age of majority in your jurisdiction) and that you take full legal responsibility for accessing adult content. You agree not to distribute this content to minors.
-        </p>
+        <h1 className="text-2xl font-bold mb-4">Вам есть 18 лет?</h1>
+        <div className="opacity-70 mb-8 leading-relaxed text-sm text-left bg-black/10 p-4 rounded-xl border border-white/10 shadow-inner flex flex-col gap-3">
+          <p>
+            <strong>3 правила Тайной Комнаты:</strong><br/>
+            1. Первое правило тайной комнаты — никому не рассказывать про тайную комнату.<br/>
+            2. Второе правило тайной комнаты — никому не рассказывать про первое правило тайной комнаты.<br/>
+            3. Третье правило тайной комнаты — обещаю подписаться на тг бота )
+          </p>
+          <p>
+            Нажимая «Подтверждаю», вы подтверждаете, что вам исполнилось 18 лет, и берёте на себя полную ответственность за просмотр взрослого контента. Вы обязуетесь не распространять данный контент среди несовершеннолетних.
+          </p>
+        </div>
         
         <div className="w-full flex flex-col gap-3">
           <button 
@@ -261,7 +269,7 @@ export function Adult() {
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
           >
-            ✅ I Confirm, I am 18+
+            ✅ Подтверждаю
           </button>
           
           <button 
@@ -272,7 +280,7 @@ export function Adult() {
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform bg-transparent border-2"
             style={{ borderColor: 'var(--hint-color)', color: 'var(--text-color)' }}
           >
-            ❌ Leave Page
+            ❌ Покинуть страницу
           </button>
         </div>
       </div>
