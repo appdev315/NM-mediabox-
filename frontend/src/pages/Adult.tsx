@@ -26,6 +26,18 @@ const CATEGORIES = [
   { id: 'russian', label: 'Russian' },
   { id: 'asian', label: 'Asian' },
   { id: 'babe', label: 'Babe' },
+  { id: 'anal', label: 'Anal' },
+  { id: 'blonde', label: 'Blonde' },
+  { id: 'brunette', label: 'Brunette' },
+  { id: 'creampie', label: 'Creampie' },
+  { id: 'cuckold', label: 'Cuckold' },
+  { id: 'group', label: 'Group' },
+  { id: 'mature', label: 'Mature' },
+  { id: 'public', label: 'Public' },
+  { id: 'school', label: 'School' },
+  { id: 'stepmom', label: 'Step Mom' },
+  { id: 'stepsister', label: 'Step Sister' },
+  { id: 'toys', label: 'Toys' }
 ];
 
 export function Adult() {
@@ -34,7 +46,12 @@ export function Adult() {
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('teen');
+  
+  // Start with a random category initially
+  const [category, setCategory] = useState(() => {
+    const randomIndex = 1 + Math.floor(Math.random() * (CATEGORIES.length - 1));
+    return CATEGORIES[randomIndex].id;
+  });
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
@@ -62,8 +79,8 @@ export function Adult() {
     if (confirmed) setAgeConfirmed(true);
     
     if (isVip && confirmed) {
-      // Pick initial query as teen and page 0
-      loadVideos('teen', 0);
+      // Use the randomly initialized category instead of hardcoded 'teen'
+      loadVideos(category, 0);
     } else {
       setLoading(false);
     }
@@ -248,9 +265,8 @@ export function Adult() {
               WebApp.HapticFeedback.impactOccurred('heavy');
               setAgeConfirmed(true);
               localStorage.setItem('age_confirmed', 'true');
-              setCategory('teen');
               setPage(0);
-              loadVideos('teen', 0);
+              loadVideos(category, 0);
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
@@ -312,7 +328,7 @@ export function Adult() {
               <React.Fragment key={v.id}>
               <div 
                 className="cursor-pointer active:scale-95 transition-transform"
-                onClick={() => navigate(`/adult/${v.id}`)}
+                onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || category } })}
               >
                 <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm">
                   <img src={v.poster} className="w-full h-full object-cover" alt="" />

@@ -4,6 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
+import { BannerAd } from '../components/BannerAd';
 
 interface Station {
   id: string;
@@ -15,17 +16,20 @@ interface Station {
 }
 
 const COUNTRIES = [
-  { code: 'ru', name: 'Russia', radioName: 'Russia' },
-  { code: 'us', name: 'USA', radioName: 'United States' },
-  { code: 'gb', name: 'UK', radioName: 'United Kingdom' },
-  { code: 'de', name: 'Germany', radioName: 'Germany' },
-  { code: 'fr', name: 'France', radioName: 'France' },
+  { code: 'au', name: 'Australia', radioName: 'Australia' },
   { code: 'by', name: 'Belarus', radioName: 'Belarus' },
-  { code: 'kz', name: 'Kazakhstan', radioName: 'Kazakhstan' },
+  { code: 'br', name: 'Brazil', radioName: 'Brazil' },
+  { code: 'fr', name: 'France', radioName: 'France' },
+  { code: 'de', name: 'Germany', radioName: 'Germany' },
   { code: 'in', name: 'India', radioName: 'India' },
   { code: 'id', name: 'Indonesia', radioName: 'Indonesia' },
-  { code: 'kr', name: 'South Korea', radioName: 'South Korea' },
   { code: 'ir', name: 'Iran', radioName: 'Iran' },
+  { code: 'kz', name: 'Kazakhstan', radioName: 'Kazakhstan' },
+  { code: 'mx', name: 'Mexico', radioName: 'Mexico' },
+  { code: 'ru', name: 'Russia', radioName: 'Russia' },
+  { code: 'kr', name: 'South Korea', radioName: 'South Korea' },
+  { code: 'gb', name: 'UK', radioName: 'United Kingdom' },
+  { code: 'us', name: 'USA', radioName: 'United States' },
 ];
 
 const FREE_TV_MAP: Record<string, string> = {
@@ -39,7 +43,10 @@ const FREE_TV_MAP: Record<string, string> = {
   'in': 'india',
   'id': 'indonesia',
   'kr': 'south_korea',
-  'ir': 'iran'
+  'ir': 'iran',
+  'br': 'brazil',
+  'mx': 'mexico',
+  'au': 'australia'
 };
 
 export function RadioTV() {
@@ -403,26 +410,31 @@ export function RadioTV() {
 
       {/* TV Player Modal/Inline */}
       {activeTvChannel && activeTab === 'tv' && (
-        <div ref={playerRef} className="mb-6 -mx-4 rounded-none md:mx-auto md:rounded-2xl overflow-hidden shadow-xl border-y md:border-x md:w-[80%] scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
-          <div className="bg-black flex justify-between items-center p-3">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-black/90 backdrop-blur-md flex justify-between items-center p-4 border-b border-white/10 z-20 absolute top-0 left-0 right-0">
             <div className="flex items-center gap-3">
-              {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-8 h-8 rounded-full" />}
-              <span className="font-bold text-white truncate">{activeTvChannel.name}</span>
+              {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-10 h-10 rounded-full shadow-md bg-white/10" />}
+              <span className="font-bold text-white text-lg truncate shadow-sm drop-shadow-md">{activeTvChannel.name}</span>
             </div>
-            <button onClick={() => setActiveTvChannel(null)} className="text-white opacity-70 hover:opacity-100 font-bold px-2">✕</button>
+            <button 
+              onClick={() => setActiveTvChannel(null)} 
+              className="text-white bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+            >
+              ✕
+            </button>
           </div>
-          <div className="relative pt-[65%] bg-black flex items-center justify-center">
+          <div className="relative w-full h-full flex items-center justify-center pt-16 pb-4">
             {tvError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 text-center">
-                <span className="text-3xl mb-2">⚠️</span>
-                <p className="font-bold">Stream Unavailable</p>
-                <p className="text-sm opacity-70">The channel might be blocked by CORS, Geo-restrictions, or is currently offline.</p>
+                <span className="text-4xl mb-3">⚠️</span>
+                <p className="font-bold text-xl">Stream Unavailable</p>
+                <p className="text-sm opacity-70 mt-2 max-w-sm">The channel might be blocked by CORS, Geo-restrictions, or is currently offline.</p>
               </div>
             ) : (
               <>
                 {tvLoading && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-12 h-12 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 )}
                 <video 
@@ -430,7 +442,7 @@ export function RadioTV() {
                   autoPlay
                   controls 
                   playsInline
-                  className={`absolute top-0 left-0 w-full h-full object-contain z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity`}
+                  className={`w-full h-full object-contain z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}
                   onError={() => { setTvError(true); setTvLoading(false); }}
                   onCanPlay={() => setTvLoading(false)}
                   onPlaying={() => setTvLoading(false)}
@@ -451,14 +463,14 @@ export function RadioTV() {
           <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('notFound')}</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pb-24">
-            {displayedList.map((item) => {
+            {displayedList.map((item, index) => {
               const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
               const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
               const isActive = isRadioActive || isTvActive;
 
               return (
-                <div 
-                  key={item.id} 
+                <React.Fragment key={item.id}>
+                <div  
                   onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
                   className={`p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
                   style={{ 
@@ -502,10 +514,25 @@ export function RadioTV() {
                     )}
                     </button>
                     <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
-                      {isActive ? (activeTab === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}
+                      {isActive ? (
+                        activeTab === 'radio' && !isPlaying ? (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21" /></svg>
+                        )
+                      ) : (
+                        '›'
+                      )}
                     </span>
                   </div>
                 </div>
+                {/* Banner Ad Every 15 items in a full-width container */}
+                {(index + 1) % 15 === 0 && (
+                  <div className="col-span-2 md:col-span-3 lg:col-span-4 mt-2 mb-2">
+                    <BannerAd />
+                  </div>
+                )}
+              </React.Fragment>
               );
             })}
           </div>

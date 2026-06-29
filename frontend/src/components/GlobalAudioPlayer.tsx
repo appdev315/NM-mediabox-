@@ -95,7 +95,11 @@ export function GlobalAudioPlayer() {
           className="w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90"
           style={{ backgroundColor: 'var(--button-color, #3b82f6)', color: 'var(--button-text-color, #fff)' }}
         >
-          <span className="text-lg">{isPlaying ? '⏸' : '▶️'}</span>
+          {isPlaying ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21" /></svg>
+          )}
         </button>
 
         {/* Next (Stop) */}
