@@ -30,14 +30,22 @@ const AdBanner: React.FC = () => {
     // Top banner for Web using Monetag Direct Link
     return (
       <div 
-        className="w-full bg-orange-600/20 border-b border-orange-500/30 p-2 text-center cursor-pointer hover:bg-orange-600/30 transition-colors"
-        onClick={() => window.open('https://omg10.com/4/11214508', '_blank')}
+        className="fixed top-0 left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-b border-orange-500/50 p-3 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-3 overflow-hidden"
+        onClick={() => {
+           window.open('https://omg10.com/4/11214508', '_blank');
+           window.location.href = 'https://t.me/MovieManiak_bot?start=vip';
+        }}
       >
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xl">🔥</span>
-          <span className="font-bold text-sm md:text-base text-orange-400">Смотреть новинки кино без ограничений!</span>
-          <span className="text-xs bg-orange-500/20 px-2 py-0.5 rounded text-orange-300 ml-2 border border-orange-500/30">Реклама</span>
-        </div>
+        {/* Background texture */}
+        <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay pointer-events-none"></div>
+        
+        <span className="text-2xl animate-pulse relative z-10">🎁</span>
+        <span className="font-extrabold text-sm md:text-base text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 relative z-10 drop-shadow-md">
+          VIP Доступ: Фильмы в HD без рекламы!
+        </span>
+        <span className="text-xs bg-orange-500 text-white font-bold px-2 py-0.5 rounded shadow-sm relative z-10 uppercase tracking-wide">
+          Получить
+        </span>
       </div>
     );
   }
