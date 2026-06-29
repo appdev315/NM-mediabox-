@@ -33,7 +33,7 @@ const AdBanner: React.FC = () => {
         className="fixed top-0 left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-b border-orange-500/50 p-3 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-3 overflow-hidden"
         onClick={() => {
            window.open('https://omg10.com/4/11214508', '_blank');
-           window.location.href = 'https://t.me/MovieManiak_bot?start=vip';
+           window.location.href = 'https://t.me/mediaboxxxbot?start=vip';
         }}
       >
         {/* Background texture */}

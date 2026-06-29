@@ -331,7 +331,7 @@ export function Movie() {
               <button 
                 key={idx} 
                 onClick={() => setIframeUrl(s.url)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${iframeUrl === s.url ? 'bg-primary text-black' : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
               >
                 {idx === 0 ? t('player1') : t('player2')}
               </button>
