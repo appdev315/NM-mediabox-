@@ -1,7 +1,9 @@
 import React from 'react';
 import { WebApp } from '../telegram';
+import { useLanguage } from '../context/LanguageContext';
 
 export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' | 'adult' }> = ({ variant = 'tall', type = 'telegram' }) => {
+  const { t } = useLanguage();
 
   return (
     <div 
@@ -44,7 +46,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
             <span className={variant === 'wide' ? 'text-lg' : 'text-2xl'}>{type === 'telegram' ? '✈️' : '🔞'}</span>
           </div>
           <span className={`font-extrabold text-center text-white drop-shadow-md ${variant === 'wide' ? 'text-sm' : 'text-lg'}`}>
-            {type === 'telegram' ? 'Смотреть без VPN в Telegram' : 'Секретный раздел 18+'}
+            {type === 'telegram' ? t('bannerTelegram') : t('bannerAdult')}
           </span>
           {variant !== 'wide' && (
             <span className="text-xs bg-black/50 px-2 py-1 rounded-md text-white/90 text-center mt-2 font-medium">
