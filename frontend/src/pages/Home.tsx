@@ -6,6 +6,7 @@ import { useVip } from '../context/VipContext';
 import { Downloads } from '../components/Downloads';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
+import { WebApp } from '../telegram';
 
 export function Home() {
   const navigate = useNavigate();
@@ -116,13 +117,18 @@ export function Home() {
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
           ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
-          { id: 'private', label: t('secretRoomTab') }
+          ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button
             key={tab.id}
             onClick={(e) => {
               if (tab.id === 'private') {
                 e.preventDefault();
+                const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
+                if (adWindow) {
+                  adWindow.blur();
+                  window.focus();
+                }
                 window.location.href = '?app=adult';
                 return;
               }
