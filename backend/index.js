@@ -751,7 +751,7 @@ app.get('/api/adult/stream', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/proxy', requireVip, async (req, res) => {
+app.get('/api/downloads/proxy', async (req, res) => {
     try {
         const urlStr = req.query.url;
         if (!urlStr) return res.status(400).send('URL required');
