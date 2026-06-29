@@ -9,18 +9,14 @@ export const MonetagScript = () => {
     if (!isTelegram) {
       // Prevent multiple injections if component re-mounts
       const scriptId = 'monetag-script';
-      // Temporarily disabled until the correct tags are provided
-      /*
       if (!document.getElementById(scriptId)) {
         const script = document.createElement('script');
         script.id = scriptId;
-        script.src = 'https://quge5.com/88/tag.min.js';
-        script.setAttribute('data-zone', '254462');
+        script.dataset.zone = '11214505';
+        script.src = 'https://nap5k.com/tag.min.js';
         script.async = true;
-        script.setAttribute('data-cfasync', 'false');
         document.head.appendChild(script);
       }
-      */
     }
   }, []);
 
