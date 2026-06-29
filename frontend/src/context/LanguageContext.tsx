@@ -78,7 +78,9 @@ export const translations = {
     tvWarning: 'Внимание: некоторые каналы могут не работать из-за геоблокировок или отключения серверов поставщика. Если канал не работает — просто выберите другой.',
     source1: 'Источник 1',
     source2: 'Источник 2',
-    source3: 'Источник 3'
+    source3: 'Источник 3',
+    supportContact: 'Написать разработчику',
+    supportContactSubtitle: 'Связь с техподдержкой'
   },
   'en-US': {
     movies: 'Movies',
@@ -154,7 +156,9 @@ export const translations = {
     tvWarning: 'Note: some channels might not work due to geo-blocks or offline provider servers. If a channel doesn\'t load, just try another one.',
     source1: 'Source 1',
     source2: 'Source 2',
-    source3: 'Source 3'
+    source3: 'Source 3',
+    supportContact: 'Contact Developer',
+    supportContactSubtitle: 'Contact tech support'
   }
 };
 
