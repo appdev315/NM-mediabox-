@@ -13,6 +13,7 @@ import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSear
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
 import { translateItems, initTmdbCache } from './tmdbCache.js';
 import { getCurrentPhase } from './monetization.js';
+import { ThrottleStream } from './throttle.js';
 
 // Setup Global Proxy Rotation if defined
 if (process.env.PROXY_URL) {
@@ -783,7 +784,9 @@ app.get('/api/downloads/proxy', async (req, res) => {
         res.setHeader('Content-Disposition', 'attachment; filename="movie.mp4"');
         res.setHeader('Access-Control-Allow-Origin', '*');
 
-        response.data.pipe(res);
+        // Throttle download to 2 MB/s (per user connection) to preserve bandwidth
+        const throttle = new ThrottleStream(2 * 1024 * 1024);
+        response.data.pipe(throttle).pipe(res);
     } catch (e) {
         console.error('Proxy error:', e.message);
         res.status(500).send('Proxy error');
