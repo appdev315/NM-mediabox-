@@ -143,7 +143,7 @@ app.get('/api/stats', (req, res) => {
             internal: 0,
             donorBans: 0
         };
-        serverMetrics.startTime = Date.now();
+        // Убрали сброс startTime, чтобы аптайм отражал реальное время работы контейнера
     }
     
     res.json(stats);
