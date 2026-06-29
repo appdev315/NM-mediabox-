@@ -107,6 +107,7 @@ export function AdultVideo() {
           <div className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black shadow-xl mb-8 flex items-center justify-center">
             {details.mp4 ? (
               <ReactPlayer
+                // @ts-ignore
                 url={details.mp4}
                 width="100%"
                 height="100%"
@@ -126,7 +127,7 @@ export function AdultVideo() {
         {/* Related Videos */}
         {relatedVideos.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-lg font-bold mb-4">{t('recommended')}</h2>
+            <h2 className="text-lg font-bold mb-4">{t('recommendations')}</h2>
             <div className="grid grid-cols-2 gap-4">
               {relatedVideos.map((v, idx) => {
                 if (v.id === id) return null; // Skip current video
