@@ -535,7 +535,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-                {(idx + 1) % 6 === 0 && <ExoClickNativeAd className="exo-banner-tv-card" />}
+                {(idx + 1) % 6 === 0 && <ExoClickNativeAd className="exo-banner-movie-card row-span-2" />}
               </React.Fragment>
               );
             })}
