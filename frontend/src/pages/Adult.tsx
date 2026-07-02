@@ -267,7 +267,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {videos.map((v, idx) => (
               <React.Fragment key={v.id}>
               <div 
