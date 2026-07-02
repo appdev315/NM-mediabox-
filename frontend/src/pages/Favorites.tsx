@@ -204,7 +204,7 @@ export function Favorites() {
             onClick={(e) => {
               if (tab.id === 'private') {
                 e.preventDefault();
-                window.location.href = '?app=adult';
+                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
                 return;
               }
               setActiveTab(tab.id);
