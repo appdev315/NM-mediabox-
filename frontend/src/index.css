@@ -109,19 +109,26 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 /* ExoClick Banner Grid Wrappers */
-.exo-banner-movie-card {
+.exo-banner-movie-card, .exo-banner-tv-card {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 3;
   border-radius: 0.5rem; /* 8px */
   overflow: hidden;
   background-color: var(--hint-color); /* Matches grid placeholders */
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.exo-banner-movie-card ins {
+.exo-banner-movie-card {
+  aspect-ratio: 2 / 3;
+}
+
+.exo-banner-tv-card {
+  aspect-ratio: 16 / 9;
+}
+
+.exo-banner-movie-card ins, .exo-banner-tv-card ins {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
@@ -130,35 +137,10 @@ body {
 }
 
 .exo-banner-movie-card iframe,
-.exo-banner-movie-card img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: cover;
-}
-
-.exo-banner-tv-card {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9; /* TV / Radio format */
-  border-radius: 0.5rem; /* 8px */
-  overflow: hidden;
-  background-color: var(--hint-color); /* Matches grid placeholders */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.exo-banner-tv-card ins {
-  width: 100% !important;
-  height: 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
+.exo-banner-movie-card img,
 .exo-banner-tv-card iframe,
 .exo-banner-tv-card img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: cover;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
