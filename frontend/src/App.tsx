@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
-import AdBanner from './components/AdBanner';
 import { MonetagScript } from './components/MonetagScript';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
@@ -71,7 +70,6 @@ function MainApp() {
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
       <div className="pb-16 min-h-screen relative flex flex-col">
-        <AdBanner />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movies" element={<Home />} />
