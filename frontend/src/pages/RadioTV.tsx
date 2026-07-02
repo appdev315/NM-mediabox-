@@ -4,7 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
-import ExoClickNativeAd from '../components/ExoClickNativeAd';
+import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -535,7 +535,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-                {(idx + 1) % 6 === 0 && <ExoClickNativeAd className="exo-banner-movie-card row-span-2" />}
+                {(idx + 1) % 6 === 0 && <ExoClickWhiteAd className="exo-banner-movie-card row-span-2" />}
               </React.Fragment>
               );
             })}
