@@ -129,7 +129,7 @@ export function Home() {
             onClick={(e) => {
               if (tab.id === 'private') {
                 e.preventDefault();
-                window.location.href = '?app=adult';
+                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
                 return;
               }
               if (tab.id === 'radio-tv') {

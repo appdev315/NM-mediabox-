@@ -25,7 +25,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
              }
            } else {
              // Redirect to adult web app on the same domain
-             window.location.href = '?app=adult';
+             window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
            }
          }}
     >
