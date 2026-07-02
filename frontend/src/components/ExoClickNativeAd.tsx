@@ -20,14 +20,19 @@ export default function ExoClickNativeAd({ className = 'col-span-full w-full my-
     }
 
     // Run the ad push command
-    try {
-      // @ts-ignore
-      window.AdProvider = window.AdProvider || [];
-      // @ts-ignore
-      window.AdProvider.push({ "serve": {} });
-    } catch (e) {
-      console.error('ExoClick Ad Error:', e);
-    }
+    const pushAd = () => {
+      try {
+        // @ts-ignore
+        window.AdProvider = window.AdProvider || [];
+        // @ts-ignore
+        window.AdProvider.push({ "serve": {} });
+      } catch (e) {
+        console.error('ExoClick Ad Error:', e);
+      }
+    };
+    
+    const timer = setTimeout(pushAd, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
