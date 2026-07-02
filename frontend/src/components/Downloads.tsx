@@ -4,7 +4,7 @@ import { BACKEND_URL } from '../pages/Movie';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Downloads() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,10 +87,7 @@ export function Downloads() {
     a.download = 'movie.mp4';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
   };
-
-
 
   return (
     <div className="w-full">

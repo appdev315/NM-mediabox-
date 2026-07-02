@@ -20,6 +20,7 @@ import { AdProvider } from './context/AdManager';
 import { ThemeProvider } from './context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { VIP_USERS } from './config/vipUsers';
+import { FloatingTitle } from './components/FloatingTitle';
 
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
@@ -83,6 +84,7 @@ function MainApp() {
       </div>
       <GlobalAudioPlayer />
       <BottomNav />
+      <FloatingTitle />
     </BrowserRouter>
   );
 }
@@ -101,6 +103,7 @@ function AdultApp() {
         </Routes>
       </div>
       <BottomNav />
+      <FloatingTitle />
     </BrowserRouter>
   );
 }
