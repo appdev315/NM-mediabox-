@@ -7,6 +7,7 @@ import { useAdManager } from '../context/AdManager';
 import { Downloads } from '../components/Downloads';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
+import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { WebApp } from '../telegram';
 
 export function Home() {
@@ -202,6 +203,7 @@ export function Home() {
                 </div>
               </div>
               {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
+              {(idx + 1) % 8 === 0 && <ExoClickNativeAd className="exo-banner-movie-card" />}
               </React.Fragment>
             ))}
           </div>

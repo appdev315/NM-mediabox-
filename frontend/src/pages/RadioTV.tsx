@@ -4,6 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
+import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -475,7 +476,7 @@ export function RadioTV() {
           <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('notFound')}</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pb-24">
-            {displayedList.map((item) => {
+            {displayedList.map((item, idx) => {
               const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
               const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
               const isActive = isRadioActive || isTvActive;
@@ -534,7 +535,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-
+                {(idx + 1) % 6 === 0 && <ExoClickNativeAd className="exo-banner-tv-card" />}
               </React.Fragment>
               );
             })}
