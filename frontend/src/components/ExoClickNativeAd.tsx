@@ -4,44 +4,44 @@ interface ExoClickNativeAdProps {
   className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
 }
 
-export default function ExoClickNativeAd({ className = 'col-span-full w-full my-2' }: ExoClickNativeAdProps) {
-  const adRef = useRef<HTMLModElement>(null);
+export default function ExoClickNativeAd({ className = 'exo-banner-movie-card' }: ExoClickNativeAdProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Check if ANY exoclick ad provider script is already loaded
-    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-    
-    if (!scriptLoaded) {
-      const script = document.createElement('script');
-      script.src = 'https://a.magsrv.com/ad-provider.js';
-      script.async = true;
-      script.type = 'application/javascript';
-      document.head.appendChild(script);
-    }
+    if (initialized.current) return;
+    initialized.current = true;
 
-    // Run the ad push command
-    const pushAd = () => {
+    const loadAd = () => {
+      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+      if (!scriptLoaded) {
+        const script = document.createElement('script');
+        script.src = 'https://a.magsrv.com/ad-provider.js';
+        script.async = true;
+        script.type = 'application/javascript';
+        document.head.appendChild(script);
+      }
+
+      if (containerRef.current) {
+        // According to user screenshot, 18+ Widget requires data-ex_av="name"
+        containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964558" data-ex_av="name"></ins>';
+      }
+
       try {
-        // @ts-ignore
-        window.AdProvider = window.AdProvider || [];
-        // @ts-ignore
-        window.AdProvider.push({ "serve": {} });
+        const w = window as any;
+        w.AdProvider = w.AdProvider || [];
+        w.AdProvider.push({ "serve": {} });
       } catch (e) {
         console.error('ExoClick Ad Error:', e);
       }
     };
     
-    const timer = setTimeout(pushAd, 100);
+    const timer = setTimeout(loadAd, 150);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div className={className}>
-      <ins 
-        ref={adRef}
-        className="eas6a97888e20" 
-        data-zoneid="5964558"
-      ></ins>
+    <div ref={containerRef} className={className + " min-h-[50px] flex justify-center items-center overflow-hidden"}>
     </div>
   );
 }
