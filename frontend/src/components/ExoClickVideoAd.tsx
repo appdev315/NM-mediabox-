@@ -30,7 +30,7 @@ export function ExoClickVideoAd() {
 
   return (
     <div ref={containerRef} className="flex justify-center w-full my-4">
-      <ins className="eas6a97888e37" data-zoneid="5964652" data-ex_av="name"></ins>
+      <ins className="eas6a97888e37" data-zoneid="5964652"></ins>
     </div>
   );
 }

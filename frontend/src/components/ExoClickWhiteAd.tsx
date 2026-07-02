@@ -41,7 +41,6 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }:
         ref={adRef}
         className="eas6a97888e20" 
         data-zoneid="5964976"
-        style={className.includes('exo-banner-') ? { display: 'block', width: '100%', height: '100%' } : {}}
       ></ins>
     </div>
   );
