@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
+import { ExoClickVideoAd } from '../components/ExoClickVideoAd';
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -267,6 +268,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
+          <ExoClickVideoAd />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {videos.map((v, idx) => (
               <React.Fragment key={v.id}>
