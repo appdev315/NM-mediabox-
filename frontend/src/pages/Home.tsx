@@ -106,7 +106,7 @@ export function Home() {
   };
 
   return (
-    <div className="p-4 pb-20 pt-24">
+    <div className="p-4 pb-20 pt-32">
       {/* Header & Profile */}
       <Header />
 
