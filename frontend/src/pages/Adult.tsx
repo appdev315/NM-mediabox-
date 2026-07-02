@@ -55,7 +55,7 @@ export function Adult() {
   
   const hasAccess = true;
 
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(true);
   
   const [favorites, setFavorites] = useState<any[]>([]);
   
