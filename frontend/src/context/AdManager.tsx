@@ -28,21 +28,23 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   const POST_COOLDOWN_MS = 2 * 60 * 1000; 
 
   const isTelegram = !!WebApp.initDataUnsafe?.user;
+  const isAdultQuery = window.location.href.includes('app=adult');
+  const isAdultApp = window.location.hostname === 'media-box.xyz' || 
+                     (window.location.hostname === 'localhost' && window.location.port === '3001') ||
+                     isAdultQuery;
   
-  // Dynamically load Adsgram script for Telegram users
+  // Dynamically load Adsgram script for Telegram users, but ONLY if not in adult app
   useEffect(() => {
-    if (isTelegram && !(window as any).Adsgram) {
+    if (isTelegram && !isAdultApp && !(window as any).Adsgram) {
       const script = document.createElement('script');
       script.src = 'https://sad.adsgram.ai/js/sad.min.js';
       script.async = true;
       document.head.appendChild(script);
     }
-  }, [isTelegram]);
+  }, [isTelegram, isAdultApp]);
 
   const triggerAd = () => {
-    if (!isTelegram) {
-      // Web Version: Not using Adsgram. 
-      // Monetag Vignette handles web navigation automatically.
+    if (!isTelegram || isAdultApp) {
       return;
     }
 
@@ -57,7 +59,7 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // On app startup (only for Telegram)
-    if (isTelegram) {
+    if (isTelegram && !isAdultApp) {
       const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
       if (!hasSeenStartup) {
         sessionStorage.setItem('hasSeenStartupAd', 'true');
@@ -68,7 +70,7 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   }, [isTelegram]);
 
   const triggerPostAd = () => {
-    if (!isTelegram) return;
+    if (!isTelegram || isAdultApp) return;
 
     const lastAdTimeStr = localStorage.getItem('lastAdsgramPostTime');
     const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
