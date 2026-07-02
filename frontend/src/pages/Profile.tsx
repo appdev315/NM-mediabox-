@@ -228,10 +228,10 @@ export function Profile() {
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
             <span className="text-xl">🔥</span>
-            <h2 className="font-bold text-lg">{t('privateBotTitle') || 'Приватный VIP Клуб'}</h2>
+            <h2 className="font-bold text-lg">{t('privateBotTitle') || 'Тайная комната'}</h2>
           </div>
         </div>
-        <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент без цензуры. Доступен только VIP подписчикам.'}</p>
+        <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент без цензуры (18+). Полностью бесплатно!'}</p>
         
         <button 
           onClick={() => {
