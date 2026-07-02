@@ -4,19 +4,6 @@ export function ExoClickVideoAd() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Clear any existing ad to prevent duplicates from React re-renders
-    containerRef.current.innerHTML = '';
-
-    // Manually create and inject the <ins> tag
-    const ins = document.createElement('ins');
-    ins.className = "eas6a97888e37";
-    ins.setAttribute("data-zoneid", "5964652");
-    // No data-ex_av here because original snippet didn't have it
-    containerRef.current.appendChild(ins);
-
-    // Check if ANY exoclick ad provider script is already loaded
     const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
     
     if (!scriptLoaded) {
@@ -27,7 +14,6 @@ export function ExoClickVideoAd() {
       document.head.appendChild(script);
     }
 
-    // Push the ad to the queue
     const pushAd = () => {
       try {
         const w = window as any;
@@ -38,10 +24,12 @@ export function ExoClickVideoAd() {
       }
     };
 
-    const timer = setTimeout(pushAd, 150);
-    
-    return () => clearTimeout(timer);
+    pushAd();
   }, []);
 
-  return <div ref={containerRef} className="flex justify-center w-full my-4 exoclick-video-container"></div>;
+  return (
+    <div ref={containerRef} className="flex justify-center w-full my-4">
+      <ins className="eas6a97888e37" data-zoneid="5964652"></ins>
+    </div>
+  );
 }
