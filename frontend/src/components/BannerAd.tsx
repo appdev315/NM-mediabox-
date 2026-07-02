@@ -12,16 +12,8 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
          onClick={(e) => {
            e.preventDefault();
            // Open the ad in a new tab (only if it's the main app, to avoid monetag adult ban)
-           const hostname = window.location.hostname;
-           const isAdultApp = hostname === 'media-box.xyz' || (hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
-           
-           if (!isAdultApp) {
-             const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
-             if (adWindow) {
-               adWindow.blur();
-               window.focus();
-             }
-           }
+
+
 
            if (type === 'telegram' || type === 'mainbot') {
              // Redirect the current tab to Telegram bot

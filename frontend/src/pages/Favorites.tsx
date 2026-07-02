@@ -204,11 +204,6 @@ export function Favorites() {
             onClick={(e) => {
               if (tab.id === 'private') {
                 e.preventDefault();
-                const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
-                if (adWindow) {
-                  adWindow.blur();
-                  window.focus();
-                }
                 window.location.href = '?app=adult';
                 return;
               }

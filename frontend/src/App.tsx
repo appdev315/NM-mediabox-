@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
-import { MonetagScript } from './components/MonetagScript';
+
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { Home } from './pages/Home';
@@ -126,7 +126,7 @@ export default function App() {
       <AudioPlayerProvider>
         <AdProvider>
           <>
-            {!isAdultApp && <MonetagScript />}
+
             {isAdultApp ? <AdultApp /> : <MainApp />}
           </>
         </AdProvider>

@@ -127,15 +127,6 @@ export function Home() {
             onClick={(e) => {
               if (tab.id === 'private') {
                 e.preventDefault();
-                if (WebApp.platform !== 'unknown') {
-                  WebApp.openLink('https://omg10.com/4/11214508');
-                } else {
-                  const adWindow = window.open('https://omg10.com/4/11214508', '_blank');
-                  if (adWindow) {
-                    adWindow.blur();
-                    window.focus();
-                  }
-                }
                 window.location.href = '?app=adult';
                 return;
               }
