@@ -116,8 +116,9 @@ export default function App() {
   
   const isAdultApp = isAdultDomain || isAdultQuery;
   
+  // Use a simple title since we can't easily use t() here without wrapping the component
   useEffect(() => {
-    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MediaBox 🍿';
+    document.title = isAdultApp ? 'Secret Room 🍓' : 'MediaBox 🍿';
   }, [isAdultApp]);
 
   return (
