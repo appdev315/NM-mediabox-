@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import React from 'react';
+import ExoClickNativeAd from '../components/ExoClickNativeAd';
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -292,6 +293,7 @@ export function Adult() {
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
               {!isTelegram && (idx + 1) % 15 === 0 && <BannerAd />}
+              {(idx + 1) % 12 === 0 && <ExoClickNativeAd />}
               </React.Fragment>
             ))}
           </div>
