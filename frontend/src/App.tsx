@@ -84,6 +84,7 @@ function MainApp() {
       </div>
       <BottomNav />
       <FloatingTitle />
+      <GlobalAudioPlayer />
     </BrowserRouter>
   );
 }
@@ -131,7 +132,6 @@ export default function App() {
             {isAdultApp ? <AdultApp /> : <MainApp />}
           </>
         </AdProvider>
-        {!isAdultApp && <GlobalAudioPlayer />}
       </AudioPlayerProvider>
     </ThemeProvider>
   );
