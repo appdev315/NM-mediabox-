@@ -30,7 +30,7 @@ export function ExoClickInterstitial() {
 
   return (
     <div ref={containerRef}>
-      <ins className="eas6a97888e33" data-zoneid="5964660"></ins>
+      <ins className="eas6a97888e33" data-zoneid="5964660" data-ex_av="name"></ins>
     </div>
   );
 }
