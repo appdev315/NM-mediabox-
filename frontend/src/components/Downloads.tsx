@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from '../pages/Movie';
 import { useLanguage } from '../context/LanguageContext';
+import ExoClickWhiteAd from './ExoClickWhiteAd';
+import { shouldShowAd } from '../utils/adPlacement';
 
 export function Downloads() {
   const { language } = useLanguage();
@@ -106,21 +108,25 @@ export function Downloads() {
       {/* Content Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item, idx) => (
+          <React.Fragment key={`${item.id}-${idx}`}>
           <div 
-            key={`${item.id}-${idx}`} 
             onClick={() => openDownloadModal(item)}
-            className="flex flex-col gap-2 cursor-pointer active:scale-95 transition-transform"
+            className="flex flex-col gap-2 cursor-pointer active:scale-95 transition-transform group"
           >
-            <img 
-              src={item.poster} 
-              alt={item.title} 
-              className="w-full aspect-[2/3] object-cover rounded-xl shadow-md"
-            />
+            <div className="relative overflow-hidden rounded-xl shadow-md transition-transform duration-300 group-hover:shadow-xl">
+              <img 
+                src={item.poster} 
+                alt={item.title} 
+                className="w-full aspect-[2/3] object-cover"
+              />
+            </div>
             <div>
               <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.title}</h3>
               {item.info && <p className="text-xs opacity-70 mt-1 line-clamp-1">{item.info}</p>}
             </div>
           </div>
+          {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card" />}
+          </React.Fragment>
         ))}
       </div>
       

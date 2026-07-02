@@ -7,6 +7,7 @@ import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
+import { ExoClickVideoAd } from '../components/ExoClickVideoAd';
 
 export function AdultVideo() {
   const { id } = useParams();
@@ -121,9 +122,13 @@ export function AdultVideo() {
           </div>
         </div>
         
-        <p className="text-sm opacity-70 leading-relaxed mb-8">
+        <p className="text-sm opacity-70 leading-relaxed mb-4">
           This content is provided securely. Remember that screen recording might be blocked by your device for protected content.
         </p>
+        
+        <div className="mb-8">
+          <ExoClickVideoAd />
+        </div>
 
         {/* Related Videos */}
         {relatedVideos.length > 0 && (
