@@ -1,9 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
+import { useLanguage } from '../context/LanguageContext';
 
 export function FloatingTitle() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
 
   // Hide on player pages
   if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) {
@@ -36,8 +38,8 @@ export function FloatingTitle() {
       }}
     >
       <span className="text-lg opacity-80">🏠</span>
-      <span className="font-black text-xl tracking-wider opacity-90 hover:opacity-100 transition-opacity">
-        {isAdultApp ? 'MEDIABOX 🍓' : 'MEDIABOX 🍿'}
+      <span className="font-black text-xl tracking-wider opacity-90 hover:opacity-100 transition-opacity uppercase">
+        {isAdultApp ? t('secretRoomTab') : 'MEDIABOX 🍿'}
       </span>
     </div>
   );
