@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-export default function ExoClickNativeAd() {
+interface ExoClickNativeAdProps {
+  className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
+}
+
+export default function ExoClickNativeAd({ className = 'exo-banner-movie-card' }: ExoClickNativeAdProps) {
   const adRef = useRef<HTMLModElement>(null);
 
   useEffect(() => {
@@ -25,12 +29,11 @@ export default function ExoClickNativeAd() {
   }, []);
 
   return (
-    <div className="col-span-full w-full my-2">
+    <div className={className}>
       <ins 
         ref={adRef}
         className="eas6a97888e20" 
-        data-zoneid="5964558"
-        style={{ display: 'block', width: '100%' }}
+        data-zoneid="5964976"
       ></ins>
     </div>
   );
