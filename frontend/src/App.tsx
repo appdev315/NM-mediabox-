@@ -13,13 +13,12 @@ import { Favorites } from './pages/Favorites';
 import { AdultVideo } from './pages/AdultVideo';
 import { AdultFavorites } from './pages/AdultFavorites';
 import { RadioTV } from './pages/RadioTV';
-import { AudioPlayerProvider } from './context/AudioPlayerContext';
-import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
-import { VipProvider } from './context/VipContext';
+
+
 import { AdProvider } from './context/AdManager';
 import { ThemeProvider } from './context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
-import { VIP_USERS } from './config/vipUsers';
+
 import { FloatingTitle } from './components/FloatingTitle';
 
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
@@ -82,7 +81,6 @@ function MainApp() {
           {/* Adult route removed! */}
         </Routes>
       </div>
-      <GlobalAudioPlayer />
       <BottomNav />
       <FloatingTitle />
     </BrowserRouter>
@@ -111,13 +109,6 @@ function AdultApp() {
 export default function App() {
   useEffect(() => {
     WebApp.ready();
-    
-    // Auto-grant VIP to users in the VIP list (legacy local storage grant, backend handles actual logic)
-    const user = WebApp.initDataUnsafe?.user;
-    if (user?.username && VIP_USERS.includes(user.username)) {
-      localStorage.setItem('vip_until', 'lifetime');
-      localStorage.setItem('age_confirmed', 'true');
-    }
   }, []);
 
   const hostname = window.location.hostname;
@@ -132,14 +123,12 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <VipProvider>
-        <AdProvider>
-          <AudioPlayerProvider>
-            {!isAdultApp && <MonetagScript />}
-            {isAdultApp ? <AdultApp /> : <MainApp />}
-          </AudioPlayerProvider>
-        </AdProvider>
-      </VipProvider>
+      <AdProvider>
+        <>
+          {!isAdultApp && <MonetagScript />}
+          {isAdultApp ? <AdultApp /> : <MainApp />}
+        </>
+      </AdProvider>
     </ThemeProvider>
   );
 }

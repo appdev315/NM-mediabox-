@@ -180,7 +180,7 @@ app.get('/api/health', (req, res) => {
 import crypto from 'crypto';
 
 // Middleware for Telegram Authentication
-const VIP_USERS = ['appdev315'];
+
 
 // Helper to verify Telegram WebAppData against dual tokens
 function verifyTelegramWebAppData(initData) {
@@ -261,61 +261,9 @@ async function requireAuth(req, res, next) {
 
 
 
-async function requireVip(req, res, next) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('tma ')) {
-        return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
-    }
-
-    const initData = authHeader.substring(4);
-    if (!initData) {
-        return res.status(401).json({ error: 'Unauthorized: Empty token data' });
-    }
-
-    try {
-        const authData = verifyTelegramWebAppData(initData);
-        if (!authData) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
-        }
-        
-        const user = authData.user;
-        const userId = user.id;
-
-        req.botToken = authData.botToken;
-        req.isAdultBot = authData.isAdultBot;
-
-        // Check if user is VIP
-        let isVip = false;
-        if (user.username && VIP_USERS.includes(user.username)) {
-            isVip = true;
-        } else {
-            const redisVip = await redisClient.get(`vip:${userId}`);
-            if (redisVip) isVip = true;
-        }
-
-        if (!isVip) {
-            return res.status(403).json({ error: 'Forbidden: VIP subscription required' });
-        }
-
-        req.user = user;
-        next();
-    } catch (e) {
-        console.error('[requireVip] Error:', e.message);
-        if (e.message === 'Missing BOT_TOKENs') {
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-        return res.status(401).json({ error: 'Unauthorized: Token parsing failed' });
-    }
-}
-
 async function checkAdultAccess(req, res, next) {
-    const authHeader = req.headers.authorization;
-    // Allow free access for regular web browsers where Telegram initData is absent
-    if (!authHeader || !authHeader.startsWith('tma ') || authHeader.length < 10) {
-        return next();
-    }
-    // If inside Telegram, fallback to standard VIP check
-    return requireVip(req, res, next);
+    // App is now completely free, no VIP check required
+    return next();
 }
 
 
@@ -341,34 +289,8 @@ function isValidUrl(urlStr) {
     }
 }
 
-// --- VIP STATUS API ---
-app.get('/api/vip/status', async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('tma ')) {
-            return res.json({ isVip: false });
-        }
-        const initData = authHeader.substring(4);
-        
-        const authData = verifyTelegramWebAppData(initData);
-        if (!authData) return res.json({ isVip: false });
-        
-        const user = authData.user;
-        const userId = user.id;
-        
-        if (user.username && VIP_USERS.includes(user.username)) {
-            return res.json({ isVip: true });
-        }
-        
-        const isVip = await redisClient.get(`vip:${userId}`);
-        return res.json({ isVip: !!isVip });
-    } catch (e) {
-        return res.json({ isVip: false });
-    }
-});
-
-// --- VIP DOWNLOADS API ---
-app.get('/api/vip/downloads/latest', async (req, res) => {
+// --- DOWNLOADS API ---
+app.get('/api/downloads/latest', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const targetLanguage = req.query.lang || 'en-US';
@@ -404,7 +326,7 @@ app.get('/api/vip/downloads/latest', async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/search', async (req, res) => {
+app.get('/api/downloads/search', async (req, res) => {
     try {
         const q = req.query.q;
         const targetLanguage = req.query.lang || 'en-US';
@@ -437,7 +359,7 @@ app.get('/api/vip/downloads/search', async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/links', async (req, res) => {
+app.get('/api/downloads/links', async (req, res) => {
     try {
         const urlStr = req.query.url;
         if (!urlStr) return res.status(400).json({ error: 'URL required' });
@@ -581,112 +503,11 @@ app.get('/api/config', (req, res) => {
     return res.json(getCurrentPhase());
 });
 
-app.post('/api/invoice', requireAuth, express.json(), async (req, res) => {
-    try {
-        const { plan, userId } = req.body;
-        const BOT_TOKEN = req.botToken;
-        if (!BOT_TOKEN) {
-            console.error('Missing BOT_TOKEN in environment variables!');
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-        
-        let amount = 0;
-        let label = '';
-        let title = '';
-        let payload = '';
 
-        const phaseConfig = getCurrentPhase();
-        
-        if (plan === '1_month') {
-            amount = phaseConfig.priceMonth;
-            label = `1 Month VIP`;
-            title = 'VIP Subscription (1 Month)';
-            payload = `vip_1month_${userId}_${Date.now()}`;
-        } else if (plan === 'lifetime') {
-            if (phaseConfig.priceLifetime === null) {
-                return res.status(400).json({ error: 'Lifetime subscription not available in this phase' });
-            }
-            amount = phaseConfig.priceLifetime;
-            label = 'Lifetime VIP';
-            title = 'VIP Subscription (Lifetime)';
-            payload = `vip_lifetime_${userId}_${Date.now()}`;
-        } else {
-            return res.status(400).json({ error: 'Invalid plan' });
-        }
 
-        const invoiceData = {
-            title: title,
-            description: 'Watch movies without ads, directly from our servers.',
-            payload: payload,
-            provider_token: '', // Required empty string for Telegram Stars
-            currency: 'XTR',
-            prices: [{ label: label, amount: amount }]
-        };
+// --- Download (Anwap Scraper) ---
 
-        const response = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, invoiceData);
-        
-        if (response.data.ok) {
-            return res.json({ invoiceUrl: response.data.result });
-        } else {
-            console.error('[Invoice API] Error from Telegram:', response.data.description);
-            return res.status(500).json({ error: response.data.description });
-        }
-    } catch (e) {
-        console.error('[Invoice API] Request failed:', e.message);
-        return res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/api/telegram/webhook/:botType', express.json(), async (req, res) => {
-    try {
-        const update = req.body;
-        const botType = req.params.botType;
-        let BOT_TOKEN = process.env.BOT_TOKEN_MAIN;
-        if (botType === 'adult') {
-            BOT_TOKEN = process.env.BOT_TOKEN_ADULT;
-        }
-        if (!BOT_TOKEN) BOT_TOKEN = process.env.BOT_TOKEN; // fallback
-        
-        // Handle Pre Checkout Query
-        if (update.pre_checkout_query) {
-            const preCheckoutQueryId = update.pre_checkout_query.id;
-            await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
-                pre_checkout_query_id: preCheckoutQueryId,
-                ok: true
-            });
-            return res.json({ ok: true });
-        }
-
-        // Handle Successful Payment
-        if (update.message && update.message.successful_payment) {
-            const payment = update.message.successful_payment;
-            const payload = payment.invoice_payload;
-            const userId = update.message.from.id;
-            
-            // payload format: vip_1month_userId_timestamp
-            if (payload.startsWith('vip_')) {
-                // Grant VIP status in Redis
-                const isMonthly = payload.includes('_1month_');
-                if (isMonthly) {
-                    await redisClient.setEx(`vip:${userId}`, 30 * 24 * 60 * 60, 'true');
-                } else {
-                    await redisClient.set(`vip:${userId}`, 'true');
-                }
-                console.log(`[Webhook] VIP granted for user ${userId}, monthly: ${isMonthly} via bot ${botType}`);
-            }
-            return res.json({ ok: true });
-        }
-
-        res.json({ ok: true });
-    } catch (e) {
-        console.error('[Webhook] Error handling update:', e.message);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// --- VIP Download (Anwap Scraper) ---
-
-app.get('/api/vip/download/info', requireVip, async (req, res) => {
+app.get('/api/download/info', async (req, res) => {
     const { title, isTv } = req.query;
     if (!title) return res.status(400).json({ error: 'Title required' });
     
@@ -699,7 +520,7 @@ app.get('/api/vip/download/info', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/vip/download/link', requireVip, async (req, res) => {
+app.get('/api/download/link', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL required' });
     

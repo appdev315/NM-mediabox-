@@ -4,10 +4,8 @@ import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Hub() {
-  const [isVip, setIsVip] = useState(false);
   const [showPrivate, setShowPrivate] = useState(true);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
-  const [showVipPopup, setShowVipPopup] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -18,27 +16,6 @@ export function Hub() {
     if (savedShowPrivate === 'false') {
       setShowPrivate(false);
     }
-
-    const checkVip = () => {
-      const isLifetime = localStorage.getItem('vip_until') === 'lifetime';
-      if (isLifetime) {
-        setIsVip(true);
-        return;
-      }
-      WebApp.CloudStorage.getItem('vip_until', (err: any, value: string | undefined) => {
-        if (!err && value) {
-          if (value === 'lifetime') {
-            setIsVip(true);
-          } else {
-            const until = parseInt(value, 10);
-            if (until > Date.now()) {
-              setIsVip(true);
-            }
-          }
-        }
-      });
-    };
-    checkVip();
   }, []);
 
   const allTiles = [
@@ -60,31 +37,22 @@ export function Hub() {
       gradient: 'from-orange-500/15 to-red-600/15 border-orange-500/20',
       animClass: 'animate-radio',
     },
-    {
-      id: 'music',
-      to: '/music',
-      title: t('music'),
-      subtitle: t('subtitle_music'),
-      icon: '🔊',
-      gradient: 'from-green-500/15 to-emerald-600/15 border-green-500/20',
-      animClass: 'animate-music',
-    },
+
     {
       id: 'adult',
       to: '/adult',
       title: t('privateContent'),
       subtitle: t('subtitle_adult'),
       icon: '🍓',
-      locked: !isVip,
       gradient: 'from-pink-500/15 to-rose-600/15 border-pink-500/20',
       animClass: 'animate-adult-strawberry',
       isPrivate: true
     },
   ];
 
-  // Always show all tiles; Private is always visible but locked for non-VIP
-  // For VIP, respect showPrivate toggle (hide if they chose to hide it)
-  const tiles = allTiles.filter(t => !t.isPrivate || !isVip || showPrivate);
+  // Always show all tiles; Private is always visible
+  // Respect showPrivate toggle (hide if they chose to hide it)
+  const tiles = allTiles.filter(t => !t.isPrivate || showPrivate);
 
   const scrollLeft = () => {
     if (scrollRef.current) {
@@ -126,8 +94,8 @@ export function Hub() {
           <div key={index} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-4">
             <Link
               to={tile.to}
-              className={`relative overflow-hidden rounded-[40px] w-full max-w-sm aspect-[4/5] md:aspect-[3/4] flex flex-col items-center justify-center transition-all transform active:scale-[0.97] border border-white/5 shadow-2xl bg-gradient-to-br ${tile.gradient} ${tile.locked ? 'opacity-40 grayscale' : ''}`}
-              style={{ backdropFilter: tile.locked ? 'blur(2px)' : 'blur(20px)' }}
+              className={`relative overflow-hidden rounded-[40px] w-full max-w-sm aspect-[4/5] md:aspect-[3/4] flex flex-col items-center justify-center transition-all transform active:scale-[0.97] border border-white/5 shadow-2xl bg-gradient-to-br ${tile.gradient}`}
+              style={{ backdropFilter: 'blur(20px)' }}
               onClick={(e) => {
                 e.preventDefault();
                 if (animatingId) return;
@@ -154,7 +122,6 @@ export function Hub() {
                     <span className="text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-md" style={{ color: 'var(--text-color)' }}>
                       {tile.title}
                     </span>
-                    {tile.locked && <span className="text-xl md:text-2xl opacity-50">🔒</span>}
                   </div>
                   <span className="text-lg md:text-xl font-medium opacity-80 drop-shadow-sm" style={{ color: 'var(--text-color)' }}>
                     {tile.subtitle}
@@ -166,33 +133,7 @@ export function Hub() {
         ))}
       </div>
 
-      {showVipPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowVipPopup(false)}>
-          <div className="bg-gray-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-white/10" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="text-5xl mb-4">👑</div>
-              <h3 className="text-2xl font-bold text-white mb-2">{t('vipRequired')}</h3>
-              <p className="text-white/70">{t('vipRequiredDesc')}</p>
-            </div>
-            <button 
-              onClick={() => {
-                WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-                setShowVipPopup(false);
-              }}
-              className="w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 transition-all active:scale-95"
-            >
-              <span>{t('openBot')}</span>
-              <span>↗</span>
-            </button>
-            <button 
-              onClick={() => setShowVipPopup(false)}
-              className="w-full py-3 mt-3 rounded-xl font-semibold text-white/60 hover:text-white transition-colors"
-            >
-              {t('back')}
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

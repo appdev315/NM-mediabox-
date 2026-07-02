@@ -24,12 +24,12 @@ export function Downloads() {
           setIsSearching(true);
           const initData = WebApp?.initData || '';
           const headers = { 'Authorization': `tma ${initData}` };
-          res = await fetch(`${BACKEND_URL}/api/vip/downloads/search?q=${encodeURIComponent(searchQuery)}&lang=${language}`, { headers });
+          res = await fetch(`${BACKEND_URL}/api/downloads/search?q=${encodeURIComponent(searchQuery)}&lang=${language}`, { headers });
         } else {
           setIsSearching(false);
           const initData = WebApp?.initData || '';
           const headers = { 'Authorization': `tma ${initData}` };
-          res = await fetch(`${BACKEND_URL}/api/vip/downloads/latest?page=${page}&lang=${language}`, { headers });
+          res = await fetch(`${BACKEND_URL}/api/downloads/latest?page=${page}&lang=${language}`, { headers });
         }
         
         const data = await res.json();
@@ -62,7 +62,7 @@ export function Downloads() {
     try {
       const initData = WebApp?.initData || '';
       const headers = { 'Authorization': `tma ${initData}` };
-      const res = await fetch(`${BACKEND_URL}/api/vip/downloads/links?url=${item.id}`, { headers });
+      const res = await fetch(`${BACKEND_URL}/api/downloads/links?url=${item.id}`, { headers });
       const data = await res.json();
       setDownloadLinks(data.links || []);
     } catch (e) {

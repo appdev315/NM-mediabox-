@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { WebApp } from '../telegram';
-import { useVip } from './VipContext';
 
 interface AdContextType {
   triggerMovieAd: () => void;
@@ -23,8 +22,8 @@ interface AdProviderProps {
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [adType, setAdType] = useState<'adsgram' | 'monetag' | null>(null);
-  const { isVip, config } = useVip();
-  
+  // Ads are always enabled for everyone now
+
   // Cooldown setting (5 minutes)
   const COOLDOWN_MS = 5 * 60 * 1000; 
 
@@ -37,8 +36,8 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // On app startup (only for Telegram)
-    // If it's the Adult App, we ALWAYS show ads. If it's the Main app, we only show if !isVip.
-    const shouldShowAds = config?.ads && (!isVip || isAdultApp);
+    // Always show ads
+    const shouldShowAds = true;
     
     if (isTelegram && shouldShowAds && !isAdultApp) {
       const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
@@ -47,10 +46,9 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
         playAd('adsgram');
       }
     }
-  }, [isTelegram, isVip, config?.ads, isAdultApp]);
+  }, [isTelegram, isAdultApp]);
 
   const triggerMovieAd = () => {
-    if (!config?.ads) return;
 
     if (isTelegram) {
       // 18+ Telegram Bot: No ads (only VIP subscription)
