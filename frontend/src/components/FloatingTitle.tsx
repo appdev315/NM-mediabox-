@@ -15,6 +15,11 @@ export function FloatingTitle() {
   const isAdultQuery = window.location.href.includes('app=adult');
   const isAdultApp = isAdultDomain || isAdultQuery;
 
+  // Hide the title/return button in 18+ Telegram bot (as requested by user)
+  if (isAdultApp && WebApp.platform !== 'unknown') {
+    return null;
+  }
+
   return (
     <div 
       className="fixed top-4 left-4 z-50 cursor-pointer backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-black/10 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
