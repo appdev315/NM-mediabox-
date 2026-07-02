@@ -4,8 +4,10 @@ export function ExoClickInterstitial() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Check if the script is already loaded to prevent duplicates
-    if (!document.querySelector('script[src="https://a.pemsrv.com/ad-provider.js"]')) {
+    // Check if ANY exoclick ad provider script is already loaded
+    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+    
+    if (!scriptLoaded) {
       const script = document.createElement('script');
       script.async = true;
       script.type = 'application/javascript';
@@ -28,7 +30,7 @@ export function ExoClickInterstitial() {
 
   return (
     <div ref={containerRef} style={{ display: 'none' }}>
-      <ins className="eas6a97888e33" data-zoneid="5937986"></ins>
+      <ins className="eas6a97888e33" data-zoneid="5964660" data-ex_av="name"></ins>
     </div>
   );
 }

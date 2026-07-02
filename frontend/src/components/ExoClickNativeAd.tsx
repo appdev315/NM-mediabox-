@@ -8,8 +8,10 @@ export default function ExoClickNativeAd({ className = 'col-span-full w-full my-
   const adRef = useRef<HTMLModElement>(null);
 
   useEffect(() => {
-    // Load the main provider script if it's not already loaded
-    if (!document.querySelector('script[src="https://a.magsrv.com/ad-provider.js"]')) {
+    // Check if ANY exoclick ad provider script is already loaded
+    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+    
+    if (!scriptLoaded) {
       const script = document.createElement('script');
       script.src = 'https://a.magsrv.com/ad-provider.js';
       script.async = true;

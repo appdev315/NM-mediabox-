@@ -4,8 +4,10 @@ export function ExoClickVideoAd() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Check if the script is already loaded to prevent duplicates
-    if (!document.querySelector('script[src="https://a.magsrv.com/ad-provider.js"]')) {
+    // Check if ANY exoclick ad provider script is already loaded
+    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+    
+    if (!scriptLoaded) {
       const script = document.createElement('script');
       script.async = true;
       script.type = 'application/javascript';
