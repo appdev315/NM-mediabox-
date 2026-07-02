@@ -191,6 +191,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (tgLang === 'es') return 'es-ES';
       if (tgLang === 'de') return 'de-DE';
       if (tgLang === 'fr') return 'fr-FR';
+
+      // Fallback for regular web browsers
+      const browserLang = navigator.language || navigator.languages?.[0];
+      if (browserLang) {
+        if (browserLang.startsWith('ru')) return 'ru-RU';
+        if (browserLang.startsWith('ko')) return 'ko-KR';
+        if (browserLang.startsWith('id')) return 'id-ID';
+        if (browserLang.startsWith('hi')) return 'hi-IN';
+        if (browserLang.startsWith('fa')) return 'fa-IR';
+        if (browserLang.startsWith('es')) return 'es-ES';
+        if (browserLang.startsWith('de')) return 'de-DE';
+        if (browserLang.startsWith('fr')) return 'fr-FR';
+      }
     } catch (e) {
       console.error("Failed to get language", e);
     }
