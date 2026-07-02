@@ -54,7 +54,22 @@ export function Adult() {
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  // Check if age was already confirmed
+  const hasAccess = true;
+
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  
+  const [favorites, setFavorites] = useState<any[]>([]);
+  
+
+  useEffect(() => {
+    
+    const savedFavs = localStorage.getItem('private_favs');
+    if (savedFavs) {
+      try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
+    }
+
+
+    // Check if age was already confirmed
     const confirmed = localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
