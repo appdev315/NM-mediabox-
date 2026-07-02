@@ -1,15 +1,15 @@
 import React, { useEffect } from 'react';
-import { useVip } from '../context/VipContext';
+
 import { WebApp } from '../telegram';
 
 const AdBanner: React.FC = () => {
 
-  const { isVip, config } = useVip();
+
 
   // Load Adsgram script dynamically
   useEffect(() => {
-    // Only load if ads are enabled in the current phase and user is not VIP
-    if (config?.ads && !isVip) {
+    // Always load Adsgram
+    if (true) {
       const script = document.createElement('script');
       script.src = 'https://sad.adsgram.ai/js/sad.min.js';
       script.async = true;
@@ -19,11 +19,11 @@ const AdBanner: React.FC = () => {
         document.head.removeChild(script);
       };
     }
-  }, [config?.ads, isVip]);
+  }, []);
 
-  // Показывать баннер только если включена реклама и пользователь не VIP
+  // Show banner only for web users
   const isTelegram = !!WebApp.initDataUnsafe?.user;
-  if (!config?.ads || isVip || isTelegram) {
+  if (isTelegram) {
     return null;
   }
 

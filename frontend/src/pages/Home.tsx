@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
-import { useVip } from '../context/VipContext';
+
 import { Downloads } from '../components/Downloads';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
@@ -12,7 +12,7 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
-  const { isVip, config } = useVip();
+
   
   const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads'>('movie');
   const [items, setItems] = useState<any[]>([]);
@@ -89,7 +89,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, isVip, config, page]);
+  }, [loading, isSearching, page]);
 
   const handleTabChange = (tab: 'movie' | 'series' | 'downloads') => {
     setActiveTab(tab);

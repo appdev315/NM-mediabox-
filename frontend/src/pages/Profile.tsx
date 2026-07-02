@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { useVip } from '../context/VipContext';
+
 
 
 
@@ -12,7 +12,7 @@ export function Profile() {
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
-  const { isVip, showVipModal } = useVip();
+
   const isAdultApp = window.location.hostname === 'media-box.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
   const [favorites, setFavorites] = useState<any[]>([]);
   // Use favorites to avoid unused var warning
@@ -79,26 +79,12 @@ export function Profile() {
         <div>
           <h1 className="font-bold text-xl">{user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : (t('menu') || 'Menu')}</h1>
           {user?.username && <p className="opacity-90 text-sm mb-1">@{user.username}</p>}
-          {isAdultApp && (
-            isVip ? (
-              <div className="flex gap-2 items-center flex-wrap mt-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-pink-500 font-bold text-xs">
-                  💎 VIP Member
-                </div>
-                {user?.username === 'appdev315' && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-500 font-bold text-xs">
-                    🛠 Developer
-                  </div>
-                )}
+          {isAdultApp && user?.username === 'appdev315' && (
+            <div className="flex gap-2 items-center flex-wrap mt-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-500 font-bold text-xs">
+                🛠 Developer
               </div>
-            ) : (
-              <button 
-                onClick={showVipModal}
-                className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors font-medium text-xs shadow-sm active:scale-95" style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-              >
-                {t('buyVip')}
-              </button>
-            )
+            </div>
           )}
         </div>
       </div>
@@ -247,36 +233,20 @@ export function Profile() {
         </div>
         <p className="text-sm opacity-90 mb-3">{t('privateModeDesc') || 'Эксклюзивный контент без цензуры. Доступен только VIP подписчикам.'}</p>
         
-        {isVip ? (
-          <button 
-            onClick={() => {
-              if (WebApp.platform !== 'unknown') {
-                WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-                WebApp.close();
-              } else {
-                window.open('https://t.me/mediaboxxxbot', '_blank');
-              }
-            }}
-            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
-            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-          >
-            <span>🚀</span> {t('open18Bot') || 'Открыть 18+ Бота'}
-          </button>
-        ) : (
-          <button 
-            onClick={() => {
-              if (WebApp.platform !== 'unknown') {
-                showVipModal();
-              } else {
-                window.open('https://t.me/mediaboxxxbot', '_blank');
-              }
-            }}
-            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md border border-orange-500/30"
-            style={{ background: 'linear-gradient(to right, #f97316, #eab308)', color: 'white' }}
-          >
-            <span>⭐️</span> {t('buyVipForAccess') || 'Купить VIP для доступа'}
-          </button>
-        )}
+        <button 
+          onClick={() => {
+            if (WebApp.platform !== 'unknown') {
+              WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+              WebApp.close();
+            } else {
+              window.open('https://t.me/mediaboxxxbot', '_blank');
+            }
+          }}
+          className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+        >
+          <span>🚀</span> {t('open18Bot') || 'Открыть 18+ Бота'}
+        </button>
       </div>
       {showDonationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
