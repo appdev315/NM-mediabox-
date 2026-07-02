@@ -17,7 +17,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
 
            if (type === 'telegram' || type === 'mainbot') {
              // Redirect the current tab to Telegram bot
-             const botLink = type === 'mainbot' ? 'https://t.me/moviemaniakbot' : 'https://t.me/mediaboxxxbot';
+             const botLink = type === 'mainbot' ? 'https://t.me/M_Box_bot' : 'https://t.me/mediaboxxxbot';
              if (WebApp.platform !== 'unknown') {
                WebApp.openTelegramLink(botLink);
              } else {
