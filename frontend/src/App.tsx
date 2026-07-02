@@ -113,7 +113,7 @@ export default function App() {
 
   const hostname = window.location.hostname;
   const isAdultDomain = (hostname === 'localhost' && window.location.port === '3001');
-  const isAdultQuery = window.location.search.includes('app=adult');
+  const isAdultQuery = window.location.href.includes('app=adult');
   
   const isAdultApp = isAdultDomain || isAdultQuery;
   
