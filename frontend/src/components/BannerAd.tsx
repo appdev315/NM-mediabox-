@@ -33,7 +33,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
       <div className={`w-full relative flex-1 bg-black flex flex-col items-center justify-center`}>
         <img 
           src={type === 'telegram' 
-            ? "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=800&auto=format&fit=crop" 
+            ? "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop" 
             : type === 'mainbot'
             ? "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"
             : "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop"} 

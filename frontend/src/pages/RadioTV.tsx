@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
 import { useNavigate } from 'react-router-dom';
-import { BannerAd } from '../components/BannerAd';
+
 
 interface Station {
   id: string;
@@ -475,7 +475,7 @@ export function RadioTV() {
           <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('notFound')}</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pb-24">
-            {displayedList.map((item, index) => {
+            {displayedList.map((item) => {
               const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
               const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
               const isActive = isRadioActive || isTvActive;
@@ -534,12 +534,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-                {/* Banner Ad Every 15 items in a full-width container */}
-                {(index + 1) % 15 === 0 && (
-                  <div className="col-span-2 md:col-span-3 lg:col-span-4 mt-2 mb-2">
-                    <BannerAd variant="wide" type="telegram" />
-                  </div>
-                )}
+
               </React.Fragment>
               );
             })}
