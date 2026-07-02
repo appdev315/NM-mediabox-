@@ -119,7 +119,7 @@ export default function App() {
   const isAdultApp = isAdultDomain || isAdultQuery;
   
   useEffect(() => {
-    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MovieManiak 🍿';
+    document.title = isAdultApp ? 'MediaBoxxx 🍓' : 'MediaBox 🍿';
   }, [isAdultApp]);
 
   return (
