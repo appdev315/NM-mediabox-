@@ -17,7 +17,7 @@ export function FloatingTitle() {
 
   return (
     <div 
-      className="fixed top-2 left-1/2 transform -translate-x-1/2 z-50 cursor-pointer backdrop-blur-md px-4 py-1 rounded-full shadow-lg border border-black/10 transition-transform active:scale-95"
+      className="fixed top-4 left-4 z-50 cursor-pointer backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-black/10 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
       style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
       onClick={() => {
         if (WebApp.platform !== 'unknown') {
@@ -30,7 +30,8 @@ export function FloatingTitle() {
         }
       }}
     >
-      <span className="font-black text-sm tracking-wider opacity-80 hover:opacity-100 transition-opacity">
+      <span className="text-lg opacity-80">🏠</span>
+      <span className="font-black text-xl tracking-wider opacity-90 hover:opacity-100 transition-opacity">
         {isAdultApp ? 'MEDIABOX 🍓' : 'MEDIABOX 🍿'}
       </span>
     </div>
