@@ -108,3 +108,57 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+/* ExoClick Banner Grid Wrappers */
+.exo-banner-movie-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 0.5rem; /* 8px */
+  overflow: hidden;
+  background-color: var(--hint-color); /* Matches grid placeholders */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exo-banner-movie-card ins {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.exo-banner-movie-card iframe,
+.exo-banner-movie-card img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+}
+
+.exo-banner-tv-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9; /* TV / Radio format */
+  border-radius: 0.5rem; /* 8px */
+  overflow: hidden;
+  background-color: var(--hint-color); /* Matches grid placeholders */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exo-banner-tv-card ins {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.exo-banner-tv-card iframe,
+.exo-banner-tv-card img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+}
