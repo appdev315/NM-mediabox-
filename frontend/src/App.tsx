@@ -20,7 +20,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 
 import { FloatingTitle } from './components/FloatingTitle';
-
+import { ExoClickInterstitial } from './components/ExoClickInterstitial';
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
   
@@ -102,6 +102,7 @@ function AdultApp() {
       </div>
       <BottomNav />
       <FloatingTitle />
+      <ExoClickInterstitial />
     </BrowserRouter>
   );
 }
