@@ -32,11 +32,9 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
       {/* Banner Aspect Ratio with beautiful image */}
       <div className={`w-full relative flex-1 bg-black flex flex-col items-center justify-center`}>
         <img 
-          src={type === 'telegram' 
-            ? "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop" 
-            : type === 'mainbot'
-            ? "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"
-            : "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&auto=format&fit=crop"} 
+          src={type === 'telegram' || type === 'adult' 
+            ? "/kiss-bg.png" 
+            : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"} 
           alt="Ad" 
           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
         />
