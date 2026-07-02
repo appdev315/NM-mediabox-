@@ -109,7 +109,7 @@ export function Home() {
   };
 
   return (
-    <div className="p-4 pb-20 pt-32">
+    <div className="p-3 sm:p-4 pb-20 pt-32">
       {/* Header & Profile */}
       <Header />
 
@@ -191,7 +191,7 @@ export function Home() {
         <Downloads />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4">
             {items.map((item, idx) => (
               <React.Fragment key={`${item.id}-${idx}`}>
                 <div 

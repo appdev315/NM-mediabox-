@@ -40,7 +40,7 @@ export function AdultFavorites() {
             {t('emptyList')}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {privateFavs.map((v: any, idx) => (
               <div 
                 key={`${v.id}-${idx}`} 

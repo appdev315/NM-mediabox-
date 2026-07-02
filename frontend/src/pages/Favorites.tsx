@@ -70,7 +70,7 @@ export function Favorites() {
     const list = tmdbFavs.filter(f => f.type === type);
     if (list.length === 0) return <div className="text-center mt-12 opacity-50" style={{ color: 'var(--text-color)' }}>{t('emptyList')}</div>;
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4">
         {list.map((item: any, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
           <div 
