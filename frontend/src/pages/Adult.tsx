@@ -54,24 +54,7 @@ export function Adult() {
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  const hasAccess = true;
-  // State for triggering re-render if user logs in via web widget
-  const [, setForceRender] = useState(0);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-  
-  const [favorites, setFavorites] = useState<any[]>([]);
-  
-
-  useEffect(() => {
-    
-    const savedFavs = localStorage.getItem('private_favs');
-    if (savedFavs) {
-      try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
-    }
-
-    
-    const user = WebApp.initDataUnsafe?.user;
-    // Check if age was already confirmed
+  // Check if age was already confirmed
     const confirmed = localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
