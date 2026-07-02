@@ -4,7 +4,8 @@ import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
 import AdBanner from './components/AdBanner';
 import { MonetagScript } from './components/MonetagScript';
-
+import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
+import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { Home } from './pages/Home';
 import { Movie } from './pages/Movie';
 import { Profile } from './pages/Profile';
@@ -123,12 +124,15 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AdProvider>
-        <>
-          {!isAdultApp && <MonetagScript />}
-          {isAdultApp ? <AdultApp /> : <MainApp />}
-        </>
-      </AdProvider>
+      <AudioPlayerProvider>
+        <AdProvider>
+          <>
+            {!isAdultApp && <MonetagScript />}
+            {isAdultApp ? <AdultApp /> : <MainApp />}
+          </>
+        </AdProvider>
+        {!isAdultApp && <GlobalAudioPlayer />}
+      </AudioPlayerProvider>
     </ThemeProvider>
   );
 }

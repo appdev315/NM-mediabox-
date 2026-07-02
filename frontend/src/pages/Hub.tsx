@@ -1,6 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Hub() {
