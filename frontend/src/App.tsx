@@ -15,12 +15,11 @@ import { AdultFavorites } from './pages/AdultFavorites';
 import { RadioTV } from './pages/RadioTV';
 
 
-import { AdProvider } from './context/AdManager';
 import { ThemeProvider } from './context/ThemeContext';
+import { AdProvider } from './context/AdManager';
 import { useNavigate } from 'react-router-dom';
 
 import { FloatingTitle } from './components/FloatingTitle';
-import { ExoClickInterstitial } from './components/ExoClickInterstitial';
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
   
@@ -102,7 +101,6 @@ function AdultApp() {
       </div>
       <BottomNav />
       <FloatingTitle />
-      <ExoClickInterstitial />
     </BrowserRouter>
   );
 }
