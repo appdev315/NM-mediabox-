@@ -12,7 +12,6 @@ import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
 import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
 import { translateItems, initTmdbCache } from './tmdbCache.js';
-import { getCurrentPhase } from './monetization.js';
 import { ThrottleStream } from './throttle.js';
 
 // Setup Global Proxy Rotation if defined
@@ -497,10 +496,6 @@ app.get('/api/stream', async (req, res) => {
         console.log(`[Stream API] Failed to resolve stream: ${e.message}`);
         return res.status(500).json({ error: e.message });
     }
-});
-
-app.get('/api/config', (req, res) => {
-    return res.json(getCurrentPhase());
 });
 
 
