@@ -2,19 +2,27 @@ import { useEffect, useRef } from 'react';
 
 export function ExoClickVideoAd() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-    
-    if (!scriptLoaded) {
-      const script = document.createElement('script');
-      script.async = true;
-      script.type = 'application/javascript';
-      script.src = 'https://a.magsrv.com/ad-provider.js';
-      document.head.appendChild(script);
-    }
+    if (initialized.current) return;
+    initialized.current = true;
 
-    const pushAd = () => {
+    const loadAd = () => {
+      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+      if (!scriptLoaded) {
+        const script = document.createElement('script');
+        script.async = true;
+        script.type = 'application/javascript';
+        script.src = 'https://a.magsrv.com/ad-provider.js';
+        document.head.appendChild(script);
+      }
+
+      if (containerRef.current) {
+        // According to user screenshot, 18+ Outstream Video uses eas6a97888e37 and might need data-ex_av
+        containerRef.current.innerHTML = '<ins class="eas6a97888e37" data-zoneid="5964652" data-ex_av="name"></ins>';
+      }
+
       try {
         const w = window as any;
         w.AdProvider = w.AdProvider || [];
@@ -24,12 +32,12 @@ export function ExoClickVideoAd() {
       }
     };
 
-    pushAd();
+    const timer = setTimeout(loadAd, 150);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div ref={containerRef} className="flex justify-center w-full my-4">
-      <ins className="eas6a97888e37" data-zoneid="5964652"></ins>
+    <div ref={containerRef} className="flex justify-center w-full my-4 min-h-[50px]">
     </div>
   );
 }
