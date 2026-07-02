@@ -1,17 +1,17 @@
 import { useEffect, useRef } from 'react';
 
-interface ExoClickNativeAdProps {
+interface ExoClickWhiteAdProps {
   className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
 }
 
-export default function ExoClickNativeAd({ className = 'col-span-full w-full my-2' }: ExoClickNativeAdProps) {
+export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }: ExoClickWhiteAdProps) {
   const adRef = useRef<HTMLModElement>(null);
 
   useEffect(() => {
     // Load the main provider script if it's not already loaded
-    if (!document.querySelector('script[src="https://a.magsrv.com/ad-provider.js"]')) {
+    if (!document.querySelector('script[src="https://a.pemsrv.com/ad-provider.js"]')) {
       const script = document.createElement('script');
-      script.src = 'https://a.magsrv.com/ad-provider.js';
+      script.src = 'https://a.pemsrv.com/ad-provider.js';
       script.async = true;
       script.type = 'application/javascript';
       document.head.appendChild(script);
@@ -32,9 +32,9 @@ export default function ExoClickNativeAd({ className = 'col-span-full w-full my-
     <div className={className}>
       <ins 
         ref={adRef}
-        className="eas6a97888e20" 
-        data-zoneid="5964558"
-        style={className === 'col-span-full w-full my-2' ? { display: 'block', width: '100%' } : {}}
+        className="eas6a97888e33" 
+        data-zoneid="5964660"
+        data-ex_av="name"
       ></ins>
     </div>
   );
