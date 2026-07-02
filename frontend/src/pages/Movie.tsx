@@ -252,7 +252,7 @@ export function Movie() {
                 <button
                   onClick={() => {
                     setShowShareMenu(false);
-                    const webLink = `https://moviemaniak5555.xyz/movie/${movie?.id}?type=${mediaType}`;
+                    const webLink = `https://media-box.xyz/movie/${movie?.id}?type=${mediaType}`;
                     navigator.clipboard.writeText(webLink).then(() => {
                       WebApp.HapticFeedback.notificationOccurred('success');
                       if (WebApp.showAlert) WebApp.showAlert('Link copied to clipboard!');

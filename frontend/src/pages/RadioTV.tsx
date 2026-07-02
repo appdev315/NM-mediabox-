@@ -492,11 +492,11 @@ export function RadioTV() {
                     borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                   }}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                  <div className="w-16 h-16 rounded-xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                     {item.logo ? (
                       <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
-                      <span className="text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
+                      <span className="text-4xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
                     )}
                   </div>
                   

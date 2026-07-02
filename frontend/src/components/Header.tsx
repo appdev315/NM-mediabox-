@@ -7,7 +7,7 @@ export function Header() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const isAdultQuery = window.location.href.includes('app=adult');
-  const isAdultApp = (window.location.hostname === 'localhost' && window.location.port === '3001') || isAdultQuery;
+  const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || isAdultQuery;
 
   useEffect(() => {
     if (location.pathname !== '/radio-tv' && !isAdultApp) {
