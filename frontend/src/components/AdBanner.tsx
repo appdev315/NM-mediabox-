@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { WebApp } from '../telegram';
 
@@ -21,9 +22,15 @@ const AdBanner: React.FC = () => {
     }
   }, []);
 
-  // Show banner only for web users
   const isTelegram = !!WebApp.initDataUnsafe?.user;
+  const location = useLocation();
+
   if (isTelegram) {
+    return null;
+  }
+
+  // Hide on player pages so it doesn't block the UI
+  if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) {
     return null;
   }
 
@@ -31,7 +38,7 @@ const AdBanner: React.FC = () => {
     // Top banner for Web using Monetag Direct Link
     return (
       <div 
-        className="fixed top-[10%] left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-y border-orange-500/50 p-4 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-4 overflow-hidden"
+        className="fixed top-0 left-0 right-0 z-[100] w-full bg-black/80 backdrop-blur-md border-b-2 border-orange-500 p-6 md:p-8 text-center cursor-pointer hover:bg-black transition-colors shadow-lg flex items-center justify-center gap-4 overflow-hidden"
         onClick={() => {
            window.open('https://omg10.com/4/11214508', '_blank');
            WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
