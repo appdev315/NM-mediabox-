@@ -8,8 +8,10 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }:
   const adRef = useRef<HTMLModElement>(null);
 
   useEffect(() => {
-    // Load the main provider script if it's not already loaded
-    if (!document.querySelector('script[src="https://a.magsrv.com/ad-provider.js"]')) {
+    // Check if ANY exoclick ad provider script is already loaded
+    const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
+    
+    if (!scriptLoaded) {
       const script = document.createElement('script');
       script.src = 'https://a.magsrv.com/ad-provider.js';
       script.async = true;
@@ -33,7 +35,7 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }:
       <ins 
         ref={adRef}
         className="eas6a97888e20" 
-        data-zoneid="5964660"
+        data-zoneid="5964976"
         style={className.includes('exo-banner-') ? { display: 'block', width: '100%', height: '100%' } : {}}
       ></ins>
     </div>
