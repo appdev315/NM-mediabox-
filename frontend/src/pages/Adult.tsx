@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from './Movie';
 import { useLanguage } from '../context/LanguageContext';
-import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
@@ -41,7 +40,6 @@ const CATEGORIES = [
 
 export function Adult() {
   const navigate = useNavigate();
-  const isTelegram = !!WebApp.initDataUnsafe?.user;
   const { t } = useLanguage();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -292,7 +290,6 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
-              {!isTelegram && (idx + 1) % 15 === 0 && <BannerAd />}
               {(idx + 1) % 12 === 0 && <ExoClickNativeAd />}
               </React.Fragment>
             ))}

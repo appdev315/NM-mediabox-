@@ -25,7 +25,7 @@ export default function ExoClickNativeAd() {
   }, []);
 
   return (
-    <div className="w-full h-full">
+    <div className="col-span-full w-full my-2">
       <ins 
         ref={adRef}
         className="eas6a97888e20" 
