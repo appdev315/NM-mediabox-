@@ -3,9 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { BACKEND_URL } from './Movie';
 import { useLanguage } from '../context/LanguageContext';
-import { VIP_USERS } from '../config/vipUsers';
-import { useVip } from '../context/VipContext';
-import { TelegramLoginWidget } from '../components/TelegramLoginWidget';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import React from 'react';
@@ -57,12 +54,7 @@ export function Adult() {
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  const { isVip, showVipModal } = useVip();
-  const checkWebVIP = () => {
-    if (WebApp.platform === 'unknown') return true;
-    return isVip;
-  };
-  const hasAccess = checkWebVIP();
+  const hasAccess = true;
   // State for triggering re-render if user logs in via web widget
   const [, setForceRender] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -79,10 +71,8 @@ export function Adult() {
 
     
     const user = WebApp.initDataUnsafe?.user;
-    const isConfigVip = user?.username && VIP_USERS.map((u: string) => u.toLowerCase()).includes(user.username.toLowerCase());
-    
     // Check if age was already confirmed
-    const confirmed = isConfigVip || localStorage.getItem('age_confirmed') === 'true';
+    const confirmed = localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
     if (hasAccess && confirmed) {
@@ -197,49 +187,7 @@ export function Adult() {
 
 
 
-  if (!hasAccess) {
-    return (
-      <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
-        <div className="text-6xl mb-6">🍓</div>
-        <h1 className="text-2xl font-bold mb-4">{t('privateCollection')}</h1>
-        <p className="opacity-70 mb-8 max-w-xs leading-relaxed">
-          {t('privateCollectionDesc')}
-        </p>
-        
-        {WebApp.platform === 'unknown' ? (
-          <div className="w-full flex flex-col items-center justify-center gap-4 mt-6">
-            <p className="text-sm opacity-80 text-center max-w-xs">
-              {t('tgLoginRequired')}
-            </p>
-            
-            <TelegramLoginWidget
-              botName="mediaboxxxbot"
-              onAuth={(user) => {
-                localStorage.setItem('telegramUser', JSON.stringify(user));
-                setForceRender(prev => prev + 1);
-                // Also trigger page reload just to ensure all contexts pick it up if needed
-                setTimeout(() => window.location.reload(), 100);
-              }}
-              buttonSize="large"
-              cornerRadius={20}
-              usePic={false}
-            />
-          </div>
-        ) : (
-          <button 
-            onClick={() => {
-              WebApp.HapticFeedback.impactOccurred('heavy');
-              showVipModal();
-            }}
-            className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform mt-4"
-            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-          >
-            ⭐️ {t('unlockWithStars')}
-          </button>
-        )}
-      </div>
-    );
-  }
+
 
   if (hasAccess && !ageConfirmed) {
     return (

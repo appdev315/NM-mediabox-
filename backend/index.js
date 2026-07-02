@@ -368,7 +368,7 @@ app.get('/api/vip/status', async (req, res) => {
 });
 
 // --- VIP DOWNLOADS API ---
-app.get('/api/vip/downloads/latest', requireVip, async (req, res) => {
+app.get('/api/vip/downloads/latest', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const targetLanguage = req.query.lang || 'en-US';
@@ -404,7 +404,7 @@ app.get('/api/vip/downloads/latest', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/search', requireVip, async (req, res) => {
+app.get('/api/vip/downloads/search', async (req, res) => {
     try {
         const q = req.query.q;
         const targetLanguage = req.query.lang || 'en-US';
@@ -437,7 +437,7 @@ app.get('/api/vip/downloads/search', requireVip, async (req, res) => {
     }
 });
 
-app.get('/api/vip/downloads/links', requireVip, async (req, res) => {
+app.get('/api/vip/downloads/links', async (req, res) => {
     try {
         const urlStr = req.query.url;
         if (!urlStr) return res.status(400).json({ error: 'URL required' });
