@@ -41,7 +41,6 @@ export default function ExoClickNativeAd({ className = 'col-span-full w-full my-
         ref={adRef}
         className="eas6a97888e20" 
         data-zoneid="5964558"
-        style={className === 'col-span-full w-full my-2' ? { display: 'block', width: '100%' } : {}}
       ></ins>
     </div>
   );
