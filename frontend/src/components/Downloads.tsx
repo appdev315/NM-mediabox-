@@ -4,7 +4,7 @@ import { BACKEND_URL } from '../pages/Movie';
 import { useLanguage } from '../context/LanguageContext';
 
 export function Downloads() {
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
