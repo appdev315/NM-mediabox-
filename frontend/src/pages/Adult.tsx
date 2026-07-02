@@ -235,7 +235,7 @@ export function Adult() {
   }
 
   return (
-    <div className="p-3 sm:p-4 pb-20 pt-32">
+    <div className="px-3 sm:px-4 pb-20 pt-24 sm:pt-24">
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
