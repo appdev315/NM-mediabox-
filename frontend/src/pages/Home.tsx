@@ -109,7 +109,7 @@ export function Home() {
   };
 
   return (
-    <div className="p-3 sm:p-4 pb-20 pt-32">
+    <div className="px-3 sm:px-4 pb-20 pt-24 sm:pt-24">
       {/* Header & Profile */}
       <Header />
 
