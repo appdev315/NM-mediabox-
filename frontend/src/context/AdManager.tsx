@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import { WebApp } from '../telegram';
 
 interface AdContextType {
-  triggerMovieAd: () => void;
+  triggerAd: () => void;
+  triggerMovieAd: () => void; // Keep for backward compatibility for now
 }
 
 const AdContext = createContext<AdContextType | undefined>(undefined);
@@ -20,91 +21,73 @@ interface AdProviderProps {
 }
 
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [adType, setAdType] = useState<'adsgram' | 'monetag' | null>(null);
-  // Ads are always enabled for everyone now
-
-  // Cooldown setting (5 minutes)
-  const COOLDOWN_MS = 5 * 60 * 1000; 
+  // Cooldown setting (3 minutes)
+  const COOLDOWN_MS = 3 * 60 * 1000; 
 
   const isTelegram = !!WebApp.initDataUnsafe?.user;
   
-  const hostname = window.location.hostname;
-  const isAdultApp = hostname === 'media-box.xyz' || 
-                     (hostname === 'localhost' && window.location.port === '3001') ||
-                     window.location.search.includes('app=adult');
-
+  // Dynamically load Adsgram script for Telegram users
   useEffect(() => {
-    // On app startup (only for Telegram)
-    // Always show ads
-    const shouldShowAds = true;
-    
-    if (isTelegram && shouldShowAds && !isAdultApp) {
-      const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
-      if (!hasSeenStartup) {
-        sessionStorage.setItem('hasSeenStartupAd', 'true');
-        playAd('adsgram');
-      }
+    if (isTelegram && !(window as any).Adsgram) {
+      const script = document.createElement('script');
+      script.src = 'https://sad.adsgram.ai/js/sad.min.js';
+      script.async = true;
+      document.head.appendChild(script);
     }
-  }, [isTelegram, isAdultApp]);
+  }, [isTelegram]);
 
-  const triggerMovieAd = () => {
-
-    if (isTelegram) {
-      // 18+ Telegram Bot: No ads (only VIP subscription)
-      // Telegram White Bot: Only startup ads (no movie prerolls)
+  const triggerAd = () => {
+    if (!isTelegram) {
+      // Web Version: Not using Adsgram. 
+      // Monetag Vignette handles web navigation automatically.
       return;
     }
 
-    // Web Version: Monetag ONLY for white app
-    if (!isAdultApp) {
-      const lastAdTimeStr = localStorage.getItem('lastAdTime');
-      const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
-      const now = Date.now();
+    const lastAdTimeStr = localStorage.getItem('lastAdsgramTime');
+    const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
+    const now = Date.now();
 
-      if (now - lastAdTime > COOLDOWN_MS) {
-        playAd('monetag');
-      }
-    } else {
-      // TODO: Placeholder for new adult ad network
-      console.log('Adult ad network triggered');
+    if (now - lastAdTime > COOLDOWN_MS) {
+      playAdsgramVideo();
     }
   };
 
-  const playAd = (type: 'adsgram' | 'monetag') => {
-    setIsPlaying(true);
-    setAdType(type);
-    
-    if (type === 'monetag') {
-      localStorage.setItem('lastAdTime', Date.now().toString());
+  useEffect(() => {
+    // On app startup (only for Telegram)
+    if (isTelegram) {
+      const hasSeenStartup = sessionStorage.getItem('hasSeenStartupAd');
+      if (!hasSeenStartup) {
+        sessionStorage.setItem('hasSeenStartupAd', 'true');
+        // Small delay to ensure Adsgram SDK is loaded
+        setTimeout(() => triggerAd(), 1000); 
+      }
+    }
+  }, [isTelegram]);
+
+  const playAdsgramVideo = () => {
+    if (!(window as any).Adsgram) {
+      console.warn('Adsgram SDK not loaded yet');
+      return;
     }
 
-    // Simulate ad duration
-    setTimeout(() => {
-      setIsPlaying(false);
-      setAdType(null);
-    }, 5000); // 5 seconds for testing
+    const AdController = (window as any).Adsgram.init({ blockId: "int-36858" });
+    
+    AdController.show().then(() => {
+      // User watched the ad
+      localStorage.setItem('lastAdsgramTime', Date.now().toString());
+    }).catch((result: any) => {
+      // Error or user closed it early
+      console.error('Adsgram ad error/skip:', result);
+      // We still set the cooldown so they don't get spammed if it's broken
+      localStorage.setItem('lastAdsgramTime', Date.now().toString());
+    });
   };
 
   return (
-    <AdContext.Provider value={{ triggerMovieAd }}>
+    <AdContext.Provider value={{ triggerAd, triggerMovieAd: triggerAd }}>
       {children}
       
-      {/* Ad Overlay Placeholder */}
-      {isPlaying && (
-        <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center text-white p-4">
-          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <h2 className="text-2xl font-bold text-center mb-2">
-            🎬 [TEST] Реклама {adType === 'adsgram' ? 'Adsgram' : 'Monetag'}...
-          </h2>
-          <p className="text-gray-400 text-center max-w-sm mb-6">
-            В реальной версии здесь будет показываться {adType === 'adsgram' ? 'нативное видео от Adsgram' : 'Interstitial от Monetag'}.
-          </p>
-          <div className="bg-white/10 px-4 py-2 rounded-full">
-             <p className="text-orange-500 animate-pulse font-medium">Пожалуйста, подождите (5 сек)...</p>
-          </div>
-        </div>
-      )}
+      {/* We no longer need the mock overlay because Adsgram draws its own iframe/overlay */}
     </AdContext.Provider>
   );
 };
