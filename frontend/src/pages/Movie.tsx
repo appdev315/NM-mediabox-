@@ -17,7 +17,7 @@ export function Movie() {
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
-  const { triggerMovieAd } = useAdManager();
+  const { triggerMovieAd, triggerPostAd } = useAdManager();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -45,10 +45,16 @@ export function Movie() {
   // Configure Telegram BackButton
   useEffect(() => {
     WebApp.BackButton.show();
-    const backHandler = () => navigate(-1);
+    const backHandler = () => {
+      triggerPostAd();
+      navigate(-1);
+    };
     WebApp.BackButton.onClick(backHandler);
-    return () => WebApp.BackButton.hide();
-  }, [navigate]);
+    return () => {
+      WebApp.BackButton.offClick(backHandler);
+      WebApp.BackButton.hide();
+    };
+  }, [navigate, triggerPostAd]);
 
   // Load movie/series details and recommendations
   useEffect(() => {
