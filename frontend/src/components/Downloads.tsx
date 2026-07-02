@@ -104,7 +104,7 @@ export function Downloads() {
       </div>
 
       {/* Content Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item, idx) => (
           <div 
             key={`${item.id}-${idx}`} 

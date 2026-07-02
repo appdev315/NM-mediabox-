@@ -129,7 +129,7 @@ export function AdultVideo() {
         {relatedVideos.length > 0 && (
           <div className="mt-8">
             <h2 className="text-lg font-bold mb-4">{t('recommendations')}</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {relatedVideos.map((v, idx) => {
                 if (v.id === id) return null; // Skip current video
                 return (

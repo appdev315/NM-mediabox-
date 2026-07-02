@@ -371,7 +371,7 @@ export function Movie() {
               {recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
-                  className="min-w-[130px] w-[130px] snap-start cursor-pointer active:scale-95 transition-transform" 
+                  className="min-w-[150px] w-[150px] snap-start cursor-pointer active:scale-95 transition-transform" 
                   onClick={() => {
                     setStreamUrl(null);
                     setIframeUrl(null);

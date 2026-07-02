@@ -235,7 +235,7 @@ export function Adult() {
   }
 
   return (
-    <div className="p-4 pb-20 pt-32">
+    <div className="p-3 sm:p-4 pb-20 pt-32">
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
@@ -268,7 +268,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {videos.map((v, idx) => (
               <React.Fragment key={v.id}>
               <div 
