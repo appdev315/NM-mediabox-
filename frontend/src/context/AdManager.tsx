@@ -4,6 +4,7 @@ import { WebApp } from '../telegram';
 interface AdContextType {
   triggerAd: () => void;
   triggerMovieAd: () => void; // Keep for backward compatibility for now
+  triggerPostAd: () => void;
 }
 
 const AdContext = createContext<AdContextType | undefined>(undefined);
@@ -21,8 +22,10 @@ interface AdProviderProps {
 }
 
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
-  // Cooldown setting (3 minutes)
+  // Cooldown setting (3 minutes for video)
   const COOLDOWN_MS = 3 * 60 * 1000; 
+  // Cooldown setting (2 minutes for post)
+  const POST_COOLDOWN_MS = 2 * 60 * 1000; 
 
   const isTelegram = !!WebApp.initDataUnsafe?.user;
   
@@ -64,6 +67,30 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
     }
   }, [isTelegram]);
 
+  const triggerPostAd = () => {
+    if (!isTelegram) return;
+
+    const lastAdTimeStr = localStorage.getItem('lastAdsgramPostTime');
+    const lastAdTime = lastAdTimeStr ? parseInt(lastAdTimeStr, 10) : 0;
+    const now = Date.now();
+
+    if (now - lastAdTime > POST_COOLDOWN_MS) {
+      playAdsgramPost();
+    }
+  };
+
+  const playAdsgramPost = () => {
+    if (!(window as any).Adsgram) return;
+
+    const AdController = (window as any).Adsgram.init({ blockId: "int-36857" });
+    AdController.show().then(() => {
+      localStorage.setItem('lastAdsgramPostTime', Date.now().toString());
+    }).catch((result: any) => {
+      console.error('Adsgram post ad error/skip:', result);
+      localStorage.setItem('lastAdsgramPostTime', Date.now().toString());
+    });
+  };
+
   const playAdsgramVideo = () => {
     if (!(window as any).Adsgram) {
       console.warn('Adsgram SDK not loaded yet');
@@ -84,7 +111,7 @@ export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   };
 
   return (
-    <AdContext.Provider value={{ triggerAd, triggerMovieAd: triggerAd }}>
+    <AdContext.Provider value={{ triggerAd, triggerMovieAd: triggerAd, triggerPostAd }}>
       {children}
       
       {/* We no longer need the mock overlay because Adsgram draws its own iframe/overlay */}
