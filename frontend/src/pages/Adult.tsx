@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { ExoClickVideoAd } from '../components/ExoClickVideoAd';
+import { shouldShowAd } from '../utils/adPlacement';
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -292,7 +293,7 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
-              {(idx + 1) % 12 === 0 && <ExoClickNativeAd />}
+              {shouldShowAd(idx) && <ExoClickNativeAd />}
               </React.Fragment>
             ))}
           </div>

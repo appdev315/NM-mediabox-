@@ -6,6 +6,7 @@ import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { useNavigate } from 'react-router-dom';
+import { shouldShowAd } from '../utils/adPlacement';
 
 
 interface Station {
@@ -485,7 +486,7 @@ export function RadioTV() {
                 <React.Fragment key={item.id}>
                 <div  
                   onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                  className={`p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                  className={`aspect-[4/3] p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
                   style={{ 
                     backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
                     borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
@@ -535,7 +536,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-                {(idx + 1) % 6 === 0 && <ExoClickWhiteAd className="exo-banner-movie-card row-span-2" />}
+                {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card row-span-2" />}
               </React.Fragment>
               );
             })}
