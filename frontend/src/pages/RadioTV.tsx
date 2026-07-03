@@ -273,6 +273,10 @@ export function RadioTV() {
 
   // HLS logic
   useEffect(() => {
+    let playbackTimeout: ReturnType<typeof setTimeout> | null = null;
+    let networkRetries = 0;
+    const MAX_NETWORK_RETRIES = 2;
+
     if (activeTvChannel && activeTab === 'tv' && videoRef.current) {
       const video = videoRef.current;
       const url = activeTvChannel.url;
@@ -282,6 +286,23 @@ export function RadioTV() {
         hlsRef.current = null;
       }
 
+      // Timeout: if nothing plays within 12s, show error
+      playbackTimeout = setTimeout(() => {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+        setTvError(true);
+        setTvLoading(false);
+      }, 12000);
+
+      const clearPlaybackTimeout = () => {
+        if (playbackTimeout) {
+          clearTimeout(playbackTimeout);
+          playbackTimeout = null;
+        }
+      };
+
       if (Hls.isSupported()) {
         const hls = new Hls({
           maxBufferLength: 60,
@@ -290,6 +311,9 @@ export function RadioTV() {
           lowLatencyMode: false,
           liveSyncDurationCount: 3,
           liveMaxLatencyDurationCount: 10,
+          manifestLoadingTimeOut: 8000,
+          levelLoadingTimeOut: 8000,
+          fragLoadingTimeOut: 8000,
         });
         hlsRef.current = hls;
         
@@ -300,19 +324,34 @@ export function RadioTV() {
           video.play().catch(e => console.log('Autoplay prevented', e));
         });
 
+        // Clear timeout once video actually plays
+        video.addEventListener('playing', clearPlaybackTimeout, { once: true });
+
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error('fatal network error encountered, try to recover');
-                hls.startLoad();
+                networkRetries++;
+                if (networkRetries <= MAX_NETWORK_RETRIES) {
+                  console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
+                  hls.startLoad();
+                } else {
+                  console.error('fatal network error, max retries reached');
+                  clearPlaybackTimeout();
+                  hls.destroy();
+                  hlsRef.current = null;
+                  setTvError(true);
+                  setTvLoading(false);
+                }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.error('fatal media error encountered, try to recover');
                 hls.recoverMediaError();
                 break;
               default:
+                clearPlaybackTimeout();
                 hls.destroy();
+                hlsRef.current = null;
                 setTvError(true);
                 setTvLoading(false);
                 break;
@@ -321,6 +360,7 @@ export function RadioTV() {
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
+        video.addEventListener('playing', clearPlaybackTimeout, { once: true });
         video.addEventListener('loadedmetadata', () => {
           video.play().catch(e => console.log('Autoplay prevented', e));
         });
@@ -328,6 +368,7 @@ export function RadioTV() {
     }
 
     return () => {
+      if (playbackTimeout) clearTimeout(playbackTimeout);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
