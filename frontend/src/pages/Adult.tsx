@@ -75,7 +75,7 @@ export function Adult() {
     const confirmed = localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
-    if (hasAccess && confirmed) {
+    if (hasAccess && (ageConfirmed || confirmed)) {
       // Use the randomly initialized category instead of hardcoded 'teen'
       loadVideos(category, 0);
     } else {
