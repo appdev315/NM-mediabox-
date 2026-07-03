@@ -270,7 +270,7 @@ export function Adult() {
       ) : (
         <>
           <ExoClickVideoAd />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto">
             {videos.map((v, idx) => (
               <React.Fragment key={v.id}>
               <div 
