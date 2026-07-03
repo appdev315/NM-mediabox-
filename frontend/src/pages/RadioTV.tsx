@@ -489,7 +489,7 @@ export function RadioTV() {
                 <div  
                   onClick={() => {
                     if (item.isHttp) {
-                      alert(t('httpChannelWarning') || "Этот канал недоступен в веб-версии из-за ограничений браузера (HTTP). Он будет работать в приложении.");
+                      alert("This channel is unavailable in the web version due to browser restrictions (HTTP). It will work in the app.\n\nЭтот канал недоступен в веб-версии из-за ограничений браузера (HTTP). Он будет работать в приложении.");
                       return;
                     }
                     activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)

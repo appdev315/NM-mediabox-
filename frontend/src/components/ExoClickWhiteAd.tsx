@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react';
 
 interface ExoClickWhiteAdProps {
   className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
+  zoneId?: string;
 }
 
-export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }: ExoClickWhiteAdProps) {
+export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card', zoneId = '5964976' }: ExoClickWhiteAdProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -23,7 +24,7 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card' }:
       }
 
       if (containerRef.current) {
-        containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964976"></ins>';
+        containerRef.current.innerHTML = `<ins class="eas6a97888e20" data-zoneid="${zoneId}"></ins>`;
       }
 
       try {
