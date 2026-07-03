@@ -11,7 +11,9 @@ export function ExoClickBanner18() {
     // Determine how many banners to show based on screen width
     const width = window.innerWidth;
     let count = 1;
-    if (width >= 1080) {
+    if (width >= 1300) {
+      count = 4; // Extra Large Desktop: 4 banners
+    } else if (width >= 1080) {
       count = 3; // Desktop: 3 banners
     } else if (width >= 720) {
       count = 2; // Tablet: 2 banners
@@ -30,7 +32,7 @@ export function ExoClickBanner18() {
       if (containerRef.current) {
         let html = '<div class="flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap">';
         for (let i = 0; i < count; i++) {
-          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:flex; justify-content:center; min-width:300px; min-height:250px;"></ins>';
+          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:flex; justify-content:center;"></ins>';
         }
         html += '</div>';
         containerRef.current.innerHTML = html;
@@ -50,7 +52,7 @@ export function ExoClickBanner18() {
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full my-6 min-h-[250px]">
+    <div ref={containerRef} className="w-full mb-6">
     </div>
   );
 }
