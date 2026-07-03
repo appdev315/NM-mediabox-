@@ -371,6 +371,40 @@ app.get('/api/downloads/links', async (req, res) => {
     }
 });
 
+// Video proxy for sites with hotlink protection (Kinozuma/Kinovasek)
+app.get('/api/downloads/proxy', async (req, res) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) return res.status(400).send('No URL provided');
+
+    try {
+        let referer = 'https://mobile.kinozuma.net';
+        if (targetUrl.includes('vasqa.org') || targetUrl.includes('serversimka.net') || targetUrl.includes('kinovasek.net')) {
+            referer = 'https://kinovasek.net';
+        }
+
+        const response = await axios({
+            url: targetUrl,
+            method: 'GET',
+            responseType: 'stream',
+            headers: {
+                'Referer': referer,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp4');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
+
+        response.data.pipe(res);
+    } catch (error) {
+        console.error('Proxy Error:', error.message);
+        res.status(500).send('Failed to proxy video');
+    }
+});
+
 const MIRRORS = [
     'https://mj.anwap.today',
     'https://mm.anwap.media',
