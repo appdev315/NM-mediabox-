@@ -22,7 +22,10 @@ export function ExoClickMainBanner() {
 
       if (containerRef.current) {
         if (isMobile) {
-          containerRef.current.innerHTML = '<ins class="eas6a97888e10" data-zoneid="5965686"></ins>';
+          containerRef.current.innerHTML = `
+            <ins class="eas6a97888e10" data-zoneid="5965686" style="flex-shrink: 0;"></ins>
+            <ins class="eas6a97888e10" data-zoneid="5965686" style="flex-shrink: 0;"></ins>
+          `;
         } else {
           containerRef.current.innerHTML = '<ins class="eas6a97888e2" data-zoneid="5965676"></ins>';
         }
@@ -49,7 +52,7 @@ export function ExoClickMainBanner() {
           display: flex !important;
           flex-direction: row !important;
           justify-content: ${isMobile ? 'flex-start' : 'center'} !important;
-          align-items: center !important;
+          align-items: flex-start !important;
           overflow-x: auto !important;
           gap: 12px;
           padding-bottom: 8px;
