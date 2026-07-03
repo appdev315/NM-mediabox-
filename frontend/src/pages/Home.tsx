@@ -7,6 +7,7 @@ import { useAdManager } from '../context/AdManager';
 
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
+import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
@@ -177,6 +178,7 @@ export function Home() {
       {/* Content Grid */}
       <>
         <>
+          <ExoClickMainBanner />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto">
             {items.map((item, idx) => (
               <React.Fragment key={`${item.id}-${idx}`}>
