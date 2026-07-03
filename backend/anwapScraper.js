@@ -1,6 +1,5 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
 
 const MIRRORS = [
     'https://mm.anwap.media',
@@ -9,42 +8,78 @@ const MIRRORS = [
     'https://anwap.bio'
 ];
 
-async function fetchWithFallback(path) {
-    for (const mirror of MIRRORS) {
-        let browser = null;
-        try {
-            const url = `${mirror}${path}`;
-            console.log(`[Anwap] Trying with Puppeteer ${url}`);
-            
-            browser = await puppeteer.launch({ 
-                headless: 'new',
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] 
-            });
-            const page = await browser.newPage();
-            
-            // Set User Agent
-            await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-            
-            // Navigate and wait for network to be idle or redirect
-            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-            
-            // Wait a bit to ensure fingerprint redirect happens if it's there
-            await new Promise(r => setTimeout(r, 2000));
-            
-            const html = await page.content();
-            
-            if (!html.includes('redirect_link =')) {
-                // Not the redirect page
-                await browser.close();
-                return { data: html, baseUrl: mirror };
-            }
-            
-            // If it's still on the redirect page, it failed to redirect automatically
-            throw new Error('Puppeteer stuck on redirect page');
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
+];
 
-        } catch (e) {
-            console.log(`[Anwap] Mirror ${mirror} failed: ${e.message}`);
-            if (browser) await browser.close();
+function getRandomUA() {
+    return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+/**
+ * Fetch a page from Anwap mirrors using axios+cheerio.
+ * Handles JavaScript-based redirect pages by extracting the redirect URL from the HTML.
+ * Falls back across mirrors on failure.
+ */
+async function fetchWithFallback(path, maxRetries = 2) {
+    for (const mirror of MIRRORS) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const url = `${mirror}${path}`;
+                console.log(`[Anwap] Trying ${url} (attempt ${attempt + 1})`);
+
+                const res = await axios.get(url, {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': getRandomUA(),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                        'Referer': mirror + '/'
+                    },
+                    maxRedirects: 5,
+                    validateStatus: (status) => status < 400
+                });
+
+                const html = res.data;
+
+                // Check if we got a JS redirect page instead of real content
+                if (typeof html === 'string' && html.includes('redirect_link =')) {
+                    // Extract redirect URL from JavaScript: var redirect_link = "...";
+                    const redirectMatch = html.match(/redirect_link\s*=\s*["']([^"']+)["']/);
+                    if (redirectMatch) {
+                        const redirectUrl = redirectMatch[1].startsWith('http')
+                            ? redirectMatch[1]
+                            : `${mirror}${redirectMatch[1]}`;
+
+                        console.log(`[Anwap] Following JS redirect to: ${redirectUrl}`);
+                        const redirectRes = await axios.get(redirectUrl, {
+                            timeout: 10000,
+                            headers: {
+                                'User-Agent': getRandomUA(),
+                                'Referer': url
+                            },
+                            maxRedirects: 5
+                        });
+                        return { data: redirectRes.data, baseUrl: mirror };
+                    }
+                }
+
+                // Check if we got real content (has expected HTML structure)
+                if (typeof html === 'string' && html.length > 500) {
+                    return { data: html, baseUrl: mirror };
+                }
+
+                throw new Error('Empty or invalid response');
+            } catch (e) {
+                console.log(`[Anwap] Mirror ${mirror} attempt ${attempt + 1} failed: ${e.message}`);
+                if (attempt < maxRetries) {
+                    // Small delay before retry
+                    await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+                }
+            }
         }
     }
     throw new Error('All Anwap mirrors failed');
@@ -118,11 +153,6 @@ export async function getAnwapDownloadInfo(title, isTv) {
 }
 
 export async function getAnwapSeriesLink(episodeUrl) {
-    // If the episodeUrl points to a season page, we need to fetch it and get episodes
-    // If it points to an episode, we fetch download links
-    // This function will just fetch the URL and find the highest quality MP4.
-    
-    // Sometimes episodeUrl is relative, sometimes absolute. Assume absolute for simplicity if passed from frontend.
     try {
         const urlObj = new URL(episodeUrl);
         const path = urlObj.pathname + urlObj.search;

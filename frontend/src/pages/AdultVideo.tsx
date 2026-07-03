@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { BACKEND_URL } from './Movie';
+import { API_BASE } from '../hooks/useApi';
 import ReactPlayer from 'react-player';
 import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
@@ -58,14 +58,14 @@ export function AdultVideo() {
         const headers = { 'Authorization': `tma ${initData}` };
         
         // Fetch Video Details
-        const res = await fetch(`${BACKEND_URL}/api/adult/stream?id=${encodeURIComponent(id)}`, { headers });
+        const res = await fetch(`${API_BASE}/adult/stream?id=${encodeURIComponent(id)}`, { headers });
         const data = await res.json();
         setDetails(data);
 
         // Fetch Related Videos
         let cat = location.state?.category || 'teen';
         if (cat === '') cat = 'milf'; // fallback if empty
-        const relatedRes = await fetch(`${BACKEND_URL}/api/adult/search?q=${encodeURIComponent(cat)}&page=0`, { headers });
+        const relatedRes = await fetch(`${API_BASE}/adult/search?q=${encodeURIComponent(cat)}&page=0`, { headers });
         const relatedData = await relatedRes.json();
         
         if (Array.isArray(relatedData)) {

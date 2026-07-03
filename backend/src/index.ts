@@ -4,8 +4,10 @@ import { tgAuthMiddleware } from './middleware/auth';
 
 type Bindings = {
   DB: D1Database;
+  CACHE: KVNamespace;
   BALANCER_API_TOKEN: string;
   TELEGRAM_BOT_TOKEN: string;
+  HF_BACKEND_URL: string; // e.g. "https://evro90-nm6.hf.space"
 };
 
 type Variables = {
@@ -16,27 +18,53 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 app.use('/api/*', cors());
 
+// --- HELPER: KV Cache Wrapper ---
+
+async function withKVCache<T>(
+  kv: KVNamespace,
+  key: string,
+  ttlSeconds: number,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  // Try to get from KV cache first
+  const cached = await kv.get(key, 'json');
+  if (cached !== null) {
+    return cached as T;
+  }
+
+  // Fetch fresh data
+  const data = await fetcher();
+
+  // Store in KV cache (non-blocking)
+  const ctx = { waitUntil: (p: Promise<any>) => p }; // Fallback if no ctx
+  kv.put(key, JSON.stringify(data), { expirationTtl: ttlSeconds }).catch(() => {});
+
+  return data;
+}
+
 // --- ОБРАТНЫЙ ПРОКСИ ---
 
 app.get('/api/search', async (c) => {
   const query = c.req.query('q') || 'matrix';
-  const token = c.env.BALANCER_API_TOKEN || 'demo_token'; // Заглушка, если токен не задан
-  
-  try {
-    const response = await fetch(`https://kodikapi.com/search?token=${token}&title=${query}`);
-    if (!response.ok) throw new Error('API Error');
-    const data: any = await response.json();
-    
-    const cleanedResults = (data.results || []).map((item: any) => ({
-      id: item.id,
-      title: item.title,
-      year: item.year,
-      poster: item.material_data?.poster_url || 'https://via.placeholder.com/300x450?text=No+Poster'
-    }));
+  const token = c.env.BALANCER_API_TOKEN || 'demo_token';
+  const cacheKey = `search_${query}`;
 
-    return c.json({ results: cleanedResults });
+  try {
+    const result = await withKVCache(c.env.CACHE, cacheKey, 3600, async () => {
+      const response = await fetch(`https://kodikapi.com/search?token=${token}&title=${query}`);
+      if (!response.ok) throw new Error('API Error');
+      const data: any = await response.json();
+
+      return (data.results || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        year: item.year,
+        poster: item.material_data?.poster_url || 'https://via.placeholder.com/300x450?text=No+Poster'
+      }));
+    });
+
+    return c.json({ results: result });
   } catch (error) {
-    // Демонстрационный мок на случай отсутствия ключа от KodikAPI
     return c.json({ results: [{ id: 'demo1', title: 'Demo Movie', year: 2024, poster: 'https://via.placeholder.com/300x450?text=Demo' }] });
   }
 });
@@ -44,20 +72,26 @@ app.get('/api/search', async (c) => {
 app.get('/api/movie/:id', async (c) => {
   const movieId = c.req.param('id');
   const token = c.env.BALANCER_API_TOKEN || 'demo_token';
-  
-  try {
-    const response = await fetch(`https://kodikapi.com/search?token=${token}&id=${movieId}`);
-    const data: any = await response.json();
-    const movie = data.results?.[0];
-    
-    if (!movie) return c.json({ error: 'Not found' }, 404);
+  const cacheKey = `movie_${movieId}`;
 
-    return c.json({
-      id: movie.id,
-      title: movie.title,
-      description: movie.material_data?.description || 'No description available',
-      iframe_url: movie.link
+  try {
+    const result = await withKVCache(c.env.CACHE, cacheKey, 3600, async () => {
+      const response = await fetch(`https://kodikapi.com/search?token=${token}&id=${movieId}`);
+      const data: any = await response.json();
+      const movie = data.results?.[0];
+
+      if (!movie) return null;
+
+      return {
+        id: movie.id,
+        title: movie.title,
+        description: movie.material_data?.description || 'No description available',
+        iframe_url: movie.link
+      };
     });
+
+    if (!result) return c.json({ error: 'Not found' }, 404);
+    return c.json(result);
   } catch (error) {
     return c.json({
       id: movieId,
@@ -72,6 +106,62 @@ app.get('/api/recommendations/:id', async (c) => {
   return c.json({ recommendations: [
     { id: 'rec1', title: 'Rec Movie 1', material_data: { poster_url: 'https://via.placeholder.com/150x200?text=R1' } }
   ] });
+});
+
+// --- ADULT API PROXY WITH KV CACHE ---
+// Scraping stays on HF Spaces (cheerio needs more than 10ms CPU).
+// Worker caches responses in KV so repeated requests are instant.
+
+app.get('/api/adult/search', async (c) => {
+  const q = c.req.query('q') || '';
+  const page = c.req.query('page') || '0';
+  const hfUrl = c.env.HF_BACKEND_URL || 'https://evro90-nm6.hf.space';
+
+  // Cache key includes query and page
+  const cacheKey = `adult_search_${q}_${page}`;
+
+  try {
+    const result = await withKVCache(c.env.CACHE, cacheKey, 300, async () => {
+      // Forward auth header to HF backend
+      const authHeader = c.req.header('Authorization') || '';
+      const res = await fetch(
+        `${hfUrl}/api/adult/search?q=${encodeURIComponent(q)}&page=${page}`,
+        { headers: { 'Authorization': authHeader } }
+      );
+      if (!res.ok) throw new Error(`HF Backend error: ${res.status}`);
+      return await res.json();
+    });
+
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to fetch adult content' }, 500);
+  }
+});
+
+app.get('/api/adult/stream', async (c) => {
+  const id = c.req.query('id') || '';
+  const hfUrl = c.env.HF_BACKEND_URL || 'https://evro90-nm6.hf.space';
+
+  if (!id) return c.json({ error: 'Missing id' }, 400);
+
+  // Cache stream URLs for 1 hour
+  const cacheKey = `adult_stream_${id}`;
+
+  try {
+    const result = await withKVCache(c.env.CACHE, cacheKey, 3600, async () => {
+      const authHeader = c.req.header('Authorization') || '';
+      const res = await fetch(
+        `${hfUrl}/api/adult/stream?id=${encodeURIComponent(id)}`,
+        { headers: { 'Authorization': authHeader } }
+      );
+      if (!res.ok) throw new Error(`HF Backend error: ${res.status}`);
+      return await res.json();
+    });
+
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to fetch stream' }, 500);
+  }
 });
 
 // --- БАЗА ДАННЫХ D1 ---

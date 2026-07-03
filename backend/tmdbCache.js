@@ -1,9 +1,9 @@
 
 const TMDB_API_KEY = 'cd5b69242e715dc87d65957d7460eba2';
-let redisClient = null;
+let cache = null;
 
-export function initTmdbCache(client) {
-  redisClient = client;
+export function initTmdbCache(cacheInstance) {
+  cache = cacheInstance;
 }
 
 async function tmdbFetch(endpoint, params = {}) {
@@ -27,14 +27,10 @@ export async function translateItem(item) {
   const year = yearMatch ? yearMatch[1] : null;
   const cacheKey = `tmdb_${item.title}_${year || 'any'}`;
 
-  if (redisClient) {
-    try {
-      const cached = await redisClient.get(cacheKey);
-      if (cached) {
-        return { ...item, ...JSON.parse(cached) };
-      }
-    } catch(e) {
-      console.error('Redis get error', e);
+  if (cache) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return { ...item, ...cached };
     }
   }
 
@@ -80,8 +76,8 @@ export async function translateItem(item) {
         }
 
         const translatedData = { title, poster, info };
-        if (redisClient) {
-          redisClient.setEx(cacheKey, 86400 * 7, JSON.stringify(translatedData)).catch(e => console.error(e)); // Cache for 7 days
+        if (cache) {
+          cache.set(cacheKey, translatedData, 86400 * 7); // Cache for 7 days
         }
         return { ...item, ...translatedData };
       }
@@ -91,8 +87,8 @@ export async function translateItem(item) {
   }
 
   // Cache original data so we don't retry failed TMDB searches repeatedly
-  if (redisClient) {
-    redisClient.setEx(cacheKey, 86400, JSON.stringify({})).catch(e => console.error(e));
+  if (cache) {
+    cache.set(cacheKey, {}, 86400); // Cache empty for 1 day
   }
   return item;
 }
