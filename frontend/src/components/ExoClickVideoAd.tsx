@@ -19,8 +19,8 @@ export function ExoClickVideoAd() {
       }
 
       if (containerRef.current) {
-        // According to user screenshot, 18+ Outstream Video uses eas6a97888e37 and might need data-ex_av
-        containerRef.current.innerHTML = '<ins class="eas6a97888e37" data-zoneid="5964652" data-ex_av="name"></ins>';
+        // Add explicit styles to prevent collapse if iframe cross-origin sizing fails
+        containerRef.current.innerHTML = '<ins class="eas6a97888e37" data-zoneid="5964652" data-ex_av="name" style="display: block; width: 100%; min-height: 200px;"></ins>';
       }
 
       try {
