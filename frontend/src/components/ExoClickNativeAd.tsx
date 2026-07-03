@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 interface ExoClickNativeAdProps {
-  className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
+  className?: string;
 }
 
-export default function ExoClickNativeAd({ className = 'exo-banner-movie-card' }: ExoClickNativeAdProps) {
+export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -23,7 +23,6 @@ export default function ExoClickNativeAd({ className = 'exo-banner-movie-card' }
       }
 
       if (containerRef.current) {
-        // According to user screenshot, 18+ Widget requires data-ex_av="name"
         containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964558" data-ex_av="name"></ins>';
       }
 
@@ -41,7 +40,8 @@ export default function ExoClickNativeAd({ className = 'exo-banner-movie-card' }
   }, []);
 
   return (
-    <div ref={containerRef} className={className + " min-h-[50px] flex justify-center items-center overflow-hidden"}>
+    <div ref={containerRef} className={`w-full rounded-xl overflow-hidden ${className}`}>
     </div>
   );
 }
+

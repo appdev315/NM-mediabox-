@@ -294,7 +294,7 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
-              {shouldShowAd(idx) && <ExoClickNativeAd />}
+              {shouldShowAd(idx) && <ExoClickNativeAd className="exo-native-ad-container" />}
               </React.Fragment>
             ))}
           </div>

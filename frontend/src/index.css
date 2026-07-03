@@ -110,3 +110,50 @@ body {
 }
 /* ExoClick Banner Grid Wrappers */
 
+/* ExoClick Native Ad Styles for Adult Grid */
+.exo-native-ad-container {
+  display: block;
+  width: 100%;
+}
+
+.exo-native-ad-container img {
+  width: 100% !important;
+  aspect-ratio: 4/3 !important;
+  object-fit: cover !important;
+  border-radius: 16px !important;
+  margin-bottom: 8px !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.exo-native-ad-container a {
+  text-decoration: none !important;
+  color: inherit !important;
+  display: block !important;
+}
+
+/* Style titles and texts inside ExoClick Native Ads */
+.exo-native-ad-container [class*="title"], 
+.exo-native-ad-container [class*="label"],
+.exo-native-ad-container a > div:nth-child(2) {
+  font-size: 0.875rem !important; /* text-sm */
+  font-weight: 600 !important; /* font-semibold */
+  line-height: 1.375 !important; /* leading-snug */
+  color: var(--text-color) !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+.exo-native-ad-container [class*="description"],
+.exo-native-ad-container [class*="desc"],
+.exo-native-ad-container a > div:nth-child(3) {
+  font-size: 0.75rem !important; /* text-xs */
+  opacity: 0.6 !important;
+  margin-top: 4px !important;
+  color: var(--text-color) !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 1 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
