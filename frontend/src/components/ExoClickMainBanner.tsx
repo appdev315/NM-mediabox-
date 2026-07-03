@@ -45,22 +45,29 @@ export function ExoClickMainBanner() {
   }, []);
 
   return (
-    <div className="w-full mb-6 mt-4 relative z-10" style={{ minHeight: isMobile ? '100px' : '250px' }}>
+    <div className="w-full mb-4 mt-4 relative z-10" style={{ minHeight: isMobile ? '100px' : '250px' }}>
       <style>{`
         .exo-container {
-          width: 100%;
-          display: flex !important;
-          flex-direction: row !important;
-          justify-content: ${isMobile ? 'flex-start' : 'center'} !important;
-          align-items: flex-start !important;
-          overflow-x: auto !important;
+          width: 90%;
+          margin: 0 auto;
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
-          padding-bottom: 8px;
+          align-items: flex-start;
         }
-        .exo-container::-webkit-scrollbar { display: none; }
+        @media (min-width: 640px) {
+          .exo-container { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+          .exo-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
         .exo-container > * {
-          flex-shrink: 0;
+          width: 100%;
           max-width: 100%;
+          overflow: hidden;
+          display: flex;
+          justify-content: center;
+          border-radius: 12px;
         }
       `}</style>
       <div ref={containerRef} className="exo-container"></div>
