@@ -8,6 +8,8 @@ export function ExoClickMainBanner() {
     if (initialized.current) return;
     initialized.current = true;
 
+    const isMobile = window.innerWidth < 768;
+
     const loadAd = () => {
       const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
       if (!scriptLoaded) {
@@ -19,7 +21,11 @@ export function ExoClickMainBanner() {
       }
 
       if (containerRef.current) {
-        containerRef.current.innerHTML = '<ins class="eas6a97888e2" data-zoneid="5965676"></ins>';
+        if (isMobile) {
+          containerRef.current.innerHTML = '<ins class="eas6a97888e10" data-zoneid="5965686"></ins>';
+        } else {
+          containerRef.current.innerHTML = '<ins class="eas6a97888e2" data-zoneid="5965676"></ins>';
+        }
       }
 
       try {

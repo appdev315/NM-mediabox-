@@ -6,6 +6,7 @@ import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
+import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 
 export const BACKEND_URL = import.meta.env.PROD 
   ? "https://evro90-nm6.hf.space" 
@@ -391,6 +392,11 @@ export function Movie() {
           </div>
           </>
         )}
+
+        {/* Bottom Banner */}
+        <div className="mt-8 mb-4">
+          <ExoClickMainBanner />
+        </div>
       </div>
     </div>
   );
