@@ -16,6 +16,7 @@ interface Station {
   logo: string;
   group?: string;
   type?: 'radio' | 'tv';
+  isHttp?: boolean;
 }
 
 const COUNTRIES = [
@@ -151,7 +152,8 @@ export function RadioTV() {
         url: d.url_resolved,
         logo: d.favicon || '',
         group: d.tags,
-        type: 'radio'
+        type: 'radio',
+        isHttp: typeof d.url_resolved === 'string' && d.url_resolved.startsWith('http://')
       })).filter((s: Station) => s.url);
       
       setStations(parsed);
@@ -202,7 +204,7 @@ export function RadioTV() {
           } else if (line.startsWith('http')) {
             if (current.name) {
               const streamUrl = line.trim();
-              channels.push({ ...current, url: streamUrl } as Station);
+              channels.push({ ...current, url: streamUrl, isHttp: streamUrl.startsWith('http://') } as Station);
               current = {};
             }
           }
@@ -485,13 +487,24 @@ export function RadioTV() {
               return (
                 <React.Fragment key={item.id}>
                 <div  
-                  onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                  className={`aspect-[4/3] p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                  onClick={() => {
+                    if (item.isHttp) {
+                      alert(t('httpChannelWarning') || "Этот канал недоступен в веб-версии из-за ограничений браузера (HTTP). Он будет работать в приложении.");
+                      return;
+                    }
+                    activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)
+                  }}
+                  className={`aspect-[4/3] relative p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'} ${item.isHttp ? 'opacity-60 grayscale-[50%]' : ''}`}
                   style={{ 
                     backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
                     borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                   }}
                 >
+                  {item.isHttp && (
+                     <div className="absolute top-1 right-1 text-[8px] bg-red-500/80 text-white px-1.5 py-0.5 rounded shadow-sm z-10 font-bold backdrop-blur-md">
+                        APP ONLY
+                     </div>
+                  )}
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                     {item.logo ? (
                       <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
