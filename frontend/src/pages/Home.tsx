@@ -4,7 +4,7 @@ import { useApi, type Genre } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 
-import { Downloads } from '../components/Downloads';
+
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import { ExoClickWhiteVideoAd } from '../components/ExoClickWhiteVideoAd';
@@ -19,7 +19,7 @@ export function Home() {
   const { triggerAd } = useAdManager();
 
   
-  const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'downloads'>('movie');
+  const [activeTab, setActiveTab] = useState<'movie' | 'series'>('movie');
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [genres, setGenres] = useState<Genre[]>([]);
@@ -38,12 +38,7 @@ export function Home() {
     }
   }, [activeTab, fetchGenres, isSearching, language]);
 
-  useEffect(() => {
-    if (language !== 'ru-RU' && activeTab === 'downloads') {
-      setActiveTab('movie');
-      setPage(1);
-    }
-  }, [language, activeTab]);
+
 
   // Load content
   useEffect(() => {
@@ -96,7 +91,7 @@ export function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, isSearching, page]);
 
-  const handleTabChange = (tab: 'movie' | 'series' | 'downloads') => {
+  const handleTabChange = (tab: 'movie' | 'series') => {
     setActiveTab(tab);
     setPage(1);
     setSelectedGenre('');
@@ -122,7 +117,6 @@ export function Home() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
           ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button
@@ -136,7 +130,7 @@ export function Home() {
               if (tab.id === 'radio-tv') {
                 navigate('/radio-tv');
               }
-              else handleTabChange(tab.id as 'movie' | 'series' | 'downloads');
+              else handleTabChange(tab.id as 'movie' | 'series');
             }}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
@@ -149,22 +143,19 @@ export function Home() {
         ))}
       </div>
 
-      {/* Search Input */}
-      {activeTab !== 'downloads' && (
-        <div className="mb-4">
-          <input 
-            type="text" 
-            placeholder={t('searchPlaceholder')} 
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
-            style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-          />
-        </div>
-      )}
+      <div className="mb-4">
+        <input 
+          type="text" 
+          placeholder={t('searchPlaceholder')} 
+          value={searchQuery}
+          onChange={handleSearchChange}
+          className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
+          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+        />
+      </div>
 
       {/* Filters (hidden when searching) */}
-      {!isSearching && activeTab !== 'downloads' && (
+      {!isSearching && (
         <div className="flex gap-3 mb-6">
           <select 
             className="flex-1 p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm"
@@ -184,9 +175,7 @@ export function Home() {
       <ExoClickWhiteVideoAd />
 
       {/* Content Grid */}
-      {activeTab === 'downloads' ? (
-        <Downloads />
-      ) : (
+      <>
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {items.map((item, idx) => (
@@ -229,7 +218,7 @@ export function Home() {
             </div>
           )}
         </>
-      )}
+      </>
     </div>
   );
 }
