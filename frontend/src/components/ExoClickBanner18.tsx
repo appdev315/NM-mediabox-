@@ -8,6 +8,15 @@ export function ExoClickBanner18() {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Determine how many banners to show based on screen width
+    const width = window.innerWidth;
+    let count = 1;
+    if (width >= 1080) {
+      count = 3; // Desktop: 3 banners
+    } else if (width >= 720) {
+      count = 2; // Tablet: 2 banners
+    }
+
     const loadAd = () => {
       const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
       if (!scriptLoaded) {
@@ -19,7 +28,12 @@ export function ExoClickBanner18() {
       }
 
       if (containerRef.current) {
-        containerRef.current.innerHTML = '<ins class="eas6a97888e2" data-zoneid="5965656" data-ex_av="name"></ins>';
+        let html = '<div class="flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap">';
+        for (let i = 0; i < count; i++) {
+          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:flex; justify-content:center; min-width:300px; min-height:250px;"></ins>';
+        }
+        html += '</div>';
+        containerRef.current.innerHTML = html;
       }
 
       try {
@@ -36,7 +50,7 @@ export function ExoClickBanner18() {
   }, []);
 
   return (
-    <div ref={containerRef} className="flex justify-center items-center w-full my-6 min-h-[250px]">
+    <div ref={containerRef} className="w-full my-6 min-h-[250px]">
     </div>
   );
 }
