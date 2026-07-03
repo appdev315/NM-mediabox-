@@ -74,18 +74,21 @@ export function Downloads() {
     }
   };
 
-  const triggerDownload = (url: string) => {
+  const handleDownload = (link: { url: string }) => {
     try {
       if (WebApp?.HapticFeedback) {
         WebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch (e) {}
 
-    // Direct download — no server proxy needed
+    const targetUrl = (link.url.includes('vasqa.org') || link.url.includes('vsimk.com') || link.url.includes('serversimka.net'))
+      ? `${BACKEND_URL}/api/downloads/proxy?url=${encodeURIComponent(link.url)}`
+      : link.url;
+
     if (WebApp.platform !== 'unknown' && WebApp.openLink) {
-      WebApp.openLink(url);
+      WebApp.openLink(targetUrl);
     } else {
-      window.open(url, '_blank');
+      window.open(targetUrl, '_blank');
     }
   };
 
@@ -104,23 +107,23 @@ export function Downloads() {
       </div>
 
       {/* Content Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {items.map((item, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
           <div 
             onClick={() => openDownloadModal(item)}
-            className="flex flex-col gap-2 cursor-pointer active:scale-95 transition-transform group"
+            className="flex flex-col gap-2 cursor-pointer group"
           >
-            <div className="relative overflow-hidden rounded-xl shadow-md transition-transform duration-300 group-hover:shadow-xl">
+            <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl">
               <img 
                 src={item.poster} 
                 alt={item.title} 
                 className="w-full aspect-[2/3] object-cover"
               />
             </div>
-            <div>
+            <div className="mt-1">
               <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.title}</h3>
-              {item.info && <p className="text-xs opacity-70 mt-1 line-clamp-1">{item.info}</p>}
+              {item.info && <p className="text-xs opacity-90 mt-1 line-clamp-1">{item.info}</p>}
             </div>
           </div>
           {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card" />}
@@ -170,17 +173,16 @@ export function Downloads() {
                 <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin" />
               </div>
             ) : downloadLinks.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm opacity-70 mb-2">Select video quality to download:</p>
-                {downloadLinks.map((link, i) => (
+              <div className="flex flex-col gap-2 w-full mt-4">
+                {downloadLinks.map((link, idx) => (
                   <button
-                    key={i}
-                    onClick={() => triggerDownload(link.url)}
-                    className="w-full p-4 rounded-xl font-bold flex justify-between items-center shadow-md active:scale-95 transition-transform"
+                    key={idx}
+                    onClick={() => handleDownload(link)}
+                    className="w-full py-3 px-4 rounded-xl font-bold flex items-center justify-between transition-colors shadow-md active:scale-95 transition-transform"
                     style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
                   >
                     <span>{link.quality}</span>
-                    <span className="opacity-80 text-sm">{link.size}</span>
+                    <span className="opacity-80 font-normal">{link.size}</span>
                   </button>
                 ))}
               </div>
