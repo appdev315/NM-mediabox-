@@ -4,11 +4,11 @@ export function ExoClickMainBanner() {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
+  const isMobile = window.innerWidth < 768;
+
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-
-    const isMobile = window.innerWidth < 768;
 
     const loadAd = () => {
       const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
@@ -42,7 +42,19 @@ export function ExoClickMainBanner() {
   }, []);
 
   return (
-    <div ref={containerRef} className="flex justify-center items-center w-full mb-6">
+    <div className="w-full mb-6 relative z-10" style={{ minHeight: isMobile ? '100px' : '250px' }}>
+      <style>{`
+        .eas6a97888e10 { 
+          display: flex !important; 
+          flex-direction: row !important; 
+          overflow-x: auto !important; 
+          gap: 8px;
+          padding-bottom: 4px;
+        }
+        .eas6a97888e10::-webkit-scrollbar { display: none; }
+      `}</style>
+      <div ref={containerRef} className="flex justify-center items-center w-full h-full">
+      </div>
     </div>
   );
 }
