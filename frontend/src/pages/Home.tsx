@@ -199,7 +199,7 @@ export function Home() {
                 </div>
               </div>
               {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
-              {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card aspect-[2/3] w-full rounded-xl" />}
+              {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />}
               </React.Fragment>
             ))}
           </div>
