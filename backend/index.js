@@ -12,7 +12,6 @@ import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
 import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
 import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
 import { translateItems, initTmdbCache } from './tmdbCache.js';
-import { ThrottleStream } from './throttle.js';
 
 // Setup Global Proxy Rotation if defined
 if (process.env.PROXY_URL) {
@@ -34,33 +33,23 @@ if (process.env.PROXY_URL) {
     });
 }
 
-import { createClient } from 'redis';
-const redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
-
-redisClient.on('error', (err) => console.error('[Redis] Error', err));
-redisClient.connect().then(() => {
-    console.log('[Redis] Connected');
-    initTmdbCache(redisClient);
-}).catch(e => console.error('[Redis] Connection failed', e));
+import NodeCache from 'node-cache';
+const memoryCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 });
+console.log('[Cache] In-memory NodeCache initialized');
+initTmdbCache(memoryCache);
 
 const pendingMoviePromises = new Map();
 
 async function withMovieCache(key, ttlSeconds, fetcher) {
-    try {
-        const cached = await redisClient.get(key);
-        if (cached) return JSON.parse(cached);
-    } catch(e) {
-        console.error('[Redis] GET Error', e);
-    }
+    const cached = memoryCache.get(key);
+    if (cached) return cached;
     
     if (pendingMoviePromises.has(key)) {
         return pendingMoviePromises.get(key);
     }
     
     const promise = fetcher().then(data => {
-        redisClient.setEx(key, ttlSeconds, JSON.stringify(data)).catch(e => console.error('[Redis] SET Error', e));
+        memoryCache.set(key, data, ttlSeconds);
         pendingMoviePromises.delete(key);
         return data;
     }).catch(err => {
@@ -581,46 +570,8 @@ app.get('/api/adult/stream', checkAdultAccess, async (req, res) => {
     }
 });
 
-app.get('/api/downloads/proxy', async (req, res) => {
-    try {
-        const urlStr = req.query.url;
-        if (!urlStr) return res.status(400).send('URL required');
-        const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
-        
-        if (!isValidUrl(decodedUrl)) {
-            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
-        }
-        
-        let referer = 'https://kinozuma.net';
-        if (decodedUrl.includes('vasqa.org') || decodedUrl.includes('serversimka.net') || decodedUrl.includes('kinovasek.net')) {
-            referer = 'https://kinovasek.net';
-        }
-
-        const response = await axios({
-            url: decodedUrl,
-            method: 'GET',
-            responseType: 'stream',
-            headers: {
-                'Referer': referer,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-            }
-        });
-        
-        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp4');
-        if (response.headers['content-length']) {
-            res.setHeader('Content-Length', response.headers['content-length']);
-        }
-        res.setHeader('Content-Disposition', 'attachment; filename="movie.mp4"');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-
-        // Throttle download to 2 MB/s (per user connection) to preserve bandwidth
-        const throttle = new ThrottleStream(2 * 1024 * 1024);
-        response.data.pipe(throttle).pipe(res);
-    } catch (e) {
-        console.error('Proxy error:', e.message);
-        res.status(500).send('Proxy error');
-    }
-});
+// Video proxy endpoint removed — users now get direct download links
+// This saves bandwidth and CPU on the server
 
 // Global Error Handler
 app.use((err, req, res, next) => {

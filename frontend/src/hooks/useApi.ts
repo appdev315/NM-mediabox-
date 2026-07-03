@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
-const API_BASE = 'https://backend.app-dev315.workers.dev/api'; // В проде заменить на Cloudflare URL
+export const API_BASE = 'https://backend.app-dev315.workers.dev/api'; // В проде заменить на Cloudflare URL
 const TMDB_API_KEY = 'cd5b69242e715dc87d65957d7460eba2';
 
 export interface TMDBMovie {

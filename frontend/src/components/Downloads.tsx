@@ -81,14 +81,12 @@ export function Downloads() {
       }
     } catch (e) {}
 
-    const proxyUrl = `${BACKEND_URL}/api/downloads/proxy?url=${btoa(url)}`;
-    
-    const a = document.createElement('a');
-    a.href = proxyUrl;
-    a.target = '_self'; // Open in same tab or trigger download directly
-    a.download = 'movie.mp4';
-    document.body.appendChild(a);
-    a.click();
+    // Direct download — no server proxy needed
+    if (WebApp.platform !== 'unknown' && WebApp.openLink) {
+      WebApp.openLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
   };
 
   return (
