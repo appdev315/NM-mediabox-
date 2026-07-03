@@ -5,13 +5,9 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import * as cheerio from 'cheerio';
+
 import xvideosScraper from './xvideos.js';
 import epornerScraper from './epornerScraper.js';
-import { getAnwapDownloadInfo, getAnwapSeriesLink } from './anwapScraper.js';
-import { getLatestDownloads as kinovasekLatest, searchDownloads as kinovasekSearch, getDownloadLinks as kinovasekLinks } from './downloadScraper.js';
-import { getLatestDownloads as kinozumaLatest, searchDownloads as kinozumaSearch, getDownloadLinks as kinozumaLinks } from './kinozumaScraper.js';
-import { translateItems, initTmdbCache } from './tmdbCache.js';
 
 // Setup Global Proxy Rotation if defined
 if (process.env.PROXY_URL) {
@@ -36,7 +32,6 @@ if (process.env.PROXY_URL) {
 import NodeCache from 'node-cache';
 const memoryCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 });
 console.log('[Cache] In-memory NodeCache initialized');
-initTmdbCache(memoryCache);
 
 const pendingMoviePromises = new Map();
 
@@ -255,215 +250,9 @@ async function checkAdultAccess(req, res, next) {
 }
 
 
-// Function to validate URL for SSRF protection
-function isValidUrl(urlStr) {
-    try {
-        const parsed = new URL(urlStr);
-        const hostname = parsed.hostname;
-        const allowedDomains = ['kinozuma.net', 'kinovasek.net', 'anwap.tube', 'anwap.im', 'anwap.bio', 'anwap.site', 'anwap.pm', 'anwap.best', 'mj.anwap.today', 'mm.anwap.media', 'm.anwap.media'];
-        
-        // Exact match
-        if (allowedDomains.includes(hostname)) return true;
-        
-        // Strict subdomain match (must end with .domain)
-        const allowedSuffixes = ['.anwap.tube', '.kinozuma.net', '.kinovasek.net'];
-        for (const suffix of allowedSuffixes) {
-            if (hostname.endsWith(suffix)) return true;
-        }
-        
-        return false;
-    } catch (e) {
-        return false;
-    }
-}
 
-// --- DOWNLOADS API ---
-app.get('/api/downloads/latest', async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const targetLanguage = req.query.lang || 'en-US';
-        const cacheKey = `movies_latest_${page}_${targetLanguage}`;
 
-        const finalData = await withMovieCache(cacheKey, 7200, async () => {
-            let results = [];
-            if (page === 1) {
-                const [kinozuma, kinovasek] = await Promise.all([
-                    kinozumaLatest(),
-                    kinovasekLatest(page)
-                ]);
-                results = [...kinozuma, ...kinovasek];
-            } else {
-                results = await kinovasekLatest(page);
-            }
-
-            // Deduplicate
-            const seen = new Set();
-            results = results.filter(item => {
-                if (!item.title) return false;
-                if (seen.has(item.title)) return false;
-                seen.add(item.title);
-                return true;
-            });
-
-            return await translateItems(results, targetLanguage);
-        });
-
-        res.json(finalData);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/downloads/search', async (req, res) => {
-    try {
-        const q = req.query.q;
-        const targetLanguage = req.query.lang || 'en-US';
-        if (!q) return res.status(400).json({ error: 'Query required' });
-        const cacheKey = `movies_search_${q}_${targetLanguage}`;
-
-        const finalData = await withMovieCache(cacheKey, 7200, async () => {
-            const [kinozuma, kinovasek] = await Promise.all([
-                kinozumaSearch(q),
-                kinovasekSearch(q)
-            ]);
-            
-            let results = [...kinozuma, ...kinovasek];
-            
-            // Deduplicate
-            const seen = new Set();
-            results = results.filter(item => {
-                if (!item.title) return false;
-                if (seen.has(item.title)) return false;
-                seen.add(item.title);
-                return true;
-            });
-
-            return await translateItems(results, targetLanguage);
-        });
-
-        res.json(finalData);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/downloads/links', async (req, res) => {
-    try {
-        const urlStr = req.query.url;
-        if (!urlStr) return res.status(400).json({ error: 'URL required' });
-        const decodedUrl = Buffer.from(urlStr, 'base64').toString('utf8');
-        
-        if (!isValidUrl(decodedUrl)) {
-            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
-        }
-        
-        let responseLinks = [];
-        if (decodedUrl.includes('kinozuma.net')) {
-            responseLinks = await kinozumaLinks(decodedUrl);
-        } else {
-            const data = await kinovasekLinks(decodedUrl);
-            responseLinks = data.links || [];
-        }
-
-        res.json({ links: responseLinks });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Video proxy for sites with hotlink protection (Kinozuma/Kinovasek)
-app.get('/api/downloads/proxy', async (req, res) => {
-    const targetUrl = req.query.url;
-    if (!targetUrl) return res.status(400).send('No URL provided');
-
-    try {
-        let referer = 'https://mobile.kinozuma.net';
-        if (targetUrl.includes('vasqa.org') || targetUrl.includes('serversimka.net') || targetUrl.includes('kinovasek.net')) {
-            referer = 'https://kinovasek.net';
-        }
-
-        const response = await axios({
-            url: targetUrl,
-            method: 'GET',
-            responseType: 'stream',
-            headers: {
-                'Referer': referer,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
-
-        res.setHeader('Content-Type', response.headers['content-type'] || 'video/mp4');
-        if (response.headers['content-length']) {
-            res.setHeader('Content-Length', response.headers['content-length']);
-        }
-        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-
-        response.data.pipe(res);
-    } catch (error) {
-        console.error('Proxy Error:', error.message);
-        res.status(500).send('Failed to proxy video');
-    }
-});
-
-const MIRRORS = [
-    'https://mj.anwap.today',
-    'https://mm.anwap.media',
-    'https://m.anwap.media',
-    'https://anwap.tube',
-    'https://anwap.im',
-    'https://anwap.bio',
-    'https://anwap.site',
-    'https://anwap.pm',
-    'https://anwap.best'
-];
-
-let activeMirror = null;
-
-async function getActiveMirror() {
-    if (activeMirror) return activeMirror;
-    
-    console.log('[Mirrors] Ping all mirrors to find the fastest active one...');
-    const promises = MIRRORS.map(async (mirror) => {
-        try {
-            await axios.get(mirror, { 
-                timeout: 3000, 
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-                validateStatus: (status) => status === 200
-            });
-            return mirror;
-        } catch (e) {
-            throw e;
-        }
-    });
-
-    try {
-        activeMirror = await Promise.any(promises);
-        console.log(`[Mirrors] Selected active mirror: ${activeMirror}`);
-        return activeMirror;
-    } catch (e) {
-        console.log('[Mirrors] All mirrors failed!');
-        return null;
-    }
-}
-
-app.get('/', (req, res) => res.json({ status: 'OK', message: 'Anwap Video API is running' }));
-
-app.get('/api/test-anwap', async (req, res) => {
-    try {
-        let result = '';
-        for (const mirror of MIRRORS) {
-            try {
-                const response = await axios.get(mirror, { timeout: 3000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-                result += `${mirror}: OK (${response.status})\n`;
-            } catch (e) {
-                result += `${mirror}: ERROR (${e.message})\n`;
-            }
-        }
-        res.send(result);
-    } catch (e) {
-        res.send('Error: ' + e.message);
-    }
-});
+app.get('/', (req, res) => res.json({ status: 'OK', message: 'MediaBox API is running' }));
 
 const imdbCache = {}; // Simple in-memory cache for TMDB -> IMDb lookups
 
@@ -523,36 +312,7 @@ app.get('/api/stream', async (req, res) => {
 
 
 
-// --- Download (Anwap Scraper) ---
 
-app.get('/api/download/info', async (req, res) => {
-    const { title, isTv } = req.query;
-    if (!title) return res.status(400).json({ error: 'Title required' });
-    
-    try {
-        const info = await getAnwapDownloadInfo(title, isTv === 'true');
-        return res.json(info);
-    } catch (e) {
-        console.error('[VIP Download Info]', e.message);
-        return res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/download/link', async (req, res) => {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: 'URL required' });
-    
-    try {
-        if (!isValidUrl(url)) {
-            return res.status(403).json({ error: 'Forbidden: Invalid domain (SSRF Protection)' });
-        }
-        const info = await getAnwapSeriesLink(url);
-        return res.json(info);
-    } catch (e) {
-        console.error('[VIP Download Link]', e.message);
-        return res.status(500).json({ error: e.message });
-    }
-});
 
 
 
@@ -604,8 +364,7 @@ app.get('/api/adult/stream', checkAdultAccess, async (req, res) => {
     }
 });
 
-// Video proxy endpoint removed — users now get direct download links
-// This saves bandwidth and CPU on the server
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

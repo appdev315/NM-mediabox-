@@ -8,7 +8,7 @@ import { WebApp } from '../telegram';
 import React from 'react';
 
 export function Favorites() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
 
@@ -196,7 +196,7 @@ export function Favorites() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(language === 'ru-RU' ? [{ id: 'downloads', label: t('downloadsTab') }] : []),
+
           ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button 
@@ -235,12 +235,7 @@ export function Favorites() {
             </div>
           </div>
         )}
-        {activeTab === 'downloads' && (
-          <div className="text-center mt-12 opacity-50 flex flex-col items-center gap-2">
-            <span className="text-4xl">📥</span>
-            <p style={{ color: 'var(--text-color)' }}>{t('emptyFavorites')}</p>
-          </div>
-        )}
+
 
       </div>
     </div>
