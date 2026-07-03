@@ -7,7 +7,7 @@ import { useAdManager } from '../context/AdManager';
 
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
-import { ExoClickWhiteVideoAd } from '../components/ExoClickWhiteVideoAd';
+
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
 import { shouldShowAd } from '../utils/adPlacement';
@@ -172,7 +172,7 @@ export function Home() {
       )}
 
       {/* Outstream Video Ad (Testing White App) */}
-      <ExoClickWhiteVideoAd />
+
 
       {/* Content Grid */}
       <>

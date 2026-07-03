@@ -7,8 +7,7 @@ import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
-import { ExoClickVideoAd } from '../components/ExoClickVideoAd';
-import { ExoClickInterstitial } from '../components/ExoClickInterstitial';
+
 
 export function AdultVideo() {
   const { id } = useParams();
@@ -107,7 +106,7 @@ export function AdultVideo() {
         </div>
         
         <div id="video-player-container">
-          <ExoClickInterstitial />
+
           <div className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black shadow-xl mb-8 flex items-center justify-center">
             {details.mp4 ? (
               <ReactPlayer
@@ -129,7 +128,7 @@ export function AdultVideo() {
         </p>
         
         <div className="mb-8">
-          <ExoClickVideoAd />
+
         </div>
 
         {/* Related Videos */}
