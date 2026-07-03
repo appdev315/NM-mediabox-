@@ -476,7 +476,7 @@ export function RadioTV() {
         ) : filteredList.length === 0 ? (
           <div className="text-center opacity-50 mt-10" style={{ color: 'var(--text-color)' }}>{t('notFound')}</div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pb-24">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-24">
             {displayedList.map((item, idx) => {
               const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
               const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
@@ -486,22 +486,22 @@ export function RadioTV() {
                 <React.Fragment key={item.id}>
                 <div  
                   onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                  className={`aspect-[4/3] p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                  className={`aspect-[4/3] p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
                   style={{ 
                     backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
                     borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                   }}
                 >
-                  <div className="w-16 h-16 rounded-xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                     {item.logo ? (
                       <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
-                      <span className="text-4xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
+                      <span className="text-2xl sm:text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
                     )}
                   </div>
                   
                   <div className="w-full flex-1 min-w-0 mt-1">
-                    <div className="font-bold truncate text-sm" style={{ color: 'var(--text-color)' }}>
+                    <div className="font-bold truncate text-[10px] sm:text-xs" style={{ color: 'var(--text-color)' }}>
                       {item.name}
                     </div>
                     {item.group && (

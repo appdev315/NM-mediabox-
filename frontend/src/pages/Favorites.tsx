@@ -70,7 +70,7 @@ export function Favorites() {
     const list = tmdbFavs.filter(f => f.type === type);
     if (list.length === 0) return <div className="text-center mt-12 opacity-50" style={{ color: 'var(--text-color)' }}>{t('emptyList')}</div>;
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 w-[90%] mx-auto">
         {list.map((item: any, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
           <div 
@@ -138,7 +138,7 @@ export function Favorites() {
           </div>
         )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {list.map((item: any) => {
             const isRadioActive = activeTab === 'Radio' && currentTrack?.id === item.id;
             const isTvActive = activeTab === 'TV' && activeTvChannel?.id === item.id;
@@ -148,21 +148,21 @@ export function Favorites() {
               <div 
                 key={item.id} 
                 onClick={() => type === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                className={`p-3 rounded-xl flex flex-col items-center text-center gap-2 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                className={`p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
                 style={{ 
                   backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
                   borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                 }}
               >
-                <div className="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                   {item.logo ? (
                     <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                   ) : (
-                    <span className="text-3xl">{type === 'radio' ? '📻' : '📺'}</span>
+                    <span className="text-2xl sm:text-3xl">{type === 'radio' ? '📻' : '📺'}</span>
                   )}
                 </div>
                 <div className="w-full flex-1 min-w-0 mt-1">
-                  <div className="font-bold truncate text-sm" style={{ color: 'var(--text-color)' }}>{item.name}</div>
+                  <div className="font-bold truncate text-[10px] sm:text-xs px-1" style={{ color: 'var(--text-color)' }}>{item.name}</div>
                   {item.group && <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>{item.group}</div>}
                 </div>
                 <div className="flex w-full justify-between items-center px-1 mt-auto">
