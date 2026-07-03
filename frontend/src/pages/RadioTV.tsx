@@ -549,7 +549,7 @@ export function RadioTV() {
                     </span>
                   </div>
                 </div>
-                {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card row-span-2" />}
+                {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card aspect-[4/3] w-full rounded-xl" />}
               </React.Fragment>
               );
             })}
