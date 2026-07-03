@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
+import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 
 import { shouldShowAd } from '../utils/adPlacement';
 
@@ -269,7 +270,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
-
+          <ExoClickBanner18 />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto">
             {videos.map((v, idx) => (
               <React.Fragment key={v.id}>

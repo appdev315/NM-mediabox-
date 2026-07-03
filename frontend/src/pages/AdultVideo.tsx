@@ -7,6 +7,7 @@ import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
+import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 
 
 export function AdultVideo() {
@@ -128,7 +129,7 @@ export function AdultVideo() {
         </p>
         
         <div className="mb-8">
-
+          <ExoClickBanner18 />
         </div>
 
         {/* Related Videos */}
