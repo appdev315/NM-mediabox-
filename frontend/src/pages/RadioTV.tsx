@@ -212,13 +212,13 @@ export function RadioTV() {
                 // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false } as Station);
               } else {
-                // HTTP goes through Cloudflare Worker to avoid Mixed Content
-                // ВАЖНО: Замените ссылку ниже на URL вашего воркера!
-                const WORKER_URL = "https://backend.ВАШ-САБДОМЕН.workers.dev";
+                // HTTP goes through Cloudflare Pages Function to avoid Mixed Content
+                // Встроенный прокси Cloudflare Pages
+                const WORKER_URL = "/api/proxy";
                 
                 channels.push({ 
                   ...current, 
-                  url: `${WORKER_URL}/?url=${encodeURIComponent(streamUrl)}`, 
+                  url: `${WORKER_URL}?url=${encodeURIComponent(streamUrl)}`, 
                   isHttp: true 
                 });
               }
