@@ -14,9 +14,9 @@ if (process.env.PROXY_URL) {
     const proxyUrls = process.env.PROXY_URL.split(',').map(u => u.trim()).filter(u => u);
     const proxyAgents = proxyUrls.map(url => new HttpsProxyAgent(url));
     console.log(`[Proxy] Configured ${proxyAgents.length} proxy agents for rotation.`);
-    
+
     axios.defaults.proxy = false; // Disable axios's native proxy logic
-    
+
     let proxyIndex = 0;
     axios.interceptors.request.use((config) => {
         if (proxyAgents.length > 0) {
@@ -38,11 +38,11 @@ const pendingMoviePromises = new Map();
 async function withMovieCache(key, ttlSeconds, fetcher) {
     const cached = memoryCache.get(key);
     if (cached) return cached;
-    
+
     if (pendingMoviePromises.has(key)) {
         return pendingMoviePromises.get(key);
     }
-    
+
     const promise = fetcher().then(data => {
         memoryCache.set(key, data, ttlSeconds);
         pendingMoviePromises.delete(key);
@@ -51,7 +51,7 @@ async function withMovieCache(key, ttlSeconds, fetcher) {
         pendingMoviePromises.delete(key);
         throw err;
     });
-    
+
     pendingMoviePromises.set(key, promise);
     return promise;
 }
@@ -76,7 +76,7 @@ const serverMetrics = {
 
 app.use((req, res, next) => {
     serverMetrics.totalRequests++;
-    
+
     // Track response finish
     res.on('finish', () => {
         if (res.statusCode === 200 || res.statusCode === 304 || res.statusCode === 206) {
@@ -97,7 +97,7 @@ app.use((req, res, next) => {
             serverMetrics.errors.total++;
         }
     });
-    
+
     next();
 });
 
@@ -108,13 +108,13 @@ app.get('/api/stats', (req, res) => {
     if (authHeader !== `Bearer ${expectedToken}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     const uptimeSec = Math.floor((Date.now() - serverMetrics.startTime) / 1000);
     const stats = {
         uptime_seconds: uptimeSec,
         metrics: serverMetrics
     };
-    
+
     // Reset stats after fetching (since we fetch daily)
     if (req.query.reset === 'true') {
         serverMetrics.totalRequests = 0;
@@ -128,7 +128,7 @@ app.get('/api/stats', (req, res) => {
         };
         // Убрали сброс startTime, чтобы аптайм отражал реальное время работы контейнера
     }
-    
+
     res.json(stats);
 });
 
@@ -139,10 +139,10 @@ app.use(helmet({
 
 // Rate limiting (100 requests per 10 minutes per IP)
 const limiter = rateLimit({
-    windowMs: 10 * 60 * 1000, 
-    max: 100, 
-    standardHeaders: true, 
-    legacyHeaders: false, 
+    windowMs: 10 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
     message: { error: "Too many requests from this IP, please try again after 10 minutes" }
 });
 
@@ -169,7 +169,7 @@ import crypto from 'crypto';
 function verifyTelegramWebAppData(initData) {
     const BOT_TOKEN_MAIN = process.env.BOT_TOKEN_MAIN || process.env.BOT_TOKEN;
     const BOT_TOKEN_ADULT = process.env.BOT_TOKEN_ADULT;
-    
+
     if (!BOT_TOKEN_MAIN && !BOT_TOKEN_ADULT) {
         throw new Error('Missing BOT_TOKENs');
     }
@@ -177,11 +177,11 @@ function verifyTelegramWebAppData(initData) {
     const q = new URLSearchParams(initData);
     const hash = q.get('hash');
     q.delete('hash');
-    
+
     const keys = Array.from(q.keys());
     keys.sort();
     const dataCheckString = keys.map(k => `${k}=${q.get(k)}`).join('\n');
-    
+
     const validateToken = (token) => {
         if (!token) return false;
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
@@ -191,21 +191,21 @@ function verifyTelegramWebAppData(initData) {
 
     let matchedToken = null;
     let isAdultBot = false;
-    
+
     if (validateToken(BOT_TOKEN_MAIN)) {
         matchedToken = BOT_TOKEN_MAIN;
     } else if (validateToken(BOT_TOKEN_ADULT)) {
         matchedToken = BOT_TOKEN_ADULT;
         isAdultBot = true;
     }
-    
+
     if (!matchedToken) {
         return null; // Invalid signature
     }
 
     const userJson = q.get('user');
     if (!userJson) return null;
-    
+
     return {
         user: JSON.parse(userJson),
         botToken: matchedToken,
@@ -229,7 +229,7 @@ async function requireAuth(req, res, next) {
         if (!authData) {
             return res.status(401).json({ error: 'Unauthorized: Invalid signature' });
         }
-        
+
         req.user = authData.user;
         req.botToken = authData.botToken;
         req.isAdultBot = authData.isAdultBot;
@@ -254,17 +254,116 @@ async function checkAdultAccess(req, res, next) {
 
 app.get('/', (req, res) => res.json({ status: 'OK', message: 'MediaBox API is running' }));
 
+// --- CORS Proxy for TV HLS manifests (NOT for infinite audio/video streams) ---
+
+// Stricter rate limit for proxy endpoint (30 req/min per IP)
+const proxyLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many proxy requests, slow down' }
+});
+
+// Validate URL: block private IPs, localhost, non-http(s) schemes
+function isAllowedProxyUrl(urlStr) {
+    try {
+        const parsed = new URL(urlStr);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+        const host = parsed.hostname.toLowerCase();
+        // Block localhost, private ranges, link-local
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
+        if (host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('0.')) return false;
+        if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return false;
+        if (host.startsWith('169.254.')) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+app.get('/api/proxy/stream', proxyLimiter, async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+
+    if (!isAllowedProxyUrl(url)) {
+        return res.status(403).json({ error: 'URL not allowed' });
+    }
+
+    try {
+        console.log(`[Proxy] Fetching: ${url}`);
+
+        const response = await axios({
+            method: 'GET',
+            url: url,
+            responseType: 'stream',
+            maxContentLength: 10 * 1024 * 1024, // 10MB max — prevents infinite streams
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': url,
+                'Origin': new URL(url).origin
+            },
+            timeout: 15000 // 15s — enough for manifests, not for infinite streams
+        });
+
+        // Set CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+
+        // Copy content type
+        const contentType = response.headers['content-type'];
+        if (contentType) {
+            res.setHeader('Content-Type', contentType);
+        }
+
+        // Pipe with size limit enforcement
+        let transferred = 0;
+        const MAX_BYTES = 10 * 1024 * 1024;
+
+        response.data.on('data', (chunk) => {
+            transferred += chunk.length;
+            if (transferred > MAX_BYTES) {
+                response.data.destroy();
+                if (!res.headersSent) {
+                    res.status(413).json({ error: 'Response too large' });
+                } else {
+                    res.end();
+                }
+            }
+        });
+
+        response.data.pipe(res);
+
+        response.data.on('error', (err) => {
+            console.error('[Proxy] Stream error:', err.message);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Stream failed' });
+            }
+        });
+
+    } catch (error) {
+        console.error('[Proxy] Failed:', error.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Proxy failed' });
+        }
+    }
+});
+
 const imdbCache = {}; // Simple in-memory cache for TMDB -> IMDb lookups
 
 app.get('/api/stream', async (req, res) => {
     const { title, year, type, tmdb, imdb } = req.query;
     if (!title) return res.status(400).json({ error: 'Title is required' });
-    
+
     console.log(`[Stream API] Search request for: ${title} (${year || 'any year'}) type: ${type} tmdb: ${tmdb || 'none'} imdb: ${imdb || 'none'}`);
-    
+
     try {
         let imdbId = imdb;
-        
+
         if (!imdbId && tmdb) {
             if (imdbCache[tmdb]) {
                 imdbId = imdbCache[tmdb];
@@ -286,7 +385,7 @@ app.get('/api/stream', async (req, res) => {
                 { name: "Основной", url: `https://api.ortified.ws/embed/imdb/${imdbId}` },
                 { name: "Резерв", url: type === 'tv' || type === 'series' ? `https://vidsrc.me/embed/tv?imdb=${imdbId}` : `https://vidsrc.me/embed/movie?imdb=${imdbId}` }
             ];
-            return res.json({ 
+            return res.json({
                 iframe: sources[0].url,
                 sources: sources
             });
@@ -297,7 +396,7 @@ app.get('/api/stream', async (req, res) => {
                 const sources = [
                     { name: "Резерв", url: isTv ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}` : `https://vidsrc.me/embed/movie?tmdb=${tmdb}` }
                 ];
-                return res.json({ 
+                return res.json({
                     iframe: sources[0].url,
                     sources: sources
                 });
@@ -327,15 +426,15 @@ app.get('/api/adult/search', checkAdultAccess, async (req, res) => {
             xvideosScraper.search(q, p),
             epornerScraper.search(q, p)
         ]);
-        
+
         // Interleave the arrays to mix them nicely
         const mixed = [];
         const maxLen = Math.max(xvideosResults.length, epornerResults.length);
-        for(let i=0; i<maxLen; i++) {
+        for (let i = 0; i < maxLen; i++) {
             if (epornerResults[i]) mixed.push(epornerResults[i]);
             if (xvideosResults[i]) mixed.push(xvideosResults[i]);
         }
-        
+
         return res.json(mixed);
     } catch (e) {
         return res.status(500).json({ error: e.message });
@@ -345,7 +444,7 @@ app.get('/api/adult/search', checkAdultAccess, async (req, res) => {
 app.get('/api/adult/stream', checkAdultAccess, async (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'Missing id' });
-    
+
     try {
         let details;
         if (id.startsWith('eporner_')) {
@@ -353,7 +452,7 @@ app.get('/api/adult/stream', checkAdultAccess, async (req, res) => {
         } else {
             details = await xvideosScraper.getVideoDetails(id);
         }
-        
+
         if (details) {
             return res.json(details);
         } else {

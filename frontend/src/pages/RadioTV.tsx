@@ -8,6 +8,9 @@ import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { useNavigate } from 'react-router-dom';
 import { shouldShowAd } from '../utils/adPlacement';
 
+// Get backend URL from environment or use default
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://nm-backend.vercel.app';
+
 
 interface Station {
   id: string;
@@ -17,6 +20,7 @@ interface Station {
   group?: string;
   type?: 'radio' | 'tv';
   isHttp?: boolean;
+  originalUrl?: string; // Original URL for fallback if proxied URL fails
 }
 
 const COUNTRIES = [
@@ -86,11 +90,11 @@ export function RadioTV() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(50);
-  
+
   const [activeTvChannel, setActiveTvChannel] = useState<Station | null>(null);
   const [tvError, setTvError] = useState(false);
   const [tvLoading, setTvLoading] = useState(false);
-  
+
   // Favorites State
   const [favorites, setFavorites] = useState<Station[]>([]);
 
@@ -100,7 +104,7 @@ export function RadioTV() {
   useEffect(() => {
     const savedFavs = localStorage.getItem('radio_tv_favs');
     if (savedFavs) {
-      try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
+      try { setFavorites(JSON.parse(savedFavs)); } catch (e) { }
     }
   }, []);
 
@@ -117,25 +121,25 @@ export function RadioTV() {
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
     localStorage.setItem('tv_source', tvSource);
-    
+
     // Attempt to load from cache first
     const cachedRadio = localStorage.getItem(`cache_radio_${country}`);
     const cachedTv = localStorage.getItem(`cache_tv_${country}_src${tvSource}`);
     let hasCache = false;
-    
+
     if (cachedRadio) {
-      try { setStations(JSON.parse(cachedRadio)); hasCache = true; } catch(e){}
+      try { setStations(JSON.parse(cachedRadio)); hasCache = true; } catch (e) { }
     }
     if (cachedTv) {
-      try { setTvChannels(JSON.parse(cachedTv)); hasCache = true; } catch(e){}
+      try { setTvChannels(JSON.parse(cachedTv)); hasCache = true; } catch (e) { }
     }
-    
+
     if (!hasCache) {
       setLoading(true);
     } else {
       setLoading(false); // Instantly show cache, still fetch in background
     }
-    
+
     fetchRadio();
     fetchTV();
   }, [country, tvSource]);
@@ -145,7 +149,7 @@ export function RadioTV() {
       const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
       const res = await fetch(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
       const data = await res.json();
-      
+
       const parsed: Station[] = data.map((d: any) => ({
         id: d.stationuuid,
         name: d.name,
@@ -154,7 +158,7 @@ export function RadioTV() {
         group: d.tags,
         type: 'radio'
       })).filter((s: Station) => s.url);
-      
+
       setStations(parsed);
       localStorage.setItem(`cache_radio_${country}`, JSON.stringify(parsed));
     } catch (e) {
@@ -165,7 +169,7 @@ export function RadioTV() {
   const fetchTV = async () => {
     try {
       let url = `https://iptv-org.github.io/iptv/countries/${country}.m3u`;
-      
+
       if (tvSource === '2') {
         url = `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`;
       } else if (tvSource === '3') {
@@ -175,24 +179,24 @@ export function RadioTV() {
 
       const res = await fetch(url);
       if (!res.ok && tvSource === '3') {
-         // Fallback if country playlist doesn't exist in Free-TV
-         const fbRes = await fetch(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`);
-         var resText = await fbRes.text();
+        // Fallback if country playlist doesn't exist in Free-TV
+        const fbRes = await fetch(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`);
+        var resText = await fbRes.text();
       } else {
-         var resText = await res.text();
+        var resText = await res.text();
       }
 
       const parseM3u = (text: string) => {
         const lines = text.split('\n');
         const channels: Station[] = [];
         let current: Partial<Station> = {};
-        
+
         lines.forEach(line => {
           if (line.startsWith('#EXTINF:')) {
             const logoMatch = line.match(/tvg-logo="([^"]+)"/);
             const groupMatch = line.match(/group-title="([^"]+)"/);
             const name = line.split(',').pop()?.trim() || 'Unknown';
-            
+
             current = {
               id: Math.random().toString(36).substring(7),
               name,
@@ -222,8 +226,12 @@ export function RadioTV() {
   };
 
   const handlePlayRadio = (station: Station) => {
-    // If a TV channel is playing, we could stop it
+    // If a TV channel is playing, stop it
     setActiveTvChannel(null);
+
+    // Radio plays DIRECTLY — no proxy needed.
+    // Browser allows cross-origin <audio src>, and proxying infinite
+    // audio streams would overload the backend.
     playTrack({
       id: station.id,
       title: station.name,
@@ -239,14 +247,24 @@ export function RadioTV() {
     stop();
     setTvError(false);
     setTvLoading(true);
-    setActiveTvChannel(channel);
+
+    // For HLS (.m3u8) streams: try proxy first to bypass CORS, keep original for fallback.
+    // For direct streams: play as-is.
+    const url = channel.url;
+    const isHls = url.includes('.m3u8') || url.includes('.m3u');
+    if (isHls) {
+      const proxiedUrl = `${BACKEND_URL}/api/proxy/stream?url=${encodeURIComponent(url)}`;
+      setActiveTvChannel({ ...channel, url: proxiedUrl, originalUrl: url });
+    } else {
+      setActiveTvChannel({ ...channel, originalUrl: url });
+    }
   };
 
   const handleTabSwitch = (tab: 'radio' | 'tv') => {
     setActiveTab(tab);
     setVisibleCount(50);
     setSearch('');
-    
+
     if (tab === 'tv') {
       setShowTvWarning(true);
       setTimeout(() => {
@@ -305,21 +323,24 @@ export function RadioTV() {
 
       if (Hls.isSupported()) {
         const hls = new Hls({
-          maxBufferLength: 60,
-          maxMaxBufferLength: 120,
+          maxBufferLength: 30,           // Smaller for faster start
+          maxMaxBufferLength: 60,
           enableWorker: true,
-          lowLatencyMode: false,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 10,
-          manifestLoadingTimeOut: 8000,
-          levelLoadingTimeOut: 8000,
-          fragLoadingTimeOut: 8000,
+          lowLatencyMode: true,          // Better for live TV
+          liveSyncDurationCount: 2,      // Less latency
+          liveMaxLatencyDurationCount: 5,
+          manifestLoadingTimeOut: 15000,  // More time for slow sources
+          levelLoadingTimeOut: 15000,
+          fragLoadingTimeOut: 15000,
+          xhrSetup: (xhr: XMLHttpRequest) => {
+            xhr.withCredentials = false;  // For CORS
+          }
         });
         hlsRef.current = hls;
-        
+
         hls.loadSource(url);
         hls.attachMedia(video);
-        
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           video.play().catch(e => console.log('Autoplay prevented', e));
         });
@@ -336,12 +357,22 @@ export function RadioTV() {
                   console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
                   hls.startLoad();
                 } else {
-                  console.error('fatal network error, max retries reached');
-                  clearPlaybackTimeout();
-                  hls.destroy();
-                  hlsRef.current = null;
-                  setTvError(true);
-                  setTvLoading(false);
+                  // If we were using proxied URL and original exists, try original
+                  if (activeTvChannel?.originalUrl && activeTvChannel.url !== activeTvChannel.originalUrl) {
+                    console.log('[TV] Proxy failed, trying original URL...');
+                    clearPlaybackTimeout();
+                    hls.destroy();
+                    hlsRef.current = null;
+                    networkRetries = 0;
+                    setActiveTvChannel(prev => prev ? { ...prev, url: prev.originalUrl! } : null);
+                  } else {
+                    console.error('fatal network error, max retries reached');
+                    clearPlaybackTimeout();
+                    hls.destroy();
+                    hlsRef.current = null;
+                    setTvError(true);
+                    setTvLoading(false);
+                  }
                 }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
@@ -349,11 +380,20 @@ export function RadioTV() {
                 hls.recoverMediaError();
                 break;
               default:
-                clearPlaybackTimeout();
-                hls.destroy();
-                hlsRef.current = null;
-                setTvError(true);
-                setTvLoading(false);
+                // Same fallback logic for other fatal errors
+                if (activeTvChannel?.originalUrl && activeTvChannel.url !== activeTvChannel.originalUrl) {
+                  console.log('[TV] Error with proxy, trying original URL...');
+                  clearPlaybackTimeout();
+                  hls.destroy();
+                  hlsRef.current = null;
+                  setActiveTvChannel(prev => prev ? { ...prev, url: prev.originalUrl! } : null);
+                } else {
+                  clearPlaybackTimeout();
+                  hls.destroy();
+                  hlsRef.current = null;
+                  setTvError(true);
+                  setTvLoading(false);
+                }
                 break;
             }
           }
@@ -386,14 +426,14 @@ export function RadioTV() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4 p-1 rounded-xl" style={{ backgroundColor: 'var(--secondary-bg-color)' }}>
-        <button 
+        <button
           onClick={() => handleTabSwitch('radio')}
           className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'radio' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
           style={activeTab === 'radio' ? {} : { color: 'var(--text-color)' }}
         >
           Radio
         </button>
-        <button 
+        <button
           onClick={() => handleTabSwitch('tv')}
           className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'tv' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
           style={activeTab === 'tv' ? {} : { color: 'var(--text-color)' }}
@@ -411,15 +451,15 @@ export function RadioTV() {
 
       {/* Country & Source Filters */}
       <div className="mb-4 flex gap-2">
-        <select 
-          value={country} 
+        <select
+          value={country}
           onChange={(e) => {
             setCountry(e.target.value);
             setVisibleCount(50);
           }}
           className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-          style={{ 
-            backgroundColor: 'var(--bg-color)', 
+          style={{
+            backgroundColor: 'var(--bg-color)',
             color: 'var(--text-color)',
             borderColor: 'var(--hint-color)'
           }}
@@ -428,14 +468,14 @@ export function RadioTV() {
             <option key={c.code} value={c.code}>{c.name}</option>
           ))}
         </select>
-        
+
         {activeTab === 'tv' && (
           <select
             value={tvSource}
             onChange={(e) => setTvSource(e.target.value)}
             className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-            style={{ 
-              backgroundColor: 'var(--bg-color)', 
+            style={{
+              backgroundColor: 'var(--bg-color)',
               color: 'var(--text-color)',
               borderColor: 'var(--hint-color)'
             }}
@@ -448,17 +488,17 @@ export function RadioTV() {
       </div>
 
       {/* Search */}
-      <input 
-        type="text" 
-        placeholder={t('searchPlaceholderRadio')} 
+      <input
+        type="text"
+        placeholder={t('searchPlaceholderRadio')}
         value={search}
         onChange={(e) => {
           setSearch(e.target.value);
           setVisibleCount(50);
         }}
         className="w-full p-3 rounded-xl mb-4 border focus:outline-none focus:ring-2 focus:ring-blue-500"
-        style={{ 
-          backgroundColor: 'var(--bg-color)', 
+        style={{
+          backgroundColor: 'var(--bg-color)',
           color: 'var(--text-color)',
           borderColor: 'var(--hint-color)'
         }}
@@ -472,8 +512,8 @@ export function RadioTV() {
               {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-10 h-10 rounded-full shadow-md bg-white/10" />}
               <span className="font-bold text-white text-lg truncate shadow-sm drop-shadow-md">{activeTvChannel.name}</span>
             </div>
-            <button 
-              onClick={() => setActiveTvChannel(null)} 
+            <button
+              onClick={() => setActiveTvChannel(null)}
               className="text-white bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center transition-colors"
             >
               ✕
@@ -485,6 +525,19 @@ export function RadioTV() {
                 <span className="text-4xl mb-3">⚠️</span>
                 <p className="font-bold text-xl">Stream Unavailable</p>
                 <p className="text-sm opacity-70 mt-2 max-w-sm">The channel might be blocked by CORS, Geo-restrictions, or is currently offline.</p>
+                <button
+                  onClick={() => {
+                    if (activeTvChannel?.originalUrl) {
+                      setTvError(false);
+                      setTvLoading(true);
+                      // Retry with original URL
+                      setActiveTvChannel(prev => prev ? { ...prev, url: prev.originalUrl! } : null);
+                    }
+                  }}
+                  className="mt-4 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-colors"
+                >
+                  🔄 Retry
+                </button>
               </div>
             ) : (
               <>
@@ -493,10 +546,10 @@ export function RadioTV() {
                     <div className="w-12 h-12 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 )}
-                <video 
+                <video
                   ref={videoRef}
                   autoPlay
-                  controls 
+                  controls
                   playsInline
                   className={`w-full h-full object-contain z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}
                   onError={() => { setTvError(true); setTvLoading(false); }}
@@ -526,65 +579,65 @@ export function RadioTV() {
 
               return (
                 <React.Fragment key={item.id}>
-                <div  
-                  onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                  className={`aspect-[4/3] relative p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
-                  style={{ 
-                    backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
-                    borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
-                  }}
-                >
-                  {activeTab === 'tv' && item.isHttp && (
-                     <div className="absolute top-1 right-1 text-[8px] bg-orange-500/80 text-white px-1.5 py-0.5 rounded shadow-sm z-10 font-bold backdrop-blur-md">
+                  <div
+                    onClick={() => activeTab === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
+                    className={`aspect-[4/3] relative p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                    style={{
+                      backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
+                      borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
+                    }}
+                  >
+                    {activeTab === 'tv' && item.isHttp && (
+                      <div className="absolute top-1 right-1 text-[8px] bg-orange-500/80 text-white px-1.5 py-0.5 rounded shadow-sm z-10 font-bold backdrop-blur-md">
                         APP
-                     </div>
-                  )}
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
-                    {item.logo ? (
-                      <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                    ) : (
-                      <span className="text-2xl sm:text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
-                    )}
-                  </div>
-                  
-                  <div className="w-full flex-1 min-w-0 mt-1">
-                    <div className="font-bold truncate text-[10px] sm:text-xs" style={{ color: 'var(--text-color)' }}>
-                      {item.name}
-                    </div>
-                    {item.group && (
-                      <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>
-                        {item.group}
                       </div>
                     )}
-                  </div>
-
-                  <div className="flex w-full justify-between items-center px-1 mt-auto">
-                    <button 
-                      onClick={(e) => toggleFavorite(e, item)}
-                      className="text-xl hover:scale-110 transition-transform p-1"
-                      style={{ color: favorites.some(f => f.id === item.id) ? '#fbbf24' : 'var(--hint-color)' }}
-                    >
-                      {favorites.some(f => f.id === item.id) ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                      </svg>
-                    ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="transparent" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md opacity-90 hover:opacity-100">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                      </svg>
-                    )}
-                    </button>
-                    <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
-                                            {isActive ? (
-                        <div className="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></div>
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
+                      {item.logo ? (
+                        <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                       ) : (
-                        '›'
+                        <span className="text-2xl sm:text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
                       )}
-                    </span>
+                    </div>
+
+                    <div className="w-full flex-1 min-w-0 mt-1">
+                      <div className="font-bold truncate text-[10px] sm:text-xs" style={{ color: 'var(--text-color)' }}>
+                        {item.name}
+                      </div>
+                      {item.group && (
+                        <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>
+                          {item.group}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex w-full justify-between items-center px-1 mt-auto">
+                      <button
+                        onClick={(e) => toggleFavorite(e, item)}
+                        className="text-xl hover:scale-110 transition-transform p-1"
+                        style={{ color: favorites.some(f => f.id === item.id) ? '#fbbf24' : 'var(--hint-color)' }}
+                      >
+                        {favorites.some(f => f.id === item.id) ? (
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                          </svg>
+                        ) : (
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="transparent" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md opacity-90 hover:opacity-100">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                          </svg>
+                        )}
+                      </button>
+                      <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
+                        {isActive ? (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></div>
+                        ) : (
+                          '›'
+                        )}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                {shouldShowAd(idx) && <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />}
-              </React.Fragment>
+                  {shouldShowAd(idx) && <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />}
+                </React.Fragment>
               );
             })}
           </div>
