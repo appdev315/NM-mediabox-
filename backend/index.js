@@ -254,24 +254,23 @@ async function checkAdultAccess(req, res, next) {
 
 app.get('/', (req, res) => res.json({ status: 'OK', message: 'MediaBox API is running' }));
 
-// --- CORS Proxy for TV HLS manifests (NOT for infinite audio/video streams) ---
+// --- Lightweight CORS proxy for HTTPS m3u8 manifests only ---
+// Does NOT proxy video segments or HTTP streams (too much bandwidth).
+// HTTP streams are filtered out on frontend instead.
 
-// Stricter rate limit for proxy endpoint (30 req/min per IP)
 const proxyLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
+    max: 60,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many proxy requests, slow down' }
 });
 
-// Validate URL: block private IPs, localhost, non-http(s) schemes
 function isAllowedProxyUrl(urlStr) {
     try {
         const parsed = new URL(urlStr);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
         const host = parsed.hostname.toLowerCase();
-        // Block localhost, private ranges, link-local
         if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
         if (host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('0.')) return false;
         if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return false;
@@ -285,73 +284,38 @@ function isAllowedProxyUrl(urlStr) {
 app.get('/api/proxy/stream', proxyLimiter, async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL is required' });
-
-    if (!isAllowedProxyUrl(url)) {
-        return res.status(403).json({ error: 'URL not allowed' });
-    }
+    if (!isAllowedProxyUrl(url)) return res.status(403).json({ error: 'URL not allowed' });
 
     try {
-        console.log(`[Proxy] Fetching: ${url}`);
-
         const response = await axios({
             method: 'GET',
             url: url,
             responseType: 'stream',
-            maxContentLength: 10 * 1024 * 1024, // 10MB max — prevents infinite streams
+            maxContentLength: 5 * 1024 * 1024, // 5MB — enough for manifests
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': url,
-                'Origin': new URL(url).origin
             },
-            timeout: 15000 // 15s — enough for manifests, not for infinite streams
+            timeout: 10000
         });
 
-        // Set CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
         res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
 
-        // Copy content type
         const contentType = response.headers['content-type'];
-        if (contentType) {
-            res.setHeader('Content-Type', contentType);
-        }
-
-        // Pipe with size limit enforcement
-        let transferred = 0;
-        const MAX_BYTES = 10 * 1024 * 1024;
-
-        response.data.on('data', (chunk) => {
-            transferred += chunk.length;
-            if (transferred > MAX_BYTES) {
-                response.data.destroy();
-                if (!res.headersSent) {
-                    res.status(413).json({ error: 'Response too large' });
-                } else {
-                    res.end();
-                }
-            }
-        });
+        if (contentType) res.setHeader('Content-Type', contentType);
 
         response.data.pipe(res);
-
-        response.data.on('error', (err) => {
-            console.error('[Proxy] Stream error:', err.message);
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Stream failed' });
-            }
+        response.data.on('error', () => {
+            if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
         });
-
     } catch (error) {
-        console.error('[Proxy] Failed:', error.message);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Proxy failed' });
-        }
+        if (!res.headersSent) res.status(500).json({ error: 'Proxy failed' });
     }
 });
+
 
 const imdbCache = {}; // Simple in-memory cache for TMDB -> IMDb lookups
 
