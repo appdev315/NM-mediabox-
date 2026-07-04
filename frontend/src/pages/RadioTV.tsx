@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import { shouldShowAd } from '../utils/adPlacement';
 
 // Get backend URL from environment or use default
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://nm-backend.vercel.app';
 
 
 interface Station {
@@ -262,16 +261,9 @@ export function RadioTV() {
     setTvError(false);
     setTvLoading(true);
 
-    // For HLS (.m3u8) streams: try proxy first to bypass CORS, keep original for fallback.
-    // For direct streams: play as-is.
-    const url = channel.url;
-    const isHls = url.includes('.m3u8') || url.includes('.m3u');
-    if (isHls) {
-      const proxiedUrl = `${BACKEND_URL}/api/proxy/stream?url=${encodeURIComponent(url)}`;
-      setActiveTvChannel({ ...channel, url: proxiedUrl, originalUrl: url });
-    } else {
-      setActiveTvChannel({ ...channel, originalUrl: url });
-    }
+    // channel.url is already processed by parseM3u (HTTP streams use Cloudflare proxy)
+    // We play it directly first. If it's HTTPS and fails (e.g. CORS), the fallback logic will catch it.
+    setActiveTvChannel({ ...channel, originalUrl: channel.url });
   };
 
   const handleTabSwitch = (tab: 'radio' | 'tv') => {
@@ -370,14 +362,17 @@ export function RadioTV() {
                   console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
                   hls.startLoad();
                 } else {
-                  // If we were using proxied URL and original exists, try original
-                  if (activeTvChannel?.originalUrl && activeTvChannel.url !== activeTvChannel.originalUrl) {
-                    console.log('[TV] Proxy failed, trying original URL...');
+                  // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
+                  // let's try wrapping it in our Cloudflare proxy
+                  if (activeTvChannel && !activeTvChannel.url.includes('/api/proxy')) {
+                    console.log('[TV] Direct stream failed, trying Cloudflare proxy fallback...');
                     clearPlaybackTimeout();
                     hls.destroy();
                     hlsRef.current = null;
                     networkRetries = 0;
-                    setActiveTvChannel(prev => prev ? { ...prev, url: prev.originalUrl! } : null);
+                    
+                    const proxiedUrl = `/api/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                    setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
                   } else {
                     console.error('fatal network error, max retries reached');
                     clearPlaybackTimeout();
@@ -394,13 +389,17 @@ export function RadioTV() {
                 break;
               default:
                 // Same fallback logic for other fatal errors
-                if (activeTvChannel?.originalUrl && activeTvChannel.url !== activeTvChannel.originalUrl) {
-                  console.log('[TV] Error with proxy, trying original URL...');
+                if (activeTvChannel && !activeTvChannel.url.includes('/api/proxy')) {
+                  console.log('[TV] Media error, trying Cloudflare proxy fallback...');
                   clearPlaybackTimeout();
                   hls.destroy();
                   hlsRef.current = null;
-                  setActiveTvChannel(prev => prev ? { ...prev, url: prev.originalUrl! } : null);
+                  networkRetries = 0;
+                  
+                  const proxiedUrl = `/api/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                  setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
                 } else {
+                  console.error('fatal media error, max retries reached');
                   clearPlaybackTimeout();
                   hls.destroy();
                   hlsRef.current = null;
