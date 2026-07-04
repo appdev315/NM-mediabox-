@@ -207,11 +207,20 @@ export function RadioTV() {
           } else if (line.startsWith('http')) {
             if (current.name) {
               const streamUrl = line.trim();
-              // Safari and other browsers block HTTP streams on HTTPS pages (Mixed Content).
-              // Since upgrading to HTTPS doesn't work for these specific servers, 
-              // we must filter them out so users don't see unplayable channels.
+              
               if (streamUrl.startsWith('https://')) {
+                // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false } as Station);
+              } else {
+                // HTTP goes through Cloudflare Worker to avoid Mixed Content
+                // ВАЖНО: Замените ссылку ниже на URL вашего воркера!
+                const WORKER_URL = "https://backend.ВАШ-САБДОМЕН.workers.dev";
+                
+                channels.push({ 
+                  ...current, 
+                  url: `${WORKER_URL}/?url=${encodeURIComponent(streamUrl)}`, 
+                  isHttp: true 
+                });
               }
               current = {};
             }
