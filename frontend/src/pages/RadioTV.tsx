@@ -220,7 +220,7 @@ export function RadioTV() {
                   ...current, 
                   url: `${WORKER_URL}?url=${encodeURIComponent(streamUrl)}`, 
                   isHttp: true 
-                });
+                } as Station);
               }
               current = {};
             }
