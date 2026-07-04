@@ -27,6 +27,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause
 
   // Refs to always hold the latest state — avoids stale closures
   const isPlayingRef = useRef(isPlaying);
@@ -36,6 +37,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   // Stable callbacks that read from refs instead of captured state
   const stop = useCallback(() => {
+    isUserPausedRef.current = true;
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -51,9 +53,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!audio || !currentTrackRef.current) return;
 
     if (isPlayingRef.current) {
+      isUserPausedRef.current = true;
       audio.pause();
       setIsPlaying(false);
     } else {
+      isUserPausedRef.current = false;
       audio.play().catch(() => { });
       setIsPlaying(true);
     }
@@ -70,12 +74,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
 
     // New track
+    isUserPausedRef.current = false;
     setCurrentTrack(track);
     setIsBuffering(true);
 
     // Use preload="auto" for radio for bigger buffer
     audio.preload = track.type === 'radio' ? 'auto' : 'none';
-    audio.src = track.url;
+    
+    // Add a cache buster for radio to avoid caching dead streams
+    const url = track.type === 'radio' 
+      ? `${track.url}${track.url.includes('?') ? '&' : '?'}cb=${Date.now()}`
+      : track.url;
+      
+    audio.src = url;
     audio.load();
     audio.play().catch(() => setIsBuffering(false));
     setIsPlaying(true);
@@ -109,8 +120,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // --- Reconnect state ---
     let reconnectAttempt = 0;
-    const MAX_RECONNECT = 3;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const MAX_RECONNECT = 5; // Increased max retries for background stability
 
     const attemptReconnect = (reason: string) => {
       const track = currentTrackRef.current;
@@ -123,22 +133,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
 
       reconnectAttempt++;
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), 8000); // 1s, 2s, 4s, 8s
-      console.warn(`[Radio] ${reason} — reconnect ${reconnectAttempt}/${MAX_RECONNECT} in ${delay}ms`);
+      console.warn(`[Radio] ${reason} — reconnect ${reconnectAttempt}/${MAX_RECONNECT} (Synchronous)`);
       setIsBuffering(true);
 
-      reconnectTimer = setTimeout(() => {
-        if (!currentTrackRef.current || currentTrackRef.current.id !== track.id) return;
-        const src = audio.src;
-        if (src) {
-          audio.src = src;
-          audio.load();
-          audio.play().catch(() => {
-            setIsBuffering(false);
-            setIsPlaying(false);
-          });
-        }
-      }, delay);
+      // SYNCHRONOUS RECONNECT: 
+      // Do NOT use setTimeout here. If the screen is off, the OS will suspend JS 
+      // when the audio stops. If we use setTimeout, it never fires. 
+      // By reconnecting synchronously, we keep the audio session alive.
+      const baseUrl = track.url;
+      audio.src = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+      audio.load();
+      audio.play().catch((err) => {
+        console.error('[Radio] Sync reconnect failed:', err);
+        setIsBuffering(false);
+        setIsPlaying(false);
+      });
     };
 
     // --- Event handlers ---
@@ -150,12 +159,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
     const onWaiting = () => setIsBuffering(true);
     const onPause = () => {
-      // Only set isPlaying false if it wasn't a transient system interruption
-      // (e.g. iOS suspends audio briefly on app switch). Give it a moment.
-      const timer = setTimeout(() => {
-        if (audio.paused) setIsPlaying(false);
-      }, 300);
-      return () => clearTimeout(timer);
+      // If the user didn't explicitly pause, but the audio paused (e.g. system interruption, screen lock)
+      // we try to force it back to playing immediately to prevent background suspension.
+      if (!isUserPausedRef.current && currentTrackRef.current?.type === 'radio') {
+        console.warn('[Radio] System paused audio, forcing resume...');
+        audio.play().catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(false);
+      }
     };
 
     const onError = () => {
@@ -236,7 +247,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('stalled', onStalled);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
   }, [currentTrack]); // Re-attach when track changes to reset heartbeat & reconnect state
