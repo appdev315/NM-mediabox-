@@ -318,7 +318,8 @@ export function RadioTV() {
         hlsRef.current = null;
       }
 
-      // Timeout: if nothing plays within 12s, show error
+      // Timeout: if nothing plays within 25s, show error
+      // (12s was too short, many free streams take 15-20s to load)
       playbackTimeout = setTimeout(() => {
         if (hlsRef.current) {
           hlsRef.current.destroy();
@@ -326,7 +327,7 @@ export function RadioTV() {
         }
         setTvError(true);
         setTvLoading(false);
-      }, 12000);
+      }, 25000);
 
       const clearPlaybackTimeout = () => {
         if (playbackTimeout) {
@@ -340,12 +341,10 @@ export function RadioTV() {
           maxBufferLength: 30,           // Smaller for faster start
           maxMaxBufferLength: 60,
           enableWorker: true,
-          lowLatencyMode: true,          // Better for live TV
-          liveSyncDurationCount: 2,      // Less latency
-          liveMaxLatencyDurationCount: 5,
-          manifestLoadingTimeOut: 15000,  // More time for slow sources
-          levelLoadingTimeOut: 15000,
-          fragLoadingTimeOut: 15000,
+          lowLatencyMode: false,         // Disabled: breaks many standard free streams
+          manifestLoadingTimeOut: 20000,  // More time for slow sources
+          levelLoadingTimeOut: 20000,
+          fragLoadingTimeOut: 20000,
           xhrSetup: (xhr: XMLHttpRequest) => {
             xhr.withCredentials = false;  // For CORS
           }
