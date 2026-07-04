@@ -207,7 +207,12 @@ export function RadioTV() {
           } else if (line.startsWith('http')) {
             if (current.name) {
               const streamUrl = line.trim();
-              channels.push({ ...current, url: streamUrl, isHttp: streamUrl.startsWith('http://') } as Station);
+              // Safari and other browsers block HTTP streams on HTTPS pages (Mixed Content).
+              // Since upgrading to HTTPS doesn't work for these specific servers, 
+              // we must filter them out so users don't see unplayable channels.
+              if (streamUrl.startsWith('https://')) {
+                channels.push({ ...current, url: streamUrl, isHttp: false } as Station);
+              }
               current = {};
             }
           }
