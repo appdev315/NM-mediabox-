@@ -387,11 +387,7 @@ export function Movie() {
                       alt={rec.title}
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
-                      <span className="bg-[var(--button-color)] text-[var(--button-text-color)] px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                        {t('watch')}
-                      </span>
-                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                   </div>
                   <p className="text-sm mt-2 font-semibold truncate px-1">{rec.title}</p>
                 </div>
