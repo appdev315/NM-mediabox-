@@ -8,7 +8,10 @@
 			"binding": "CACHE",
 			"id": "326949ce4a9f41b9bbf5476dd4549431"
 		}
-	]
+	],
+	"vars": {
+		"HF_BACKEND_URL": "https://evro90-nm6.hf.space"
+	}
 	// To create the KV namespace, run:
 	// npx wrangler kv namespace create CACHE
 	// Then replace REPLACE_WITH_KV_NAMESPACE_ID with the returned ID
