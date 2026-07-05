@@ -4,6 +4,7 @@ import { WebApp } from '../telegram';
 import { API_BASE } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
+import { BannerAd } from '../components/BannerAd';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
@@ -294,7 +295,8 @@ export function Adult() {
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
-              {shouldShowAd(idx) && <ExoClickNativeAd className="exo-native-ad-container" />}
+              {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
+              {(idx + 1) % 12 === 0 && <ExoClickNativeAd className="exo-native-ad-container" />}
               </React.Fragment>
             ))}
           </div>
