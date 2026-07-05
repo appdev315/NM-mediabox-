@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { API_BASE } from '../hooks/useApi';
+import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
@@ -9,7 +9,7 @@ import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 
-import { shouldShowAd } from '../utils/adPlacement';
+
 
 const CATEGORIES = [
   { id: '', label: 'All / Random' },
@@ -94,7 +94,7 @@ export function Adult() {
     try {
       const initData = WebApp?.initData || '';
       const headers = { 'Authorization': `tma ${initData}` };
-      const res = await fetch(`${API_BASE}/adult/search?q=${encodeURIComponent(searchQuery)}&page=${pageNum}`, { headers });
+      const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(searchQuery)}&page=${pageNum}`, { headers });
       const data = await res.json();
       if (Array.isArray(data)) {
         // Shuffle the array so even the same page feels different

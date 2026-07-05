@@ -2,8 +2,8 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
-export const API_BASE = 'https://backend.app-dev315.workers.dev/api'; // В проде заменить на Cloudflare URL
-const TMDB_API_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api'; 
+export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api'; 
 
 export interface TMDBMovie {
   id: number;
@@ -28,21 +28,13 @@ export function useApi() {
   const [error, setError] = useState<string | null>(null);
   const { language } = useLanguage();
 
-  const request = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+  const withLoading = useCallback(async <T>(fn: () => Promise<T>): Promise<T> => {
     setLoading(true);
     setError(null);
     try {
-      const initData = WebApp.initData; 
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${initData}`,
-        ...options.headers,
-      };
-      const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-      if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-      return await response.json();
+      return await fn();
     } catch (err: any) {
-      console.error('TMDB API Error:', err);
+      console.error('API Error:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -50,9 +42,23 @@ export function useApi() {
     }
   }, []);
 
-  const tmdbFetch = async (endpoint: string, params: Record<string, string | number> = {}) => {
-    const url = new URL(`https://api.themoviedb.org/3${endpoint}`);
-    url.searchParams.append('api_key', TMDB_API_KEY);
+  const request = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    return withLoading(async () => {
+      const initData = WebApp.initData; 
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${initData}`,
+        ...options.headers,
+      };
+      // request always goes to CF API BASE for user data
+      const response = await fetch(`${CF_API_BASE}${endpoint}`, { ...options, headers });
+      if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+      return await response.json();
+    });
+  }, [withLoading]);
+
+  const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}) => {
+    const url = new URL(`${EXPRESS_API_BASE}/tmdb${endpoint}`);
     url.searchParams.append('language', language);
     Object.entries(params).forEach(([key, val]) => {
       if (val !== undefined && val !== '') {
@@ -61,9 +67,9 @@ export function useApi() {
     });
 
     const response = await fetch(url.toString());
-    if (!response.ok) throw new Error(`Ошибка TMDB: ${response.status}`);
+    if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
     return await response.json();
-  };
+  }, [language]);
 
   const mapTMDB = (item: any, forceType?: 'movie' | 'series') => ({
     id: item.id,
@@ -79,70 +85,38 @@ export function useApi() {
   });
 
   const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {
-    setLoading(true);
-    setError(null);
-    try {
+    return withLoading(async () => {
       const data = await tmdbFetch(`/trending/${type}/day`);
       return data.results.map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
-    } catch (err: any) {
-      console.error('TMDB API Error:', err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [language]);
+    });
+  }, [tmdbFetch, withLoading]);
 
   const searchContent = useCallback(async (query: string) => {
-    setLoading(true);
-    setError(null);
-    try {
+    return withLoading(async () => {
       const data = await tmdbFetch('/search/multi', { query });
       return data.results
         .filter((i: TMDBMovie) => i.media_type !== 'person')
         .map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
-    } catch (err: any) {
-      console.error('TMDB API Error:', err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [language]);
+    });
+  }, [tmdbFetch, withLoading]);
 
   const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number) => {
-    setLoading(true);
-    setError(null);
-    try {
+    return withLoading(async () => {
       const params: any = { page };
       if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/movie', params);
       return data.results.map((item: TMDBMovie) => mapTMDB(item, 'movie'));
-    } catch (err: any) {
-      console.error('TMDB API Error:', err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [language]);
+    });
+  }, [tmdbFetch, withLoading]);
 
   const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number) => {
-    setLoading(true);
-    setError(null);
-    try {
+    return withLoading(async () => {
       const params: any = { page };
       if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/tv', params);
       return data.results.map((item: TMDBMovie) => mapTMDB(item, 'series'));
-    } catch (err: any) {
-      console.error('TMDB API Error:', err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [language]);
+    });
+  }, [tmdbFetch, withLoading]);
 
   const fetchGenres = useCallback(async (type: 'movie' | 'tv'): Promise<Genre[]> => {
     try {
@@ -152,22 +126,14 @@ export function useApi() {
       console.error('TMDB API Error:', err);
       return [];
     }
-  }, [language]);
+  }, [tmdbFetch]);
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
-    setLoading(true);
-    setError(null);
-    try {
+    return withLoading(async () => {
       const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids' });
       return mapTMDB(data, type === 'tv' ? 'series' : 'movie');
-    } catch (err: any) {
-      console.error('TMDB API Error:', err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [language]);
+    });
+  }, [tmdbFetch, withLoading]);
   
   const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number) => {
     try {
@@ -177,7 +143,7 @@ export function useApi() {
       console.error('TMDB API Error:', err);
       return null;
     }
-  }, [language]);
+  }, [tmdbFetch]);
 
   const fetchRecommendations = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
     try {
@@ -187,9 +153,7 @@ export function useApi() {
       console.error('TMDB API Error:', err);
       return [];
     }
-  }, [language]);
-
-
+  }, [tmdbFetch]);
 
   return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading, error };
 }

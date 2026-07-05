@@ -135,6 +135,14 @@ app.get('/api/stats', (req, res) => {
 // Security Headers
 app.use(helmet({
     crossOriginResourcePolicy: false, // allow remote fetching
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    frameguard: {
+        action: 'deny'
+    }
 }));
 
 // Rate limiting (100 requests per 10 minutes per IP)
@@ -149,8 +157,16 @@ const limiter = rateLimit({
 // Apply rate limiting to all requests
 app.use(limiter);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://web.telegram.org'];
+
 app.use(cors({
-    origin: '*',
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || (origin && (origin.includes('localhost') || origin.includes('127.0.0.1')))) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'Origin', 'Accept']
 }));
@@ -158,6 +174,34 @@ app.use(cors({
 // --- HEALTH ENDPOINT (For Cron-Job Ping to prevent Sleep) ---
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// --- TMDB API PROXY ---
+const TMDB_API_KEY = process.env.TMDB_API_KEY || 'cd5b69242e715dc87d65957d7460eba2';
+
+app.get('/api/tmdb/*', async (req, res) => {
+    const endpoint = req.params[0];
+    const url = new URL(`https://api.themoviedb.org/3/${endpoint}`);
+    
+    // Forward all query parameters
+    for (const [key, value] of Object.entries(req.query)) {
+        url.searchParams.append(key, value);
+    }
+    url.searchParams.set('api_key', TMDB_API_KEY);
+
+    const cacheKey = `tmdb_${url.toString()}`;
+    const ttl = url.pathname.includes('/search') ? 7200 : 86400; // 2h search, 24h details
+    
+    try {
+        const data = await withMovieCache(cacheKey, ttl, async () => {
+            const response = await axios.get(url.toString(), { timeout: 8000 });
+            return response.data;
+        });
+        res.json(data);
+    } catch (e) {
+        console.error(`[TMDB] Error fetching ${url.toString()}:`, e.message);
+        res.status(e.response?.status || 500).json({ error: e.message });
+    }
 });
 
 import crypto from 'crypto';
