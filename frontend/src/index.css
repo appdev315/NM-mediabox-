@@ -157,3 +157,64 @@ body {
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
 }
+
+/* Performance-Optimized Visual Enhancements */
+
+/* GPU Accelerated Card Hover */
+.card-hover {
+  will-change: transform;
+  transition: transform 0.3s ease;
+}
+.card-hover:hover, .card-hover:active {
+  transform: translateY(-4px);
+}
+/* Fake shadow using pseudo element for performance */
+.card-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 10px 25px -5px var(--tg-theme-button-color, rgba(79, 172, 254, 0.4));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+.card-hover:hover::after, .card-hover:active::after {
+  opacity: 0.2;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(0.98); }
+}
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+/* Custom Scrollbar for both Webkit and Firefox */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--button-color) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--button-color);
+  border-radius: 10px;
+}

@@ -179,23 +179,26 @@ export function Home() {
       <>
         <>
           <ExoClickMainBanner />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto animate-fade-in">
             {items.map((item, idx) => (
               <React.Fragment key={`${item.id}-${idx}`}>
                 <div 
                   onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
-                  className="flex flex-col gap-2 cursor-pointer group"
+                  className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
                 >
-            <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl">
+            <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
                   <img 
                     src={item.poster} 
                     alt={item.title} 
-                    className="w-full aspect-[2/3] object-cover"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
+                    loading="lazy"
                   />
+                  {/* Subtle Gradient Overlay on Hover for depth */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                 </div>
-                <div className="mt-1">
+                <div className="mt-1 px-1">
                   <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.title}</h3>
-                  <p className="text-xs opacity-90 mt-1">{item.year}</p>
+                  <p className="text-xs opacity-70 mt-1 font-medium">{item.year}</p>
                 </div>
               </div>
               {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}

@@ -188,7 +188,7 @@ export function Movie() {
 
 
   return (
-    <div className="pb-20">
+    <div className="pb-20 animate-fade-in">
       <div className="relative">
         {WebApp.platform === 'unknown' && (
           <button 
@@ -282,7 +282,7 @@ export function Movie() {
           <div className="flex flex-col gap-3 mb-6">
             <button
               onClick={handleWatch}
-              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg animate-pulse-glow"
               style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
             >
               ▶ {t('watch')}
@@ -368,11 +368,11 @@ export function Movie() {
                 </div>
               )}
             </div>
-            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: 'none' }}>
+            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-thin">
               {recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
-                  className="min-w-[150px] w-[150px] snap-start cursor-pointer active:scale-95 transition-transform" 
+                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
                   onClick={() => {
                     setStreamUrl(null);
                     setIframeUrl(null);
@@ -380,12 +380,20 @@ export function Movie() {
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
                   }}
                 >
-                  <img 
-                    src={rec.poster} 
-                    className="rounded-xl w-full aspect-[2/3] object-cover shadow-sm" 
-                    alt={rec.title}
-                  />
-                  <p className="text-sm mt-2 font-semibold truncate">{rec.title}</p>
+                  <div className="relative overflow-hidden rounded-xl w-full aspect-[2/3] shadow-sm bg-[var(--hint-color)]">
+                    <img 
+                      src={rec.poster} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform" 
+                      alt={rec.title}
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
+                      <span className="bg-[var(--button-color)] text-[var(--button-text-color)] px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                        {t('watch')}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm mt-2 font-semibold truncate px-1">{rec.title}</p>
                 </div>
               ))}
             </div>
