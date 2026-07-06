@@ -17,7 +17,11 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 app.use('/api/*', cors({
   origin: (origin) => {
     // Only allow web.telegram.org or your frontend
-    return origin === 'https://web.telegram.org' || (origin && origin.includes('localhost')) ? origin : 'https://web.telegram.org';
+    const allowed = ['https://web.telegram.org', 'https://media-box.xyz', 'https://www.media-box.xyz'];
+    if (origin && (allowed.includes(origin) || origin.includes('localhost'))) {
+        return origin;
+    }
+    return 'https://web.telegram.org';
   },
 }));
 
