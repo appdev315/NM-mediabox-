@@ -2,15 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import { WebApp } from '../telegram';
-import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-
-export const BACKEND_URL = import.meta.env.PROD 
-  ? "https://evro90-nm6.hf.space" 
-  : "http://localhost:7860";
+import { useApi, EXPRESS_API_BASE } from '../hooks/useApi';
 
 export function Movie() {
   const { id } = useParams();
@@ -123,7 +119,7 @@ export function Movie() {
       const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
       
-      const res = await fetch(`${BACKEND_URL}/api/stream?${query.toString()}`);
+      const res = await fetch(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
       const data = await res.json();
       
       if (data.url) {
