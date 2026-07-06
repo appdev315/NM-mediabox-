@@ -157,7 +157,7 @@ const limiter = rateLimit({
 // Apply rate limiting to all requests
 app.use(limiter);
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://web.telegram.org'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://web.telegram.org', 'https://media-box.xyz', 'https://www.media-box.xyz', 'http://localhost:5173', 'http://localhost:3000'];
 
 app.use(cors({
     origin: function (origin, callback) {
