@@ -52,7 +52,14 @@ export function useApi() {
       };
       // request always goes to CF API BASE for user data
       const response = await fetch(`${CF_API_BASE}${endpoint}`, { ...options, headers });
-      if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+      if (!response.ok) {
+        let msg = `Ошибка: ${response.status}`;
+        try {
+          const errBody = await response.json();
+          if (errBody.error) msg += ` - ${errBody.error}`;
+        } catch(e) {}
+        throw new Error(msg);
+      }
       return await response.json();
     });
   }, [withLoading]);
@@ -67,7 +74,14 @@ export function useApi() {
     });
 
     const response = await fetch(url.toString());
-    if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
+    if (!response.ok) {
+      let msg = `Ошибка сервера: ${response.status}`;
+      try {
+        const errBody = await response.json();
+        if (errBody.error) msg += ` - ${errBody.error}`;
+      } catch(e) {}
+      throw new Error(msg);
+    }
     return await response.json();
   }, [language]);
 

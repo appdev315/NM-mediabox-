@@ -194,12 +194,23 @@ app.get('/api/tmdb/*', async (req, res) => {
     
     try {
         const data = await withMovieCache(cacheKey, ttl, async () => {
-            const response = await axios.get(url.toString(), { timeout: 8000 });
-            return response.data;
+            let attempt = 0;
+            while (attempt < 3) {
+                try {
+                    const response = await axios.get(url.toString(), { timeout: 10000 });
+                    return response.data;
+                } catch (err) {
+                    attempt++;
+                    console.error(`[TMDB] Fetch attempt ${attempt} failed for ${url.toString()}:`, err.message);
+                    if (attempt >= 3) throw err;
+                    // wait 1 sec before retry
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
         });
         res.json(data);
     } catch (e) {
-        console.error(`[TMDB] Error fetching ${url.toString()}:`, e.message);
+        console.error(`[TMDB] Final error fetching ${url.toString()}:`, e.message);
         res.status(e.response?.status || 500).json({ error: e.message });
     }
 });
