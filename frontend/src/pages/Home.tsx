@@ -44,28 +44,32 @@ export function Home() {
   // Load content
   useEffect(() => {
     const loadContent = async () => {
-      if (searchQuery.trim().length > 0) {
-        setIsSearching(true);
-        const results = await searchContent(searchQuery);
-        setItems(results.filter((r: any) => r.type === (activeTab === 'movie' ? 'movie' : 'series')));
-      } else {
-        setIsSearching(false);
-        let results;
-        
-        // Initial load for popular content
-        if (!selectedGenre && page === 1) {
-          results = await fetchTrending(activeTab === 'movie' ? 'movie' : 'tv');
+      try {
+        if (searchQuery.trim().length > 0) {
+          setIsSearching(true);
+          const results = await searchContent(searchQuery);
+          setItems(results.filter((r: any) => r.type === (activeTab === 'movie' ? 'movie' : 'series')));
         } else {
-          results = activeTab === 'movie' 
-            ? await fetchMovies(page, selectedGenre)
-            : await fetchSeries(page, selectedGenre);
-        }
+          setIsSearching(false);
+          let results;
           
-        if (page === 1) {
-          setItems(results);
-        } else {
-          setItems(prev => [...prev, ...results]);
+          // Initial load for popular content
+          if (!selectedGenre && page === 1) {
+            results = await fetchTrending(activeTab === 'movie' ? 'movie' : 'tv');
+          } else {
+            results = activeTab === 'movie' 
+              ? await fetchMovies(page, selectedGenre)
+              : await fetchSeries(page, selectedGenre);
+          }
+            
+          if (page === 1) {
+            setItems(results || []);
+          } else {
+            setItems(prev => [...prev, ...(results || [])]);
+          }
         }
+      } catch (err) {
+        console.error("Failed to load content:", err);
       }
     };
 
