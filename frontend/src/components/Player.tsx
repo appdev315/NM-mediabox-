@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebApp } from '../telegram';
+import NoSleep from 'nosleep.js';
 
 interface PlayerProps {
   iframeUrl: string;
@@ -23,25 +24,31 @@ export function Player({ iframeUrl }: PlayerProps) {
       WebApp.requestFullscreen();
     }
 
-    // Request screen wake lock to prevent screen from turning off during playback
-    let wakeLock: any = null;
-    const requestWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await (navigator as any).wakeLock.request('screen');
-        }
-      } catch (err: any) {
-        console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+    // Request screen wake lock to prevent screen from turning off/dimming during playback
+    // We use NoSleep.js which creates a hidden playing video as a robust fallback to prevent dimming
+    const noSleep = new NoSleep();
+    
+    const enableNoSleep = () => {
+      if (!noSleep.isEnabled) {
+        noSleep.enable().catch(err => {
+          console.error(`NoSleep enable error:`, err);
+        });
       }
     };
 
+    // Try to enable immediately (might work if there's a recent user gesture from navigation)
+    enableNoSleep();
+
+    // Also try to enable on any interaction with the parent window (if they click outside iframe)
+    document.addEventListener('click', enableNoSleep);
+    document.addEventListener('touchstart', enableNoSleep);
+
     const handleVisibilityChange = () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') {
-        requestWakeLock();
+      if (document.visibilityState === 'visible') {
+        enableNoSleep();
       }
     };
     
-    requestWakeLock();
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const handleFullscreenChange = () => {
@@ -52,10 +59,9 @@ export function Player({ iframeUrl }: PlayerProps) {
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
-      if (wakeLock !== null) {
-        wakeLock.release().catch(() => {});
-        wakeLock = null;
-      }
+      noSleep.disable();
+      document.removeEventListener('click', enableNoSleep);
+      document.removeEventListener('touchstart', enableNoSleep);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       WebApp.disableClosingConfirmation();
       if (isMobile && WebApp.exitFullscreen) {
