@@ -23,6 +23,27 @@ export function Player({ iframeUrl }: PlayerProps) {
       WebApp.requestFullscreen();
     }
 
+    // Request screen wake lock to prevent screen from turning off during playback
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch (err: any) {
+        console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    
+    requestWakeLock();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const handleFullscreenChange = () => {
       setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
     };
@@ -31,6 +52,11 @@ export function Player({ iframeUrl }: PlayerProps) {
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
+      if (wakeLock !== null) {
+        wakeLock.release().catch(() => {});
+        wakeLock = null;
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       WebApp.disableClosingConfirmation();
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
