@@ -525,7 +525,10 @@ export function RadioTV() {
   const displayedList = filteredList.slice(0, visibleCount);
 
   return (
-    <div className="p-4 pt-24 flex flex-col h-full">
+    <div 
+      className="p-4 flex flex-col h-full"
+      style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top))' }}
+    >
       <Header />
 
       {/* Top Navigation */}
