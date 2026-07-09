@@ -13,15 +13,6 @@ export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdPro
     initialized.current = true;
 
     const loadAd = () => {
-      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-      if (!scriptLoaded) {
-        const script = document.createElement('script');
-        script.src = 'https://a.magsrv.com/ad-provider.js';
-        script.async = true;
-        script.type = 'application/javascript';
-        document.head.appendChild(script);
-      }
-
       if (containerRef.current) {
         containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964558" data-ex_av="name"></ins>';
       }

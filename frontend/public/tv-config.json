@@ -1,0 +1,8 @@
+{
+  "fastPlaylists": {
+    "pluto": "https://i.mjh.nz/PlutoTV/us.m3u8",
+    "samsung": "https://i.mjh.nz/SamsungTVPlus/us.m3u8",
+    "plex": "https://i.mjh.nz/Plex/us.m3u8",
+    "pbs": "https://i.mjh.nz/PBS/all.m3u8"
+  }
+}

@@ -11,15 +11,6 @@ export function ExoClickMainBanner() {
     initialized.current = true;
 
     const loadAd = () => {
-      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-      if (!scriptLoaded) {
-        const script = document.createElement('script');
-        script.async = true;
-        script.type = 'application/javascript';
-        script.src = 'https://a.magsrv.com/ad-provider.js';
-        document.head.appendChild(script);
-      }
-
       if (containerRef.current) {
         if (isMobile) {
           containerRef.current.innerHTML = '<ins class="eas6a97888e10" data-zoneid="5965686"></ins>';
@@ -39,7 +30,7 @@ export function ExoClickMainBanner() {
 
     const timer = setTimeout(loadAd, 150);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isMobile]);
 
   return (
     <div className="w-full mb-4 mt-4 relative z-10" style={{ minHeight: isMobile ? '60px' : '250px' }}>
