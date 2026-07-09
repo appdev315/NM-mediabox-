@@ -10,7 +10,8 @@ const config: CapacitorConfig = {
     },
   },
   server: {
-    cleartext: true
+    cleartext: true,
+    allowNavigation: ['*']
   }
 };
 
