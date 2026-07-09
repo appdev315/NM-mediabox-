@@ -16,39 +16,38 @@ export function TopBanner() {
   }
 
   return (
-    <div className="w-full flex flex-col gap-2 p-4 pb-0 z-40 pt-[80px]">
+    <div className="w-full flex flex-row flex-wrap justify-center items-center gap-2 p-4 pb-0 z-40 pt-[80px]">
       <a 
         href="https://t.me/TheMediaBoxBot" 
         target="_blank" 
         rel="noopener noreferrer"
-        className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl text-center shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+        className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
       >
-        <span>✈️</span>
-        {(t as any)('mediaBoxTelegram')}
+        <span className="text-sm">✈️</span>
+        <span className="hidden sm:inline">{(t as any)('mediaBoxTelegram')}</span>
+        <span className="sm:hidden">Telegram</span>
       </a>
       
-      <div className="flex gap-2">
-        <a 
-          href="/app-release.apk" 
-          download
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl text-center shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 text-sm"
-        >
-          <span>🤖</span>
-          {(t as any)('downloadAndroid')}
-        </a>
-        
-        <a 
-          href="#" 
-          onClick={(e) => {
-            e.preventDefault();
-            alert("iOS App is in development and will be available on TestFlight soon!");
-          }}
-          className="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-xl text-center shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 text-sm"
-        >
-          <span>🍏</span>
-          {(t as any)('downloadIos')}
-        </a>
-      </div>
+      <a 
+        href="/app-release.apk" 
+        download
+        className="bg-green-500 hover:bg-green-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
+      >
+        <span className="text-sm">🤖</span>
+        <span>Android</span>
+      </a>
+      
+      <a 
+        href="#" 
+        onClick={(e) => {
+          e.preventDefault();
+          alert("iOS App is in development and will be available on TestFlight soon!");
+        }}
+        className="bg-gray-800 hover:bg-gray-900 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
+      >
+        <span className="text-sm">🍏</span>
+        <span>iOS</span>
+      </a>
     </div>
   );
 }
