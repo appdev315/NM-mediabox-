@@ -71,8 +71,8 @@ export function RadioTV() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [showTvWarning, setShowTvWarning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
+  const [showTvWarning] = useState(false);
+  const [activeTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
     if (saved) return saved;
@@ -304,21 +304,6 @@ export function RadioTV() {
     // channel.url is already processed by parseM3u (HTTP streams use Cloudflare proxy)
     // We play it directly first. If it's HTTPS and fails (e.g. CORS), the fallback logic will catch it.
     setActiveTvChannel({ ...channel, originalUrl: channel.url });
-  };
-
-  const handleTabSwitch = (tab: 'radio' | 'tv') => {
-    setActiveTab(tab);
-    setVisibleCount(50);
-    setSearch('');
-
-    if (tab === 'tv') {
-      setShowTvWarning(true);
-      setTimeout(() => {
-        setShowTvWarning(false);
-      }, 15000);
-    } else {
-      setShowTvWarning(false);
-    }
   };
 
   const tryAlternativeTvSource = async (channel: Station) => {
