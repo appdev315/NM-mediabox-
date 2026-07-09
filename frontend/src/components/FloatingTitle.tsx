@@ -26,11 +26,9 @@ export function FloatingTitle() {
 
   return (
     <div 
-      className="absolute left-4 z-50 cursor-pointer backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-black/10 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+      className="absolute left-4 z-50 cursor-pointer backdrop-blur-md px-5 py-2.5 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(255,255,255,0.2),inset_0_-2px_0_rgba(0,0,0,0.2)] border border-black/30 transition-all hover:scale-105 active:scale-95 active:shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(0,0,0,0.2)] flex items-center justify-center bg-gradient-to-b from-gray-700 to-gray-900 text-white"
       style={{ 
         top: 'calc(16px + env(safe-area-inset-top))',
-        backgroundColor: 'var(--bg-color)', 
-        color: 'var(--text-color)' 
       }}
       onClick={() => {
         if (WebApp.platform !== 'unknown') {
@@ -43,9 +41,8 @@ export function FloatingTitle() {
         }
       }}
     >
-      <span className="text-lg opacity-80">🏠</span>
-      <span className={`${isWeb ? 'text-3xl' : 'text-xl'} font-black tracking-wider opacity-90 hover:opacity-100 transition-opacity uppercase`}>
-        {isAdultApp ? t('secretRoomTab') : 'MEDIABOX 🍿'}
+      <span className={`${isWeb ? 'text-3xl' : 'text-lg'} font-black tracking-wider drop-shadow-md`}>
+        {isAdultApp ? t('secretRoomTab') : 'MEDIABOX'}
       </span>
     </div>
   );
