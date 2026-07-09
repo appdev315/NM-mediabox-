@@ -26,8 +26,12 @@ export function FloatingTitle() {
 
   return (
     <div 
-      className="absolute top-4 left-4 z-50 cursor-pointer backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-black/10 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
-      style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
+      className="absolute left-4 z-50 cursor-pointer backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-black/10 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+      style={{ 
+        top: 'calc(16px + env(safe-area-inset-top))',
+        backgroundColor: 'var(--bg-color)', 
+        color: 'var(--text-color)' 
+      }}
       onClick={() => {
         if (WebApp.platform !== 'unknown') {
           WebApp.HapticFeedback.impactOccurred('light');

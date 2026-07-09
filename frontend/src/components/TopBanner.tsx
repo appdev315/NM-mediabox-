@@ -23,7 +23,10 @@ export function TopBanner() {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-50 flex flex-row items-center gap-2">
+    <div 
+      className="absolute right-4 z-50 flex flex-row items-center gap-2"
+      style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
+    >
       <a 
         href="https://t.me/TheMediaBoxBot" 
         target="_blank" 

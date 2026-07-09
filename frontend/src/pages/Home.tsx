@@ -115,7 +115,10 @@ export function Home() {
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-20 pt-24 sm:pt-24">
+    <div 
+      className="px-3 sm:px-4 pb-20"
+      style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top))' }}
+    >
       {/* Header & Profile */}
       <Header />
 
