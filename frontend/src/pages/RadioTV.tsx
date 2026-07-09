@@ -528,6 +528,39 @@ export function RadioTV() {
     <div className="p-4 pt-24 flex flex-col h-full">
       <Header />
 
+      {/* Top Navigation */}
+      <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
+        {[
+          { id: 'movie', label: t('movies') },
+          { id: 'series', label: t('series') },
+          { id: 'radio', label: t('radio_and_tv') },
+          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={(e) => {
+              if (tab.id === 'private') {
+                e.preventDefault();
+                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+                return;
+              }
+              if (tab.id === 'movie') {
+                navigate('/', { state: { tab: 'movie' } });
+              } else if (tab.id === 'series') {
+                navigate('/', { state: { tab: 'series' } });
+              }
+            }}
+            className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
+            style={{ 
+              backgroundColor: tab.id === 'radio' ? 'var(--button-color)' : 'transparent',
+              color: tab.id === 'radio' ? 'var(--button-text-color)' : 'var(--text-color)'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* TV Warning */}
       {showTvWarning && activeTab === 'tv' && (
         <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm font-medium text-center animate-pulse">

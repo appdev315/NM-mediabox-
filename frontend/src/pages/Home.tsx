@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
@@ -15,12 +15,15 @@ import { shouldShowAd } from '../utils/adPlacement';
 
 export function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
   const { triggerAd } = useAdManager();
 
   
-  const [activeTab, setActiveTab] = useState<'movie' | 'series'>('movie');
+  const [activeTab, setActiveTab] = useState<'movie' | 'series'>(
+    (location.state as any)?.tab || 'movie'
+  );
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [genres, setGenres] = useState<Genre[]>([]);
