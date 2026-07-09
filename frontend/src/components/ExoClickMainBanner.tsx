@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 export function ExoClickMainBanner() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
   const isMobile = window.innerWidth < 768;
@@ -29,11 +30,24 @@ export function ExoClickMainBanner() {
     };
 
     const timer = setTimeout(loadAd, 150);
-    return () => clearTimeout(timer);
+    
+    const checkTimer = setTimeout(() => {
+      if (containerRef.current) {
+        const ins = containerRef.current.querySelector('ins');
+        if (ins && ins.clientHeight === 0 && ins.innerHTML.trim() === '') {
+          if (wrapperRef.current) wrapperRef.current.style.display = 'none';
+        }
+      }
+    }, 2000);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(checkTimer);
+    };
   }, [isMobile]);
 
   return (
-    <div className="w-full mb-4 mt-4 relative z-10" style={{ minHeight: isMobile ? '60px' : '250px' }}>
+    <div ref={wrapperRef} className="w-full mb-4 mt-4 relative z-10" style={{ minHeight: isMobile ? '60px' : '250px' }}>
       <style>{`
         .exo-container {
           width: 100%;

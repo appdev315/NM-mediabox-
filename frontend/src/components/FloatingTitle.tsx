@@ -55,11 +55,15 @@ export function FloatingTitle() {
         className="fixed left-4 z-50 cursor-pointer backdrop-blur-md px-5 py-2.5 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(255,255,255,0.2),inset_0_-2px_0_rgba(0,0,0,0.2)] border border-black/30 transition-all hover:scale-105 active:scale-95 active:shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(0,0,0,0.2)] flex items-center justify-center bg-gradient-to-b from-gray-700 to-gray-900 text-white"
         style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
         onClick={() => {
-          if (isTelegram) WebApp.HapticFeedback.impactOccurred('light');
-          if (isAdultApp) {
-            window.location.href = '/';
+          if (isTelegram) {
+             WebApp.HapticFeedback.impactOccurred('light');
+             WebApp.openTelegramLink(isAdultApp ? 'https://t.me/mediaboxxxbot' : 'https://t.me/TheMediaBoxBot');
           } else {
-            navigate('/');
+            if (isAdultApp) {
+              window.location.href = '/';
+            } else {
+              navigate('/');
+            }
           }
         }}
       >

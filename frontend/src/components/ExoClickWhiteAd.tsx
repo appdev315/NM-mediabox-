@@ -28,7 +28,19 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card', z
     };
     
     const timer = setTimeout(loadAd, 150);
-    return () => clearTimeout(timer);
+    const checkTimer = setTimeout(() => {
+      if (containerRef.current) {
+        const ins = containerRef.current.querySelector('ins');
+        if (ins && ins.clientHeight === 0 && ins.innerHTML.trim() === '') {
+          containerRef.current.style.display = 'none';
+        }
+      }
+    }, 2000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(checkTimer);
+    };
   }, []);
 
   return (
