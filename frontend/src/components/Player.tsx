@@ -93,7 +93,6 @@ export function Player({ iframeUrl }: PlayerProps) {
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center" style={{ width: '100%', aspectRatio: '16/9' }}>
       <iframe 
         src={iframeUrl}
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
         referrerPolicy="no-referrer"
