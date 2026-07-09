@@ -10,11 +10,5 @@
       "https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/us.m3u",
       "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_usa.m3u8"
     ]
-  },
-  "fastPlaylists": {
-    "pluto": "https://i.mjh.nz/PlutoTV/us.m3u8",
-    "samsung": "https://i.mjh.nz/SamsungTVPlus/us.m3u8",
-    "plex": "https://i.mjh.nz/Plex/us.m3u8",
-    "pbs": "https://i.mjh.nz/PBS/all.m3u8"
   }
 }
