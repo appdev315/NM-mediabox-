@@ -39,7 +39,7 @@ export function TopBanner() {
       </a>
       
       <a 
-        href="/app-release.apk" 
+        href="/mediabox.apk" 
         download
         className="bg-green-500 hover:bg-green-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
       >
@@ -51,7 +51,7 @@ export function TopBanner() {
         href="#" 
         onClick={(e) => {
           e.preventDefault();
-          alert("iOS App is in development and will be available on TestFlight soon!");
+          alert("Чтобы установить MediaBox на iPhone, нажмите кнопку «Поделиться» (квадрат со стрелочкой вверх внизу экрана) и выберите «На экран Домой» (Add to Home Screen).");
         }}
         className="bg-gray-800 hover:bg-gray-900 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
       >
