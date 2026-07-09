@@ -543,24 +543,6 @@ export function RadioTV() {
     <div className="p-4 pt-24 flex flex-col h-full">
       <Header />
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4 p-1 rounded-xl" style={{ backgroundColor: 'var(--secondary-bg-color)' }}>
-        <button
-          onClick={() => handleTabSwitch('radio')}
-          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'radio' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
-          style={activeTab === 'radio' ? {} : { color: 'var(--text-color)' }}
-        >
-          Radio
-        </button>
-        <button
-          onClick={() => handleTabSwitch('tv')}
-          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'tv' ? 'shadow-md bg-white text-black' : 'opacity-60'}`}
-          style={activeTab === 'tv' ? {} : { color: 'var(--text-color)' }}
-        >
-          TV
-        </button>
-      </div>
-
       {/* TV Warning */}
       {showTvWarning && activeTab === 'tv' && (
         <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm font-medium text-center animate-pulse">
