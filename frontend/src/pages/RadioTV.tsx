@@ -193,16 +193,11 @@ export function RadioTV() {
 
       let url = '';
       let needsProxy = false;
-      if (['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
-        url = config.fastPlaylists?.[tvSource as keyof typeof config.fastPlaylists] || '';
-        needsProxy = true; // i.mjh.nz blocks CORS
-      } else {
-        const sourceIndex = parseInt(tvSource) - 1;
-        const countryList = config.tvPlaylists?.[country] || config.tvPlaylists?.['ru'] || [
-          `https://iptv-org.github.io/iptv/countries/${country}.m3u`
-        ];
-        url = countryList[sourceIndex] || countryList[0];
-      }
+      const sourceIndex = parseInt(tvSource) - 1;
+      const countryList = config.tvPlaylists?.[country] || config.tvPlaylists?.['ru'] || [
+        `https://iptv-org.github.io/iptv/countries/${country}.m3u`
+      ];
+      url = countryList[sourceIndex] || countryList[0];
 
       if (!url) throw new Error("URL not found in config");
 
@@ -608,12 +603,6 @@ export function RadioTV() {
               <option value="1">{t('source1')}</option>
               <option value="2">{t('source2')}</option>
               <option value="3">{t('source3')}</option>
-            </optgroup>
-            <optgroup label="Free API (HD)">
-              <option value="pluto">Pluto TV</option>
-              <option value="samsung">Samsung TV Plus</option>
-              <option value="plex">Plex Live TV</option>
-              <option value="pbs">PBS (USA)</option>
             </optgroup>
           </select>
         )}
