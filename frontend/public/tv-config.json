@@ -1,4 +1,16 @@
 {
+  "tvPlaylists": {
+    "ru": [
+      "https://iptv-org.github.io/iptv/countries/ru.m3u",
+      "https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/ru.m3u",
+      "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_russia.m3u8"
+    ],
+    "us": [
+      "https://iptv-org.github.io/iptv/countries/us.m3u",
+      "https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/us.m3u",
+      "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_usa.m3u8"
+    ]
+  },
   "fastPlaylists": {
     "pluto": "https://i.mjh.nz/PlutoTV/us.m3u8",
     "samsung": "https://i.mjh.nz/SamsungTVPlus/us.m3u8",

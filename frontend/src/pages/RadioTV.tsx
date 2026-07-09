@@ -192,23 +192,30 @@ export function RadioTV() {
       }
 
       let url = '';
+      let needsProxy = false;
       if (['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
-        url = config.fastPlaylists[tvSource as keyof typeof config.fastPlaylists];
+        url = config.fastPlaylists?.[tvSource as keyof typeof config.fastPlaylists] || '';
+        needsProxy = true; // i.mjh.nz blocks CORS
       } else {
         const sourceIndex = parseInt(tvSource) - 1;
-        const countryList = config.tvPlaylists[country] || config.tvPlaylists['ru'] || [
+        const countryList = config.tvPlaylists?.[country] || config.tvPlaylists?.['ru'] || [
           `https://iptv-org.github.io/iptv/countries/${country}.m3u`
         ];
         url = countryList[sourceIndex] || countryList[0];
       }
 
-      const res = await fetch(url);
-      if (!res.ok && tvSource === '3') {
+      if (!url) throw new Error("URL not found in config");
+
+      const fetchUrl = needsProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
+      const res = await fetch(fetchUrl);
+      
+      let resText = '';
+      if (!res.ok && tvSource === '3' && !needsProxy) {
         // Fallback if country playlist doesn't exist in Free-TV
         const fbRes = await fetch(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`);
-        var resText = await fbRes.text();
+        resText = await fbRes.text();
       } else {
-        var resText = await res.text();
+        resText = await res.text();
       }
 
       const parseM3u = (text: string, sourceUrl: string) => {
@@ -322,7 +329,7 @@ export function RadioTV() {
   const tryAlternativeTvSource = async (channel: Station) => {
     const config = (window as any)._tvConfig;
     const c = (window as any)._tvCountry;
-    if (!config || !c || !config.tvPlaylists[c]) return false;
+    if (!config || !c || !config.tvPlaylists?.[c]) return false;
 
     const currentSourceIndex = parseInt(tvSource) - 1;
     if (isNaN(currentSourceIndex)) return false; // not a numbered source
