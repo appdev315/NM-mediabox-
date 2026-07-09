@@ -118,9 +118,6 @@ export function Movie() {
       
       if (data.sources && data.sources.length > 0) {
         setSources(data.sources);
-        if (language === 'en-US' && data.sources.length > 1) {
-          finalIframe = data.sources[1].url;
-        }
       }
 
       if (finalStreamUrl) {
