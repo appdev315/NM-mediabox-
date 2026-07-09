@@ -16,7 +16,7 @@ export function TopBanner() {
   }
 
   return (
-    <div className="w-full flex flex-row flex-wrap justify-center items-center gap-2 p-4 pb-0 z-40 pt-[80px]">
+    <div className="absolute top-4 right-4 z-50 flex flex-row items-center gap-2">
       <a 
         href="https://t.me/TheMediaBoxBot" 
         target="_blank" 
