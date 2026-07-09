@@ -320,7 +320,7 @@ export function Movie() {
 
         {recommendations.length > 0 && (
           <>
-          <div className="relative group">
+          <div className="relative">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold text-xl">{t('recommendations')}</h2>
               {WebApp.platform === 'unknown' && (

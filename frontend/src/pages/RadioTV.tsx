@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
+import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useNavigate } from 'react-router-dom';
 import { shouldShowAd } from '../utils/adPlacement';
 
@@ -522,6 +523,7 @@ export function RadioTV() {
       style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top))' }}
     >
       <Header />
+      <ExoClickMainBanner />
 
       {/* Top Navigation */}
       <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
