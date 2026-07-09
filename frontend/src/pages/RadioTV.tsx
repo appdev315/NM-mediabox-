@@ -59,15 +59,7 @@ const FREE_TV_MAP: Record<string, string> = {
 export function RadioTV() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const handleBack = () => navigate(-1);
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(handleBack);
-    return () => {
-      WebApp.BackButton.hide();
-      WebApp.BackButton.offClick(handleBack);
-    };
-  }, [navigate]);
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);

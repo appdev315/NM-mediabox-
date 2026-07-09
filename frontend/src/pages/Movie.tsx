@@ -14,7 +14,7 @@ export function Movie() {
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
-  const { triggerMovieAd, triggerPostAd } = useAdManager();
+  const { triggerMovieAd } = useAdManager();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -39,19 +39,7 @@ export function Movie() {
   const queryType = searchParams.get('type');
   const mediaType = queryType === 'series' || queryType === 'tv' ? 'tv' : 'movie';
 
-  // Configure Telegram BackButton
-  useEffect(() => {
-    WebApp.BackButton.show();
-    const backHandler = () => {
-      triggerPostAd();
-      navigate(-1);
-    };
-    WebApp.BackButton.onClick(backHandler);
-    return () => {
-      WebApp.BackButton.offClick(backHandler);
-      WebApp.BackButton.hide();
-    };
-  }, [navigate, triggerPostAd]);
+
 
   // Load movie/series details and recommendations
   useEffect(() => {
@@ -186,16 +174,7 @@ export function Movie() {
   return (
     <div className="pb-20 animate-fade-in">
       <div className="relative">
-        {WebApp.platform === 'unknown' && (
-          <button 
-            onClick={() => navigate(-1)}
-            className="absolute top-4 left-4 z-50 p-2 bg-black/50 backdrop-blur-md rounded-full shadow-md text-white hover:scale-110 transition-transform"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-        )}
+
         <img 
           src={movie.poster} 
           alt={movie.title} 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
@@ -9,7 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 
 
 export function Profile() {
-  const navigate = useNavigate();
+
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
 
@@ -22,15 +22,7 @@ export function Profile() {
 
   const user = WebApp.initDataUnsafe?.user;
 
-  useEffect(() => {
-    const handleBack = () => navigate(-1);
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(handleBack);
-    return () => {
-      WebApp.BackButton.hide();
-      WebApp.BackButton.offClick(handleBack);
-    };
-  }, [navigate]);
+
 
   useEffect(() => {
     const fetchFavorites = () => {
@@ -47,15 +39,7 @@ export function Profile() {
   return (
     <div className="p-4 pt-24 flex flex-col gap-4">
       <div className="flex items-center gap-3 mb-2">
-        <button 
-          onClick={() => navigate(-1)}
-          className="p-2 bg-black/20 rounded-full shadow-md hover:scale-110 transition-transform"
-          style={{ color: 'var(--text-color)' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
+
         <h1 className="text-2xl font-bold">{t('profile' as any) || 'Profile'}</h1>
       </div>
       

@@ -21,15 +21,7 @@ export function AdultVideo() {
   const [relatedVideos, setRelatedVideos] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
 
-  useEffect(() => {
-    WebApp.BackButton.show();
-    const backHandler = () => navigate(-1);
-    WebApp.BackButton.onClick(backHandler);
-    return () => {
-      WebApp.BackButton.hide();
-      WebApp.BackButton.offClick(backHandler);
-    };
-  }, [navigate]);
+
 
   useEffect(() => {
     const savedFavs = localStorage.getItem('private_favs');
@@ -94,15 +86,7 @@ export function AdultVideo() {
     <div className="pb-20">
       <div className="p-4 pt-24">
         <div className="flex items-center gap-3 mb-6">
-          <button 
-            onClick={() => navigate(-1)}
-            className="p-2 bg-black/20 rounded-full shadow-md hover:scale-110 transition-transform"
-            style={{ color: 'var(--text-color)' }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
+
           <h1 className="text-xl font-bold">Private Collection 🍓</h1>
         </div>
         
