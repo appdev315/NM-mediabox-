@@ -20,6 +20,8 @@ import { AdProvider } from './context/AdManager';
 import { useNavigate } from 'react-router-dom';
 
 import { FloatingTitle } from './components/FloatingTitle';
+import { TopBanner } from './components/TopBanner';
+
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
   
@@ -69,6 +71,7 @@ function MainApp() {
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
       <div className="pb-16 min-h-screen relative flex flex-col">
+        <TopBanner />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movies" element={<Home />} />
