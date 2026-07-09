@@ -57,7 +57,7 @@ export function FloatingTitle() {
         onClick={() => {
           if (isTelegram) {
              WebApp.HapticFeedback.impactOccurred('light');
-             WebApp.openTelegramLink(isAdultApp ? 'https://t.me/mediaboxxxbot' : 'https://t.me/TheMediaBoxBot');
+             WebApp.openTelegramLink(isAdultApp ? 'https://t.me/mediaboxxxbot' : 'https://t.me/moviemaniakbot');
           } else {
             if (isAdultApp) {
               window.location.href = '/';

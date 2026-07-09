@@ -28,7 +28,7 @@ export function TopBanner() {
       style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
     >
       <a 
-        href="https://t.me/TheMediaBoxBot" 
+        href="https://t.me/moviemaniakbot" 
         target="_blank" 
         rel="noopener noreferrer"
         className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
