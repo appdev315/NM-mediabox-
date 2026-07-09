@@ -122,7 +122,7 @@ export function Home() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio-tv', label: t('radio_and_tv') },
-          ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
+          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button
             key={tab.id}

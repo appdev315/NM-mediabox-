@@ -167,13 +167,39 @@ export function RadioTV() {
 
   const fetchTV = async () => {
     try {
-      let url = `https://iptv-org.github.io/iptv/countries/${country}.m3u`;
+      // 1. Fetch remote config
+      let config;
+      try {
+        const confRes = await fetch('/tv-config.json?t=' + Date.now());
+        config = await confRes.json();
+      } catch (e) {
+        // Default config if fetch fails
+        config = {
+          tvPlaylists: {
+            [country]: [
+              `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
+              `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
+              `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${FREE_TV_MAP[country] || country}.m3u8`
+            ]
+          },
+          fastPlaylists: {
+            pluto: "https://i.mjh.nz/PlutoTV/us.m3u8",
+            samsung: "https://i.mjh.nz/SamsungTVPlus/us.m3u8",
+            plex: "https://i.mjh.nz/Plex/us.m3u8",
+            pbs: "https://i.mjh.nz/PBS/all.m3u8"
+          }
+        };
+      }
 
-      if (tvSource === '2') {
-        url = `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`;
-      } else if (tvSource === '3') {
-        const freeTvCountry = FREE_TV_MAP[country] || country;
-        url = `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${freeTvCountry}.m3u8`;
+      let url = '';
+      if (['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
+        url = config.fastPlaylists[tvSource as keyof typeof config.fastPlaylists];
+      } else {
+        const sourceIndex = parseInt(tvSource) - 1;
+        const countryList = config.tvPlaylists[country] || config.tvPlaylists['ru'] || [
+          `https://iptv-org.github.io/iptv/countries/${country}.m3u`
+        ];
+        url = countryList[sourceIndex] || countryList[0];
       }
 
       const res = await fetch(url);
@@ -185,7 +211,7 @@ export function RadioTV() {
         var resText = await res.text();
       }
 
-      const parseM3u = (text: string) => {
+      const parseM3u = (text: string, sourceUrl: string) => {
         const lines = text.split('\n');
         const channels: Station[] = [];
         let current: Partial<Station> = {};
@@ -209,7 +235,7 @@ export function RadioTV() {
               
               if (streamUrl.startsWith('https://')) {
                 // HTTPS goes directly
-                channels.push({ ...current, url: streamUrl, isHttp: false } as Station);
+                channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
               } else {
                 // HTTP goes through Cloudflare Pages Function to avoid Mixed Content
                 // Встроенный прокси Cloudflare Pages
@@ -218,7 +244,8 @@ export function RadioTV() {
                 channels.push({ 
                   ...current, 
                   url: `${WORKER_URL}?url=${encodeURIComponent(streamUrl)}`, 
-                  isHttp: true 
+                  isHttp: true,
+                  originalUrl: sourceUrl
                 } as Station);
               }
               current = {};
@@ -228,7 +255,18 @@ export function RadioTV() {
         return channels;
       };
 
-      const parsedTv = parseM3u(resText);
+      const parsedTv = parseM3u(resText, url);
+      
+      // Load backup playlists for fallback logic
+      if (!['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
+         const countryList = config.tvPlaylists[country] || [];
+         if (countryList.length > 1) {
+            // We can fetch backups in the background, but for now we'll just save the config
+            (window as any)._tvConfig = config;
+            (window as any)._tvCountry = country;
+         }
+      }
+
       setTvChannels(parsedTv);
       localStorage.setItem(`cache_tv_${country}_src${tvSource}`, JSON.stringify(parsedTv));
     } catch (e) {
@@ -279,6 +317,53 @@ export function RadioTV() {
     } else {
       setShowTvWarning(false);
     }
+  };
+
+  const tryAlternativeTvSource = async (channel: Station) => {
+    const config = (window as any)._tvConfig;
+    const c = (window as any)._tvCountry;
+    if (!config || !c || !config.tvPlaylists[c]) return false;
+
+    const currentSourceIndex = parseInt(tvSource) - 1;
+    if (isNaN(currentSourceIndex)) return false; // not a numbered source
+
+    const lists = config.tvPlaylists[c];
+    if (lists.length <= 1) return false;
+
+    const nextIndex = (currentSourceIndex + 1) % lists.length;
+    if (nextIndex === currentSourceIndex) return false;
+
+    try {
+      const res = await fetch(lists[nextIndex]);
+      const text = await res.text();
+      
+      const lines = text.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        // very basic matching, real names can differ slightly but usually close
+        if (lines[i].toLowerCase().includes(channel.name.toLowerCase())) {
+          for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+            if (lines[j].startsWith('http')) {
+              const newUrl = lines[j].trim();
+              const proxied = newUrl.startsWith('https://') 
+                ? newUrl 
+                : `/api/proxy?url=${encodeURIComponent(newUrl)}`;
+
+              setActiveTvChannel({ 
+                ...channel, 
+                url: proxied, 
+                originalUrl: newUrl, 
+                isHttp: !newUrl.startsWith('https://') 
+              } as Station);
+              setTvError(false);
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      return false;
+    }
+    return false;
   };
 
   // Infinite scroll for Radio / TV
@@ -365,7 +450,7 @@ export function RadioTV() {
                   // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
                   // let's try wrapping it in our Cloudflare proxy
                   if (activeTvChannel && !activeTvChannel.url.includes('/api/proxy')) {
-                    console.log('[TV] Direct stream failed, trying Cloudflare proxy fallback...');
+                    console.log('[TV] Stream failed, trying Cloudflare proxy fallback...');
                     clearPlaybackTimeout();
                     hls.destroy();
                     hlsRef.current = null;
@@ -378,8 +463,18 @@ export function RadioTV() {
                     clearPlaybackTimeout();
                     hls.destroy();
                     hlsRef.current = null;
-                    setTvError(true);
-                    setTvLoading(false);
+                    
+                    if (activeTvChannel) {
+                      tryAlternativeTvSource(activeTvChannel).then((found) => {
+                        if (!found) {
+                          setTvError(true);
+                          setTvLoading(false);
+                        }
+                      });
+                    } else {
+                      setTvError(true);
+                      setTvLoading(false);
+                    }
                   }
                 }
                 break;
@@ -403,8 +498,18 @@ export function RadioTV() {
                   clearPlaybackTimeout();
                   hls.destroy();
                   hlsRef.current = null;
-                  setTvError(true);
-                  setTvLoading(false);
+                  
+                  if (activeTvChannel) {
+                    tryAlternativeTvSource(activeTvChannel).then((found) => {
+                      if (!found) {
+                        setTvError(true);
+                        setTvLoading(false);
+                      }
+                    });
+                  } else {
+                    setTvError(true);
+                    setTvLoading(false);
+                  }
                 }
                 break;
             }
@@ -492,9 +597,17 @@ export function RadioTV() {
               borderColor: 'var(--hint-color)'
             }}
           >
-            <option value="1">{t('source1')}</option>
-            <option value="2">{t('source2')}</option>
-            <option value="3">{t('source3')}</option>
+            <optgroup label="Community IPTV">
+              <option value="1">{t('source1')}</option>
+              <option value="2">{t('source2')}</option>
+              <option value="3">{t('source3')}</option>
+            </optgroup>
+            <optgroup label="Free API (HD)">
+              <option value="pluto">Pluto TV</option>
+              <option value="samsung">Samsung TV Plus</option>
+              <option value="plex">Plex Live TV</option>
+              <option value="pbs">PBS (USA)</option>
+            </optgroup>
           </select>
         )}
       </div>

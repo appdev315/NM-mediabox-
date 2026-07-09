@@ -20,15 +20,6 @@ export function ExoClickBanner18() {
     }
 
     const loadAd = () => {
-      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-      if (!scriptLoaded) {
-        const script = document.createElement('script');
-        script.async = true;
-        script.type = 'application/javascript';
-        script.src = 'https://a.magsrv.com/ad-provider.js';
-        document.head.appendChild(script);
-      }
-
       if (containerRef.current) {
         let html = '<div class="flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap">';
         for (let i = 0; i < count; i++) {

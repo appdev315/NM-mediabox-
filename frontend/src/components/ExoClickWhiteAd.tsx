@@ -14,15 +14,6 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card', z
     initialized.current = true;
 
     const loadAd = () => {
-      const scriptLoaded = document.querySelector('script[src*="a.pemsrv.com"]') || document.querySelector('script[src*="a.magsrv.com"]');
-      if (!scriptLoaded) {
-        const script = document.createElement('script');
-        script.src = 'https://a.magsrv.com/ad-provider.js';
-        script.async = true;
-        script.type = 'application/javascript';
-        document.head.appendChild(script);
-      }
-
       if (containerRef.current) {
         containerRef.current.innerHTML = `<ins class="eas6a97888e20" data-zoneid="${zoneId}"></ins>`;
       }

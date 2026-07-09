@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">mediabox</string>
+    <string name="title_activity_main">mediabox</string>
+    <string name="package_name">com.mediabox.app</string>
+    <string name="custom_url_scheme">com.mediabox.app</string>
+</resources>
