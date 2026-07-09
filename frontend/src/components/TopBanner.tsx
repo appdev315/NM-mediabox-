@@ -1,5 +1,6 @@
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
+import { Capacitor } from '@capacitor/core';
 
 export function TopBanner() {
   const { t } = useLanguage();
@@ -10,7 +11,7 @@ export function TopBanner() {
   const isAdultQuery = window.location.href.includes('app=adult');
   const isAdultApp = isAdultDomain || isAdultQuery;
 
-  if (WebApp.platform !== 'unknown' || isAdultApp) {
+  if (WebApp.platform !== 'unknown' || isAdultApp || Capacitor.isNativePlatform()) {
     return null;
   }
 
