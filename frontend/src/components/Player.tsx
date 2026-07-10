@@ -89,15 +89,37 @@ export function Player({ iframeUrl }: PlayerProps) {
     }
   };
 
+  const [refreshCount, setRefreshCount] = useState(0);
+
+  const getUrlWithCacheBuster = (url: string) => {
+    if (refreshCount === 0) return url;
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('_t', Date.now().toString());
+      return urlObj.toString();
+    } catch (e) {
+      // If it's not a valid URL (e.g. protocol-relative), just append
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}_t=${Date.now()}`;
+    }
+  };
+
   return (
-    <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center" style={{ width: '100%', aspectRatio: '16/9' }}>
+    <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
       <iframe 
-        src={iframeUrl}
+        key={refreshCount}
+        src={getUrlWithCacheBuster(iframeUrl)}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        referrerPolicy="no-referrer"
         style={{ width: '100%', height: '100%', border: 'none' }}
       />
+      <button
+        onClick={() => setRefreshCount(c => c + 1)}
+        className="absolute top-2 left-2 bg-black/50 hover:bg-black/80 text-white p-2 rounded-lg z-10 transition-colors opacity-0 group-hover/player:opacity-100"
+        title="Reload Player"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
       {isXvideos && (
         <button 
           onClick={toggleFullscreen}
