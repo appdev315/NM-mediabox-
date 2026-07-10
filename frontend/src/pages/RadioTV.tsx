@@ -4,6 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useNavigate } from 'react-router-dom';
@@ -139,7 +140,7 @@ export function RadioTV() {
   const fetchRadio = async () => {
     try {
       const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
-      const res = await fetch(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
+      const res = await fetchWithRetry(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
       const data = await res.json();
 
       const parsed: Station[] = data.map((d: any) => ({
@@ -195,7 +196,7 @@ export function RadioTV() {
       if (!url) throw new Error("URL not found in config");
 
       const fetchUrl = needsProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
-      const res = await fetch(fetchUrl);
+      const res = await fetchWithRetry(fetchUrl);
       
       let resText = '';
       if (!res.ok && tvSource === '3' && !needsProxy) {

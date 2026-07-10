@@ -7,6 +7,7 @@ import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useApi, EXPRESS_API_BASE } from '../hooks/useApi';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 export function Movie() {
   const { id } = useParams();
@@ -107,7 +108,7 @@ export function Movie() {
       const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
       
-      const res = await fetch(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
+      const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
       const data = await res.json();
       
       if (data.url) {
