@@ -195,7 +195,8 @@ export function Favorites() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
-          { id: 'radio-tv', label: t('radio_and_tv') },
+          { id: 'radio', label: t('tab_radio') || 'Радио' },
+          { id: 'tv', label: t('tab_tv') || 'ТВ' },
 
           ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
@@ -223,14 +224,16 @@ export function Favorites() {
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {activeTab === 'movie' && renderTmdbList('movie')}
         {activeTab === 'series' && renderTmdbList('tv')}
-        {activeTab === 'radio-tv' && (
+        {activeTab === 'radio' && (
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--text-color)' }}>{t('tab_radio')}</h2>
               {renderRadioTvList('radio')}
             </div>
+          </div>
+        )}
+        {activeTab === 'tv' && (
+          <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--text-color)' }}>{t('tab_tv')}</h2>
               {renderRadioTvList('tv')}
             </div>
           </div>
