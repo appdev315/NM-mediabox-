@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebApp } from '../telegram';
 import NoSleep from 'nosleep.js';
+import { useLanguage } from '../context/LanguageContext';
 
 interface PlayerProps {
   iframeUrl: string;
@@ -9,6 +10,8 @@ interface PlayerProps {
 export function Player({ iframeUrl }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const { t } = useLanguage();
   const isXvideos = iframeUrl.includes('xvideos.com');
 
   useEffect(() => {
@@ -103,11 +106,19 @@ export function Player({ iframeUrl }: PlayerProps) {
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
+      {!iframeLoaded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black">
+          <div className="w-10 h-10 border-4 border-[#fbbf24] border-t-transparent rounded-full animate-spin mb-3"></div>
+          <span className="text-white text-sm font-medium opacity-70 animate-pulse">{t('loading')}</span>
+        </div>
+      )}
       <iframe 
         src={getUrlWithCacheBuster(iframeUrl)}
+        onLoad={() => setIframeLoaded(true)}
+        className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        style={{ width: '100%', height: '100%', border: 'none' }}
+        style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />
       {isXvideos && (
         <button 
