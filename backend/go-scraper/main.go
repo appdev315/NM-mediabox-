@@ -93,6 +93,7 @@ func main() {
 	http.HandleFunc("/api/adult/search", searchHandler)
 	http.HandleFunc("/api/adult/details", detailsHandler)
 	http.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
+	http.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
 	http.HandleFunc("/api/stream", streamer.StreamApiHandler)
 
 	log.Println("Go microservice started on :8080")

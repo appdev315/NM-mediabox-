@@ -66,7 +66,7 @@ export function RadioTV() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning] = useState(false);
-  const [activeTab] = useState<'radio' | 'tv'>('radio');
+  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
     if (saved) return saved;
@@ -550,6 +550,7 @@ export function RadioTV() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio', label: t('radio_and_tv') },
+          { id: 'tv', label: 'ТВ' },
           ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button
@@ -564,12 +565,16 @@ export function RadioTV() {
                 navigate('/', { state: { tab: 'movie' } });
               } else if (tab.id === 'series') {
                 navigate('/', { state: { tab: 'series' } });
+              } else if (tab.id === 'radio') {
+                setActiveTab('radio');
+              } else if (tab.id === 'tv') {
+                setActiveTab('tv');
               }
             }}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
-              backgroundColor: tab.id === 'radio' ? 'var(--button-color)' : 'transparent',
-              color: tab.id === 'radio' ? 'var(--button-text-color)' : 'var(--text-color)'
+              backgroundColor: activeTab === tab.id || (tab.id === 'radio' && activeTab === 'radio') ? 'var(--button-color)' : 'transparent',
+              color: activeTab === tab.id || (tab.id === 'radio' && activeTab === 'radio') ? 'var(--button-text-color)' : 'var(--text-color)'
             }}
           >
             {tab.label}
