@@ -4,7 +4,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
-import { WebApp } from '../telegram';
 import React from 'react';
 
 export function Favorites() {
@@ -188,7 +187,10 @@ export function Favorites() {
 
 
   return (
-    <div className="p-4 pt-24 pb-24 h-full flex flex-col">
+    <div 
+      className="px-3 sm:px-4 pb-24 h-full flex flex-col"
+      style={{ paddingTop: 'calc(8rem + env(safe-area-inset-top))' }}
+    >
       <Header />
       
       <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
@@ -196,9 +198,7 @@ export function Favorites() {
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
           { id: 'radio', label: t('tab_radio') || 'Радио' },
-          { id: 'tv', label: t('tab_tv') || 'ТВ' },
-
-          ...(WebApp.platform === 'unknown' ? [{ id: 'private', label: t('secretRoomTab') }] : [])
+          { id: 'tv', label: t('tab_tv') || 'ТВ' }
         ].map(tab => (
           <button 
             key={tab.id}

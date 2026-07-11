@@ -99,7 +99,7 @@ export function Movie() {
   // Trigger ad when navigating to movie
   useEffect(() => {
     triggerMovieAd();
-  }, [id]); // re-trigger when movie id changes
+  }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
   const handleWatch = async () => {
     if (!movie) return;

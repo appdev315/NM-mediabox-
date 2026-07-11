@@ -129,6 +129,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
     fetchRadio();
     fetchTV();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [country, tvSource, radioSource]);
 
   useEffect(() => {
@@ -538,6 +539,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         hlsRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTvChannel, activeTab]);
 
   const listToRender = activeTab === 'radio' ? stations : tvChannels;

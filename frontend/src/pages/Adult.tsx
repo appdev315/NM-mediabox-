@@ -82,7 +82,7 @@ export function Adult() {
     } else {
       setLoading(false);
     }
-  }, [hasAccess]);
+  }, [hasAccess, ageConfirmed, category]);
 
   const loadVideos = async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
     if (append) {
