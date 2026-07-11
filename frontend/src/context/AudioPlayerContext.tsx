@@ -181,9 +181,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onStalled = () => {
-      if (currentTrackRef.current?.type === 'radio') {
-        attemptReconnect('stream stalled');
-      }
+      // Browsers often fire 'stalled' even when playback is fine or can recover seamlessly.
+      // Forcefully reconnecting here causes immediate audio interruptions for the user.
+      // We rely on the 15-second heartbeat to detect actual dead streams instead.
+      console.warn('[Audio] Stream stalled but allowing browser to recover natively.');
     };
 
     // --- Online/Offline handlers ---
