@@ -65,7 +65,7 @@ export function RadioTV() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [showTvWarning] = useState(false);
+  const [showTvWarning, setShowTvWarning] = useState(false);
   const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
@@ -138,6 +138,16 @@ export function RadioTV() {
     fetchRadio();
     fetchTV();
   }, [country, tvSource, radioSource]);
+
+  useEffect(() => {
+    if (activeTab === 'tv') {
+      setShowTvWarning(true);
+      const timer = setTimeout(() => setShowTvWarning(false), 15000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowTvWarning(false);
+    }
+  }, [activeTab]);
 
   const fetchRadio = async () => {
     try {
@@ -627,8 +637,8 @@ export function RadioTV() {
             </optgroup>
           ) : (
             <optgroup label="Radio Sources">
-              {country === 'ru' && <option value="1">{t('source1')} (Radiopotok)</option>}
-              <option value={country === 'ru' ? "2" : "1"}>{country === 'ru' ? t('source2') : t('source1')} (RadioBrowser)</option>
+              {country === 'ru' && <option value="1">{t('source1')}</option>}
+              <option value={country === 'ru' ? "2" : "1"}>{country === 'ru' ? t('source2') : t('source1')}</option>
             </optgroup>
           )}
         </select>
