@@ -14,12 +14,7 @@
     "express": "^4.22.2",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
-    "hono": "^4.12.27",
     "https-proxy-agent": "^9.1.0",
-    "node-cache": "^5.1.2",
-    "undici": "^6.19.2"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260704.1"
+    "node-cache": "^5.1.2"
   }
 }
