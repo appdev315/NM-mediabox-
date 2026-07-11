@@ -208,9 +208,15 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       let url = '';
       let needsProxy = false;
       const sourceIndex = parseInt(tvSource) - 1;
-      const countryList = config.tvPlaylists?.[country] || config.tvPlaylists?.['ru'] || [
-        `https://iptv-org.github.io/iptv/countries/${country}.m3u`
+      
+      const defaultCountryPlaylists = [
+        `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
+        `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
+        `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${FREE_TV_MAP[country] || country}.m3u8`
       ];
+
+      const countryList = config.tvPlaylists?.[country] || defaultCountryPlaylists;
+      
       url = countryList[sourceIndex] || countryList[0];
 
       if (!url) throw new Error("URL not found in config");
