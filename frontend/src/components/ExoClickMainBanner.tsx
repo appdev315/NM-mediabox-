@@ -30,19 +30,8 @@ export function ExoClickMainBanner() {
     };
 
     const timer = setTimeout(loadAd, 150);
-    
-    const checkTimer = setTimeout(() => {
-      if (containerRef.current) {
-        const ins = containerRef.current.querySelector('ins');
-        if (ins && ins.clientHeight === 0 && ins.innerHTML.trim() === '') {
-          if (wrapperRef.current) wrapperRef.current.style.display = 'none';
-        }
-      }
-    }, 2000);
-
     return () => {
       clearTimeout(timer);
-      clearTimeout(checkTimer);
     };
   }, [isMobile]);
 
