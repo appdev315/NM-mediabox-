@@ -12,8 +12,6 @@ import { Adult } from './pages/Adult';
 import { Favorites } from './pages/Favorites';
 import { AdultVideo } from './pages/AdultVideo';
 import { AdultFavorites } from './pages/AdultFavorites';
-import { RadioTV } from './pages/RadioTV';
-
 
 import { ThemeProvider } from './context/ThemeContext';
 import { AdProvider } from './context/AdManager';
@@ -75,7 +73,6 @@ function MainApp() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movies" element={<Home />} />
-          <Route path="/radio-tv" element={<RadioTV />} />
           <Route path="/movie/:id" element={<Movie />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/favorites" element={<Favorites />} />
