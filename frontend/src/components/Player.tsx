@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { WebApp } from '../telegram';
 import NoSleep from 'nosleep.js';
 import { useLanguage } from '../context/LanguageContext';
@@ -13,6 +13,28 @@ export function Player({ iframeUrl }: PlayerProps) {
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const { t } = useLanguage();
   const isXvideos = iframeUrl.includes('xvideos.com');
+
+  const bustedUrl = useMemo(() => {
+    try {
+      const urlObj = new URL(iframeUrl);
+      urlObj.searchParams.set('_t', Date.now().toString());
+      return urlObj.toString();
+    } catch (e) {
+      const separator = iframeUrl.includes('?') ? '&' : '?';
+      return `${iframeUrl}${separator}_t=${Date.now()}`;
+    }
+  }, [iframeUrl]);
+
+  useEffect(() => {
+    setIframeLoaded(false);
+    
+    // Fallback to hide spinner after 5 seconds if onLoad doesn't fire on mobile WebViews
+    const timer = setTimeout(() => {
+      setIframeLoaded(true);
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, [iframeUrl]);
 
   useEffect(() => {
     WebApp.expand();
@@ -92,18 +114,6 @@ export function Player({ iframeUrl }: PlayerProps) {
     }
   };
 
-  const getUrlWithCacheBuster = (url: string) => {
-    try {
-      const urlObj = new URL(url);
-      urlObj.searchParams.set('_t', Date.now().toString());
-      return urlObj.toString();
-    } catch (e) {
-      // If it's not a valid URL (e.g. protocol-relative), just append
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}_t=${Date.now()}`;
-    }
-  };
-
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
       {!iframeLoaded && (
@@ -113,7 +123,7 @@ export function Player({ iframeUrl }: PlayerProps) {
         </div>
       )}
       <iframe 
-        src={getUrlWithCacheBuster(iframeUrl)}
+        src={bustedUrl}
         onLoad={() => setIframeLoaded(true)}
         className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
