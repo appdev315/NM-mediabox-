@@ -110,15 +110,20 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     localStorage.setItem('radio_source', radioSource);
 
     // Attempt to load from cache first
-    const cachedRadio = localStorage.getItem(`cache_radio_${country}`);
+    const cachedRadio = localStorage.getItem(`cache_radio_${country}_src${radioSource}`);
     const cachedTv = localStorage.getItem(`cache_tv_${country}_src${tvSource}`);
     let hasCache = false;
 
     if (cachedRadio) {
       try { setStations(JSON.parse(cachedRadio)); hasCache = true; } catch (e) { }
+    } else {
+      setStations([]);
     }
+    
     if (cachedTv) {
       try { setTvChannels(JSON.parse(cachedTv)); hasCache = true; } catch (e) { }
+    } else {
+      setTvChannels([]);
     }
 
     if (!hasCache) {
