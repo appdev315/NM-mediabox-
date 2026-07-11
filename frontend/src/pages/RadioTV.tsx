@@ -66,7 +66,9 @@ export function RadioTV() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning, setShowTvWarning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>('radio');
+  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>(
+    (location.state as any)?.tab === 'tv' ? 'tv' : 'radio'
+  );
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
     if (saved) return saved;
@@ -559,8 +561,8 @@ export function RadioTV() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
-          { id: 'radio', label: t('radio_and_tv') },
-          { id: 'tv', label: 'ТВ' },
+          { id: 'radio', label: t('tab_radio') || 'Радио' },
+          { id: 'tv', label: t('tab_tv') || 'ТВ' },
           ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button

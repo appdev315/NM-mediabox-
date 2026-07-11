@@ -127,7 +127,8 @@ export function Home() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
-          { id: 'radio-tv', label: t('radio_and_tv') },
+          { id: 'radio', label: t('tab_radio') || 'Радио' },
+          { id: 'tv', label: t('tab_tv') || 'ТВ' },
           ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
         ].map(tab => (
           <button
@@ -138,8 +139,10 @@ export function Home() {
                 window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
                 return;
               }
-              if (tab.id === 'radio-tv') {
-                navigate('/radio-tv');
+              if (tab.id === 'radio') {
+                navigate('/radio-tv', { state: { tab: 'radio' } });
+              } else if (tab.id === 'tv') {
+                navigate('/radio-tv', { state: { tab: 'tv' } });
               }
               else handleTabChange(tab.id as 'movie' | 'series');
             }}
