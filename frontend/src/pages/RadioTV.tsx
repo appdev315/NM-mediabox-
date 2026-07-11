@@ -604,40 +604,29 @@ export function RadioTV() {
           ))}
         </select>
 
-        {activeTab === 'tv' ? (
-          <select
-            value={tvSource}
-            onChange={(e) => setTvSource(e.target.value)}
-            className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-            style={{
-              backgroundColor: 'var(--bg-color)',
-              color: 'var(--text-color)',
-              borderColor: 'var(--hint-color)'
-            }}
-          >
+        <select
+          value={activeTab === 'tv' ? tvSource : radioSource}
+          onChange={(e) => activeTab === 'tv' ? setTvSource(e.target.value) : setRadioSource(e.target.value)}
+          className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+          style={{
+            backgroundColor: 'var(--bg-color)',
+            color: 'var(--text-color)',
+            borderColor: 'var(--hint-color)'
+          }}
+        >
+          {activeTab === 'tv' ? (
             <optgroup label="Community IPTV">
               <option value="1">{t('source1')}</option>
               <option value="2">{t('source2')}</option>
               <option value="3">{t('source3')}</option>
             </optgroup>
-          </select>
-        ) : (
-          <select
-            value={radioSource}
-            onChange={(e) => setRadioSource(e.target.value)}
-            className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-            style={{
-              backgroundColor: 'var(--bg-color)',
-              color: 'var(--text-color)',
-              borderColor: 'var(--hint-color)'
-            }}
-          >
+          ) : (
             <optgroup label="Radio Sources">
               {country === 'ru' && <option value="1">{t('source1')} (Radiopotok)</option>}
               <option value={country === 'ru' ? "2" : "1"}>{country === 'ru' ? t('source2') : t('source1')} (RadioBrowser)</option>
             </optgroup>
-          </select>
-        )}
+          )}
+        </select>
       </div>
 
       {/* Search */}
