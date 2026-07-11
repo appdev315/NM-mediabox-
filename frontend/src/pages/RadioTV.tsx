@@ -7,7 +7,7 @@ import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { shouldShowAd } from '../utils/adPlacement';
 
 // Get backend URL from environment or use default
@@ -60,6 +60,7 @@ const FREE_TV_MAP: Record<string, string> = {
 
 export function RadioTV() {
   const navigate = useNavigate();
+  const location = useLocation();
 
 
 
