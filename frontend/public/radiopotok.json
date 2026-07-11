@@ -1,0 +1,5322 @@
+[
+  {
+    "id": "1543",
+    "name": "Русская Волна",
+    "logo": "https://radiopotok.ru/f/station/256/1543.png",
+    "stream": "https://rp.amgradio.ru/RuWave48",
+    "category": "russian"
+  },
+  {
+    "id": "2449",
+    "name": "НАРОДНОЕ РАДИО «РОДНИКИ»",
+    "logo": "https://radiopotok.ru/f/station/256/2449.png",
+    "stream": "https://rodniki.hostingradio.ru/rodniki128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "1218",
+    "name": "ТНТ MUSIC RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/1218.png",
+    "stream": "https://tntradio.hostingradio.ru:8027/tntradio128.mp3",
+    "category": "top"
+  },
+  {
+    "id": "35",
+    "name": "Радио PREMIUM / ПРЕМИУМ",
+    "logo": "https://radiopotok.ru/f/station/256/35.png",
+    "stream": "https://hls.rpfm.ru/rpfm/playlist.m3u8",
+    "category": "foreign"
+  },
+  {
+    "id": "1992",
+    "name": "TOP 100",
+    "logo": "https://radiopotok.ru/f/station/256/1992.png",
+    "stream": "https://ic2.radiosignal.one/top100",
+    "category": "russian"
+  },
+  {
+    "id": "85",
+    "name": "Русское Радио",
+    "logo": "https://radiopotok.ru/f/station/256/85.png",
+    "stream": "https://rusradio.hostingradio.ru/rusradio128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "1323",
+    "name": "Маруся ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/1323.png",
+    "stream": "https://radio-holding.ru:9433/marusya_default",
+    "category": "russian"
+  },
+  {
+    "id": "644",
+    "name": "Вести FM",
+    "logo": "https://radiopotok.ru/f/station/256/644.png",
+    "stream": "https://icecast-vgtrk.cdnvideo.ru/vestifm_mp3_192kbps",
+    "category": "news"
+  },
+  {
+    "id": "1576",
+    "name": "Европа Плюс",
+    "logo": "https://radiopotok.ru/f/station/256/1576.png",
+    "stream": "https://hls-02-europaplus.emgsound.ru/11/playlist.m3u8",
+    "category": "foreign"
+  },
+  {
+    "id": "83",
+    "name": "Дорожное радио Санкт-Петербург 87.5 FM",
+    "logo": "https://radiopotok.ru/f/station/256/83.png",
+    "stream": "https://hls-01-dorognoe.emgsound.ru/15/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "603",
+    "name": "Радио Монте-Карло",
+    "logo": "https://radiopotok.ru/f/station/256/603.png",
+    "stream": "https://montecarlo.hostingradio.ru/montecarlo128.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "1570",
+    "name": "Ретро Хит",
+    "logo": "https://radiopotok.ru/f/station/256/1570.png",
+    "stream": "https://retro.amgradio.ru/Retro",
+    "category": "retro"
+  },
+  {
+    "id": "487",
+    "name": "Хорошее Радио",
+    "logo": "https://radiopotok.ru/f/station/256/487.png",
+    "stream": "https://hr.amgradio.ru/Horoshee",
+    "category": "russian"
+  },
+  {
+    "id": "2178",
+    "name": "Соловьёв LIVE FM",
+    "logo": "https://radiopotok.ru/f/station/256/2178.png",
+    "stream": "https://solovievfm.hostingradio.ru/solovievfm128.aacp",
+    "category": "news"
+  },
+  {
+    "id": "1260",
+    "name": "SOUNDPARK DEEP",
+    "logo": "https://radiopotok.ru/f/station/256/1260.png",
+    "stream": "https://h.getradio.me/spdeep/hls.m3u8",
+    "category": "chillout"
+  },
+  {
+    "id": "78",
+    "name": "Авторадио",
+    "logo": "https://radiopotok.ru/f/station/256/78.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/avtoradio495/playlist.m3u8",
+    "category": "top"
+  },
+  {
+    "id": "780",
+    "name": "Шоколад",
+    "logo": "https://radiopotok.ru/f/station/256/780.png",
+    "stream": "https://choco.hostingradio.ru:10010/fm",
+    "category": "pop"
+  },
+  {
+    "id": "221",
+    "name": "Новое радио 98.4 FM",
+    "logo": "https://radiopotok.ru/f/station/256/221.png",
+    "stream": "https://stream.newradio.ru/novoe96.aacp",
+    "category": "foreign"
+  },
+  {
+    "id": "2",
+    "name": "Радио Шансон",
+    "logo": "https://radiopotok.ru/f/station/256/2.png",
+    "stream": "https://chanson.hostingradio.ru:8041/chanson128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "1594",
+    "name": "Русский Рок",
+    "logo": "https://radiopotok.ru/f/station/256/1594.png",
+    "stream": "https://rock.amgradio.ru/RusRock",
+    "category": "russian"
+  },
+  {
+    "id": "89",
+    "name": "Маяк",
+    "logo": "https://radiopotok.ru/f/station/256/89.png",
+    "stream": "https://icecast-vgtrk.cdnvideo.ru/mayakfm_mp3_128kbps",
+    "category": "russian"
+  },
+  {
+    "id": "1901",
+    "name": "Remix FM",
+    "logo": "https://radiopotok.ru/f/station/256/1901.png",
+    "stream": "https://rmx.amgradio.ru/RemixFM",
+    "category": "russian"
+  },
+  {
+    "id": "542",
+    "name": "Атмосфера",
+    "logo": "https://radiopotok.ru/f/station/256/542.png",
+    "stream": "https://myradio24.org/atmo",
+    "category": "chillout"
+  },
+  {
+    "id": "1021",
+    "name": "Комсомольская правда Россия",
+    "logo": "https://radiopotok.ru/f/station/256/1021.png",
+    "stream": "https://kpradio.hostingradio.ru:8000/russia.radiokp128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "1743",
+    "name": "Дядя Ваня на даче 18+",
+    "logo": "https://radiopotok.ru/f/station/256/1743.png",
+    "stream": "https://ic1.radiosignal.one/vanya",
+    "category": "retro"
+  },
+  {
+    "id": "177",
+    "name": "Романтика",
+    "logo": "https://radiopotok.ru/f/station/256/177.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/romantika495/playlist.m3u8",
+    "category": "foreign"
+  },
+  {
+    "id": "1385",
+    "name": "Радио-3",
+    "logo": "https://radiopotok.ru/f/station/256/1385.png",
+    "stream": "https://5.restream.one/1385_1",
+    "category": "top"
+  },
+  {
+    "id": "4",
+    "name": "Радио ЭНЕРДЖИ (NRG)",
+    "logo": "https://radiopotok.ru/f/station/256/4.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/energyfm495/playlist.m3u8",
+    "category": "foreign"
+  },
+  {
+    "id": "1601",
+    "name": "Radio Cafe",
+    "logo": "https://radiopotok.ru/f/station/256/1601.png",
+    "stream": "https://cafe.amgradio.ru/Cafe",
+    "category": "retro"
+  },
+  {
+    "id": "64",
+    "name": "Юмор FM",
+    "logo": "https://radiopotok.ru/f/station/256/64.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/humorfm495/playlist.m3u8",
+    "category": "top"
+  },
+  {
+    "id": "88",
+    "name": "DFM Москва",
+    "logo": "https://radiopotok.ru/f/station/256/88.png",
+    "stream": "https://dfm.hostingradio.ru/dfm128.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "1496",
+    "name": "[RCM] DEEP",
+    "logo": "https://radiopotok.ru/f/station/256/1496.png",
+    "stream": "https://h.getradio.me/rcmdeep/hls.m3u8",
+    "category": "chillout"
+  },
+  {
+    "id": "2176",
+    "name": "BEST DEEP FM",
+    "logo": "https://radiopotok.ru/f/station/256/2176.png",
+    "stream": "https://myradio24.org/5129",
+    "category": "top"
+  },
+  {
+    "id": "369",
+    "name": "Радио Русские Популярные Песни",
+    "logo": "https://radiopotok.ru/f/station/256/369.png",
+    "stream": "https://listen.rusongs.ru/ru-aac-64",
+    "category": "russian"
+  },
+  {
+    "id": "2468",
+    "name": "Радио СИТИ",
+    "logo": "https://radiopotok.ru/f/station/256/2468.png",
+    "stream": "https://online2.100i6fm.ru/city_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "33",
+    "name": "Наше Радио",
+    "logo": "https://radiopotok.ru/f/station/256/33.png",
+    "stream": "https://nashe5.hostingradio.ru/nashe-128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "526",
+    "name": "Comedy Radio",
+    "logo": "https://radiopotok.ru/f/station/256/526.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/comedyradio495/playlist.m3u8",
+    "category": "top"
+  },
+  {
+    "id": "1567",
+    "name": "ХАЙП FM",
+    "logo": "https://radiopotok.ru/f/station/256/1567.png",
+    "stream": "https://hfm.amgradio.ru/HypeFM",
+    "category": "top"
+  },
+  {
+    "id": "597",
+    "name": "Relax FM 90.8",
+    "logo": "https://radiopotok.ru/f/station/256/597.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/relaxfm495/playlist.m3u8",
+    "category": "jazz"
+  },
+  {
+    "id": "93",
+    "name": "Радио 7 на семи холмах",
+    "logo": "https://radiopotok.ru/f/station/256/93.png",
+    "stream": "https://hls-01-regions.emgsound.ru/13_msk/playlist.m3u8",
+    "category": "retro"
+  },
+  {
+    "id": "257",
+    "name": "Русский хит",
+    "logo": "https://radiopotok.ru/f/station/256/257.png",
+    "stream": "https://rp.amgradio.ru/RuWave48",
+    "category": "russian"
+  },
+  {
+    "id": "67",
+    "name": "Радио Рекорд / Record",
+    "logo": "https://radiopotok.ru/f/station/256/67.png",
+    "stream": "https://radiorecord.hostingradio.ru/rr_main96.aacp",
+    "category": "pop"
+  },
+  {
+    "id": "495",
+    "name": "Радио Звезда",
+    "logo": "https://radiopotok.ru/f/station/256/495.png",
+    "stream": "https://icecast-zvezda.mediacdn.ru/radio/zvezda/zvezda_128",
+    "category": "news"
+  },
+  {
+    "id": "2523",
+    "name": "Радио МИР",
+    "logo": "https://radiopotok.ru/f/station/256/2523.png",
+    "stream": "https://icecast-mirtv.cdnvideo.ru/radio_mir_256",
+    "category": "news"
+  },
+  {
+    "id": "87",
+    "name": "Максимум",
+    "logo": "https://radiopotok.ru/f/station/256/87.png",
+    "stream": "https://maximum.hostingradio.ru/maximum128.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "962",
+    "name": "Sputnik",
+    "logo": "https://radiopotok.ru/f/station/256/962.png",
+    "stream": "https://icecast-rian.cdnvideo.ru/voicerus",
+    "category": "news"
+  },
+  {
+    "id": "1539",
+    "name": "Шансон без цензуры",
+    "logo": "https://radiopotok.ru/f/station/256/1539.png",
+    "stream": "https://chanson.hostingradio.ru:8041/chanson-uncensored128.mp3",
+    "category": "top"
+  },
+  {
+    "id": "1959",
+    "name": "Радио Советская эстрада",
+    "logo": "https://radiopotok.ru/f/station/256/1959.png",
+    "stream": "https://evcast.mediacp.eu:2075/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2508",
+    "name": "Хит FM",
+    "logo": "https://radiopotok.ru/f/station/256/2508.png",
+    "stream": "https://hitfm.hostingradio.ru/hitfm96.aacp",
+    "category": "pop"
+  },
+  {
+    "id": "1006",
+    "name": "Радио ИСКАТЕЛЬ",
+    "logo": "https://radiopotok.ru/f/station/256/1006.png",
+    "stream": "https://iskatel.hostingradio.ru:8015/iskatel-128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "1767",
+    "name": "ЛЁГКОЕ РАДИО",
+    "logo": "https://radiopotok.ru/f/station/256/1767.png",
+    "stream": "https://1.restream.one/1767_1",
+    "category": "chillout"
+  },
+  {
+    "id": "129",
+    "name": "Милицейская Волна",
+    "logo": "https://radiopotok.ru/f/station/256/129.png",
+    "stream": "https://radiomv.hostingradio.ru:80/radiomv128.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "2170",
+    "name": "DEEP FM",
+    "logo": "https://radiopotok.ru/f/station/256/2170.png",
+    "stream": "https://deep.amgradio.ru/DeepFM",
+    "category": "chillout"
+  },
+  {
+    "id": "63",
+    "name": "Бизнес ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/63.png",
+    "stream": "https://bfm.hostingradio.ru:8004/fm",
+    "category": "news"
+  },
+  {
+    "id": "1540",
+    "name": "Романтический шансон",
+    "logo": "https://radiopotok.ru/f/station/256/1540.png",
+    "stream": "https://chanson.hostingradio.ru:8041/chanson-romantic256.mp3",
+    "category": "top"
+  },
+  {
+    "id": "2462",
+    "name": "Джем FM",
+    "logo": "https://radiopotok.ru/f/station/256/2462.png",
+    "stream": "https://online2.jamfm.ru/jam",
+    "category": "russian"
+  },
+  {
+    "id": "2461",
+    "name": "Радио СИ",
+    "logo": "https://radiopotok.ru/f/station/256/2461.png",
+    "stream": "https://online.radioc.ru/radioc_aacplus",
+    "category": "retro"
+  },
+  {
+    "id": "1627",
+    "name": "Народное радио",
+    "logo": "https://radiopotok.ru/f/station/256/1627.png",
+    "stream": "https://live.novoeradio.by:444/live/narodnoeradio_aac128/icecast.audio",
+    "category": "russian"
+  },
+  {
+    "id": "1511",
+    "name": "Absolute Chillout",
+    "logo": "https://radiopotok.ru/f/station/256/1511.png",
+    "stream": "https://streaming.live365.com/b05055_128mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "2253",
+    "name": "СВОЕFM | DEEP RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2253.png",
+    "stream": "https://h.getradio.me/svoefm/hls.m3u8",
+    "category": "chillout"
+  },
+  {
+    "id": "1175",
+    "name": "РУССКОЕ FM",
+    "logo": "https://radiopotok.ru/f/station/256/1175.png",
+    "stream": "https://rufm.amgradio.ru/rufm",
+    "category": "russian"
+  },
+  {
+    "id": "626",
+    "name": "Душевное Радио",
+    "logo": "https://radiopotok.ru/f/station/256/626.png",
+    "stream": "https://stream2.datacenter.by/dushevnoe",
+    "category": "retro"
+  },
+  {
+    "id": "614",
+    "name": "Коммерсантъ FM",
+    "logo": "https://radiopotok.ru/f/station/256/614.png",
+    "stream": "https://kommersant77.hostingradio.ru:8016/kommersant128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "472",
+    "name": "Costa Del Mar – Chillout",
+    "logo": "https://radiopotok.ru/f/station/256/472.png",
+    "stream": "https://1.restream.one/472_1",
+    "category": "chillout"
+  },
+  {
+    "id": "679",
+    "name": "DEEP ONE - deep house radio",
+    "logo": "https://radiopotok.ru/f/station/256/679.png",
+    "stream": "https://stream.deep1.ru/deep1aac",
+    "category": "chillout"
+  },
+  {
+    "id": "801",
+    "name": "Радио-Континенталь",
+    "logo": "https://radiopotok.ru/f/station/256/801.png",
+    "stream": "https://stream01.radiocon.ru:8443/live",
+    "category": "pop"
+  },
+  {
+    "id": "422",
+    "name": "Радио Вера",
+    "logo": "https://radiopotok.ru/f/station/256/422.png",
+    "stream": "https://radiovera.hostingradio.ru:8007/radiovera_128",
+    "category": "top"
+  },
+  {
+    "id": "721",
+    "name": "Радио «Книга»",
+    "logo": "https://radiopotok.ru/f/station/256/721.png",
+    "stream": "https://bookradio.hostingradio.ru:8069/fm",
+    "category": "kids"
+  },
+  {
+    "id": "602",
+    "name": "Дорожное радио Златоуст",
+    "logo": "https://radiopotok.ru/f/station/256/602.png",
+    "stream": "https://hls-01-dorognoe.emgsound.ru/15/playlist.m3u8",
+    "category": "retro"
+  },
+  {
+    "id": "767",
+    "name": "Эльдорадио",
+    "logo": "https://radiopotok.ru/f/station/256/767.png",
+    "stream": "https://emgspb.hostingradio.ru/eldoradio128.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2475",
+    "name": "Радио Мегаполис",
+    "logo": "https://radiopotok.ru/f/station/256/2475.png",
+    "stream": "https://online2.radio-megapolis.ru/megapolis_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "203",
+    "name": "Whisperings",
+    "logo": "https://radiopotok.ru/f/station/256/203.png",
+    "stream": "https://pianosolo.streamguys1.com/live",
+    "category": "classical"
+  },
+  {
+    "id": "1105",
+    "name": "Радио Скала",
+    "logo": "https://radiopotok.ru/f/station/256/1105.png",
+    "stream": "https://ic1.radiosignal.one/skala",
+    "category": "retro"
+  },
+  {
+    "id": "2465",
+    "name": "Радио Спутник 107.0 FM Екатеринбург",
+    "logo": "https://radiopotok.ru/f/station/256/2465.png",
+    "stream": "https://online.sputnik107.ru/sputnik107",
+    "category": "retro"
+  },
+  {
+    "id": "308",
+    "name": "Радио Джаз 89.1",
+    "logo": "https://radiopotok.ru/f/station/256/308.png",
+    "stream": "https://nashe1.hostingradio.ru/jazz-128.mp3",
+    "category": "jazz"
+  },
+  {
+    "id": "2288",
+    "name": "Известия",
+    "logo": "https://radiopotok.ru/f/station/256/2288.png",
+    "stream": "https://hls-igi.cdnvideo.ru/igi/radio1/playlist.m3u8",
+    "category": "news"
+  },
+  {
+    "id": "2066",
+    "name": "Rock FM",
+    "logo": "https://radiopotok.ru/f/station/256/2066.png",
+    "stream": "https://nashe1.hostingradio.ru:80/rock-128.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "1392",
+    "name": "URALSOUND FM | DEEP HOUSE",
+    "logo": "https://radiopotok.ru/f/station/256/1392.png",
+    "stream": "https://5.restream.one/1392_1",
+    "category": "chillout"
+  },
+  {
+    "id": "615",
+    "name": "Радио России",
+    "logo": "https://radiopotok.ru/f/station/256/615.png",
+    "stream": "https://5.restream.one/615_1",
+    "category": "news"
+  },
+  {
+    "id": "2267",
+    "name": "Радио Легенда",
+    "logo": "https://radiopotok.ru/f/station/256/2267.png",
+    "stream": "https://radiolegenda.ru:8001/64.aac",
+    "category": "retro"
+  },
+  {
+    "id": "773",
+    "name": "Питер FM 100.9",
+    "logo": "https://radiopotok.ru/f/station/256/773.png",
+    "stream": "https://piterfm-hls.cdnvideo.ru/piterfm-live/piterfm.stream/playlist.m3u8",
+    "category": "top"
+  },
+  {
+    "id": "2652",
+    "name": "Соль FM",
+    "logo": "https://radiopotok.ru/f/station/256/2652.png",
+    "stream": "https://solfm.ru:8443/online128",
+    "category": "pop"
+  },
+  {
+    "id": "1926",
+    "name": "Overdrive Live! Station",
+    "logo": "https://radiopotok.ru/f/station/256/1926.png",
+    "stream": "https://stream.overdrivelive.net:8000/alternative_128.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2591",
+    "name": "Приморская волна",
+    "logo": "https://radiopotok.ru/f/station/256/2591.png",
+    "stream": "https://stream.primvolna.ru/primvolna-artem",
+    "category": "retro"
+  },
+  {
+    "id": "893",
+    "name": "90s Eurodance",
+    "logo": "https://radiopotok.ru/f/station/256/893.png",
+    "stream": "https://myradio24.org/5967",
+    "category": "retro"
+  },
+  {
+    "id": "2532",
+    "name": "Топ Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2532.png",
+    "stream": "https://streamer.radiovseti.ru:8000/tr_hi",
+    "category": "pop"
+  },
+  {
+    "id": "2473",
+    "name": "Радио АЛЬФА",
+    "logo": "https://radiopotok.ru/f/station/256/2473.png",
+    "stream": "https://online.alfafm.ru/alfa_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2341",
+    "name": "Книга Вслух",
+    "logo": "https://radiopotok.ru/f/station/256/2341.png",
+    "stream": "https://radio-soyuz.ru:1045/stream",
+    "category": "top"
+  },
+  {
+    "id": "36",
+    "name": "Fréquence 3",
+    "logo": "https://radiopotok.ru/f/station/256/36.png",
+    "stream": "https://frequence3.net-radio.fr/frequence3-128.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "916",
+    "name": "Like FM",
+    "logo": "https://radiopotok.ru/f/station/256/916.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/likefm495/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "1413",
+    "name": "BEST FM 100,5 FM",
+    "logo": "https://radiopotok.ru/f/station/256/1413.png",
+    "stream": "https://nashe1.hostingradio.ru/best-128.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2467",
+    "name": "Радио Олимп",
+    "logo": "https://radiopotok.ru/f/station/256/2467.png",
+    "stream": "https://online.olimpfm.ru/olimp_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "162",
+    "name": "МЕГА РАДИО",
+    "logo": "https://radiopotok.ru/f/station/256/162.png",
+    "stream": "https://mega.amgradio.ru/mega",
+    "category": "foreign"
+  },
+  {
+    "id": "2585",
+    "name": "Серебряный Дождь",
+    "logo": "https://radiopotok.ru/f/station/256/2585.png",
+    "stream": "https://silverrain.hostingradio.ru/silver128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "208",
+    "name": "Mixadance Fm Online Radio",
+    "logo": "https://radiopotok.ru/f/station/256/208.png",
+    "stream": "https://stream.mixadance.fm/mixadance",
+    "category": "top"
+  },
+  {
+    "id": "638",
+    "name": "Радио Ностальжи Россия",
+    "logo": "https://radiopotok.ru/f/station/256/638.png",
+    "stream": "https://listen7.myradio24.com/alexx333",
+    "category": "retro"
+  },
+  {
+    "id": "2471",
+    "name": "Радио 99.1 FM Красноярск",
+    "logo": "https://radiopotok.ru/f/station/256/2471.png",
+    "stream": "https://online2.99-1.ru/99i1_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2655",
+    "name": "Владивосток FM",
+    "logo": "https://radiopotok.ru/f/station/256/2655.png",
+    "stream": "https://stream.pari-radio.ru/vfm",
+    "category": "russian"
+  },
+  {
+    "id": "2466",
+    "name": "Радио Лето",
+    "logo": "https://radiopotok.ru/f/station/256/2466.png",
+    "stream": "https://online.radioletofm.ru/radioletofm",
+    "category": "russian"
+  },
+  {
+    "id": "291",
+    "name": "Радио ПАССАЖ",
+    "logo": "https://radiopotok.ru/f/station/256/291.png",
+    "stream": "https://listen.radiopassazh.ru/aac-64",
+    "category": "pop"
+  },
+  {
+    "id": "2457",
+    "name": "PIKIVOK 18+",
+    "logo": "https://radiopotok.ru/f/station/256/2457.png",
+    "stream": "https://cp.pikivok.ru:8000/pikivok192.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2463",
+    "name": "Радио Пилот Екатеринбург 100.4 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2463.png",
+    "stream": "https://online.pilotfm.ru/pilot",
+    "category": "pop"
+  },
+  {
+    "id": "2476",
+    "name": "Радио 106.9 Тольятти",
+    "logo": "https://radiopotok.ru/f/station/256/2476.png",
+    "stream": "https://online2.106i9fm.ru/106i9_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "80",
+    "name": "Радио Сибирь",
+    "logo": "https://radiopotok.ru/f/station/256/80.png",
+    "stream": "https://stream.radiosibir.ru:8093/RadioSibirFed",
+    "category": "retro"
+  },
+  {
+    "id": "1958",
+    "name": "Радио 54",
+    "logo": "https://radiopotok.ru/f/station/256/1958.png",
+    "stream": "https://5.restream.one/1958_1",
+    "category": "pop"
+  },
+  {
+    "id": "2529",
+    "name": "Радио Юнистар",
+    "logo": "https://radiopotok.ru/f/station/256/2529.png",
+    "stream": "https://stream.unistar.by/unistar_main_internal/unistar_main/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "844",
+    "name": "Татар Радиосы",
+    "logo": "https://radiopotok.ru/f/station/256/844.png",
+    "stream": "https://tatarradio.hostingradio.ru/tatarradio320.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2528",
+    "name": "Супер ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2528.png",
+    "stream": "https://stream2.datacenter.by/sfm",
+    "category": "pop"
+  },
+  {
+    "id": "2656",
+    "name": "Авторадио Владивосток",
+    "logo": "https://radiopotok.ru/f/station/256/2656.png",
+    "stream": "https://stream.pari-radio.ru/ara",
+    "category": "russian"
+  },
+  {
+    "id": "1884",
+    "name": "Диско-радио SOVA",
+    "logo": "https://radiopotok.ru/f/station/256/1884.png",
+    "stream": "https://evcast.mediacp.eu:1965/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2023",
+    "name": "Ермак Урал",
+    "logo": "https://radiopotok.ru/f/station/256/2023.png",
+    "stream": "https://radio.dline-media.com/ermak_ural",
+    "category": "pop"
+  },
+  {
+    "id": "1689",
+    "name": "MR DANCE RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/1689.png",
+    "stream": "https://myradio24.org/9083",
+    "category": "russian"
+  },
+  {
+    "id": "1778",
+    "name": "Радио Шторм",
+    "logo": "https://radiopotok.ru/f/station/256/1778.png",
+    "stream": "https://shtorm.amgradio.ru/shtormfm",
+    "category": "foreign"
+  },
+  {
+    "id": "2469",
+    "name": "Радио СПУТНИК Волгоград 105.1 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2469.png",
+    "stream": "https://online.sputnikfm.ru/sputnik_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "784",
+    "name": "Казак FM",
+    "logo": "https://radiopotok.ru/f/station/256/784.png",
+    "stream": "https://radio.kazak.fm/kazak_fm.mp3?radiostatistica=radiopotok.ru",
+    "category": "retro"
+  },
+  {
+    "id": "2612",
+    "name": "Радиус FM",
+    "logo": "https://radiopotok.ru/f/station/256/2612.png",
+    "stream": "https://radio.dc.beltelecom.by/radiusfm/radiusfm.stream/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "1067",
+    "name": "Radio Monte Carlo Lounge",
+    "logo": "https://radiopotok.ru/f/station/256/1067.png",
+    "stream": "https://stream.pcradio.ru/montecarlo_cf-hi",
+    "category": "jazz"
+  },
+  {
+    "id": "814",
+    "name": "Радио mCm 102.1 FM",
+    "logo": "https://radiopotok.ru/f/station/256/814.png",
+    "stream": "https://radio.irkmedia.ru:10443/hit128",
+    "category": "pop"
+  },
+  {
+    "id": "1830",
+    "name": "Любимые хиты",
+    "logo": "https://radiopotok.ru/f/station/256/1830.png",
+    "stream": "https://radio.lyubimyehity.ru:1045/stream",
+    "category": "pop"
+  },
+  {
+    "id": "1582",
+    "name": "Мегахит",
+    "logo": "https://radiopotok.ru/f/station/256/1582.png",
+    "stream": "https://listen.megahit.online/megamp128",
+    "category": "pop"
+  },
+  {
+    "id": "608",
+    "name": "Радио МИР.Беларусь",
+    "logo": "https://radiopotok.ru/f/station/256/608.png",
+    "stream": "https://media1.datacenter.by:1936/radiomir/radiomir/playlist.m3u8",
+    "category": "foreign"
+  },
+  {
+    "id": "2477",
+    "name": "Ульяновск FM",
+    "logo": "https://radiopotok.ru/f/station/256/2477.png",
+    "stream": "https://online.ulskfm.ru/104i2_mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2527",
+    "name": "Новое Радио Беларусь",
+    "logo": "https://radiopotok.ru/f/station/256/2527.png",
+    "stream": "https://live.novoeradio.by:444/live/novoeradio_aac128/icecast.audio",
+    "category": "pop"
+  },
+  {
+    "id": "1685",
+    "name": "RADIO FRESH",
+    "logo": "https://radiopotok.ru/f/station/256/1685.png",
+    "stream": "https://fresh.amgradio.ru/Fresh",
+    "category": "pop"
+  },
+  {
+    "id": "2460",
+    "name": "Радио Пурга",
+    "logo": "https://radiopotok.ru/f/station/256/2460.png",
+    "stream": "https://radiopurga.online/live",
+    "category": "pop"
+  },
+  {
+    "id": "2478",
+    "name": "Радио Карнавал",
+    "logo": "https://radiopotok.ru/f/station/256/2478.png",
+    "stream": "https://online.radiokarnaval.ru/karnaval",
+    "category": "pop"
+  },
+  {
+    "id": "2491",
+    "name": "Радио Камчатка 105.5fm",
+    "logo": "https://radiopotok.ru/f/station/256/2491.png",
+    "stream": "https://listen.myrh.ru/id057771",
+    "category": "foreign"
+  },
+  {
+    "id": "2565",
+    "name": "Диско-радио ВЕНЕРА",
+    "logo": "https://radiopotok.ru/f/station/256/2565.png",
+    "stream": "https://listen.myrh.ru/id079868",
+    "category": "retro"
+  },
+  {
+    "id": "1369",
+    "name": "Radio Kamchatka LIVE - Dance Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1369.png",
+    "stream": "https://kamchatkalive.ru:8103/dance",
+    "category": "pop"
+  },
+  {
+    "id": "2281",
+    "name": "Music Box Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2281.png",
+    "stream": "https://musicbox.amgradio.ru/musicbox",
+    "category": "pop"
+  },
+  {
+    "id": "2500",
+    "name": "DANCE FM",
+    "logo": "https://radiopotok.ru/f/station/256/2500.png",
+    "stream": "https://myradio24.org/dmfm",
+    "category": "retro"
+  },
+  {
+    "id": "133",
+    "name": "БИМ радио",
+    "logo": "https://radiopotok.ru/f/station/256/133.png",
+    "stream": "https://av.bimradio.ru/bim_mp3_128k",
+    "category": "pop"
+  },
+  {
+    "id": "657",
+    "name": "Авторадио Екатеринбург",
+    "logo": "https://radiopotok.ru/f/station/256/657.png",
+    "stream": "https://pub0101.101.ru:8000/stream/air/aac/64/100",
+    "category": "pop"
+  },
+  {
+    "id": "2256",
+    "name": "Radio Legends",
+    "logo": "https://radiopotok.ru/f/station/256/2256.png",
+    "stream": "https://ssl.audio1.meway.tv/proxy/radiolegends?mp=/stream",
+    "category": "jazz"
+  },
+  {
+    "id": "2443",
+    "name": "Радио Джем",
+    "logo": "https://radiopotok.ru/f/station/256/2443.png",
+    "stream": "https://myradio24.org/atamanfm",
+    "category": "pop"
+  },
+  {
+    "id": "2645",
+    "name": "Радио Трансмит (Череповец)",
+    "logo": "https://radiopotok.ru/f/station/256/2645.png",
+    "stream": "https://21220.web.hosting-russia.ru/transmit1046",
+    "category": "pop"
+  },
+  {
+    "id": "50",
+    "name": "Radio Paradise",
+    "logo": "https://radiopotok.ru/f/station/256/50.png",
+    "stream": "https://5.restream.one/50_1",
+    "category": "retro"
+  },
+  {
+    "id": "617",
+    "name": "Радио День",
+    "logo": "https://radiopotok.ru/f/station/256/617.png",
+    "stream": "https://radioday.fm/mp3site",
+    "category": "pop"
+  },
+  {
+    "id": "2622",
+    "name": "Neon FM",
+    "logo": "https://radiopotok.ru/f/station/256/2622.png",
+    "stream": "https://myradio24.org/41891",
+    "category": "retro"
+  },
+  {
+    "id": "2363",
+    "name": "Musi-Q",
+    "logo": "https://radiopotok.ru/f/station/256/2363.png",
+    "stream": "https://lk.castnow.ru:8100/mykomon-320.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2445",
+    "name": "Забытая кассета",
+    "logo": "https://radiopotok.ru/f/station/256/2445.png",
+    "stream": "https://casseta-disco.ru:6270/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2474",
+    "name": "Радио Пилот Пермь 103.6 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2474.png",
+    "stream": "https://online.permpilotfm.ru/PilotPerm128",
+    "category": "pop"
+  },
+  {
+    "id": "880",
+    "name": "MIX FM г. Хабаровск",
+    "logo": "https://radiopotok.ru/f/station/256/880.png",
+    "stream": "https://radio.settv.ru/radio3",
+    "category": "pop"
+  },
+  {
+    "id": "883",
+    "name": "Чикен FM",
+    "logo": "https://radiopotok.ru/f/station/256/883.png",
+    "stream": "https://yumfm.hostingradio.ru:8020/yumfm128.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "1607",
+    "name": "Центр FM 101,7 FM",
+    "logo": "https://radiopotok.ru/f/station/256/1607.png",
+    "stream": "https://stream2.datacenter.by/stream",
+    "category": "pop"
+  },
+  {
+    "id": "1981",
+    "name": "Радио Nostalgie Махачкала",
+    "logo": "https://radiopotok.ru/f/station/256/1981.png",
+    "stream": "https://nostalgie.dagfm.ru",
+    "category": "retro"
+  },
+  {
+    "id": "2145",
+    "name": "РЕТРО РАДИО",
+    "logo": "https://radiopotok.ru/f/station/256/2145.png",
+    "stream": "https://listen2.myradio24.com/1458",
+    "category": "retro"
+  },
+  {
+    "id": "2472",
+    "name": "Красноярск FM",
+    "logo": "https://radiopotok.ru/f/station/256/2472.png",
+    "stream": "https://online.krasnoyarskfm.ru/krasnoyarskfm_mp3",
+    "category": "pop"
+  },
+  {
+    "id": "316",
+    "name": "Диполь FM",
+    "logo": "https://radiopotok.ru/f/station/256/316.png",
+    "stream": "https://5.restream.one/316_1",
+    "category": "pop"
+  },
+  {
+    "id": "666",
+    "name": "Радио Лучшие Песни",
+    "logo": "https://radiopotok.ru/f/station/256/666.png",
+    "stream": "https://rbs.amgradio.ru/rbs",
+    "category": "retro"
+  },
+  {
+    "id": "1168",
+    "name": "Metaradio",
+    "logo": "https://radiopotok.ru/f/station/256/1168.png",
+    "stream": "https://s2.metaradio.ru/mradio.aacp",
+    "category": "pop"
+  },
+  {
+    "id": "2088",
+    "name": "Радио ИСКАТЕЛЬ Златоуст 104.7 FM | Миасс 105.1 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2088.png",
+    "stream": "https://iskatel.radiostream.pro/mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2402",
+    "name": "Station 2402",
+    "logo": "https://radiopotok.ru/f/station/256/2402.png",
+    "stream": "https://us9.maindigitalstream.com/ssl/freedomfm",
+    "category": "russian"
+  },
+  {
+    "id": "2616",
+    "name": "Radio OldHit",
+    "logo": "https://radiopotok.ru/f/station/256/2616.png",
+    "stream": "https://oldhit.ru:8000/",
+    "category": "foreign"
+  },
+  {
+    "id": "426",
+    "name": "Europarussia",
+    "logo": "https://radiopotok.ru/f/station/256/426.png",
+    "stream": "https://europarussia.ru:8006/live",
+    "category": "russian"
+  },
+  {
+    "id": "1089",
+    "name": "Радио СОК",
+    "logo": "https://radiopotok.ru/f/station/256/1089.png",
+    "stream": "https://5.restream.one/1089_1",
+    "category": "pop"
+  },
+  {
+    "id": "1829",
+    "name": "Компас FM",
+    "logo": "https://radiopotok.ru/f/station/256/1829.png",
+    "stream": "https://radio.mil.by/live",
+    "category": "rock"
+  },
+  {
+    "id": "1883",
+    "name": "Красно-Белая Волна",
+    "logo": "https://radiopotok.ru/f/station/256/1883.png",
+    "stream": "https://onair.radio1922.ru/64.aac",
+    "category": "retro"
+  },
+  {
+    "id": "1921",
+    "name": "МЭТР Golden Hits",
+    "logo": "https://radiopotok.ru/f/station/256/1921.png",
+    "stream": "https://5.restream.one/1921_1",
+    "category": "rock"
+  },
+  {
+    "id": "1983",
+    "name": "Wow Music",
+    "logo": "https://radiopotok.ru/f/station/256/1983.png",
+    "stream": "https://stream.vyshka24.ru/wow",
+    "category": "pop"
+  },
+  {
+    "id": "2006",
+    "name": "Радио Пляж",
+    "logo": "https://radiopotok.ru/f/station/256/2006.png",
+    "stream": "https://myradio24.org/1632",
+    "category": "pop"
+  },
+  {
+    "id": "2041",
+    "name": "МЭТР Top Music",
+    "logo": "https://radiopotok.ru/f/station/256/2041.png",
+    "stream": "https://5.restream.one/2041_1",
+    "category": "foreign"
+  },
+  {
+    "id": "2056",
+    "name": "Вольтаж FM",
+    "logo": "https://radiopotok.ru/f/station/256/2056.png",
+    "stream": "https://radio.voltagefm.ru:9009/VOLTAGEFM",
+    "category": "foreign"
+  },
+  {
+    "id": "2108",
+    "name": "МВ-Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2108.png",
+    "stream": "https://stream2.datacenter.by/mvradio",
+    "category": "pop"
+  },
+  {
+    "id": "2146",
+    "name": "Радио Гусь",
+    "logo": "https://radiopotok.ru/f/station/256/2146.png",
+    "stream": "https://stream.radiogoose.ru/listen/radiogoose/play",
+    "category": "foreign"
+  },
+  {
+    "id": "2152",
+    "name": "Вечная Молодость",
+    "logo": "https://radiopotok.ru/f/station/256/2152.png",
+    "stream": "https://misato.ru-hoster.com:8037/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2314",
+    "name": "Екатеринбург ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2314.png",
+    "stream": "https://myradio24.org/ekbfm",
+    "category": "foreign"
+  },
+  {
+    "id": "2435",
+    "name": "DiscoBonus Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2435.png",
+    "stream": "https://casseta-disco.ru:5570/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2470",
+    "name": "Волгоград FM",
+    "logo": "https://radiopotok.ru/f/station/256/2470.png",
+    "stream": "https://online.volgogradfm.ru/vfm",
+    "category": "pop"
+  },
+  {
+    "id": "2489",
+    "name": "МАКС FM",
+    "logo": "https://radiopotok.ru/f/station/256/2489.png",
+    "stream": "https://maksfm.hostingradio.ru/maksfm320.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2531",
+    "name": "Радио Говорит Майкоп",
+    "logo": "https://radiopotok.ru/f/station/256/2531.png",
+    "stream": "https://voicemaikop.hostingradio.ru:8003/voicemaikop256.mp3",
+    "category": "news"
+  },
+  {
+    "id": "2538",
+    "name": "Радио Дюртюли FM",
+    "logo": "https://radiopotok.ru/f/station/256/2538.png",
+    "stream": "https://radio102.ru:8443/durfm",
+    "category": "foreign"
+  },
+  {
+    "id": "2570",
+    "name": "Волна FM Волгоград",
+    "logo": "https://radiopotok.ru/f/station/256/2570.png",
+    "stream": "https://myradio24.org/nvolna",
+    "category": "pop"
+  },
+  {
+    "id": "2666",
+    "name": "ROMANTICA RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2666.png",
+    "stream": "https://vetrina.multi-radio.com/romanticaradio",
+    "category": "retro"
+  },
+  {
+    "id": "2689",
+    "name": "Вольт ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2689.png",
+    "stream": "https://myradio24.org/voltfm",
+    "category": "pop"
+  },
+  {
+    "id": "96",
+    "name": "DEFJAY Radio Deutschland",
+    "logo": "https://radiopotok.ru/f/station/256/96.png",
+    "stream": "https://icepool.silvacast.com/DEFJAYcom.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "147",
+    "name": "APLUS.FM",
+    "logo": "https://radiopotok.ru/f/station/256/147.png",
+    "stream": "https://s.aplus.fm/aplus_128",
+    "category": "foreign"
+  },
+  {
+    "id": "296",
+    "name": "PriMuzFM",
+    "logo": "https://radiopotok.ru/f/station/256/296.png",
+    "stream": "https://myradio24.org/8118",
+    "category": "retro"
+  },
+  {
+    "id": "384",
+    "name": "BrooklynFM (BFM Radio)",
+    "logo": "https://radiopotok.ru/f/station/256/384.png",
+    "stream": "https://stream.bfmradio.us/stream128/",
+    "category": "foreign"
+  },
+  {
+    "id": "406",
+    "name": "Радио Вышка",
+    "logo": "https://radiopotok.ru/f/station/256/406.png",
+    "stream": "https://stream.vyshka24.ru/256",
+    "category": "pop"
+  },
+  {
+    "id": "423",
+    "name": "Soulplay Radiostation",
+    "logo": "https://radiopotok.ru/f/station/256/423.png",
+    "stream": "https://1.restream.one/423_1",
+    "category": "pop"
+  },
+  {
+    "id": "427",
+    "name": "Р52 (105,7 FM)",
+    "logo": "https://radiopotok.ru/f/station/256/427.png",
+    "stream": "https://1.restream.one/427_1",
+    "category": "pop"
+  },
+  {
+    "id": "482",
+    "name": "Радио Хит | Смотри Радио",
+    "logo": "https://radiopotok.ru/f/station/256/482.png",
+    "stream": "https://hit.trkeurasia.ru/hit128",
+    "category": "pop"
+  },
+  {
+    "id": "485",
+    "name": "Радио Uvaga.by",
+    "logo": "https://radiopotok.ru/f/station/256/485.png",
+    "stream": "https://1.restream.one/485_1",
+    "category": "foreign"
+  },
+  {
+    "id": "652",
+    "name": ".:: KAZA FM : КАЗА ФМ ::.",
+    "logo": "https://radiopotok.ru/f/station/256/652.png",
+    "stream": "https://kazafm.radioca.st/;",
+    "category": "retro"
+  },
+  {
+    "id": "687",
+    "name": "Отличное радио",
+    "logo": "https://radiopotok.ru/f/station/256/687.png",
+    "stream": "https://myradio24.org/nvolna",
+    "category": "foreign"
+  },
+  {
+    "id": "766",
+    "name": "Radio Metro",
+    "logo": "https://radiopotok.ru/f/station/256/766.png",
+    "stream": "https://stream.radiometro.ru:8443/metro.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "840",
+    "name": "Radio UP FM",
+    "logo": "https://radiopotok.ru/f/station/256/840.png",
+    "stream": "https://5.restream.one/840_1",
+    "category": "pop"
+  },
+  {
+    "id": "890",
+    "name": "Первое железнодорожное радио - канал ПЖ",
+    "logo": "https://radiopotok.ru/f/station/256/890.png",
+    "stream": "https://5.restream.one/890_1",
+    "category": "pop"
+  },
+  {
+    "id": "944",
+    "name": "Радио 7 Ветров",
+    "logo": "https://radiopotok.ru/f/station/256/944.png",
+    "stream": "https://play.radiowinds.ru:8443/live",
+    "category": "pop"
+  },
+  {
+    "id": "982",
+    "name": "PRODj Radio",
+    "logo": "https://radiopotok.ru/f/station/256/982.png",
+    "stream": "https://5.restream.one/982_1",
+    "category": "pop"
+  },
+  {
+    "id": "1004",
+    "name": "Радио Трасса",
+    "logo": "https://radiopotok.ru/f/station/256/1004.png",
+    "stream": "https://5.restream.one/1004_1",
+    "category": "pop"
+  },
+  {
+    "id": "1083",
+    "name": "Atlantica Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1083.png",
+    "stream": "https://5.restream.one/1083_1",
+    "category": "foreign"
+  },
+  {
+    "id": "1104",
+    "name": "ТИПИЧНОЕ FM",
+    "logo": "https://radiopotok.ru/f/station/256/1104.png",
+    "stream": "https://myradio24.org/9696",
+    "category": "pop"
+  },
+  {
+    "id": "1113",
+    "name": "Sway and Breathe Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1113.png",
+    "stream": "https://listen.radionomy.com/swayandbreathe",
+    "category": "foreign"
+  },
+  {
+    "id": "1137",
+    "name": "Земля plus",
+    "logo": "https://radiopotok.ru/f/station/256/1137.png",
+    "stream": "https://5.restream.one/1137_1",
+    "category": "pop"
+  },
+  {
+    "id": "1177",
+    "name": "Радио Страна FM",
+    "logo": "https://radiopotok.ru/f/station/256/1177.png",
+    "stream": "https://icecast-stranafm.cdnvideo.ru/stranafm_128",
+    "category": "pop"
+  },
+  {
+    "id": "1230",
+    "name": "Sideline FM",
+    "logo": "https://radiopotok.ru/f/station/256/1230.png",
+    "stream": "https://air.volna.top/SideLine48?type=.flv",
+    "category": "rock"
+  },
+  {
+    "id": "1236",
+    "name": "Север FM - 87.5",
+    "logo": "https://radiopotok.ru/f/station/256/1236.png",
+    "stream": "https://radio.dline-media.com/severfm",
+    "category": "pop"
+  },
+  {
+    "id": "1252",
+    "name": "Пульс-Радио",
+    "logo": "https://radiopotok.ru/f/station/256/1252.png",
+    "stream": "https://5.restream.one/1252_1",
+    "category": "pop"
+  },
+  {
+    "id": "1258",
+    "name": "Радио Go / Radio Go (Russia)",
+    "logo": "https://radiopotok.ru/f/station/256/1258.png",
+    "stream": "https://listen.myrh.ru/go",
+    "category": "pop"
+  },
+  {
+    "id": "1264",
+    "name": "Компот FM",
+    "logo": "https://radiopotok.ru/f/station/256/1264.png",
+    "stream": "https://5.restream.one/1264_1",
+    "category": "retro"
+  },
+  {
+    "id": "1341",
+    "name": "RADIO ESSENTIAL",
+    "logo": "https://radiopotok.ru/f/station/256/1341.png",
+    "stream": "https://c16.radioboss.fm:18258/radioessential",
+    "category": "foreign"
+  },
+  {
+    "id": "1374",
+    "name": "Правильное радио",
+    "logo": "https://radiopotok.ru/f/station/256/1374.png",
+    "stream": "https://5.restream.one/1374_1",
+    "category": "pop"
+  },
+  {
+    "id": "1486",
+    "name": "89 HIT FM - DREAM FM",
+    "logo": "https://radiopotok.ru/f/station/256/1486.png",
+    "stream": "https://5.restream.one/1486_1",
+    "category": "pop"
+  },
+  {
+    "id": "1530",
+    "name": "GRAZ FM",
+    "logo": "https://radiopotok.ru/f/station/256/1530.png",
+    "stream": "https://stream.laut.fm/grazfm",
+    "category": "pop"
+  },
+  {
+    "id": "1554",
+    "name": "Волнорез",
+    "logo": "https://radiopotok.ru/f/station/256/1554.png",
+    "stream": "https://rbs.volna.top/rbs",
+    "category": "pop"
+  },
+  {
+    "id": "1561",
+    "name": "Новое Вещание Liquid Flash",
+    "logo": "https://radiopotok.ru/f/station/256/1561.png",
+    "stream": "https://xn--80aimyg.xn--80adalbbu8afeb9k.xn--p1ai:8000/radio",
+    "category": "pop"
+  },
+  {
+    "id": "1562",
+    "name": "Radio Plato",
+    "logo": "https://radiopotok.ru/f/station/256/1562.png",
+    "stream": "https://azura.radioplato.by/radio/8000/radio.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "1574",
+    "name": "ЖАРА FM",
+    "logo": "https://radiopotok.ru/f/station/256/1574.png",
+    "stream": "https://hls01.zharafm.ru/hls/live.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "1587",
+    "name": "АБСОЛЮТ парк радио",
+    "logo": "https://radiopotok.ru/f/station/256/1587.png",
+    "stream": "https://myradio24.org/absolutrad",
+    "category": "pop"
+  },
+  {
+    "id": "1589",
+    "name": "Radio DJ Shmagi",
+    "logo": "https://radiopotok.ru/f/station/256/1589.png",
+    "stream": "https://s0.radioheart.ru:8000/RH3355",
+    "category": "pop"
+  },
+  {
+    "id": "1592",
+    "name": "Гламурная волна",
+    "logo": "https://radiopotok.ru/f/station/256/1592.png",
+    "stream": "https://stream.laut.fm/glamwave",
+    "category": "pop"
+  },
+  {
+    "id": "1606",
+    "name": "Радио Юность - ЮFM",
+    "logo": "https://radiopotok.ru/f/station/256/1606.png",
+    "stream": "https://stream.volnorez.com/live-app/127912",
+    "category": "pop"
+  },
+  {
+    "id": "1614",
+    "name": "Севастополь FM",
+    "logo": "https://radiopotok.ru/f/station/256/1614.png",
+    "stream": "https://sfm.amgradio.ru/SFM",
+    "category": "news"
+  },
+  {
+    "id": "1649",
+    "name": "Радио ТМ-26",
+    "logo": "https://radiopotok.ru/f/station/256/1649.png",
+    "stream": "https://myradio24.org/58828",
+    "category": "pop"
+  },
+  {
+    "id": "1681",
+    "name": "Lux-Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1681.png",
+    "stream": "https://lux-radio.com:8005/stream",
+    "category": "pop"
+  },
+  {
+    "id": "1700",
+    "name": "Radio 4YOU (Радио фо ю)",
+    "logo": "https://radiopotok.ru/f/station/256/1700.png",
+    "stream": "https://myradio24.org/2455",
+    "category": "pop"
+  },
+  {
+    "id": "1706",
+    "name": "Dancefloor Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1706.png",
+    "stream": "https://radio4.vip-radios.fm:18030/stream-128kmp3-Dancefloor",
+    "category": "pop"
+  },
+  {
+    "id": "1731",
+    "name": "Nicefm",
+    "logo": "https://radiopotok.ru/f/station/256/1731.png",
+    "stream": "https://5.restream.one/1731_1",
+    "category": "pop"
+  },
+  {
+    "id": "1736",
+    "name": "FM 80 FUNKY MUSIC",
+    "logo": "https://radiopotok.ru/f/station/256/1736.png",
+    "stream": "https://www.radioking.com/play/fm80funkymusic/523739",
+    "category": "foreign"
+  },
+  {
+    "id": "1747",
+    "name": "Радио Релиз",
+    "logo": "https://radiopotok.ru/f/station/256/1747.png",
+    "stream": "https://listen.myrh.ru/radioreliz",
+    "category": "pop"
+  },
+  {
+    "id": "1774",
+    "name": "РУССКОЕ РАДИО КОСТАНАЙ",
+    "logo": "https://radiopotok.ru/f/station/256/1774.png",
+    "stream": "https://myradio24.org/91712",
+    "category": "russian"
+  },
+  {
+    "id": "1793",
+    "name": "ПИРАМИДА",
+    "logo": "https://radiopotok.ru/f/station/256/1793.png",
+    "stream": "https://prm.volna.top/128",
+    "category": "jazz"
+  },
+  {
+    "id": "1794",
+    "name": "Xradio Greatest Hits",
+    "logo": "https://radiopotok.ru/f/station/256/1794.png",
+    "stream": "https://radio.xradio.vip/stream",
+    "category": "pop"
+  },
+  {
+    "id": "1801",
+    "name": "РАДИО СТОЛИЦА",
+    "logo": "https://radiopotok.ru/f/station/256/1801.png",
+    "stream": "https://listen2.myradio24.com/1458",
+    "category": "pop"
+  },
+  {
+    "id": "1811",
+    "name": "DeeJay 97.5 Greece Corfu",
+    "logo": "https://radiopotok.ru/f/station/256/1811.png",
+    "stream": "https://sh.onweb.gr:7083/stream?type=http&nocache=35812",
+    "category": "pop"
+  },
+  {
+    "id": "1832",
+    "name": "Radio Tourist",
+    "logo": "https://radiopotok.ru/f/station/256/1832.png",
+    "stream": "https://stream.radiojar.com/av2rrf6547zuv",
+    "category": "pop"
+  },
+  {
+    "id": "1872",
+    "name": "Sky Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1872.png",
+    "stream": "https://stream.skymedia.ee/live/SKY",
+    "category": "pop"
+  },
+  {
+    "id": "1874",
+    "name": "Radio REDBOX",
+    "logo": "https://radiopotok.ru/f/station/256/1874.png",
+    "stream": "https://stream.zeno.fm/zth0tcnbd8zuv",
+    "category": "foreign"
+  },
+  {
+    "id": "1879",
+    "name": "Радио Посад",
+    "logo": "https://radiopotok.ru/f/station/256/1879.png",
+    "stream": "https://listen.myrh.ru/id04705",
+    "category": "pop"
+  },
+  {
+    "id": "1931",
+    "name": "The Disco Palace",
+    "logo": "https://radiopotok.ru/f/station/256/1931.png",
+    "stream": "https://broadcast.miami/proxy/thediscopalace?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1932",
+    "name": "The Disco Paradise",
+    "logo": "https://radiopotok.ru/f/station/256/1932.png",
+    "stream": "https://broadcast.miami/proxy/thediscoparadise?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1933",
+    "name": "The Disco Planet",
+    "logo": "https://radiopotok.ru/f/station/256/1933.png",
+    "stream": "https://broadcast.miami/proxy/thediscoplanet?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1935",
+    "name": "Калейдоскоп",
+    "logo": "https://radiopotok.ru/f/station/256/1935.png",
+    "stream": "https://a4.radioheart.ru:9013/MK",
+    "category": "pop"
+  },
+  {
+    "id": "1944",
+    "name": "The Disco Paradise - Casablanca",
+    "logo": "https://radiopotok.ru/f/station/256/1944.png",
+    "stream": "https://broadcast.miami/proxy/casablanca?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1945",
+    "name": "The Disco Paradise - Prelude",
+    "logo": "https://radiopotok.ru/f/station/256/1945.png",
+    "stream": "https://broadcast.miami/proxy/prelude?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1946",
+    "name": "The Disco Paradise - Salsoul",
+    "logo": "https://radiopotok.ru/f/station/256/1946.png",
+    "stream": "https://broadcast.miami/proxy/salsoul?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1947",
+    "name": "The Disco Paradise - T.K. Disco",
+    "logo": "https://radiopotok.ru/f/station/256/1947.png",
+    "stream": "https://broadcast.miami/proxy/tkdisco?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1948",
+    "name": "The Disco Paradise - Unidisco",
+    "logo": "https://radiopotok.ru/f/station/256/1948.png",
+    "stream": "https://broadcast.miami/proxy/unidisco?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1949",
+    "name": "The Disco Paradise - West End",
+    "logo": "https://radiopotok.ru/f/station/256/1949.png",
+    "stream": "https://broadcast.miami/proxy/westend?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1952",
+    "name": "The Disco Paradise - Atlantic",
+    "logo": "https://radiopotok.ru/f/station/256/1952.png",
+    "stream": "https://broadcast.miami/proxy/atlantic?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1953",
+    "name": "The Disco Paradise - Columbia",
+    "logo": "https://radiopotok.ru/f/station/256/1953.png",
+    "stream": "https://broadcast.miami/proxy/columbia?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1954",
+    "name": "The Disco Paradise - Motown",
+    "logo": "https://radiopotok.ru/f/station/256/1954.png",
+    "stream": "https://broadcast.miami/proxy/motown?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1955",
+    "name": "Station 1955",
+    "logo": "https://radiopotok.ru/f/station/256/1955.png",
+    "stream": "https://broadcast.miami/proxy/solar?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1956",
+    "name": "The Disco Paradise - TSOP",
+    "logo": "https://radiopotok.ru/f/station/256/1956.png",
+    "stream": "https://broadcast.miami/proxy/tsop?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "1964",
+    "name": "ONE FM",
+    "logo": "https://radiopotok.ru/f/station/256/1964.png",
+    "stream": "https://5.restream.one/1964_1",
+    "category": "pop"
+  },
+  {
+    "id": "1970",
+    "name": "GRELLA Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1970.png",
+    "stream": "https://listen6.myradio24.com/grella",
+    "category": "pop"
+  },
+  {
+    "id": "1980",
+    "name": "sensuelle radio",
+    "logo": "https://radiopotok.ru/f/station/256/1980.png",
+    "stream": "https://forwardmystream.com/sensuelleradio",
+    "category": "retro"
+  },
+  {
+    "id": "1984",
+    "name": "Wow Music Top50",
+    "logo": "https://radiopotok.ru/f/station/256/1984.png",
+    "stream": "https://stream.vyshka24.ru/wowtop50",
+    "category": "pop"
+  },
+  {
+    "id": "2000",
+    "name": "Радио STICKER FM",
+    "logo": "https://radiopotok.ru/f/station/256/2000.png",
+    "stream": "https://radio1.stickerfm.ru:8443/live",
+    "category": "news"
+  },
+  {
+    "id": "2015",
+    "name": "Женское радио Dolce Vita",
+    "logo": "https://radiopotok.ru/f/station/256/2015.png",
+    "stream": "https://c32.radioboss.fm:18516/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2035",
+    "name": "NAGO Radio v.2.0",
+    "logo": "https://radiopotok.ru/f/station/256/2035.png",
+    "stream": "https://c28.radioboss.fm:8384/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2042",
+    "name": "Первое Молодёжное Радио Североуральска",
+    "logo": "https://radiopotok.ru/f/station/256/2042.png",
+    "stream": "https://listen7.myradio24.com/45445",
+    "category": "rock"
+  },
+  {
+    "id": "2045",
+    "name": "Radio Star Five",
+    "logo": "https://radiopotok.ru/f/station/256/2045.png",
+    "stream": "https://radio.radiostar5.ru:8005/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2067",
+    "name": "Республика Луганск",
+    "logo": "https://radiopotok.ru/f/station/256/2067.png",
+    "stream": "https://radio.gtrklnr.ru:8443/republic.fm",
+    "category": "russian"
+  },
+  {
+    "id": "2082",
+    "name": "Enjoy Radio | Архангельск",
+    "logo": "https://radiopotok.ru/f/station/256/2082.png",
+    "stream": "https://misato.ru-hoster.com:8022/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2089",
+    "name": "Твой День",
+    "logo": "https://radiopotok.ru/f/station/256/2089.png",
+    "stream": "https://listen.myrh.ru/id09449",
+    "category": "pop"
+  },
+  {
+    "id": "2091",
+    "name": "Радио Afrodita",
+    "logo": "https://radiopotok.ru/f/station/256/2091.png",
+    "stream": "https://live1.radioafrodita.ru/Afrodita160",
+    "category": "pop"
+  },
+  {
+    "id": "2110",
+    "name": "RADIO24",
+    "logo": "https://radiopotok.ru/f/station/256/2110.png",
+    "stream": "https://stream.vyshka24.ru/radio24",
+    "category": "pop"
+  },
+  {
+    "id": "2113",
+    "name": "VTC Radio - Lactose",
+    "logo": "https://radiopotok.ru/f/station/256/2113.png",
+    "stream": "https://vtcradio.com:8005/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2127",
+    "name": "Радио SP12",
+    "logo": "https://radiopotok.ru/f/station/256/2127.png",
+    "stream": "https://myradio24.org/5894",
+    "category": "rock"
+  },
+  {
+    "id": "2129",
+    "name": "The Disco Paradise - Indie Disco",
+    "logo": "https://radiopotok.ru/f/station/256/2129.png",
+    "stream": "https://broadcast.miami/proxy/indiedisco?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2130",
+    "name": "The Disco Paradise - BMG",
+    "logo": "https://radiopotok.ru/f/station/256/2130.png",
+    "stream": "https://broadcast.miami/proxy/bmg?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2131",
+    "name": "The Disco Paradise - RCA",
+    "logo": "https://radiopotok.ru/f/station/256/2131.png",
+    "stream": "https://broadcast.miami/proxy/rca?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2132",
+    "name": "The Disco Paradise - Warner Bros",
+    "logo": "https://radiopotok.ru/f/station/256/2132.png",
+    "stream": "https://broadcast.miami/proxy/warnerbros?mp=/stream/;",
+    "category": "foreign"
+  },
+  {
+    "id": "2133",
+    "name": "The Disco Paradise - Polydor",
+    "logo": "https://radiopotok.ru/f/station/256/2133.png",
+    "stream": "https://broadcast.miami/proxy/polydor?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2134",
+    "name": "The Disco Paradise - Concord",
+    "logo": "https://radiopotok.ru/f/station/256/2134.png",
+    "stream": "https://broadcast.miami/proxy/concord?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2167",
+    "name": "Радио Вышка Казахстан",
+    "logo": "https://radiopotok.ru/f/station/256/2167.png",
+    "stream": "https://stream.vyshka24.ru/kz",
+    "category": "pop"
+  },
+  {
+    "id": "2195",
+    "name": "КомпромиС ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2195.png",
+    "stream": "https://myradio24.org/kfm",
+    "category": "jazz"
+  },
+  {
+    "id": "2204",
+    "name": "Радио Золотая Колесница",
+    "logo": "https://radiopotok.ru/f/station/256/2204.png",
+    "stream": "https://play.goldenchariot.ru:9595/golden",
+    "category": "pop"
+  },
+  {
+    "id": "2207",
+    "name": "Power HIT Radio (Мурманск)",
+    "logo": "https://radiopotok.ru/f/station/256/2207.png",
+    "stream": "https://drh-node-04.dline-media.com/powerhit128",
+    "category": "foreign"
+  },
+  {
+    "id": "2209",
+    "name": "Радио Пайванд",
+    "logo": "https://radiopotok.ru/f/station/256/2209.png",
+    "stream": "https://c6.radioboss.fm/stream/234",
+    "category": "pop"
+  },
+  {
+    "id": "2210",
+    "name": "Радио Меломания",
+    "logo": "https://radiopotok.ru/f/station/256/2210.png",
+    "stream": "https://myradio24.org/90250",
+    "category": "pop"
+  },
+  {
+    "id": "2259",
+    "name": "Счастливы вместе",
+    "logo": "https://radiopotok.ru/f/station/256/2259.png",
+    "stream": "https://myradio24.org/92472",
+    "category": "pop"
+  },
+  {
+    "id": "2262",
+    "name": "NewPride.fm",
+    "logo": "https://radiopotok.ru/f/station/256/2262.png",
+    "stream": "https://myradio24.org/25274",
+    "category": "pop"
+  },
+  {
+    "id": "2263",
+    "name": "Радиостанция «Открытие»",
+    "logo": "https://radiopotok.ru/f/station/256/2263.png",
+    "stream": "https://discoveryfm.hostingradio.ru/discovery128.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2269",
+    "name": "Radio Sud International",
+    "logo": "https://radiopotok.ru/f/station/256/2269.png",
+    "stream": "https://cast1.torontocast.com:2805/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2272",
+    "name": "The Disco Paradise - Italo Disco",
+    "logo": "https://radiopotok.ru/f/station/256/2272.png",
+    "stream": "https://broadcast.miami/proxy/italodisco?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2290",
+    "name": "SEDUCTION DANCE TUNES RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2290.png",
+    "stream": "https://24streams.gr:8057/stream",
+    "category": "chillout"
+  },
+  {
+    "id": "2293",
+    "name": "La Bonita X101",
+    "logo": "https://radiopotok.ru/f/station/256/2293.png",
+    "stream": "https://listen.labonita.torontocast.stream",
+    "category": "retro"
+  },
+  {
+    "id": "2299",
+    "name": "Радио Сиртаки/ Radio Sirtaki",
+    "logo": "https://radiopotok.ru/f/station/256/2299.png",
+    "stream": "https://listen3.myradio24.com/sirtaki",
+    "category": "pop"
+  },
+  {
+    "id": "2301",
+    "name": "La Radio de L’Amour",
+    "logo": "https://radiopotok.ru/f/station/256/2301.png",
+    "stream": "https://radio.slamfm.ru:8443/laradio",
+    "category": "foreign"
+  },
+  {
+    "id": "2307",
+    "name": "PROGRAMIQA Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2307.png",
+    "stream": "https://listen.myrh.media/id078799",
+    "category": "foreign"
+  },
+  {
+    "id": "2310",
+    "name": "Радио ViBE",
+    "logo": "https://radiopotok.ru/f/station/256/2310.png",
+    "stream": "https://live.lofiradio.ru/vibe_mp3_320",
+    "category": "pop"
+  },
+  {
+    "id": "2319",
+    "name": "Radio 107 Network",
+    "logo": "https://radiopotok.ru/f/station/256/2319.png",
+    "stream": "https://radio107info.radioca.st/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2323",
+    "name": "ForBlitz.FM - Танковое радио",
+    "logo": "https://radiopotok.ru/f/station/256/2323.png",
+    "stream": "https://listen.myrh.ru/ForBlitzFM",
+    "category": "foreign"
+  },
+  {
+    "id": "2325",
+    "name": "КорольЕва и шут",
+    "logo": "https://radiopotok.ru/f/station/256/2325.png",
+    "stream": "https://myradio24.org/5390",
+    "category": "pop"
+  },
+  {
+    "id": "2330",
+    "name": "SINTEZI",
+    "logo": "https://radiopotok.ru/f/station/256/2330.png",
+    "stream": "https://myradio24.org/sintezi",
+    "category": "foreign"
+  },
+  {
+    "id": "2334",
+    "name": "Жаңа FM",
+    "logo": "https://radiopotok.ru/f/station/256/2334.png",
+    "stream": "https://live.zhanafm.kz:8443/zhanafm_onair",
+    "category": "classical"
+  },
+  {
+    "id": "2335",
+    "name": "радио А",
+    "logo": "https://radiopotok.ru/f/station/256/2335.png",
+    "stream": "https://myradio24.org/40905",
+    "category": "pop"
+  },
+  {
+    "id": "2338",
+    "name": "Суворов FM",
+    "logo": "https://radiopotok.ru/f/station/256/2338.png",
+    "stream": "https://listen7.myradio24.com/suvorovrad_64",
+    "category": "retro"
+  },
+  {
+    "id": "2343",
+    "name": "The Disco Paradise - Partymix",
+    "logo": "https://radiopotok.ru/f/station/256/2343.png",
+    "stream": "https://broadcast.miami/proxy/partymix?mp=/stream/;",
+    "category": "retro"
+  },
+  {
+    "id": "2344",
+    "name": "The Disco Paradise - Philharmonic",
+    "logo": "https://radiopotok.ru/f/station/256/2344.png",
+    "stream": "https://broadcast.miami/proxy/philharmonic?mp=/stream/;",
+    "category": "retro"
+  },
+  {
+    "id": "2350",
+    "name": "Радио Вышка Узбекистан",
+    "logo": "https://radiopotok.ru/f/station/256/2350.png",
+    "stream": "https://stream.vyshka24.ru/uzbekistan",
+    "category": "pop"
+  },
+  {
+    "id": "2352",
+    "name": "Радио-Ливны",
+    "logo": "https://radiopotok.ru/f/station/256/2352.png",
+    "stream": "https://myradio24.org/40350",
+    "category": "pop"
+  },
+  {
+    "id": "2358",
+    "name": "LOOK INFO",
+    "logo": "https://radiopotok.ru/f/station/256/2358.png",
+    "stream": "https://stream.volnorez.com/live-app/820112",
+    "category": "pop"
+  },
+  {
+    "id": "2361",
+    "name": "BigLife Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2361.png",
+    "stream": "https://myradio24.org/93299",
+    "category": "russian"
+  },
+  {
+    "id": "2364",
+    "name": "Радио Таврия",
+    "logo": "https://radiopotok.ru/f/station/256/2364.png",
+    "stream": "https://tavria.hostingradio.ru/tavria192.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2367",
+    "name": "Радио Краснодар",
+    "logo": "https://radiopotok.ru/f/station/256/2367.png",
+    "stream": "https://icecast-radiokrasnodar.cdnvideo.ru/radiokrasnodar_site_01",
+    "category": "pop"
+  },
+  {
+    "id": "2370",
+    "name": "Радио Танцы",
+    "logo": "https://radiopotok.ru/f/station/256/2370.png",
+    "stream": "https://myradio24.org/danceradio",
+    "category": "foreign"
+  },
+  {
+    "id": "2378",
+    "name": "Kamonoff radio",
+    "logo": "https://radiopotok.ru/f/station/256/2378.png",
+    "stream": "https://lk.castnow.ru:8100/kamonoffm-320.mp3",
+    "category": "jazz"
+  },
+  {
+    "id": "2380",
+    "name": "Ritmo X99",
+    "logo": "https://radiopotok.ru/f/station/256/2380.png",
+    "stream": "https://listen.ritmo.torontocast.stream",
+    "category": "retro"
+  },
+  {
+    "id": "2386",
+    "name": "Альфа Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2386.png",
+    "stream": "https://stream.sb.by/alpha",
+    "category": "news"
+  },
+  {
+    "id": "2388",
+    "name": "НЕСТАНДАРТ.Архив",
+    "logo": "https://radiopotok.ru/f/station/256/2388.png",
+    "stream": "https://lk.castnow.ru:8100/nestandart-archive-320.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2390",
+    "name": "Wow Music 2010",
+    "logo": "https://radiopotok.ru/f/station/256/2390.png",
+    "stream": "https://stream.vyshka24.ru/wow2010",
+    "category": "pop"
+  },
+  {
+    "id": "2391",
+    "name": "Казак FM в Крыму",
+    "logo": "https://radiopotok.ru/f/station/256/2391.png",
+    "stream": "https://media.kazak.fm/KazakFM-Crimea_0dBFS.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2397",
+    "name": "Eastrica Hits (ENG) [Mix]",
+    "logo": "https://radiopotok.ru/f/station/256/2397.png",
+    "stream": "https://eastrica.uz:8000/eng",
+    "category": "foreign"
+  },
+  {
+    "id": "2399",
+    "name": "Радио Красота",
+    "logo": "https://radiopotok.ru/f/station/256/2399.png",
+    "stream": "https://radiokrasota.ru:4717/stream",
+    "category": "russian"
+  },
+  {
+    "id": "2421",
+    "name": "K-pop Dream Radio СПб",
+    "logo": "https://radiopotok.ru/f/station/256/2421.png",
+    "stream": "https://myradio24.org/62917",
+    "category": "pop"
+  },
+  {
+    "id": "2423",
+    "name": "LITE FM",
+    "logo": "https://radiopotok.ru/f/station/256/2423.png",
+    "stream": "https://litefm.amgradio.ru/litefm",
+    "category": "pop"
+  },
+  {
+    "id": "2425",
+    "name": "►♛WORLD MUSIC♛◄",
+    "logo": "https://radiopotok.ru/f/station/256/2425.png",
+    "stream": "https://live.rock-wawe.ru:8001/worldmusic",
+    "category": "retro"
+  },
+  {
+    "id": "2428",
+    "name": "Радио на Стройке",
+    "logo": "https://radiopotok.ru/f/station/256/2428.png",
+    "stream": "https://radio.dline-media.com/nastroike",
+    "category": "retro"
+  },
+  {
+    "id": "2429",
+    "name": "МОЛОКО",
+    "logo": "https://radiopotok.ru/f/station/256/2429.png",
+    "stream": "https://s0.radioheart.ru:8000/RH78518",
+    "category": "foreign"
+  },
+  {
+    "id": "2431",
+    "name": "Wilinor Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2431.png",
+    "stream": "https://myradio24.org/wilinor",
+    "category": "classical"
+  },
+  {
+    "id": "2434",
+    "name": "Estereo Clase 92.9 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2434.png",
+    "stream": "https://gooradios.com/stream/156251",
+    "category": "pop"
+  },
+  {
+    "id": "2438",
+    "name": "Радио Микс - Новгородская область",
+    "logo": "https://radiopotok.ru/f/station/256/2438.png",
+    "stream": "https://live.rock-wawe.ru:8011/MixN",
+    "category": "russian"
+  },
+  {
+    "id": "2439",
+    "name": "EvoHit",
+    "logo": "https://radiopotok.ru/f/station/256/2439.png",
+    "stream": "https://evohit.ru:8441/play",
+    "category": "retro"
+  },
+  {
+    "id": "2441",
+    "name": "Cyberfunk",
+    "logo": "https://radiopotok.ru/f/station/256/2441.png",
+    "stream": "https://u-neroit.ru:7777/radio-cyberfunk.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2451",
+    "name": "Lime Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2451.png",
+    "stream": "https://myradio24.org/limeradio",
+    "category": "pop"
+  },
+  {
+    "id": "2459",
+    "name": "Радио 1000 Хитов",
+    "logo": "https://radiopotok.ru/f/station/256/2459.png",
+    "stream": "https://stream.1000hit.ru:8000/stream128",
+    "category": "foreign"
+  },
+  {
+    "id": "2481",
+    "name": "Малахит ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2481.png",
+    "stream": "https://c16.radioboss.fm:8368/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2486",
+    "name": "Радио Рандеву",
+    "logo": "https://radiopotok.ru/f/station/256/2486.png",
+    "stream": "https://stream.randevuradio.ru:8443/randevu",
+    "category": "pop"
+  },
+  {
+    "id": "2488",
+    "name": "Липецк-FM 90.7",
+    "logo": "https://radiopotok.ru/f/station/256/2488.png",
+    "stream": "https://serv25.vintera.tv/liptime/liptime_radio/icecast.audio",
+    "category": "pop"
+  },
+  {
+    "id": "2493",
+    "name": "KissFM",
+    "logo": "https://radiopotok.ru/f/station/256/2493.png",
+    "stream": "https://a7.radioheart.ru:9015/RH73674",
+    "category": "pop"
+  },
+  {
+    "id": "2498",
+    "name": "Радио Микс ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2498.png",
+    "stream": "https://cdn.radiomixfm.ru/mixfm",
+    "category": "pop"
+  },
+  {
+    "id": "2502",
+    "name": "Radio Club 80 Señal Retro",
+    "logo": "https://radiopotok.ru/f/station/256/2502.png",
+    "stream": "https://stream.radioclub80.cl:8022/retro80.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2503",
+    "name": "Радио Русский Hessen",
+    "logo": "https://radiopotok.ru/f/station/256/2503.png",
+    "stream": "https://myradio24.org/5491",
+    "category": "russian"
+  },
+  {
+    "id": "2512",
+    "name": "UFM•Уральская станция",
+    "logo": "https://radiopotok.ru/f/station/256/2512.png",
+    "stream": "https://listen.myrh.ru/id080495",
+    "category": "retro"
+  },
+  {
+    "id": "2513",
+    "name": "MY Radio 104.5 FM | Радио Май",
+    "logo": "https://radiopotok.ru/f/station/256/2513.png",
+    "stream": "https://myradio24.org/88350",
+    "category": "russian"
+  },
+  {
+    "id": "2515",
+    "name": "Радио Елена",
+    "logo": "https://radiopotok.ru/f/station/256/2515.png",
+    "stream": "https://radioelena.ru:8000/radioelena.ru",
+    "category": "retro"
+  },
+  {
+    "id": "2518",
+    "name": "Радыё Relax (Радио Релакс) 87,5 FM Беларусь Минск",
+    "logo": "https://radiopotok.ru/f/station/256/2518.png",
+    "stream": "https://player.radiorelax.by/RELAX-HIGHapp/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "2519",
+    "name": "Радио-Минск",
+    "logo": "https://radiopotok.ru/f/station/256/2519.png",
+    "stream": "https://radio.mk.by:8443/radiominsk",
+    "category": "news"
+  },
+  {
+    "id": "2522",
+    "name": "Радио Plastinka",
+    "logo": "https://radiopotok.ru/f/station/256/2522.png",
+    "stream": "https://radio2.plastinka.ru/example1.ogg",
+    "category": "rock"
+  },
+  {
+    "id": "2526",
+    "name": "Юмор FM Беларусь",
+    "logo": "https://radiopotok.ru/f/station/256/2526.png",
+    "stream": "https://player.humorfm.by/HUM-HIGHapp/playlist.m3u8",
+    "category": "pop"
+  },
+  {
+    "id": "2534",
+    "name": "Барановичи FM",
+    "logo": "https://radiopotok.ru/f/station/256/2534.png",
+    "stream": "https://radio.100fm.by:8000/100fm128",
+    "category": "pop"
+  },
+  {
+    "id": "2535",
+    "name": "Своё радио Пинск 106.1 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2535.png",
+    "stream": "https://live.svoyoradio.by:8443/svoyoradio",
+    "category": "pop"
+  },
+  {
+    "id": "2537",
+    "name": "Радио Бирь",
+    "logo": "https://radiopotok.ru/f/station/256/2537.png",
+    "stream": "https://radio102.ru:8443/birskfm",
+    "category": "foreign"
+  },
+  {
+    "id": "2539",
+    "name": "Радио Бураево",
+    "logo": "https://radiopotok.ru/f/station/256/2539.png",
+    "stream": "https://radio102.ru:8443/Burfm",
+    "category": "foreign"
+  },
+  {
+    "id": "2547",
+    "name": "The Disco Paradise - Euro Disco",
+    "logo": "https://radiopotok.ru/f/station/256/2547.png",
+    "stream": "https://broadcast.miami/proxy/eurodisco?mp=/stream/;",
+    "category": "pop"
+  },
+  {
+    "id": "2548",
+    "name": "Радио Новая Песня",
+    "logo": "https://radiopotok.ru/f/station/256/2548.png",
+    "stream": "https://fm.radionewsong.ru:1045/stream",
+    "category": "russian"
+  },
+  {
+    "id": "2551",
+    "name": "RSG iRadio",
+    "logo": "https://radiopotok.ru/f/station/256/2551.png",
+    "stream": "https://www.rsgiradio.ru:8443/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2552",
+    "name": "мыршырок",
+    "logo": "https://radiopotok.ru/f/station/256/2552.png",
+    "stream": "https://listen5.myradio24.com/mirshirok",
+    "category": "classical"
+  },
+  {
+    "id": "2555",
+    "name": "K-POP POSITIVE RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2555.png",
+    "stream": "https://myradio24.org/kpopradio",
+    "category": "pop"
+  },
+  {
+    "id": "2559",
+    "name": "Радио АСТВ [Южно-Сахалинск]",
+    "logo": "https://radiopotok.ru/f/station/256/2559.png",
+    "stream": "https://misato.ru-hoster.com:8000/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2560",
+    "name": "Русский Драйв",
+    "logo": "https://radiopotok.ru/f/station/256/2560.png",
+    "stream": "https://rusdriveradio.ru:8000/live_aac64",
+    "category": "foreign"
+  },
+  {
+    "id": "2564",
+    "name": "Катюша FM",
+    "logo": "https://radiopotok.ru/f/station/256/2564.png",
+    "stream": "https://drh-connect.dline-media.com/KatushaFM",
+    "category": "pop"
+  },
+  {
+    "id": "2571",
+    "name": "Воронеж FM",
+    "logo": "https://radiopotok.ru/f/station/256/2571.png",
+    "stream": "https://listen.myrh.ru/id015255",
+    "category": "retro"
+  },
+  {
+    "id": "2572",
+    "name": "Русское Радио Азия",
+    "logo": "https://radiopotok.ru/f/station/256/2572.png",
+    "stream": "https://rusradioreg.hostingradio.ru/asia.rusradio128.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2573",
+    "name": "Европа Плюс Казахстан",
+    "logo": "https://radiopotok.ru/f/station/256/2573.png",
+    "stream": "https://emgsource.hostingradio.ru:8064/kazakhstan.europaplus.mp3",
+    "category": "pop"
+  },
+  {
+    "id": "2597",
+    "name": "Radio Voyage",
+    "logo": "https://radiopotok.ru/f/station/256/2597.png",
+    "stream": "https://myradio24.org/66425",
+    "category": "jazz"
+  },
+  {
+    "id": "2599",
+    "name": "Радио Подсолнух",
+    "logo": "https://radiopotok.ru/f/station/256/2599.png",
+    "stream": "https://live.podsolnuh.media:8000/radio",
+    "category": "foreign"
+  },
+  {
+    "id": "2601",
+    "name": "Русский Винтаж",
+    "logo": "https://radiopotok.ru/f/station/256/2601.png",
+    "stream": "https://rusvintage.ru/stream/russian_vintage-320.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2611",
+    "name": "Neon Star Game Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2611.png",
+    "stream": "https://myradio24.org/nsr",
+    "category": "foreign"
+  },
+  {
+    "id": "2613",
+    "name": "Motion FM",
+    "logo": "https://radiopotok.ru/f/station/256/2613.png",
+    "stream": "https://myradio24.org/50352",
+    "category": "foreign"
+  },
+  {
+    "id": "2618",
+    "name": "MSD DANCE RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2618.png",
+    "stream": "https://myradio24.org/85625",
+    "category": "russian"
+  },
+  {
+    "id": "2620",
+    "name": "Tape Hits",
+    "logo": "https://radiopotok.ru/f/station/256/2620.png",
+    "stream": "https://tapehits.com:8005/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2623",
+    "name": "Vita Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2623.png",
+    "stream": "https://stream.volnorez.com/live-app/918685",
+    "category": "pop"
+  },
+  {
+    "id": "2625",
+    "name": "POPFM Биробиджан",
+    "logo": "https://radiopotok.ru/f/station/256/2625.png",
+    "stream": "https://stream.popfm-bir.ru:1045/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2635",
+    "name": "Колывань 54",
+    "logo": "https://radiopotok.ru/f/station/256/2635.png",
+    "stream": "https://myradio24.org/kolivan54_256",
+    "category": "foreign"
+  },
+  {
+    "id": "2639",
+    "name": "Радио Мята",
+    "logo": "https://radiopotok.ru/f/station/256/2639.png",
+    "stream": "https://radio.dline-media.com/myata",
+    "category": "foreign"
+  },
+  {
+    "id": "2641",
+    "name": "Радио Мята XTRA",
+    "logo": "https://radiopotok.ru/f/station/256/2641.png",
+    "stream": "https://radio.dline-media.com/myata_hits",
+    "category": "russian"
+  },
+  {
+    "id": "2643",
+    "name": "Vintage Radio Azerbaijan",
+    "logo": "https://radiopotok.ru/f/station/256/2643.png",
+    "stream": "https://trucker.autoliferadio.com:1045/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2654",
+    "name": "Сок FM",
+    "logo": "https://radiopotok.ru/f/station/256/2654.png",
+    "stream": "https://sokfm.ru:8000/256",
+    "category": "foreign"
+  },
+  {
+    "id": "2658",
+    "name": "RHYTHM 86",
+    "logo": "https://radiopotok.ru/f/station/256/2658.png",
+    "stream": "https://forwardmystream.com/rhythm86",
+    "category": "pop"
+  },
+  {
+    "id": "2662",
+    "name": "Морская волна",
+    "logo": "https://radiopotok.ru/f/station/256/2662.png",
+    "stream": "https://online.15plusmg.ru:8443/morvolna",
+    "category": "russian"
+  },
+  {
+    "id": "2664",
+    "name": "Radio Pop",
+    "logo": "https://radiopotok.ru/f/station/256/2664.png",
+    "stream": "https://sr9.inmystream.it/proxy/radiopop?mp=/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2671",
+    "name": "Радио NEFA",
+    "logo": "https://radiopotok.ru/f/station/256/2671.png",
+    "stream": "https://radionefa.ru/stream.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2680",
+    "name": "Радио Россошь",
+    "logo": "https://radiopotok.ru/f/station/256/2680.png",
+    "stream": "https://rv.rhostmedia.ru/listen/radiorossosh/radio.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2683",
+    "name": "Интернет-радио Липки",
+    "logo": "https://radiopotok.ru/f/station/256/2683.png",
+    "stream": "https://stream.radiolipki.ru:1045/stream",
+    "category": "pop"
+  },
+  {
+    "id": "2684",
+    "name": "1Z1 Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2684.png",
+    "stream": "https://myradio24.org/1z1radio",
+    "category": "foreign"
+  },
+  {
+    "id": "2686",
+    "name": "SUNO-FM.RU",
+    "logo": "https://radiopotok.ru/f/station/256/2686.png",
+    "stream": "https://myradio24.org/sunofm",
+    "category": "pop"
+  },
+  {
+    "id": "2692",
+    "name": "Темная сторона Луны",
+    "logo": "https://radiopotok.ru/f/station/256/2692.png",
+    "stream": "https://a5.radioheart.ru:9049/dmoon",
+    "category": "foreign"
+  },
+  {
+    "id": "2694",
+    "name": "LadyFM",
+    "logo": "https://radiopotok.ru/f/station/256/2694.png",
+    "stream": "https://media2.datacenter.by:8020/ladyfm",
+    "category": "pop"
+  },
+  {
+    "id": "2078",
+    "name": "Cassiopeia Station (Наука)",
+    "logo": "https://radiopotok.ru/f/station/256/2078.png",
+    "stream": "https://stream.cassiopeia-station.ru:5125/stream",
+    "category": "news"
+  },
+  {
+    "id": "677",
+    "name": "Говорит Москва",
+    "logo": "https://radiopotok.ru/f/station/256/677.png",
+    "stream": "https://media.govoritmoskva.ru/radio/rufm.mp3",
+    "category": "news"
+  },
+  {
+    "id": "776",
+    "name": "Москва FM 92.0",
+    "logo": "https://radiopotok.ru/f/station/256/776.png",
+    "stream": "https://icecast-vgtrk.cdnvideo.ru/moscowfm128",
+    "category": "news"
+  },
+  {
+    "id": "2424",
+    "name": "Садовод",
+    "logo": "https://radiopotok.ru/f/station/256/2424.png",
+    "stream": "https://stream.cassiopeia-station.ru:1315/stream",
+    "category": "news"
+  },
+  {
+    "id": "2657",
+    "name": "Шансон Владивосток",
+    "logo": "https://radiopotok.ru/f/station/256/2657.png",
+    "stream": "https://stream.pari-radio.ru/cha",
+    "category": "news"
+  },
+  {
+    "id": "2682",
+    "name": "Радио РБК",
+    "logo": "https://radiopotok.ru/f/station/256/2682.png",
+    "stream": "https://hls-01-rbc.hostingradio.ru/rbc-fed0/playlist.m3u8",
+    "category": "news"
+  },
+  {
+    "id": "3",
+    "name": "Business FM 107.4 (Петербург)",
+    "logo": "https://radiopotok.ru/f/station/256/3.png",
+    "stream": "https://bfmreg.hostingradio.ru/spb.bfm128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "1742",
+    "name": "Station 1742",
+    "logo": "https://radiopotok.ru/f/station/256/1742.png",
+    "stream": "https://5.restream.one/1742_1",
+    "category": "news"
+  },
+  {
+    "id": "2309",
+    "name": "ВЕСТИ ИРКУТСК",
+    "logo": "https://radiopotok.ru/f/station/256/2309.png",
+    "stream": "https://streams.vestiirk.ru:8443/ridio_rossii.mp3",
+    "category": "news"
+  },
+  {
+    "id": "2487",
+    "name": "Радио 333",
+    "logo": "https://radiopotok.ru/f/station/256/2487.png",
+    "stream": "https://myradio24.org/63361",
+    "category": "russian"
+  },
+  {
+    "id": "1051",
+    "name": "Народная Волна Чикаго",
+    "logo": "https://radiopotok.ru/f/station/256/1051.png",
+    "stream": "https://wzru.radioca.st/stream",
+    "category": "news"
+  },
+  {
+    "id": "1060",
+    "name": "Радио «Русская реклама»",
+    "logo": "https://radiopotok.ru/f/station/256/1060.png",
+    "stream": "https://securestreams5.autopo.st:1844/stream",
+    "category": "russian"
+  },
+  {
+    "id": "1427",
+    "name": "Радио «Петербург»",
+    "logo": "https://radiopotok.ru/f/station/256/1427.png",
+    "stream": "https://www.5-tv.ru/radio.mp3",
+    "category": "news"
+  },
+  {
+    "id": "1754",
+    "name": "Классное Радио РДШ",
+    "logo": "https://radiopotok.ru/f/station/256/1754.png",
+    "stream": "https://schoolradio.hostingradio.ru:8026/schoolradio128.mp3",
+    "category": "kids"
+  },
+  {
+    "id": "2255",
+    "name": "Радио-Н (Новочеркасск)",
+    "logo": "https://radiopotok.ru/f/station/256/2255.png",
+    "stream": "https://online.radio-n.ru:4085/radio",
+    "category": "foreign"
+  },
+  {
+    "id": "2501",
+    "name": "Чурканов ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2501.png",
+    "stream": "https://myradio24.org/churkanov",
+    "category": "retro"
+  },
+  {
+    "id": "2615",
+    "name": "Здоровье",
+    "logo": "https://radiopotok.ru/f/station/256/2615.png",
+    "stream": "https://stream.cassiopeia-station.ru:1385/stream",
+    "category": "news"
+  },
+  {
+    "id": "541",
+    "name": "Лемма (Владивосток)",
+    "logo": "https://radiopotok.ru/f/station/256/541.png",
+    "stream": "https://misato.ru-hoster.com:8072/;stream.nsv",
+    "category": "news"
+  },
+  {
+    "id": "620",
+    "name": "УВБ-76",
+    "logo": "https://radiopotok.ru/f/station/256/620.png",
+    "stream": "https://5.restream.one/620_1",
+    "category": "news"
+  },
+  {
+    "id": "949",
+    "name": "Davidzon Radio",
+    "logo": "https://radiopotok.ru/f/station/256/949.png",
+    "stream": "https://5.restream.one/949_1",
+    "category": "news"
+  },
+  {
+    "id": "957",
+    "name": "Радио Автодор",
+    "logo": "https://radiopotok.ru/f/station/256/957.png",
+    "stream": "https://avtodor-tr.hostingradio.ru/avtodortr128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "963",
+    "name": "Sputnik International",
+    "logo": "https://radiopotok.ru/f/station/256/963.png",
+    "stream": "https://icecast-rian.cdnvideo.ru/voiceusa",
+    "category": "news"
+  },
+  {
+    "id": "1812",
+    "name": "Радио 1",
+    "logo": "https://radiopotok.ru/f/station/256/1812.png",
+    "stream": "https://5.restream.one/1812_1",
+    "category": "news"
+  },
+  {
+    "id": "1822",
+    "name": "Первое союзное радио",
+    "logo": "https://radiopotok.ru/f/station/256/1822.png",
+    "stream": "https://souz.hostingradio.ru:80/souz128.mp3?radiostatistica=radiopotok",
+    "category": "retro"
+  },
+  {
+    "id": "1903",
+    "name": "Алмазный край",
+    "logo": "https://radiopotok.ru/f/station/256/1903.png",
+    "stream": "https://stream.almaz-media.tv/radio",
+    "category": "news"
+  },
+  {
+    "id": "2093",
+    "name": "Новороссия ROCKS",
+    "logo": "https://radiopotok.ru/f/station/256/2093.png",
+    "stream": "https://5.restream.one/2093_1",
+    "category": "rock"
+  },
+  {
+    "id": "2177",
+    "name": "InVoice Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2177.png",
+    "stream": "https://listen.myrh.ru/id079040",
+    "category": "news"
+  },
+  {
+    "id": "2315",
+    "name": "Радио ногинска (Богородский ФМ)",
+    "logo": "https://radiopotok.ru/f/station/256/2315.png",
+    "stream": "https://a7.radioheart.ru:9008/radionoginsk",
+    "category": "chillout"
+  },
+  {
+    "id": "2351",
+    "name": "Радио Жизнь",
+    "logo": "https://radiopotok.ru/f/station/256/2351.png",
+    "stream": "https://stream.radio-zhizn.ru:8443/rz_life",
+    "category": "news"
+  },
+  {
+    "id": "2609",
+    "name": "Голос Успеха",
+    "logo": "https://radiopotok.ru/f/station/256/2609.png",
+    "stream": "https://myradio24.org/uspehfm",
+    "category": "news"
+  },
+  {
+    "id": "2619",
+    "name": "Радио Комсомольская правда Южно-Сахалинск (Сахалинская область)",
+    "logo": "https://radiopotok.ru/f/station/256/2619.png",
+    "stream": "https://kpradio.hostingradio.ru:8000/yuzhno-sakhalinsk.radiokp128.mp3",
+    "category": "news"
+  },
+  {
+    "id": "471",
+    "name": "Radio Schizoid - Chillout",
+    "logo": "https://radiopotok.ru/f/station/256/471.png",
+    "stream": "https://1.restream.one/471_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1262",
+    "name": "ChilloutFM",
+    "logo": "https://radiopotok.ru/f/station/256/1262.png",
+    "stream": "https://listen2.myradio24.com/8795",
+    "category": "chillout"
+  },
+  {
+    "id": "2311",
+    "name": "LoFi Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2311.png",
+    "stream": "https://live.lofiradio.ru/lofi_mp3_320",
+    "category": "chillout"
+  },
+  {
+    "id": "1242",
+    "name": "Costa Del Mar - Zen",
+    "logo": "https://radiopotok.ru/f/station/256/1242.png",
+    "stream": "https://1.restream.one/1242_1",
+    "category": "chillout"
+  },
+  {
+    "id": "2685",
+    "name": "ZHUKOV FM | DEEP RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2685.png",
+    "stream": "https://listen.myrh.ru/id084344",
+    "category": "chillout"
+  },
+  {
+    "id": "611",
+    "name": "Музыка для Медитации",
+    "logo": "https://radiopotok.ru/f/station/256/611.png",
+    "stream": "https://i-radio.info:8055/radio",
+    "category": "chillout"
+  },
+  {
+    "id": "2408",
+    "name": "Гусь.Дипхаус",
+    "logo": "https://radiopotok.ru/f/station/256/2408.png",
+    "stream": "https://stream.radiogoose.ru/listen/deep/play",
+    "category": "chillout"
+  },
+  {
+    "id": "2252",
+    "name": "New Age",
+    "logo": "https://radiopotok.ru/f/station/256/2252.png",
+    "stream": "https://ic1.radiosignal.one/r8",
+    "category": "chillout"
+  },
+  {
+    "id": "1483",
+    "name": "ABC Lounge",
+    "logo": "https://radiopotok.ru/f/station/256/1483.png",
+    "stream": "https://eu1.fastcast4u.com/proxy/kpmxz?mp=/1",
+    "category": "chillout"
+  },
+  {
+    "id": "477",
+    "name": "SomaFM: Space Station",
+    "logo": "https://radiopotok.ru/f/station/256/477.png",
+    "stream": "https://ice3.somafm.com/spacestation-128-mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "2455",
+    "name": "Релакс радио 24",
+    "logo": "https://radiopotok.ru/f/station/256/2455.png",
+    "stream": "https://stream.vyshka24.ru/relaxradio24",
+    "category": "chillout"
+  },
+  {
+    "id": "465",
+    "name": "Ambient Sleeping Pill",
+    "logo": "https://radiopotok.ru/f/station/256/465.png",
+    "stream": "https://radio.stereoscenic.com/asp-s",
+    "category": "chillout"
+  },
+  {
+    "id": "1485",
+    "name": "89 HIT FM - EAZY FM",
+    "logo": "https://radiopotok.ru/f/station/256/1485.png",
+    "stream": "https://5.restream.one/1485_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1551",
+    "name": "Радио странствий",
+    "logo": "https://radiopotok.ru/f/station/256/1551.png",
+    "stream": "https://myradio24.org/4156",
+    "category": "retro"
+  },
+  {
+    "id": "1626",
+    "name": "Cafe Del Mar",
+    "logo": "https://radiopotok.ru/f/station/256/1626.png",
+    "stream": "https://streams.radio.co/se1a320b47/listen",
+    "category": "chillout"
+  },
+  {
+    "id": "1371",
+    "name": "Radio Kamchatka LIVE - Chilout Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1371.png",
+    "stream": "https://kamchatkalive.ru:8103/chillout",
+    "category": "chillout"
+  },
+  {
+    "id": "1489",
+    "name": "SomaFM: Drone Zone",
+    "logo": "https://radiopotok.ru/f/station/256/1489.png",
+    "stream": "https://ice3.somafm.com/dronezone-128-mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "1860",
+    "name": "Cassiopeia Station",
+    "logo": "https://radiopotok.ru/f/station/256/1860.png",
+    "stream": "https://stream.cassiopeia-station.ru:5015/stream",
+    "category": "chillout"
+  },
+  {
+    "id": "2027",
+    "name": "Chilla FM",
+    "logo": "https://radiopotok.ru/f/station/256/2027.png",
+    "stream": "https://chilla.amgradio.ru/ChillaFM",
+    "category": "chillout"
+  },
+  {
+    "id": "1717",
+    "name": "Yoga Chill",
+    "logo": "https://radiopotok.ru/f/station/256/1717.png",
+    "stream": "https://radio4.vip-radios.fm:18027/stream-128kmp3-YogaChill",
+    "category": "chillout"
+  },
+  {
+    "id": "2225",
+    "name": "Relax Time",
+    "logo": "https://radiopotok.ru/f/station/256/2225.png",
+    "stream": "nKawXXKcyDM",
+    "category": "classical"
+  },
+  {
+    "id": "2562",
+    "name": "DEEP IN SPACE",
+    "logo": "https://radiopotok.ru/f/station/256/2562.png",
+    "stream": "https://stream.drugradio.ru:8020/stream128",
+    "category": "chillout"
+  },
+  {
+    "id": "2614",
+    "name": "Живая природа",
+    "logo": "https://radiopotok.ru/f/station/256/2614.png",
+    "stream": "https://stream.cassiopeia-station.ru:1355/stream",
+    "category": "chillout"
+  },
+  {
+    "id": "729",
+    "name": "Atm.Fm",
+    "logo": "https://radiopotok.ru/f/station/256/729.png",
+    "stream": "https://5.restream.one/729_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1610",
+    "name": "Life-Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1610.png",
+    "stream": "https://a1.radioheart.ru:9019/liferadioru",
+    "category": "chillout"
+  },
+  {
+    "id": "1704",
+    "name": "Buddha Beach",
+    "logo": "https://radiopotok.ru/f/station/256/1704.png",
+    "stream": "https://radio4.vip-radios.fm:18054/stream-128kmp3-BuddhaBeach",
+    "category": "chillout"
+  },
+  {
+    "id": "1716",
+    "name": "Time To Relax",
+    "logo": "https://radiopotok.ru/f/station/256/1716.png",
+    "stream": "https://radio4.vip-radios.fm:18048/stream-128kmp3-TimeToRelax",
+    "category": "chillout"
+  },
+  {
+    "id": "1831",
+    "name": "Джон Радио",
+    "logo": "https://radiopotok.ru/f/station/256/1831.png",
+    "stream": "https://i-radio.info:8090/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2029",
+    "name": "Radio FUNK",
+    "logo": "https://radiopotok.ru/f/station/256/2029.png",
+    "stream": "https://funk.amgradio.ru/Funk",
+    "category": "chillout"
+  },
+  {
+    "id": "2185",
+    "name": "Radio.Fish",
+    "logo": "https://radiopotok.ru/f/station/256/2185.png",
+    "stream": "https://myradio24.org/8317",
+    "category": "jazz"
+  },
+  {
+    "id": "2556",
+    "name": "Radio Moments",
+    "logo": "https://radiopotok.ru/f/station/256/2556.png",
+    "stream": "https://radio-moments.ru:17359/type",
+    "category": "chillout"
+  },
+  {
+    "id": "469",
+    "name": "181.FM - Chilled Out",
+    "logo": "https://radiopotok.ru/f/station/256/469.png",
+    "stream": "https://listen.181fm.com/181-chilled_128k.mp3?noPreRoll=true",
+    "category": "chillout"
+  },
+  {
+    "id": "478",
+    "name": "SomaFM: Mission Control",
+    "logo": "https://radiopotok.ru/f/station/256/478.png",
+    "stream": "https://ice3.somafm.com/missioncontrol-128-mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "958",
+    "name": "Солнечный Вектор",
+    "logo": "https://radiopotok.ru/f/station/256/958.png",
+    "stream": "https://sunvector.tk/radio/8000/radio.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "1484",
+    "name": "89 HIT FM",
+    "logo": "https://radiopotok.ru/f/station/256/1484.png",
+    "stream": "https://5.restream.one/1484_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1487",
+    "name": "Anotherplanet.fm",
+    "logo": "https://radiopotok.ru/f/station/256/1487.png",
+    "stream": "https://5.restream.one/1487_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1504",
+    "name": "Ibiza Radios - Chill",
+    "logo": "https://radiopotok.ru/f/station/256/1504.png",
+    "stream": "https://radio2.vip-radios.fm:18018/stream-128kmp3-IbizaChill",
+    "category": "chillout"
+  },
+  {
+    "id": "1509",
+    "name": "Ibiza Radios - Relax",
+    "logo": "https://radiopotok.ru/f/station/256/1509.png",
+    "stream": "https://radio2.vip-radios.fm:18036/stream-128kmp3-IbizaRelax",
+    "category": "chillout"
+  },
+  {
+    "id": "1512",
+    "name": "New Age Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1512.png",
+    "stream": "https://listen.myrh.ru/newageradio",
+    "category": "chillout"
+  },
+  {
+    "id": "1701",
+    "name": "ELF Radio (Moscow)",
+    "logo": "https://radiopotok.ru/f/station/256/1701.png",
+    "stream": "https://5.restream.one/1701_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1710",
+    "name": "Healing Music",
+    "logo": "https://radiopotok.ru/f/station/256/1710.png",
+    "stream": "https://radio4.vip-radios.fm:18039/stream-128kmp3-HealingMusic",
+    "category": "chillout"
+  },
+  {
+    "id": "1713",
+    "name": "Relax Zone",
+    "logo": "https://radiopotok.ru/f/station/256/1713.png",
+    "stream": "https://radio4.vip-radios.fm:18045/stream-128kmp3-RelaxZone",
+    "category": "chillout"
+  },
+  {
+    "id": "1722",
+    "name": "Splash Spa",
+    "logo": "https://radiopotok.ru/f/station/256/1722.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2347_128.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "1723",
+    "name": "Splash Coffee",
+    "logo": "https://radiopotok.ru/f/station/256/1723.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2345_128.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "1724",
+    "name": "Splash Lounge",
+    "logo": "https://radiopotok.ru/f/station/256/1724.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2209_128.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "1839",
+    "name": "Radio Air TOUCH",
+    "logo": "https://radiopotok.ru/f/station/256/1839.png",
+    "stream": "https://c14.radioboss.fm:8133/radioairtouch",
+    "category": "foreign"
+  },
+  {
+    "id": "1845",
+    "name": "Кафе мечты!",
+    "logo": "https://radiopotok.ru/f/station/256/1845.png",
+    "stream": "https://myradio24.org/dreamcafe",
+    "category": "chillout"
+  },
+  {
+    "id": "1907",
+    "name": "Maestro FM",
+    "logo": "https://radiopotok.ru/f/station/256/1907.png",
+    "stream": "https://5.restream.one/1907_1",
+    "category": "chillout"
+  },
+  {
+    "id": "1925",
+    "name": "Бродяга On-Line",
+    "logo": "https://radiopotok.ru/f/station/256/1925.png",
+    "stream": "https://myradio24.org/traveller",
+    "category": "chillout"
+  },
+  {
+    "id": "1985",
+    "name": "Wow Music Chillout",
+    "logo": "https://radiopotok.ru/f/station/256/1985.png",
+    "stream": "https://stream.vyshka24.ru/wowchillout",
+    "category": "chillout"
+  },
+  {
+    "id": "1995",
+    "name": "Li Soul FM",
+    "logo": "https://radiopotok.ru/f/station/256/1995.png",
+    "stream": "https://myradio24.org/5790",
+    "category": "chillout"
+  },
+  {
+    "id": "2003",
+    "name": "Dzhon Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2003.png",
+    "stream": "https://stream.drugradio.ru:8000/stream128",
+    "category": "chillout"
+  },
+  {
+    "id": "2086",
+    "name": "САМ��ПОЗНАНИЕ.online",
+    "logo": "https://radiopotok.ru/f/station/256/2086.png",
+    "stream": "https://listen.myrh.ru/id055899",
+    "category": "chillout"
+  },
+  {
+    "id": "2154",
+    "name": "NR Astrology Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2154.png",
+    "stream": "https://listen.myrh.ru/nrastrology",
+    "category": "chillout"
+  },
+  {
+    "id": "2184",
+    "name": "Lofifi Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2184.png",
+    "stream": "https://myradio24.org/93299",
+    "category": "chillout"
+  },
+  {
+    "id": "2196",
+    "name": "8 BIT FM",
+    "logo": "https://radiopotok.ru/f/station/256/2196.png",
+    "stream": "https://myradio24.org/85516_320 ",
+    "category": "kids"
+  },
+  {
+    "id": "2211",
+    "name": "The Good Life Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2211.png",
+    "stream": "36YnV9STBqc",
+    "category": "foreign"
+  },
+  {
+    "id": "2213",
+    "name": "Lofi hip hop radio",
+    "logo": "https://radiopotok.ru/f/station/256/2213.png",
+    "stream": "jfKfPfyJRdk",
+    "category": "chillout"
+  },
+  {
+    "id": "2214",
+    "name": "Deep Mood",
+    "logo": "https://radiopotok.ru/f/station/256/2214.png",
+    "stream": "EMmEdgPLL3s",
+    "category": "chillout"
+  },
+  {
+    "id": "2216",
+    "name": "Fashion TV",
+    "logo": "https://radiopotok.ru/f/station/256/2216.png",
+    "stream": "q0mRUagd97E",
+    "category": "chillout"
+  },
+  {
+    "id": "2219",
+    "name": "Music for Work",
+    "logo": "https://radiopotok.ru/f/station/256/2219.png",
+    "stream": "IIzptPYGTyY",
+    "category": "chillout"
+  },
+  {
+    "id": "2221",
+    "name": "Haa Taa Deep House",
+    "logo": "https://radiopotok.ru/f/station/256/2221.png",
+    "stream": "xq4RY6xDohM",
+    "category": "chillout"
+  },
+  {
+    "id": "2222",
+    "name": "Deep Light",
+    "logo": "https://radiopotok.ru/f/station/256/2222.png",
+    "stream": "ntakRo-PJMQ",
+    "category": "chillout"
+  },
+  {
+    "id": "2226",
+    "name": "Lucid Dream",
+    "logo": "https://radiopotok.ru/f/station/256/2226.png",
+    "stream": "czQY2iZTxCE",
+    "category": "classical"
+  },
+  {
+    "id": "2228",
+    "name": "Summer Music Deep",
+    "logo": "https://radiopotok.ru/f/station/256/2228.png",
+    "stream": "WkBX4N79r4w",
+    "category": "chillout"
+  },
+  {
+    "id": "2233",
+    "name": "Space Ambient",
+    "logo": "https://radiopotok.ru/f/station/256/2233.png",
+    "stream": "tNkZsRW7h2c",
+    "category": "chillout"
+  },
+  {
+    "id": "2254",
+    "name": "Мурзик Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2254.png",
+    "stream": "https://murzikradio.ru:1040/stream",
+    "category": "jazz"
+  },
+  {
+    "id": "2264",
+    "name": "Nebula",
+    "logo": "https://radiopotok.ru/f/station/256/2264.png",
+    "stream": "https://cast4.my-control-panel.com/proxy/nebulara/stream",
+    "category": "chillout"
+  },
+  {
+    "id": "2297",
+    "name": "Radio Fresh",
+    "logo": "https://radiopotok.ru/f/station/256/2297.png",
+    "stream": "https://37.157.242.101:35497/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2312",
+    "name": "Радио ASMR",
+    "logo": "https://radiopotok.ru/f/station/256/2312.png",
+    "stream": "https://live.lofiradio.ru/asmr_mp3_320",
+    "category": "chillout"
+  },
+  {
+    "id": "2353",
+    "name": "7Kilowatte Radio Station",
+    "logo": "https://radiopotok.ru/f/station/256/2353.png",
+    "stream": "https://myradio24.org/86047",
+    "category": "foreign"
+  },
+  {
+    "id": "2485",
+    "name": "Palmera Blanca radio",
+    "logo": "https://radiopotok.ru/f/station/256/2485.png",
+    "stream": "https://daystream.palmerablanca.com/daystream-128.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "2497",
+    "name": "AbgarBar Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2497.png",
+    "stream": "https://listen.myrh.ru/id059289",
+    "category": "foreign"
+  },
+  {
+    "id": "2509",
+    "name": "Radio-9",
+    "logo": "https://radiopotok.ru/f/station/256/2509.png",
+    "stream": "https://myradio24.org/radio9",
+    "category": "chillout"
+  },
+  {
+    "id": "2541",
+    "name": "Chillsperience",
+    "logo": "https://radiopotok.ru/f/station/256/2541.png",
+    "stream": "https://lk.castnow.ru:8100/kamonoffrock-320.mp3",
+    "category": "chillout"
+  },
+  {
+    "id": "2587",
+    "name": "Roots &amp; Future",
+    "logo": "https://radiopotok.ru/f/station/256/2587.png",
+    "stream": "https://radio.roots-future.ru:8010/future",
+    "category": "foreign"
+  },
+  {
+    "id": "2593",
+    "name": "SOHO FM [RELAX]",
+    "logo": "https://radiopotok.ru/f/station/256/2593.png",
+    "stream": "https://myradio24.org/pimenov777",
+    "category": "chillout"
+  },
+  {
+    "id": "2595",
+    "name": "Omdaru LIVE",
+    "logo": "https://radiopotok.ru/f/station/256/2595.png",
+    "stream": "https://myradio24.org/omdaru",
+    "category": "chillout"
+  },
+  {
+    "id": "2610",
+    "name": "M.Deep Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2610.png",
+    "stream": "https://deephousex.ru/live",
+    "category": "foreign"
+  },
+  {
+    "id": "2617",
+    "name": "Minatrix.FM",
+    "logo": "https://radiopotok.ru/f/station/256/2617.png",
+    "stream": "https://minatrix.fm:8002/play",
+    "category": "foreign"
+  },
+  {
+    "id": "2631",
+    "name": "Real FM Relax",
+    "logo": "https://radiopotok.ru/f/station/256/2631.png",
+    "stream": "https://realfm.net/relax",
+    "category": "chillout"
+  },
+  {
+    "id": "2688",
+    "name": "IRIDIUM",
+    "logo": "https://radiopotok.ru/f/station/256/2688.png",
+    "stream": "https://myradio24.org/iridium",
+    "category": "chillout"
+  },
+  {
+    "id": "2679",
+    "name": "Радио Рокс",
+    "logo": "https://radiopotok.ru/f/station/256/2679.png",
+    "stream": "https://icecast-radiorocks.cdnvideo.ru/roks.stream",
+    "category": "rock"
+  },
+  {
+    "id": "2576",
+    "name": "Радио Мастера Беларуси",
+    "logo": "https://radiopotok.ru/f/station/256/2576.png",
+    "stream": "https://myradio24.org/vladyka",
+    "category": "rock"
+  },
+  {
+    "id": "1414",
+    "name": "Радио ULTRA",
+    "logo": "https://radiopotok.ru/f/station/256/1414.png",
+    "stream": "https://nashe1.hostingradio.ru:18000/ultra-128.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2624",
+    "name": "METALчет",
+    "logo": "https://radiopotok.ru/f/station/256/2624.png",
+    "stream": "https://myradio24.org/metalchet",
+    "category": "rock"
+  },
+  {
+    "id": "2492",
+    "name": "Авторадио Беларусь",
+    "logo": "https://radiopotok.ru/f/station/256/2492.png",
+    "stream": "https://live.humorfm.by:8443/avtoradio",
+    "category": "rock"
+  },
+  {
+    "id": "1791",
+    "name": "MOTORADIO LITE",
+    "logo": "https://radiopotok.ru/f/station/256/1791.png",
+    "stream": "https://stream.motoradio.online/lite-mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2464",
+    "name": "Rock Arsenal",
+    "logo": "https://radiopotok.ru/f/station/256/2464.png",
+    "stream": "https://online.rockarsenal.ru/rockwotalk",
+    "category": "rock"
+  },
+  {
+    "id": "2432",
+    "name": "CosmosFM",
+    "logo": "https://radiopotok.ru/f/station/256/2432.png",
+    "stream": "https://myradio24.org/cosmosfm",
+    "category": "rock"
+  },
+  {
+    "id": "2490",
+    "name": "Alternative X-Rock Station",
+    "logo": "https://radiopotok.ru/f/station/256/2490.png",
+    "stream": "https://stream.rocksradio.net:1095/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1143",
+    "name": "Радио Ангелов",
+    "logo": "https://radiopotok.ru/f/station/256/1143.png",
+    "stream": "https://5.restream.one/1143_1",
+    "category": "rock"
+  },
+  {
+    "id": "1432",
+    "name": "MOTORADIO.ONLINE",
+    "logo": "https://radiopotok.ru/f/station/256/1432.png",
+    "stream": "https://5.restream.one/1432_1",
+    "category": "rock"
+  },
+  {
+    "id": "2392",
+    "name": "БарсукФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2392.png",
+    "stream": "https://myradio24.org/barsukfm",
+    "category": "rock"
+  },
+  {
+    "id": "1678",
+    "name": "Радио ZEFIROT",
+    "logo": "https://radiopotok.ru/f/station/256/1678.png",
+    "stream": "https://myradio24.org/66490",
+    "category": "rock"
+  },
+  {
+    "id": "1828",
+    "name": "RockTime Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1828.png",
+    "stream": "https://listen.myrh.ru/rocktimeradio",
+    "category": "rock"
+  },
+  {
+    "id": "1960",
+    "name": "Монстры Рока СССР",
+    "logo": "https://radiopotok.ru/f/station/256/1960.png",
+    "stream": "https://ic1.radiosignal.one/ussr",
+    "category": "russian"
+  },
+  {
+    "id": "2637",
+    "name": "Малина FM",
+    "logo": "https://radiopotok.ru/f/station/256/2637.png",
+    "stream": "https://a5.radioheart.ru:9019/RH82644",
+    "category": "rock"
+  },
+  {
+    "id": "1347",
+    "name": "Rock`n`Roll.Fm",
+    "logo": "https://radiopotok.ru/f/station/256/1347.png",
+    "stream": "https://a6.radioheart.ru:9046/RH1972",
+    "category": "rock"
+  },
+  {
+    "id": "1370",
+    "name": "Radio Kamchatka LIVE - Rock Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1370.png",
+    "stream": "https://kamchatkalive.ru:8103/rock",
+    "category": "rock"
+  },
+  {
+    "id": "1640",
+    "name": "UltraFan",
+    "logo": "https://radiopotok.ru/f/station/256/1640.png",
+    "stream": "https://5.restream.one/1640_1",
+    "category": "rock"
+  },
+  {
+    "id": "1650",
+    "name": "ROCK СТАНЦИЯ",
+    "logo": "https://radiopotok.ru/f/station/256/1650.png",
+    "stream": "https://rockstation.radiostream.pro/mp3",
+    "category": "russian"
+  },
+  {
+    "id": "1966",
+    "name": "Радио Редкие Рыбы",
+    "logo": "https://radiopotok.ru/f/station/256/1966.png",
+    "stream": "https://listen1.myradio24.com/8317",
+    "category": "foreign"
+  },
+  {
+    "id": "1988",
+    "name": "Wow Music Rock",
+    "logo": "https://radiopotok.ru/f/station/256/1988.png",
+    "stream": "https://stream.vyshka24.ru/wowrock",
+    "category": "rock"
+  },
+  {
+    "id": "2412",
+    "name": "Гусь.Рок",
+    "logo": "https://radiopotok.ru/f/station/256/2412.png",
+    "stream": "https://stream.radiogoose.ru/listen/rock/play",
+    "category": "rock"
+  },
+  {
+    "id": "2530",
+    "name": "Радио Панельных Домов",
+    "logo": "https://radiopotok.ru/f/station/256/2530.png",
+    "stream": "https://myradio24.org/panelka",
+    "category": "retro"
+  },
+  {
+    "id": "2604",
+    "name": "Mikulski_24/7 ( ಠ┏ل͜┓ಠ )",
+    "logo": "https://radiopotok.ru/f/station/256/2604.png",
+    "stream": "https://icecast.mikulski-radio.ru:8443/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2638",
+    "name": "Афонтовское",
+    "logo": "https://radiopotok.ru/f/station/256/2638.png",
+    "stream": "https://myradio24.org/53735",
+    "category": "rock"
+  },
+  {
+    "id": "51",
+    "name": "idobi Radio",
+    "logo": "https://radiopotok.ru/f/station/256/51.png",
+    "stream": "https://idobiradio.idobi.com/;",
+    "category": "rock"
+  },
+  {
+    "id": "95",
+    "name": "Radio Bob!",
+    "logo": "https://radiopotok.ru/f/station/256/95.png",
+    "stream": "https://bob.hoerradar.de/mp3-radiobob",
+    "category": "rock"
+  },
+  {
+    "id": "142",
+    "name": "Station 142",
+    "logo": "https://radiopotok.ru/f/station/256/142.png",
+    "stream": "https://play.radio13.ru/64",
+    "category": "rock"
+  },
+  {
+    "id": "523",
+    "name": "Радио Экстрим",
+    "logo": "https://radiopotok.ru/f/station/256/523.png",
+    "stream": "https://listen.radioextreme.ru",
+    "category": "rock"
+  },
+  {
+    "id": "945",
+    "name": "AlexFM Radiostation",
+    "logo": "https://radiopotok.ru/f/station/256/945.png",
+    "stream": "https://5.restream.one/945_1",
+    "category": "rock"
+  },
+  {
+    "id": "1077",
+    "name": "bignoise",
+    "logo": "https://radiopotok.ru/f/station/256/1077.png",
+    "stream": "https://5.restream.one/1077_1",
+    "category": "russian"
+  },
+  {
+    "id": "1085",
+    "name": "Atlantica Oldies",
+    "logo": "https://radiopotok.ru/f/station/256/1085.png",
+    "stream": "https://5.restream.one/1085_1",
+    "category": "rock"
+  },
+  {
+    "id": "1138",
+    "name": "Экспресс Радио Орёл",
+    "logo": "https://radiopotok.ru/f/station/256/1138.png",
+    "stream": "https://obl1.ru/radio-stream",
+    "category": "rock"
+  },
+  {
+    "id": "1195",
+    "name": "Радио Верста",
+    "logo": "https://radiopotok.ru/f/station/256/1195.png",
+    "stream": "https://panel.radioversta.ru:1045/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1199",
+    "name": "Fresh Rock",
+    "logo": "https://radiopotok.ru/f/station/256/1199.png",
+    "stream": "https://stream.freshrock.net/128.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "1215",
+    "name": "Виктори Рок",
+    "logo": "https://radiopotok.ru/f/station/256/1215.png",
+    "stream": "https://5.restream.one/1215_1",
+    "category": "russian"
+  },
+  {
+    "id": "1251",
+    "name": "Город Кудрово",
+    "logo": "https://radiopotok.ru/f/station/256/1251.png",
+    "stream": "https://c16.radioboss.fm:18137/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1287",
+    "name": "Первое железнодорожное радио - канал RocK",
+    "logo": "https://radiopotok.ru/f/station/256/1287.png",
+    "stream": "https://5.restream.one/1287_1",
+    "category": "rock"
+  },
+  {
+    "id": "1360",
+    "name": "Неслучайное Радио",
+    "logo": "https://radiopotok.ru/f/station/256/1360.png",
+    "stream": "https://aska.ru-hoster.com:8006/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1519",
+    "name": "BluesMen Channel (Hits)",
+    "logo": "https://radiopotok.ru/f/station/256/1519.png",
+    "stream": "https://5.restream.one/1519_1",
+    "category": "rock"
+  },
+  {
+    "id": "1527",
+    "name": "UltraPlay",
+    "logo": "https://radiopotok.ru/f/station/256/1527.png",
+    "stream": "https://5.restream.one/1527_1",
+    "category": "rock"
+  },
+  {
+    "id": "1528",
+    "name": "AlexFM LetsRock",
+    "logo": "https://radiopotok.ru/f/station/256/1528.png",
+    "stream": "https://stream.laut.fm/alexfm",
+    "category": "rock"
+  },
+  {
+    "id": "1558",
+    "name": "BluesMen Channel (Gold)",
+    "logo": "https://radiopotok.ru/f/station/256/1558.png",
+    "stream": "https://5.restream.one/1558_1",
+    "category": "rock"
+  },
+  {
+    "id": "1599",
+    "name": "Beloe Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1599.png",
+    "stream": "https://myradio24.org/4592",
+    "category": "rock"
+  },
+  {
+    "id": "1617",
+    "name": "SK-RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/1617.png",
+    "stream": "https://listen.myrh.ru/sk-radio",
+    "category": "jazz"
+  },
+  {
+    "id": "1641",
+    "name": "Свой стиль",
+    "logo": "https://radiopotok.ru/f/station/256/1641.png",
+    "stream": "https://stream.laut.fm/svoystil",
+    "category": "rock"
+  },
+  {
+    "id": "1702",
+    "name": "JAM Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1702.png",
+    "stream": "https://eu4.fastcast4u.com/proxy/jam66?mp=/1",
+    "category": "jazz"
+  },
+  {
+    "id": "1817",
+    "name": "Radio Extasy",
+    "logo": "https://radiopotok.ru/f/station/256/1817.png",
+    "stream": "https://rptr.play.extasy.es",
+    "category": "rock"
+  },
+  {
+    "id": "1864",
+    "name": "Два Берега",
+    "logo": "https://radiopotok.ru/f/station/256/1864.png",
+    "stream": "https://5.restream.one/1864_1",
+    "category": "rock"
+  },
+  {
+    "id": "1876",
+    "name": "Rock Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1876.png",
+    "stream": "https://cast2.my-control-panel.com/proxy/vladas/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1881",
+    "name": "Прайм Радио",
+    "logo": "https://radiopotok.ru/f/station/256/1881.png",
+    "stream": "https://listen7.myradio24.com/praims",
+    "category": "rock"
+  },
+  {
+    "id": "1923",
+    "name": "Радио Боль",
+    "logo": "https://radiopotok.ru/f/station/256/1923.png",
+    "stream": "https://stream.zeno.fm/1hmw9t7wav8uv",
+    "category": "rock"
+  },
+  {
+    "id": "1973",
+    "name": "Наше Радио Кисловодск",
+    "logo": "https://radiopotok.ru/f/station/256/1973.png",
+    "stream": "https://nashestv.ru/radio/8020/nasheradiokmv?1623329273",
+    "category": "rock"
+  },
+  {
+    "id": "1974",
+    "name": "Радио Шкипер",
+    "logo": "https://radiopotok.ru/f/station/256/1974.png",
+    "stream": "https://myradio24.org/bolshevek",
+    "category": "rock"
+  },
+  {
+    "id": "1975",
+    "name": "GTF Instrumental",
+    "logo": "https://radiopotok.ru/f/station/256/1975.png",
+    "stream": "https://stream.gtfinstrumental.com/stream",
+    "category": "rock"
+  },
+  {
+    "id": "1978",
+    "name": "Радио Старого Полковника",
+    "logo": "https://radiopotok.ru/f/station/256/1978.png",
+    "stream": "https://notthatoldcolonel.ru:1050/stream",
+    "category": "jazz"
+  },
+  {
+    "id": "2017",
+    "name": "MGP-radio",
+    "logo": "https://radiopotok.ru/f/station/256/2017.png",
+    "stream": "https://misato.ru-hoster.com:8047/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2047",
+    "name": "Наше Радио Ставрополь",
+    "logo": "https://radiopotok.ru/f/station/256/2047.png",
+    "stream": "https://nashestv.ru/radio/8020/nasheradiostv",
+    "category": "rock"
+  },
+  {
+    "id": "2084",
+    "name": "Калейдоскоп Рок",
+    "logo": "https://radiopotok.ru/f/station/256/2084.png",
+    "stream": "https://a8.radioheart.ru:9039/KR",
+    "category": "rock"
+  },
+  {
+    "id": "2105",
+    "name": "Station 2105",
+    "logo": "https://radiopotok.ru/f/station/256/2105.png",
+    "stream": "https://stream.antiradio.net/radio/8000/web",
+    "category": "rock"
+  },
+  {
+    "id": "2116",
+    "name": "Яхт-Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2116.png",
+    "stream": "https://yacht-radio.lv:8005/radio",
+    "category": "classical"
+  },
+  {
+    "id": "2119",
+    "name": "Рок - Атака",
+    "logo": "https://radiopotok.ru/f/station/256/2119.png",
+    "stream": "https://myradio24.org/rockataka",
+    "category": "rock"
+  },
+  {
+    "id": "2128",
+    "name": "164FM",
+    "logo": "https://radiopotok.ru/f/station/256/2128.png",
+    "stream": "http://myradio24.org/164fm",
+    "category": "rock"
+  },
+  {
+    "id": "2141",
+    "name": "Пиратское Rock радио",
+    "logo": "https://radiopotok.ru/f/station/256/2141.png",
+    "stream": "https://live.rock-wawe.ru:8001/RockWawe",
+    "category": "rock"
+  },
+  {
+    "id": "2153",
+    "name": "Joint Radio Blues Rock",
+    "logo": "https://radiopotok.ru/f/station/256/2153.png",
+    "stream": "https://jointil.com/stream-blues",
+    "category": "rock"
+  },
+  {
+    "id": "2174",
+    "name": "Online-Radio NEVERMIND.",
+    "logo": "https://radiopotok.ru/f/station/256/2174.png",
+    "stream": "https://myradio24.org/nevermind",
+    "category": "rock"
+  },
+  {
+    "id": "2183",
+    "name": "Радио Ы",
+    "logo": "https://radiopotok.ru/f/station/256/2183.png",
+    "stream": "https://myradio24.org/73094",
+    "category": "rock"
+  },
+  {
+    "id": "2217",
+    "name": "Rock RGN",
+    "logo": "https://radiopotok.ru/f/station/256/2217.png",
+    "stream": "tGs1ffS8jLk",
+    "category": "rock"
+  },
+  {
+    "id": "2271",
+    "name": "Радио MWT",
+    "logo": "https://radiopotok.ru/f/station/256/2271.png",
+    "stream": "https://stream.volnorez.com/live-app/908994",
+    "category": "russian"
+  },
+  {
+    "id": "2286",
+    "name": "BIKER-FM",
+    "logo": "https://radiopotok.ru/f/station/256/2286.png",
+    "stream": "https://myradio24.org/69846",
+    "category": "rock"
+  },
+  {
+    "id": "2317",
+    "name": "MetalHeads",
+    "logo": "https://radiopotok.ru/f/station/256/2317.png",
+    "stream": "https://radio.metalheads.by/listen/metalheads/source",
+    "category": "rock"
+  },
+  {
+    "id": "2348",
+    "name": "Baker Street N",
+    "logo": "https://radiopotok.ru/f/station/256/2348.png",
+    "stream": "https://myradio24.org/30720",
+    "category": "foreign"
+  },
+  {
+    "id": "2366",
+    "name": "радиоВЫХОД",
+    "logo": "https://radiopotok.ru/f/station/256/2366.png",
+    "stream": "https://myradio24.org/cheburash",
+    "category": "rock"
+  },
+  {
+    "id": "2369",
+    "name": "Радио Рок-Омлет",
+    "logo": "https://radiopotok.ru/f/station/256/2369.png",
+    "stream": "https://radio.rock-omlet.com/live",
+    "category": "rock"
+  },
+  {
+    "id": "2379",
+    "name": "УлетайРадио",
+    "logo": "https://radiopotok.ru/f/station/256/2379.png",
+    "stream": "https://c6.radioboss.fm/stream/336",
+    "category": "rock"
+  },
+  {
+    "id": "2383",
+    "name": "DenStar",
+    "logo": "https://radiopotok.ru/f/station/256/2383.png",
+    "stream": "https://s05.volnorez.com/live-app/899946",
+    "category": "rock"
+  },
+  {
+    "id": "2401",
+    "name": "Radiare",
+    "logo": "https://radiopotok.ru/f/station/256/2401.png",
+    "stream": "https://myradio24.org/14583",
+    "category": "rock"
+  },
+  {
+    "id": "2494",
+    "name": "Благодать FM",
+    "logo": "https://radiopotok.ru/f/station/256/2494.png",
+    "stream": "https://82.146.46.30:8000/BLAGODATFM",
+    "category": "classical"
+  },
+  {
+    "id": "2505",
+    "name": "Пыльные пластинки",
+    "logo": "https://radiopotok.ru/f/station/256/2505.png",
+    "stream": "https://listen.myrh.ru/id079810",
+    "category": "rock"
+  },
+  {
+    "id": "2536",
+    "name": "Радыё Сталіца",
+    "logo": "https://radiopotok.ru/f/station/256/2536.png",
+    "stream": "https://stream2.datacenter.by/stalica",
+    "category": "rock"
+  },
+  {
+    "id": "2545",
+    "name": "Radio LEXOSOUND",
+    "logo": "https://radiopotok.ru/f/station/256/2545.png",
+    "stream": "https://radio.lexosound.ru/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2549",
+    "name": "Рок Волна",
+    "logo": "https://radiopotok.ru/f/station/256/2549.png",
+    "stream": "https://a6.radioheart.ru:8006/RH80625",
+    "category": "rock"
+  },
+  {
+    "id": "2550",
+    "name": "SEREBRO RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2550.png",
+    "stream": "https://myradio24.org/serebro",
+    "category": "jazz"
+  },
+  {
+    "id": "2558",
+    "name": "Радио Ростова",
+    "logo": "https://radiopotok.ru/f/station/256/2558.png",
+    "stream": "https://stream.radiorostova.ru/radio-rostova-high.mp3",
+    "category": "rock"
+  },
+  {
+    "id": "2561",
+    "name": "Радио Искра",
+    "logo": "https://radiopotok.ru/f/station/256/2561.png",
+    "stream": "https://listen.myrh.ru/radioiskra",
+    "category": "rock"
+  },
+  {
+    "id": "2566",
+    "name": "p.d.h. - PROJECT DIRTY HARRY",
+    "logo": "https://radiopotok.ru/f/station/256/2566.png",
+    "stream": "https://myradio24.org/dirtyharry",
+    "category": "rock"
+  },
+  {
+    "id": "2569",
+    "name": "rock.irk.ru :: main-mix",
+    "logo": "https://radiopotok.ru/f/station/256/2569.png",
+    "stream": "https://live.rock.irk.ru/listen/main-mix/radio.aac",
+    "category": "rock"
+  },
+  {
+    "id": "2588",
+    "name": "Рок-радио Ветер Сибири",
+    "logo": "https://radiopotok.ru/f/station/256/2588.png",
+    "stream": "https://myradio24.org/83695",
+    "category": "rock"
+  },
+  {
+    "id": "2594",
+    "name": "RADIARE ONLINE",
+    "logo": "https://radiopotok.ru/f/station/256/2594.png",
+    "stream": "https://myradio24.org/89152",
+    "category": "rock"
+  },
+  {
+    "id": "2607",
+    "name": "ДругоеРадио",
+    "logo": "https://radiopotok.ru/f/station/256/2607.png",
+    "stream": "https://myradio24.org/isador170",
+    "category": "rock"
+  },
+  {
+    "id": "2608",
+    "name": "R.Unicorn",
+    "logo": "https://radiopotok.ru/f/station/256/2608.png",
+    "stream": "https://myradio24.org/51606",
+    "category": "rock"
+  },
+  {
+    "id": "2646",
+    "name": "MaksIs Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2646.png",
+    "stream": "https://radio.maks-is.ru/live",
+    "category": "rock"
+  },
+  {
+    "id": "2653",
+    "name": "Радио ШОК",
+    "logo": "https://radiopotok.ru/f/station/256/2653.png",
+    "stream": "https://spb.radioshock.ru/m128",
+    "category": "rock"
+  },
+  {
+    "id": "2659",
+    "name": "Паровоз FM",
+    "logo": "https://radiopotok.ru/f/station/256/2659.png",
+    "stream": "https://myradio24.org/parovozfm",
+    "category": "rock"
+  },
+  {
+    "id": "2672",
+    "name": "Rock FMD",
+    "logo": "https://radiopotok.ru/f/station/256/2672.png",
+    "stream": "https://myradio24.org/fmd2rocker",
+    "category": "rock"
+  },
+  {
+    "id": "2673",
+    "name": "NDH FM",
+    "logo": "https://radiopotok.ru/f/station/256/2673.png",
+    "stream": "https://stream.ndh.fm:1065/stream",
+    "category": "rock"
+  },
+  {
+    "id": "2031",
+    "name": "Родные Песни",
+    "logo": "https://radiopotok.ru/f/station/256/2031.png",
+    "stream": "https://rodpesni.amgradio.ru/rp",
+    "category": "retro"
+  },
+  {
+    "id": "2294",
+    "name": "Радио СССР",
+    "logo": "https://radiopotok.ru/f/station/256/2294.png",
+    "stream": "https://myradio24.org/ussr",
+    "category": "retro"
+  },
+  {
+    "id": "2398",
+    "name": "Радио Гордость",
+    "logo": "https://radiopotok.ru/f/station/256/2398.png",
+    "stream": "https://rgordost.hostingradio.ru/rgordost64.aacp",
+    "category": "russian"
+  },
+  {
+    "id": "2359",
+    "name": "Радио Маруся ФМ г. Гусев",
+    "logo": "https://radiopotok.ru/f/station/256/2359.png",
+    "stream": "https://myradio24.org/55490",
+    "category": "russian"
+  },
+  {
+    "id": "1362",
+    "name": "Радио Родных Дорог",
+    "logo": "https://radiopotok.ru/f/station/256/1362.png",
+    "stream": "https://stream1.radiord.ru:8000/live96.aac?type=.flv",
+    "category": "russian"
+  },
+  {
+    "id": "1547",
+    "name": "Радио Калина Красная 107.4 FM",
+    "logo": "https://radiopotok.ru/f/station/256/1547.png",
+    "stream": "https://icecast-studio21.cdnvideo.ru/KalynaK_1a",
+    "category": "russian"
+  },
+  {
+    "id": "1886",
+    "name": "Радио Сибирь Хакасия",
+    "logo": "https://radiopotok.ru/f/station/256/1886.png",
+    "stream": "https://ctv7.ru/radio/",
+    "category": "russian"
+  },
+  {
+    "id": "2282",
+    "name": "Русские Песни",
+    "logo": "https://radiopotok.ru/f/station/256/2282.png",
+    "stream": "https://rusongs.amgradio.ru/rusongs",
+    "category": "russian"
+  },
+  {
+    "id": "1450",
+    "name": "Русское Радио: Русское Кино",
+    "logo": "https://radiopotok.ru/f/station/256/1450.png",
+    "stream": "https://rr-russkoekino.hostingradio.ru/russkoekino96.aacp",
+    "category": "russian"
+  },
+  {
+    "id": "637",
+    "name": "Радио Культура",
+    "logo": "https://radiopotok.ru/f/station/256/637.png",
+    "stream": "https://5.restream.one/637_1",
+    "category": "classical"
+  },
+  {
+    "id": "2242",
+    "name": "ВЕТЕРАН FM",
+    "logo": "https://radiopotok.ru/f/station/256/2242.png",
+    "stream": "https://warveterans.ru:8000/radio.mp3",
+    "category": "russian"
+  },
+  {
+    "id": "2375",
+    "name": "Радио Победа",
+    "logo": "https://radiopotok.ru/f/station/256/2375.png",
+    "stream": "https://stream.sb.by/den_pobedy",
+    "category": "russian"
+  },
+  {
+    "id": "2644",
+    "name": "Мир Белогорья (Радио Z)",
+    "logo": "https://radiopotok.ru/f/station/256/2644.png",
+    "stream": "https://node1.craftradio.ru:8003/201_EFA53E54",
+    "category": "russian"
+  },
+  {
+    "id": "2661",
+    "name": "Радио Гармония",
+    "logo": "https://radiopotok.ru/f/station/256/2661.png",
+    "stream": "https://online.15plusmg.ru:8443/garm256",
+    "category": "retro"
+  },
+  {
+    "id": "2676",
+    "name": "Радио Благо",
+    "logo": "https://radiopotok.ru/f/station/256/2676.png",
+    "stream": "https://live.radioblago.ru/live-1.mp3",
+    "category": "classical"
+  },
+  {
+    "id": "2695",
+    "name": "Радио АФРОДИТА",
+    "logo": "https://radiopotok.ru/f/station/256/2695.png",
+    "stream": "https://afrodita.techit.pro/afrodita_radio",
+    "category": "retro"
+  },
+  {
+    "id": "906",
+    "name": "Русский мир",
+    "logo": "https://radiopotok.ru/f/station/256/906.png",
+    "stream": "https://a5.radioheart.ru:9043/RH4272",
+    "category": "retro"
+  },
+  {
+    "id": "1163",
+    "name": "RussianFM",
+    "logo": "https://radiopotok.ru/f/station/256/1163.png",
+    "stream": "https://5.restream.one/1163_1",
+    "category": "russian"
+  },
+  {
+    "id": "1286",
+    "name": "Междугородье",
+    "logo": "https://radiopotok.ru/f/station/256/1286.png",
+    "stream": "https://a.mgradio.ru:8001/live",
+    "category": "retro"
+  },
+  {
+    "id": "1328",
+    "name": "Виктори Поп-музыка",
+    "logo": "https://radiopotok.ru/f/station/256/1328.png",
+    "stream": "https://5.restream.one/1328_1",
+    "category": "russian"
+  },
+  {
+    "id": "1481",
+    "name": "Allinstars Радио",
+    "logo": "https://radiopotok.ru/f/station/256/1481.png",
+    "stream": "https://5.restream.one/1481_1",
+    "category": "russian"
+  },
+  {
+    "id": "1580",
+    "name": "Славянский Мир",
+    "logo": "https://radiopotok.ru/f/station/256/1580.png",
+    "stream": "https://hls-01-slavmir.hostingradio.ru/slavmir/96/playlist.m3u8",
+    "category": "russian"
+  },
+  {
+    "id": "1969",
+    "name": "Антология",
+    "logo": "https://radiopotok.ru/f/station/256/1969.png",
+    "stream": "https://listen.myrh.ru/id035893",
+    "category": "retro"
+  },
+  {
+    "id": "1986",
+    "name": "Wow Music Русское",
+    "logo": "https://radiopotok.ru/f/station/256/1986.png",
+    "stream": "https://stream.vyshka24.ru/wowrusskoe",
+    "category": "russian"
+  },
+  {
+    "id": "2026",
+    "name": "Радио Новый Год 2026",
+    "logo": "https://radiopotok.ru/f/station/256/2026.png",
+    "stream": "https://ic1.radiosignal.one/deep",
+    "category": "kids"
+  },
+  {
+    "id": "2063",
+    "name": "Радио Христианская Песня",
+    "logo": "https://radiopotok.ru/f/station/256/2063.png",
+    "stream": "https://pu.xpradio.ru:4085/radio",
+    "category": "russian"
+  },
+  {
+    "id": "2187",
+    "name": "Первый Звук",
+    "logo": "https://radiopotok.ru/f/station/256/2187.png",
+    "stream": "https://listen.myrh.ru/id068974",
+    "category": "russian"
+  },
+  {
+    "id": "2284",
+    "name": "SUPER-RADIO remix",
+    "logo": "https://radiopotok.ru/f/station/256/2284.png",
+    "stream": "https://myradio24.org/serz",
+    "category": "russian"
+  },
+  {
+    "id": "2308",
+    "name": "Севро Станция",
+    "logo": "https://radiopotok.ru/f/station/256/2308.png",
+    "stream": "https://myradio24.org/djsevro",
+    "category": "foreign"
+  },
+  {
+    "id": "2365",
+    "name": "Radiomaya",
+    "logo": "https://radiopotok.ru/f/station/256/2365.png",
+    "stream": "https://myradio24.org/edwyonz",
+    "category": "foreign"
+  },
+  {
+    "id": "2374",
+    "name": "Арифулин FM",
+    "logo": "https://radiopotok.ru/f/station/256/2374.png",
+    "stream": "https://stream.cassiopeia-station.ru:1275/stream",
+    "category": "russian"
+  },
+  {
+    "id": "2404",
+    "name": "Радио Россия Фм",
+    "logo": "https://radiopotok.ru/f/station/256/2404.png",
+    "stream": "https://myradio24.org/rossiyafm",
+    "category": "russian"
+  },
+  {
+    "id": "2413",
+    "name": "Гусь.РУС",
+    "logo": "https://radiopotok.ru/f/station/256/2413.png",
+    "stream": "https://stream.radiogoose.ru/listen/rus/play",
+    "category": "russian"
+  },
+  {
+    "id": "2496",
+    "name": "Русская Дискотека",
+    "logo": "https://radiopotok.ru/f/station/256/2496.png",
+    "stream": "https://myradio24.org/rusdisco",
+    "category": "russian"
+  },
+  {
+    "id": "2574",
+    "name": "Станция FMD",
+    "logo": "https://radiopotok.ru/f/station/256/2574.png",
+    "stream": "https://myradio24.org/fmd",
+    "category": "russian"
+  },
+  {
+    "id": "2606",
+    "name": "Радио Берёза",
+    "logo": "https://radiopotok.ru/f/station/256/2606.png",
+    "stream": "https://listen.myrh.ru/bereza128",
+    "category": "russian"
+  },
+  {
+    "id": "2642",
+    "name": "РАДИО ОНЛАЙН",
+    "logo": "https://radiopotok.ru/f/station/256/2642.png",
+    "stream": "https://myradio24.org/23516",
+    "category": "russian"
+  },
+  {
+    "id": "92",
+    "name": "100% Hits  OPEN.FM",
+    "logo": "https://radiopotok.ru/f/station/256/92.png",
+    "stream": "https://stream.open.fm/64?type=.aac",
+    "category": "foreign"
+  },
+  {
+    "id": "38",
+    "name": "1.FM – TOP 40",
+    "logo": "https://radiopotok.ru/f/station/256/38.png",
+    "stream": "https://strm112.1.fm/top40_mobile_mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "1508",
+    "name": "Ibiza Radios - Hits",
+    "logo": "https://radiopotok.ru/f/station/256/1508.png",
+    "stream": "https://radio2.vip-radios.fm:18024/stream-128kmp3-IbizaHits",
+    "category": "foreign"
+  },
+  {
+    "id": "236",
+    "name": "Спокойное радио",
+    "logo": "https://radiopotok.ru/f/station/256/236.png",
+    "stream": "https://myradio24.org/6262",
+    "category": "foreign"
+  },
+  {
+    "id": "373",
+    "name": "DNB FM",
+    "logo": "https://radiopotok.ru/f/station/256/373.png",
+    "stream": "https://air.dnbfm.ru/listen/player/play",
+    "category": "foreign"
+  },
+  {
+    "id": "1796",
+    "name": "Super-Radio Dance",
+    "logo": "https://radiopotok.ru/f/station/256/1796.png",
+    "stream": "https://misato.ru-hoster.com:8006/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2507",
+    "name": "MEGATON CAFE RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2507.png",
+    "stream": "https://us2.internet-radio.com/proxy/megatoncafe?mp=/stream;",
+    "category": "jazz"
+  },
+  {
+    "id": "2316",
+    "name": "Радио Шоколад ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/2316.png",
+    "stream": "https://misato.ru-hoster.com:8031/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2324",
+    "name": "PIRAT.FM",
+    "logo": "https://radiopotok.ru/f/station/256/2324.png",
+    "stream": "https://c22.radioboss.fm:8416/piratfm",
+    "category": "foreign"
+  },
+  {
+    "id": "76",
+    "name": "Megapolis FM",
+    "logo": "https://radiopotok.ru/f/station/256/76.png",
+    "stream": "https://megapolisfm.md:8443/886aac",
+    "category": "foreign"
+  },
+  {
+    "id": "94",
+    "name": "Station 94",
+    "logo": "https://radiopotok.ru/f/station/256/94.png",
+    "stream": "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_ALPHAFM_ADP.aac?dist=site-alphafm",
+    "category": "foreign"
+  },
+  {
+    "id": "2205",
+    "name": "The Sound of Phonk",
+    "logo": "https://radiopotok.ru/f/station/256/2205.png",
+    "stream": "https://listen.atomic.radio/dopephonk/middlequality",
+    "category": "foreign"
+  },
+  {
+    "id": "2285",
+    "name": "Retro LAN Party",
+    "logo": "https://radiopotok.ru/f/station/256/2285.png",
+    "stream": "https://radio.retrolan.party:8000/radio.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2677",
+    "name": "Радио Хаммер",
+    "logo": "https://radiopotok.ru/f/station/256/2677.png",
+    "stream": "https://studio.radioxammep.ru/listen/xammepdance/radio.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "104",
+    "name": "KEXP 90.3 FM",
+    "logo": "https://radiopotok.ru/f/station/256/104.png",
+    "stream": "https://kexp-mp3-128.streamguys1.com/kexp128.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "138",
+    "name": "SoulLive",
+    "logo": "https://radiopotok.ru/f/station/256/138.png",
+    "stream": "https://1.restream.one/138_1",
+    "category": "foreign"
+  },
+  {
+    "id": "400",
+    "name": "TrueColors Radio",
+    "logo": "https://radiopotok.ru/f/station/256/400.png",
+    "stream": "https://myradio24.org/45329",
+    "category": "foreign"
+  },
+  {
+    "id": "1084",
+    "name": "Atlantica Soleil",
+    "logo": "https://radiopotok.ru/f/station/256/1084.png",
+    "stream": "https://5.restream.one/1084_1",
+    "category": "foreign"
+  },
+  {
+    "id": "1152",
+    "name": "Slow Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1152.png",
+    "stream": "https://stream.laut.fm/1_slowradio",
+    "category": "foreign"
+  },
+  {
+    "id": "1870",
+    "name": "Splash 80s",
+    "logo": "https://radiopotok.ru/f/station/256/1870.png",
+    "stream": "https://makri.cdnstream.com/1898_128",
+    "category": "retro"
+  },
+  {
+    "id": "1887",
+    "name": "Geek-Speak D&amp;B Station",
+    "logo": "https://radiopotok.ru/f/station/256/1887.png",
+    "stream": "https://geek-speak.ru:8001/GSFM",
+    "category": "foreign"
+  },
+  {
+    "id": "2188",
+    "name": "Radio Under",
+    "logo": "https://radiopotok.ru/f/station/256/2188.png",
+    "stream": "https://runder.org/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2198",
+    "name": "THE RAVE ZONE 24h",
+    "logo": "https://radiopotok.ru/f/station/256/2198.png",
+    "stream": "https://myradio24.org/56276",
+    "category": "foreign"
+  },
+  {
+    "id": "2199",
+    "name": "R_sound - We Can Do Everything!",
+    "logo": "https://radiopotok.ru/f/station/256/2199.png",
+    "stream": "https://radio.rsound.cyou/stream.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2232",
+    "name": "М Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2232.png",
+    "stream": "https://myradio24.org/mradiomsk",
+    "category": "foreign"
+  },
+  {
+    "id": "2238",
+    "name": "BEACH &amp; REGGAE",
+    "logo": "https://radiopotok.ru/f/station/256/2238.png",
+    "stream": "kWr5a57BsLg",
+    "category": "foreign"
+  },
+  {
+    "id": "2246",
+    "name": "Lumix FM: Electronic Hits",
+    "logo": "https://radiopotok.ru/f/station/256/2246.png",
+    "stream": "https://myradio24.org/67739",
+    "category": "foreign"
+  },
+  {
+    "id": "2305",
+    "name": "Симбиоз",
+    "logo": "https://radiopotok.ru/f/station/256/2305.png",
+    "stream": "https://myradio24.org/symbiosis",
+    "category": "foreign"
+  },
+  {
+    "id": "2368",
+    "name": "Radio Samui",
+    "logo": "https://radiopotok.ru/f/station/256/2368.png",
+    "stream": "https://stream.mixadance.fm/radiosamui",
+    "category": "foreign"
+  },
+  {
+    "id": "2371",
+    "name": "Voices of the Univerce",
+    "logo": "https://radiopotok.ru/f/station/256/2371.png",
+    "stream": "https://stream.cassiopeia-station.ru:1175/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2372",
+    "name": "Dancing Fox",
+    "logo": "https://radiopotok.ru/f/station/256/2372.png",
+    "stream": "https://stream.cassiopeia-station.ru:1135/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2373",
+    "name": "Rock Space Station",
+    "logo": "https://radiopotok.ru/f/station/256/2373.png",
+    "stream": "https://stream.cassiopeia-station.ru:1225/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2454",
+    "name": "SUN WAY RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2454.png",
+    "stream": "https://myradio24.org/sunway",
+    "category": "foreign"
+  },
+  {
+    "id": "2499",
+    "name": "PULSE FM",
+    "logo": "https://radiopotok.ru/f/station/256/2499.png",
+    "stream": "https://myradio24.org/22582",
+    "category": "foreign"
+  },
+  {
+    "id": "2520",
+    "name": "Радио Культ",
+    "logo": "https://radiopotok.ru/f/station/256/2520.png",
+    "stream": "https://online.radio.moe/listen/radiokult/radio.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2582",
+    "name": "ГУСЬ.Бигрум",
+    "logo": "https://radiopotok.ru/f/station/256/2582.png",
+    "stream": "https://stream.radiogoose.ru/listen/bigroom/play",
+    "category": "foreign"
+  },
+  {
+    "id": "2589",
+    "name": "Star 33",
+    "logo": "https://radiopotok.ru/f/station/256/2589.png",
+    "stream": "https://online.star33radio.com:1085/stream",
+    "category": "foreign"
+  },
+  {
+    "id": "2647",
+    "name": "Rise-FM 92.2 pres. サクラジオ (SacuRadio) 92.6 FM",
+    "logo": "https://radiopotok.ru/f/station/256/2647.png",
+    "stream": "https://stream.rise-fm.com:9021/1.mp3",
+    "category": "foreign"
+  },
+  {
+    "id": "2651",
+    "name": "Classic FM",
+    "logo": "https://radiopotok.ru/f/station/256/2651.png",
+    "stream": "https://6ff3ac8b-neptune-cdn-external-cdn31-live-cluster-asia-cfd8-prd.taurermediaserver.xyz:8000/CLASSIC",
+    "category": "retro"
+  },
+  {
+    "id": "2122",
+    "name": "Дискотека 80-90",
+    "logo": "https://radiopotok.ru/f/station/256/2122.png",
+    "stream": "https://myradio24.org/dance80",
+    "category": "retro"
+  },
+  {
+    "id": "2422",
+    "name": "Хиты 80х",
+    "logo": "https://radiopotok.ru/f/station/256/2422.png",
+    "stream": "https://radio.djgelius.ru/80x.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "2357",
+    "name": "Старый портфель",
+    "logo": "https://radiopotok.ru/f/station/256/2357.png",
+    "stream": "https://lk.castnow.ru:8100/oldbrief-320.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "1863",
+    "name": "Всемирное Одесское радио",
+    "logo": "https://radiopotok.ru/f/station/256/1863.png",
+    "stream": "https://myradio24.org/odesradio",
+    "category": "retro"
+  },
+  {
+    "id": "1468",
+    "name": "Старое радио",
+    "logo": "https://radiopotok.ru/f/station/256/1468.png",
+    "stream": "https://5.restream.one/1468_1",
+    "category": "classical"
+  },
+  {
+    "id": "1963",
+    "name": "Ретроклуб",
+    "logo": "https://radiopotok.ru/f/station/256/1963.png",
+    "stream": "https://retroclub.hostingradio.ru/retroclub224.aacp",
+    "category": "retro"
+  },
+  {
+    "id": "2161",
+    "name": "Радио Nostalgie Perm",
+    "logo": "https://radiopotok.ru/f/station/256/2161.png",
+    "stream": "https://icecast-bulteam.cdnvideo.ru/Nostalgie",
+    "category": "retro"
+  },
+  {
+    "id": "2650",
+    "name": "Boombox Life",
+    "logo": "https://radiopotok.ru/f/station/256/2650.png",
+    "stream": "https://radio.boombox.top:1045/stream",
+    "category": "retro"
+  },
+  {
+    "id": "457",
+    "name": "Старое радио — музыка",
+    "logo": "https://radiopotok.ru/f/station/256/457.png",
+    "stream": "https://1.restream.one/457_1",
+    "category": "retro"
+  },
+  {
+    "id": "1588",
+    "name": "Caroline Flashback",
+    "logo": "https://radiopotok.ru/f/station/256/1588.png",
+    "stream": "https://5.restream.one/1588_1",
+    "category": "retro"
+  },
+  {
+    "id": "1308",
+    "name": "#1 Oldies",
+    "logo": "https://radiopotok.ru/f/station/256/1308.png",
+    "stream": "https://5.restream.one/1308_1",
+    "category": "retro"
+  },
+  {
+    "id": "1590",
+    "name": "Радио Линия",
+    "logo": "https://radiopotok.ru/f/station/256/1590.png",
+    "stream": "https://listen.myrh.ru/id02707",
+    "category": "retro"
+  },
+  {
+    "id": "1885",
+    "name": "Радио Победы",
+    "logo": "https://radiopotok.ru/f/station/256/1885.png",
+    "stream": "https://5.restream.one/1885_1",
+    "category": "retro"
+  },
+  {
+    "id": "2212",
+    "name": "Fallout Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2212.png",
+    "stream": "aZYGwkDbzuE",
+    "category": "retro"
+  },
+  {
+    "id": "2304",
+    "name": "RADIO MURZILKI FM",
+    "logo": "https://radiopotok.ru/f/station/256/2304.png",
+    "stream": "https://myradio24.org/admin1984",
+    "category": "retro"
+  },
+  {
+    "id": "2626",
+    "name": "Радио ретро 24",
+    "logo": "https://radiopotok.ru/f/station/256/2626.png",
+    "stream": "https://stream.vyshka24.ru/radioretro24",
+    "category": "retro"
+  },
+  {
+    "id": "429",
+    "name": "Radio Muzkom",
+    "logo": "https://radiopotok.ru/f/station/256/429.png",
+    "stream": "https://thenonstopradio.com/play?url=http://s02.radio-tochka.com:5000/stream",
+    "category": "classical"
+  },
+  {
+    "id": "723",
+    "name": "Fallout.FM",
+    "logo": "https://radiopotok.ru/f/station/256/723.png",
+    "stream": "https://5.restream.one/723_1",
+    "category": "retro"
+  },
+  {
+    "id": "900",
+    "name": "Радио Олдхит",
+    "logo": "https://radiopotok.ru/f/station/256/900.png",
+    "stream": "https://5.restream.one/900_1",
+    "category": "retro"
+  },
+  {
+    "id": "1243",
+    "name": "Costa Del Mar - Funky",
+    "logo": "https://radiopotok.ru/f/station/256/1243.png",
+    "stream": "https://1.restream.one/1243_1",
+    "category": "retro"
+  },
+  {
+    "id": "1320",
+    "name": "1000 HITS Love",
+    "logo": "https://radiopotok.ru/f/station/256/1320.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2210_128.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "1324",
+    "name": "Synth Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1324.png",
+    "stream": "https://stream.pcradio.ru/synth_radio_ru-med",
+    "category": "retro"
+  },
+  {
+    "id": "1336",
+    "name": "Vintage Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1336.png",
+    "stream": "https://stream.zeno.fm/achgsffv1qruv",
+    "category": "retro"
+  },
+  {
+    "id": "1454",
+    "name": "SomaFM: Secret Agent",
+    "logo": "https://radiopotok.ru/f/station/256/1454.png",
+    "stream": "https://5.restream.one/1454_1",
+    "category": "retro"
+  },
+  {
+    "id": "1460",
+    "name": "Музыка кино",
+    "logo": "https://radiopotok.ru/f/station/256/1460.png",
+    "stream": "https://channels.fonotron.ru:8000/Chan_9_192.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "1507",
+    "name": "Ibiza Radios - Funky",
+    "logo": "https://radiopotok.ru/f/station/256/1507.png",
+    "stream": "https://radio2.vip-radios.fm:18030/stream-128kmp3-IbizaFunky",
+    "category": "retro"
+  },
+  {
+    "id": "1651",
+    "name": "LightRadio",
+    "logo": "https://radiopotok.ru/f/station/256/1651.png",
+    "stream": "https://lightradio.radiostream.pro/mp3",
+    "category": "retro"
+  },
+  {
+    "id": "1690",
+    "name": "Супер-радио",
+    "logo": "https://radiopotok.ru/f/station/256/1690.png",
+    "stream": "https://aska.ru-hoster.com:8000/stream",
+    "category": "retro"
+  },
+  {
+    "id": "1696",
+    "name": "Dance Wave Retro!",
+    "logo": "https://radiopotok.ru/f/station/256/1696.png",
+    "stream": "https://retro.dancewave.online/retrodance.mp3",
+    "category": "retro"
+  },
+  {
+    "id": "1708",
+    "name": "Disco Power",
+    "logo": "https://radiopotok.ru/f/station/256/1708.png",
+    "stream": "https://radio4.vip-radios.fm:18033/stream-128kmp3-DiscoPower",
+    "category": "retro"
+  },
+  {
+    "id": "1709",
+    "name": "Funky Town",
+    "logo": "https://radiopotok.ru/f/station/256/1709.png",
+    "stream": "https://radio4.vip-radios.fm:18036/stream-128kmp3-FunkyTown",
+    "category": "retro"
+  },
+  {
+    "id": "1721",
+    "name": "Русский Город в США",
+    "logo": "https://radiopotok.ru/f/station/256/1721.png",
+    "stream": "https://onair.radio1922.ru/rt",
+    "category": "retro"
+  },
+  {
+    "id": "1867",
+    "name": "ArtRemixRadio",
+    "logo": "https://radiopotok.ru/f/station/256/1867.png",
+    "stream": "https://myradio24.org/2236",
+    "category": "retro"
+  },
+  {
+    "id": "1878",
+    "name": "1000 HITS 80s",
+    "logo": "https://radiopotok.ru/f/station/256/1878.png",
+    "stream": "https://ais-sa9.cdnstream1.com/1898_128",
+    "category": "retro"
+  },
+  {
+    "id": "1951",
+    "name": "Москвичи",
+    "logo": "https://radiopotok.ru/f/station/256/1951.png",
+    "stream": "https://agniradio.s02.radio-tochka.com:4085/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2007",
+    "name": "ART CITY Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2007.png",
+    "stream": "https://myradio24.org/artcity",
+    "category": "retro"
+  },
+  {
+    "id": "2224",
+    "name": "Legends Golden Eurodisco",
+    "logo": "https://radiopotok.ru/f/station/256/2224.png",
+    "stream": "3kgNy-kvFak",
+    "category": "retro"
+  },
+  {
+    "id": "2362",
+    "name": "Всесоюзное радио онлайн",
+    "logo": "https://radiopotok.ru/f/station/256/2362.png",
+    "stream": "https://stream.cassiopeia-station.ru:1045/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2411",
+    "name": "Гусь.Олдскул",
+    "logo": "https://radiopotok.ru/f/station/256/2411.png",
+    "stream": "https://stream.radiogoose.ru/listen/oldschool/play",
+    "category": "retro"
+  },
+  {
+    "id": "2430",
+    "name": "Всесоюзное радио онлайн (Екатеринбург)",
+    "logo": "https://radiopotok.ru/f/station/256/2430.png",
+    "stream": "https://cp.ural-radio-station.ru:1045/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2440",
+    "name": "SUPER RADIO РЕТРО хит",
+    "logo": "https://radiopotok.ru/f/station/256/2440.png",
+    "stream": "https://listen4.myradio24.com/66529",
+    "category": "retro"
+  },
+  {
+    "id": "2484",
+    "name": "Дискотека Века",
+    "logo": "https://radiopotok.ru/f/station/256/2484.png",
+    "stream": "https://listen4.myradio24.com/rudisco",
+    "category": "retro"
+  },
+  {
+    "id": "2543",
+    "name": "Retrowave.One Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2543.png",
+    "stream": "https://waveretro.ru:8443/stream",
+    "category": "retro"
+  },
+  {
+    "id": "2605",
+    "name": "МАК Онлайн. Живое радио Андрея Крупина",
+    "logo": "https://radiopotok.ru/f/station/256/2605.png",
+    "stream": "https://stream.volnorez.com/live-app/843862",
+    "category": "retro"
+  },
+  {
+    "id": "2621",
+    "name": "Радио Скуф",
+    "logo": "https://radiopotok.ru/f/station/256/2621.png",
+    "stream": "https://live.radiotower.top:8000/radio",
+    "category": "retro"
+  },
+  {
+    "id": "2628",
+    "name": "У Григорича",
+    "logo": "https://radiopotok.ru/f/station/256/2628.png",
+    "stream": "https://myradio24.org/viktor61",
+    "category": "retro"
+  },
+  {
+    "id": "2669",
+    "name": "ЗОЛОТАЯ КОЛЛЕКЦИЯ",
+    "logo": "https://radiopotok.ru/f/station/256/2669.png",
+    "stream": "https://myradio24.org/83524",
+    "category": "retro"
+  },
+  {
+    "id": "2690",
+    "name": "Всесоюзное радио Новосибирск",
+    "logo": "https://radiopotok.ru/f/station/256/2690.png",
+    "stream": "https://radio-kolibri.ru:1045/stream",
+    "category": "retro"
+  },
+  {
+    "id": "61",
+    "name": "Radio Swiss Jazz",
+    "logo": "https://radiopotok.ru/f/station/256/61.png",
+    "stream": "https://stream.srg-ssr.ch/m/rsj/aacp_96?type=.flv",
+    "category": "jazz"
+  },
+  {
+    "id": "310",
+    "name": "LOUNGE-RADIO.COM",
+    "logo": "https://radiopotok.ru/f/station/256/310.png",
+    "stream": "https://nl1.streamhosting.ch/;",
+    "category": "jazz"
+  },
+  {
+    "id": "1244",
+    "name": "Costa Del Mar - Smooth Sax",
+    "logo": "https://radiopotok.ru/f/station/256/1244.png",
+    "stream": "https://1.restream.one/1244_1",
+    "category": "jazz"
+  },
+  {
+    "id": "1494",
+    "name": "Beautiful Instrumentals Channel",
+    "logo": "https://radiopotok.ru/f/station/256/1494.png",
+    "stream": "https://hydra.cdnstream.com/1822_128",
+    "category": "jazz"
+  },
+  {
+    "id": "2663",
+    "name": "SmoothJazz",
+    "logo": "https://radiopotok.ru/f/station/256/2663.png",
+    "stream": "https://smoothjazz.cdnstream1.com/2585_128.mp3",
+    "category": "jazz"
+  },
+  {
+    "id": "1510",
+    "name": "Ibiza Radios – Smooth Jazz",
+    "logo": "https://radiopotok.ru/f/station/256/1510.png",
+    "stream": "https://radio2.vip-radios.fm:18033/stream-128kmp3-IbizaSmooth",
+    "category": "jazz"
+  },
+  {
+    "id": "1757",
+    "name": "Bay Smooth Jazz",
+    "logo": "https://radiopotok.ru/f/station/256/1757.png",
+    "stream": "https://radio2.vip-radios.fm:18039/stream-192kmp3-BaySmoothJazz",
+    "category": "jazz"
+  },
+  {
+    "id": "56",
+    "name": "Radio Dismuke",
+    "logo": "https://radiopotok.ru/f/station/256/56.png",
+    "stream": "https://1.restream.one/56_1",
+    "category": "jazz"
+  },
+  {
+    "id": "2546",
+    "name": "Джаз Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2546.png",
+    "stream": "https://stream.jazz-radio.ru:8000/stream128",
+    "category": "jazz"
+  },
+  {
+    "id": "55",
+    "name": "JazzRadio",
+    "logo": "https://radiopotok.ru/f/station/256/55.png",
+    "stream": "https://streaming.radio.co/s774887f7b/listen",
+    "category": "jazz"
+  },
+  {
+    "id": "57",
+    "name": "SwissRadio Jazz/Swing",
+    "logo": "https://radiopotok.ru/f/station/256/57.png",
+    "stream": "https://1.restream.one/57_1",
+    "category": "jazz"
+  },
+  {
+    "id": "918",
+    "name": "Sax4Love",
+    "logo": "https://radiopotok.ru/f/station/256/918.png",
+    "stream": "https://radio2.vip-radios.fm:18054/stream-128kmp3-Sax4love",
+    "category": "jazz"
+  },
+  {
+    "id": "59",
+    "name": "KCSM Jazz 91",
+    "logo": "https://radiopotok.ru/f/station/256/59.png",
+    "stream": "https://ice5.securenetsystems.net/KCSM?type=.flv",
+    "category": "jazz"
+  },
+  {
+    "id": "60",
+    "name": "WDNA Serious Jazz",
+    "logo": "https://radiopotok.ru/f/station/256/60.png",
+    "stream": "https://us9.streamingpulse.com/ssl/WDNA",
+    "category": "jazz"
+  },
+  {
+    "id": "1869",
+    "name": "Splash Jazz",
+    "logo": "https://radiopotok.ru/f/station/256/1869.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2346_128.mp3",
+    "category": "jazz"
+  },
+  {
+    "id": "1365",
+    "name": "Орфей",
+    "logo": "https://radiopotok.ru/f/station/256/1365.png",
+    "stream": "https://orfeyfm.hostingradio.ru:8034/orfeyfm128.mp3",
+    "category": "classical"
+  },
+  {
+    "id": "2028",
+    "name": "Classic FM",
+    "logo": "https://radiopotok.ru/f/station/256/2028.png",
+    "stream": "https://classic.amgradio.ru/ClassicFM",
+    "category": "classical"
+  },
+  {
+    "id": "2296",
+    "name": "Radio Swiss Classic",
+    "logo": "https://radiopotok.ru/f/station/256/2296.png",
+    "stream": "https://stream.srg-ssr.ch/m/rsc_de/mp3_128",
+    "category": "classical"
+  },
+  {
+    "id": "1733",
+    "name": "Epic Radio",
+    "logo": "https://radiopotok.ru/f/station/256/1733.png",
+    "stream": "https://ic1.radiosignal.one/epic",
+    "category": "classical"
+  },
+  {
+    "id": "2524",
+    "name": "Радио Небесных Сфер",
+    "logo": "https://radiopotok.ru/f/station/256/2524.png",
+    "stream": "https://stream.cassiopeia-station.ru:1415/stream",
+    "category": "classical"
+  },
+  {
+    "id": "30",
+    "name": "Venice Classic Radio AUDITORIUM",
+    "logo": "https://radiopotok.ru/f/station/256/30.png",
+    "stream": "https://uk2.streamingpulse.com/ssl/vcr1",
+    "category": "classical"
+  },
+  {
+    "id": "44",
+    "name": "Swiss Internet Radio Classical",
+    "logo": "https://radiopotok.ru/f/station/256/44.png",
+    "stream": "https://1.restream.one/44_1",
+    "category": "classical"
+  },
+  {
+    "id": "205",
+    "name": "Фортепианная музыка",
+    "logo": "https://radiopotok.ru/f/station/256/205.png",
+    "stream": "203,206",
+    "category": "classical"
+  },
+  {
+    "id": "948",
+    "name": "Visual Neoclassical Omdaru radio",
+    "logo": "https://radiopotok.ru/f/station/256/948.png",
+    "stream": "https://stream.zeno.fm/tfqyy4bewz3uv",
+    "category": "classical"
+  },
+  {
+    "id": "42",
+    "name": "Adagio.FM – Бесконечная Классическая музыка.",
+    "logo": "https://radiopotok.ru/f/station/256/42.png",
+    "stream": "https://5.restream.one/42_1",
+    "category": "classical"
+  },
+  {
+    "id": "1399",
+    "name": "Мариинский ФМ",
+    "logo": "https://radiopotok.ru/f/station/256/1399.png",
+    "stream": "https://radio.mariinsky.ru/stream",
+    "category": "classical"
+  },
+  {
+    "id": "1789",
+    "name": "Venice Classic Radio LIVE",
+    "logo": "https://radiopotok.ru/f/station/256/1789.png",
+    "stream": "https://uk2.streamingpulse.com/ssl/vcr2",
+    "category": "classical"
+  },
+  {
+    "id": "1868",
+    "name": "Splash Classical",
+    "logo": "https://radiopotok.ru/f/station/256/1868.png",
+    "stream": "https://ais-sa2.cdnstream1.com/2208_128.mp3",
+    "category": "classical"
+  },
+  {
+    "id": "2220",
+    "name": "Классическая музыка",
+    "logo": "https://radiopotok.ru/f/station/256/2220.png",
+    "stream": "Vg-Y-v9pF5c",
+    "category": "classical"
+  },
+  {
+    "id": "2236",
+    "name": "Classical Piano &amp; Fireplace",
+    "logo": "https://radiopotok.ru/f/station/256/2236.png",
+    "stream": "y6TZHLAzg5o",
+    "category": "classical"
+  },
+  {
+    "id": "2249",
+    "name": "Российский национальный оркестр - РНО",
+    "logo": "https://radiopotok.ru/f/station/256/2249.png",
+    "stream": "https://rnor.ru/data/radioRNO/radio128.mp3",
+    "category": "classical"
+  },
+  {
+    "id": "2345",
+    "name": "Radio Cafe Zimmermann",
+    "logo": "https://radiopotok.ru/f/station/256/2345.png",
+    "stream": "https://stream.radio-cafezimmermann.de/klassik/mp3-192/",
+    "category": "classical"
+  },
+  {
+    "id": "2667",
+    "name": "STUDIO 54 RADIO",
+    "logo": "https://radiopotok.ru/f/station/256/2667.png",
+    "stream": "https://vetrina.multi-radio.com/studio54",
+    "category": "classical"
+  },
+  {
+    "id": "2033",
+    "name": "Умное Радио",
+    "logo": "https://radiopotok.ru/f/station/256/2033.png",
+    "stream": "https://umnoe.amgradio.ru/Umnoe",
+    "category": "kids"
+  },
+  {
+    "id": "1395",
+    "name": "Детский Хит",
+    "logo": "https://radiopotok.ru/f/station/256/1395.png",
+    "stream": "https://deti.amgradio.ru/Deti",
+    "category": "kids"
+  },
+  {
+    "id": "730",
+    "name": "Детское радио",
+    "logo": "https://radiopotok.ru/f/station/256/730.png",
+    "stream": "https://hls-01-gpm.hostingradio.ru/detifm495/playlist.m3u8",
+    "category": "kids"
+  },
+  {
+    "id": "2032",
+    "name": "Сказка FM",
+    "logo": "https://radiopotok.ru/f/station/256/2032.png",
+    "stream": "https://skazka.amgradio.ru/Skazka",
+    "category": "kids"
+  },
+  {
+    "id": "110",
+    "name": "Детское радио (Старое радио)",
+    "logo": "https://radiopotok.ru/f/station/256/110.png",
+    "stream": "https://1.restream.one/110_1",
+    "category": "kids"
+  },
+  {
+    "id": "1556",
+    "name": "Машенька",
+    "logo": "https://radiopotok.ru/f/station/256/1556.png",
+    "stream": "https://sergeisam.fvds.ru:5385/radio",
+    "category": "kids"
+  },
+  {
+    "id": "2257",
+    "name": "Сказки народов мира",
+    "logo": "https://radiopotok.ru/f/station/256/2257.png",
+    "stream": "z_NPNx_3Ibw",
+    "category": "kids"
+  },
+  {
+    "id": "112",
+    "name": "Колыбельная",
+    "logo": "https://radiopotok.ru/f/station/256/112.png",
+    "stream": "https://pub0102.101.ru:8443/stream/pro/aac/64/95",
+    "category": "kids"
+  },
+  {
+    "id": "716",
+    "name": "KIDS HITS",
+    "logo": "https://radiopotok.ru/f/station/256/716.png",
+    "stream": "https://myradio24.org/kidshits",
+    "category": "kids"
+  },
+  {
+    "id": "1155",
+    "name": "Сказочное радио Гамаюн",
+    "logo": "https://radiopotok.ru/f/station/256/1155.png",
+    "stream": "https://5.restream.one/1155_1",
+    "category": "kids"
+  },
+  {
+    "id": "1464",
+    "name": "Литературное радио",
+    "logo": "https://radiopotok.ru/f/station/256/1464.png",
+    "stream": "https://5.restream.one/1464_1",
+    "category": "kids"
+  },
+  {
+    "id": "1549",
+    "name": "Baby FM",
+    "logo": "https://radiopotok.ru/f/station/256/1549.png",
+    "stream": "https://a5.radioheart.ru:9012/RH1916",
+    "category": "kids"
+  },
+  {
+    "id": "2055",
+    "name": "Поколение Z",
+    "logo": "https://radiopotok.ru/f/station/256/2055.png",
+    "stream": "https://myradio24.org/djmashkoff",
+    "category": "kids"
+  },
+  {
+    "id": "2137",
+    "name": "САФ балалар радиосы",
+    "logo": "https://radiopotok.ru/f/station/256/2137.png",
+    "stream": "https://c7.radioboss.fm:18335/stream",
+    "category": "kids"
+  },
+  {
+    "id": "2223",
+    "name": "РАДИОДЕТКИ",
+    "logo": "https://radiopotok.ru/f/station/256/2223.png",
+    "stream": "https://myradio24.org/radiodetki",
+    "category": "kids"
+  },
+  {
+    "id": "2251",
+    "name": "Большой детский хор В.С. Попова",
+    "logo": "https://radiopotok.ru/f/station/256/2251.png",
+    "stream": "https://radio.rnor.ru:8010/radio.mp3",
+    "category": "kids"
+  },
+  {
+    "id": "2452",
+    "name": "Lime Teens",
+    "logo": "https://radiopotok.ru/f/station/256/2452.png",
+    "stream": "https://myradio24.org/limeteens",
+    "category": "kids"
+  },
+  {
+    "id": "2553",
+    "name": "Радио Анималогия",
+    "logo": "https://radiopotok.ru/f/station/256/2553.png",
+    "stream": "https://misato.ru-hoster.com:8076/stream",
+    "category": "kids"
+  },
+  {
+    "id": "2665",
+    "name": "Baby Radio",
+    "logo": "https://radiopotok.ru/f/station/256/2665.png",
+    "stream": "https://nr12.newradio.it/stream/8710",
+    "category": "kids"
+  }
+]

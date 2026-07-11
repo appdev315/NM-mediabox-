@@ -78,6 +78,7 @@ export function RadioTV() {
     return 'ru';
   });
   const [tvSource, setTvSource] = useState(localStorage.getItem('tv_source') || '1');
+  const [radioSource, setRadioSource] = useState(localStorage.getItem('radio_source') || '1');
   const [stations, setStations] = useState<Station[]>([]);
   const [tvChannels, setTvChannels] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,6 +115,7 @@ export function RadioTV() {
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
     localStorage.setItem('tv_source', tvSource);
+    localStorage.setItem('radio_source', radioSource);
 
     // Attempt to load from cache first
     const cachedRadio = localStorage.getItem(`cache_radio_${country}`);
@@ -135,25 +137,41 @@ export function RadioTV() {
 
     fetchRadio();
     fetchTV();
-  }, [country, tvSource]);
+  }, [country, tvSource, radioSource]);
 
   const fetchRadio = async () => {
     try {
-      const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
-      const res = await fetchWithRetry(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
-      const data = await res.json();
+      let parsed: Station[] = [];
+      
+      if (country === 'ru' && radioSource === '1') {
+        // Radiopotok JSON
+        const res = await fetch('/radiopotok.json');
+        const data = await res.json();
+        parsed = data.map((d: any) => ({
+          id: Math.random().toString(36).substring(7),
+          name: d.name,
+          url: d.stream,
+          logo: d.logo || '',
+          group: 'Radiopotok',
+          type: 'radio'
+        })).filter((s: Station) => s.url);
+      } else {
+        const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
+        const res = await fetchWithRetry(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
+        const data = await res.json();
 
-      const parsed: Station[] = data.map((d: any) => ({
-        id: d.stationuuid,
-        name: d.name,
-        url: d.url_resolved,
-        logo: d.favicon || '',
-        group: d.tags,
-        type: 'radio'
-      })).filter((s: Station) => s.url);
+        parsed = data.map((d: any) => ({
+          id: d.stationuuid,
+          name: d.name,
+          url: d.url_resolved,
+          logo: d.favicon || '',
+          group: d.tags,
+          type: 'radio'
+        })).filter((s: Station) => s.url);
+      }
 
       setStations(parsed);
-      localStorage.setItem(`cache_radio_${country}`, JSON.stringify(parsed));
+      localStorage.setItem(`cache_radio_${country}_src${radioSource}`, JSON.stringify(parsed));
     } catch (e) {
       console.error("Failed to fetch radio", e);
     }
@@ -586,7 +604,7 @@ export function RadioTV() {
           ))}
         </select>
 
-        {activeTab === 'tv' && (
+        {activeTab === 'tv' ? (
           <select
             value={tvSource}
             onChange={(e) => setTvSource(e.target.value)}
@@ -601,6 +619,22 @@ export function RadioTV() {
               <option value="1">{t('source1')}</option>
               <option value="2">{t('source2')}</option>
               <option value="3">{t('source3')}</option>
+            </optgroup>
+          </select>
+        ) : (
+          <select
+            value={radioSource}
+            onChange={(e) => setRadioSource(e.target.value)}
+            className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+            style={{
+              backgroundColor: 'var(--bg-color)',
+              color: 'var(--text-color)',
+              borderColor: 'var(--hint-color)'
+            }}
+          >
+            <optgroup label="Radio Sources">
+              {country === 'ru' && <option value="1">{t('source1')} (Radiopotok)</option>}
+              <option value={country === 'ru' ? "2" : "1"}>{country === 'ru' ? t('source2') : t('source1')} (RadioBrowser)</option>
             </optgroup>
           </select>
         )}
