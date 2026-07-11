@@ -11,6 +11,7 @@ export function Player({ iframeUrl }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const { t } = useLanguage();
   const isXvideos = iframeUrl.includes('xvideos.com');
 
@@ -28,13 +29,32 @@ export function Player({ iframeUrl }: PlayerProps) {
   useEffect(() => {
     setIframeLoaded(false);
     
-    // Fallback to hide spinner after 5 seconds if onLoad doesn't fire on mobile WebViews
+    // Fallback to hide spinner after 8 seconds if onLoad doesn't fire on mobile WebViews
     const timer = setTimeout(() => {
       setIframeLoaded(true);
-    }, 5000);
+    }, 8000);
     
     return () => clearTimeout(timer);
   }, [iframeUrl]);
+
+  useEffect(() => {
+    let interval: any;
+    if (!iframeLoaded) {
+      setLoadingProgress(0);
+      interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(interval);
+            return 95;
+          }
+          return prev + Math.random() * 8;
+        });
+      }, 300);
+    } else {
+      setLoadingProgress(100);
+    }
+    return () => clearInterval(interval);
+  }, [iframeLoaded]);
 
   useEffect(() => {
     WebApp.expand();
@@ -117,9 +137,14 @@ export function Player({ iframeUrl }: PlayerProps) {
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
       {!iframeLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black">
-          <div className="w-10 h-10 border-4 border-[#fbbf24] border-t-transparent rounded-full animate-spin mb-3"></div>
-          <span className="text-white text-sm font-medium opacity-70 animate-pulse">{t('loading')}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8">
+          <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+            <div 
+              className="h-full bg-[#fbbf24] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+              style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+            />
+          </div>
+          <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</span>
         </div>
       )}
       <iframe 

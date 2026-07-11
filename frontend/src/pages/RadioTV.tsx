@@ -2,12 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
-import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { shouldShowAd } from '../utils/adPlacement';
 
 // Get backend URL from environment or use default
@@ -58,18 +55,10 @@ const FREE_TV_MAP: Record<string, string> = {
   'au': 'australia'
 };
 
-export function RadioTV() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-
-
+export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [showTvWarning, setShowTvWarning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'radio' | 'tv'>(
-    (location.state as any)?.tab === 'tv' ? 'tv' : 'radio'
-  );
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
     if (saved) return saved;
@@ -550,51 +539,7 @@ export function RadioTV() {
   const displayedList = filteredList.slice(0, visibleCount);
 
   return (
-    <div 
-      className="p-4 flex flex-col h-full"
-      style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top))' }}
-    >
-      <Header />
-      <ExoClickMainBanner />
-
-      {/* Top Navigation */}
-      <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
-        {[
-          { id: 'movie', label: t('movies') },
-          { id: 'series', label: t('series') },
-          { id: 'radio', label: t('tab_radio') || 'Радио' },
-          { id: 'tv', label: t('tab_tv') || 'ТВ' },
-          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={(e) => {
-              if (tab.id === 'private') {
-                e.preventDefault();
-                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
-                return;
-              }
-              if (tab.id === 'movie') {
-                navigate('/', { state: { tab: 'movie' } });
-              } else if (tab.id === 'series') {
-                navigate('/', { state: { tab: 'series' } });
-              } else if (tab.id === 'radio') {
-                setActiveTab('radio');
-              } else if (tab.id === 'tv') {
-                setActiveTab('tv');
-              }
-            }}
-            className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-            style={{ 
-              backgroundColor: activeTab === tab.id || (tab.id === 'radio' && activeTab === 'radio') ? 'var(--button-color)' : 'transparent',
-              color: activeTab === tab.id || (tab.id === 'radio' && activeTab === 'radio') ? 'var(--button-text-color)' : 'var(--text-color)'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* TV Warning */}
       {showTvWarning && activeTab === 'tv' && (
         <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm font-medium text-center animate-pulse">
@@ -633,16 +578,16 @@ export function RadioTV() {
           }}
         >
           {activeTab === 'tv' ? (
-            <optgroup label="Community IPTV">
+            <>
               <option value="1">{t('source1')}</option>
               <option value="2">{t('source2')}</option>
               <option value="3">{t('source3')}</option>
-            </optgroup>
+            </>
           ) : (
-            <optgroup label="Radio Sources">
+            <>
               {country === 'ru' && <option value="1">{t('source1')}</option>}
               <option value={country === 'ru' ? "2" : "1"}>{country === 'ru' ? t('source2') : t('source1')}</option>
-            </optgroup>
+            </>
           )}
         </select>
       </div>

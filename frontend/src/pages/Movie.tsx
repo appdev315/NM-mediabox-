@@ -21,6 +21,7 @@ export function Movie() {
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [sources, setSources] = useState<{name: string, url: string}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -39,6 +40,25 @@ export function Movie() {
   // Validate media type
   const queryType = searchParams.get('type');
   const mediaType = queryType === 'series' || queryType === 'tv' ? 'tv' : 'movie';
+
+  useEffect(() => {
+    let interval: any;
+    if (isExtracting) {
+      setLoadingProgress(0);
+      interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return 90;
+          }
+          return prev + Math.random() * 10;
+        });
+      }, 500);
+    } else {
+      setLoadingProgress(100);
+    }
+    return () => clearInterval(interval);
+  }, [isExtracting]);
 
 
 
@@ -289,9 +309,14 @@ export function Movie() {
           {(isExtracting || streamUrl || iframeUrl) && (
             <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-2 shadow-xl mb-8 flex items-center justify-center">
             {isExtracting ? (
-              <div className="flex flex-col items-center justify-center text-white/70">
-                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="font-medium text-sm">{t('loading')}</p>
+              <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
+                <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                    style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+                  />
+                </div>
+                <p className="text-blue-400 text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</p>
               </div>
             ) : iframeUrl ? (
               <div className="w-full h-full flex flex-col relative group">

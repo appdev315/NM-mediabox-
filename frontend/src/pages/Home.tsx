@@ -8,7 +8,7 @@ import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-
+import { RadioTVContent } from './RadioTV';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
 import { shouldShowAd } from '../utils/adPlacement';
@@ -21,7 +21,7 @@ export function Home() {
   const { triggerAd } = useAdManager();
 
   
-  const [activeTab, setActiveTab] = useState<'movie' | 'series'>(
+  const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'radio' | 'tv'>(
     (location.state as any)?.tab || 'movie'
   );
   const [items, setItems] = useState<any[]>([]);
@@ -99,7 +99,7 @@ export function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, isSearching, page]);
 
-  const handleTabChange = (tab: 'movie' | 'series') => {
+  const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     setActiveTab(tab);
     setPage(1);
     setSelectedGenre('');
@@ -121,6 +121,7 @@ export function Home() {
     >
       {/* Header & Profile */}
       <Header />
+      <ExoClickMainBanner />
 
       {/* Top Navigation */}
       <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
@@ -139,12 +140,7 @@ export function Home() {
                 window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
                 return;
               }
-              if (tab.id === 'radio') {
-                navigate('/radio-tv', { state: { tab: 'radio' } });
-              } else if (tab.id === 'tv') {
-                navigate('/radio-tv', { state: { tab: 'tv' } });
-              }
-              else handleTabChange(tab.id as 'movie' | 'series');
+              handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv');
             }}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
@@ -157,41 +153,39 @@ export function Home() {
         ))}
       </div>
 
-      <div className="mb-4">
-        <input 
-          type="text" 
-          placeholder={t('searchPlaceholder')} 
-          value={searchQuery}
-          onChange={handleSearchChange}
-          className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
-          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-        />
-      </div>
-
-      {/* Filters (hidden when searching) */}
-      {!isSearching && (
-        <div className="flex gap-3 mb-6">
-          <select 
-            className="flex-1 p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm"
-            style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-            value={selectedGenre}
-            onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
-          >
-            <option value="">{t('allGenres')}</option>
-            {genres.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Outstream Video Ad (Testing White App) */}
-
-
-      {/* Content Grid */}
-      <>
+      {(activeTab === 'radio' || activeTab === 'tv') ? (
+        <RadioTVContent activeTab={activeTab} />
+      ) : (
         <>
-          <ExoClickMainBanner />
+          <div className="mb-4">
+            <input 
+              type="text" 
+              placeholder={t('searchPlaceholder')} 
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
+              style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+            />
+          </div>
+
+          {/* Filters (hidden when searching) */}
+          {!isSearching && (
+            <div className="flex gap-3 mb-6">
+              <select 
+                className="flex-1 p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm"
+                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                value={selectedGenre}
+                onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
+              >
+                <option value="">{t('allGenres')}</option>
+                {genres.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Content Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto animate-fade-in">
             {items.map((item, idx) => (
               <React.Fragment key={`${item.id}-${idx}`}>
@@ -236,7 +230,7 @@ export function Home() {
             </div>
           )}
         </>
-      </>
+      )}
     </div>
   );
 }
