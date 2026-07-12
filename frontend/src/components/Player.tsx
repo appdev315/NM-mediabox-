@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebApp } from '../telegram';
-import NoSleep from 'nosleep.js';
 import { useLanguage } from '../context/LanguageContext';
 
 interface PlayerProps {
@@ -59,27 +58,22 @@ export function Player({ iframeUrl }: PlayerProps) {
     }
 
     // Request screen wake lock to prevent screen from turning off/dimming during playback
-    // We use NoSleep.js which creates a hidden playing video as a robust fallback to prevent dimming
-    const noSleep = new NoSleep();
-    
-    const enableNoSleep = () => {
-      if (!noSleep.isEnabled) {
-        noSleep.enable().catch(err => {
-          console.error(`NoSleep enable error:`, err);
-        });
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.error(`Wake Lock error:`, err);
       }
     };
 
-    // Try to enable immediately (might work if there's a recent user gesture from navigation)
-    enableNoSleep();
-
-    // Also try to enable on any interaction with the parent window (if they click outside iframe)
-    document.addEventListener('click', enableNoSleep);
-    document.addEventListener('touchstart', enableNoSleep);
+    requestWakeLock();
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        enableNoSleep();
+        requestWakeLock();
       }
     };
     
@@ -93,9 +87,9 @@ export function Player({ iframeUrl }: PlayerProps) {
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
-      noSleep.disable();
-      document.removeEventListener('click', enableNoSleep);
-      document.removeEventListener('touchstart', enableNoSleep);
+      if (wakeLock) {
+        wakeLock.release().catch(console.error);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       WebApp.disableClosingConfirmation();
       if (isMobile && WebApp.exitFullscreen) {
