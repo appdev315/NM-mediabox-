@@ -6,6 +6,7 @@ import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { shouldShowAd } from '../utils/adPlacement';
+import { EXPRESS_API_BASE } from '../hooks/useApi';
 
 // Get backend URL from environment or use default
 
@@ -265,9 +266,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                 // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
               } else {
-                // HTTP goes through Cloudflare Pages Function to avoid Mixed Content
-                // Встроенный прокси Cloudflare Pages
-                const WORKER_URL = "/api/proxy";
+                // HTTP goes through Express proxy to avoid Mixed Content
+                const WORKER_URL = `${EXPRESS_API_BASE}/proxy`;
                 
                 channels.push({ 
                   ...current, 
