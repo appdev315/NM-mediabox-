@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-export function ExoClickMainBanner() {
+export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
@@ -52,4 +52,4 @@ export function ExoClickMainBanner() {
       <div ref={containerRef} className="exo-container"></div>
     </div>
   );
-}
+});

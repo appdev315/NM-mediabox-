@@ -16,5 +16,8 @@
     "helmet": "^8.2.0",
     "https-proxy-agent": "^9.1.0",
     "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260712.1"
   }
 }

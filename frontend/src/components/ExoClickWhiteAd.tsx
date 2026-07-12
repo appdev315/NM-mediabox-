@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface ExoClickWhiteAdProps {
   className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
   zoneId?: string;
 }
 
-export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card', zoneId = '5964976' }: ExoClickWhiteAdProps) {
+export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-movie-card', zoneId = '5964976' }: ExoClickWhiteAdProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
@@ -37,4 +37,4 @@ export default function ExoClickWhiteAd({ className = 'exo-banner-movie-card', z
     <div ref={containerRef} className={className + " min-h-[50px] flex justify-center items-center overflow-hidden"}>
     </div>
   );
-}
+});
