@@ -15,17 +15,6 @@ export function Player({ iframeUrl }: PlayerProps) {
   const { t } = useLanguage();
   const isXvideos = iframeUrl.includes('xvideos.com');
 
-  const bustedUrl = useMemo(() => {
-    try {
-      const urlObj = new URL(iframeUrl);
-      urlObj.searchParams.set('_t', Date.now().toString());
-      return urlObj.toString();
-    } catch (e) {
-      const separator = iframeUrl.includes('?') ? '&' : '?';
-      return `${iframeUrl}${separator}_t=${Date.now()}`;
-    }
-  }, [iframeUrl]);
-
   useEffect(() => {
     setIframeLoaded(false);
     
@@ -148,7 +137,7 @@ export function Player({ iframeUrl }: PlayerProps) {
         </div>
       )}
       <iframe 
-        src={bustedUrl}
+        src={iframeUrl}
         onLoad={() => setIframeLoaded(true)}
         className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
