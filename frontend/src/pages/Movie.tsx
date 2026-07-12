@@ -128,17 +128,24 @@ export function Movie() {
       const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
       
-      let res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
-      let data = await res.json();
-      
-      // Имплементация "двойного запроса": если первый запрос не нашел источник, 
-      // делаем небольшую паузу и пробуем второй раз (помогает пробить кэш)
-      if (!data.url && !data.iframe && (!data.sources || data.sources.length === 0)) {
-        console.log("First attempt failed, doing a double request...");
-        await new Promise(r => setTimeout(r, 1000));
+      let data: any = {};
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (attempts < maxAttempts) {
         query.set('_t', Date.now().toString());
-        res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
+        const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
         data = await res.json();
+        
+        if (data.url || data.iframe || (data.sources && data.sources.length > 0)) {
+           break;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+           console.log(`Attempt ${attempts} failed, waiting 1.5s before retry...`);
+           await new Promise(r => setTimeout(r, 1500));
+        }
       }
 
       if (data.url) {
