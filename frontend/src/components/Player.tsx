@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WebApp } from '../telegram';
 import NoSleep from 'nosleep.js';
 import { useLanguage } from '../context/LanguageContext';
