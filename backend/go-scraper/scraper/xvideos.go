@@ -57,9 +57,7 @@ func SearchXvideos(query string, page int) []types.Video {
 		if !exists {
 			img, _ = s.Find("img").Attr("src")
 		}
-		if strings.Contains(img, "THUMBNUM") {
-			img = strings.Replace(img, "THUMBNUM", "1", 1)
-		}
+		img = strings.Replace(img, "THUMBNUM", "1", 1)
 
 		duration := strings.TrimSpace(s.Find(".duration").Text())
 
