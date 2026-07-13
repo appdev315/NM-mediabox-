@@ -7,12 +7,12 @@ const GO_SERVICE_URL = process.env.GO_SERVICE_URL || 'http://localhost:8080';
 
 // Proxy /api/liftw to the Go microservice
 liftwRouter.get('/api/liftw', async (req, res) => {
-    const { title, year, type, tmdb } = req.query;
+    const { title, year, type, tmdb, bypass_cache } = req.query;
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
     try {
         const response = await axios.get(`${GO_SERVICE_URL}/api/liftw`, {
-            params: { title, year, type, tmdb },
+            params: { title, year, type, tmdb, bypass_cache },
             timeout: 15000
         });
         return res.json(response.data);

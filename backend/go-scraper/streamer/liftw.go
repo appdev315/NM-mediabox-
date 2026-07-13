@@ -234,27 +234,17 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 	return nil
 }
 
-func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	title := r.URL.Query().Get("title")
-	yearStr := r.URL.Query().Get("year")
-	vType := r.URL.Query().Get("type")
-	tmdb := r.URL.Query().Get("tmdb")
-
-	if title == "" {
-		http.Error(w, `{"error":"Title is required"}`, http.StatusBadRequest)
-		return
-	}
-
+// ResolveLiftw resolves a streaming path for a movie/series and caches it.
+// If bypassCache is true, it ignores the cache and forces a fresh query.
+func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte, error) {
 	cacheKey := fmt.Sprintf("%s|%s|%s|%s", title, yearStr, vType, tmdb)
-	if val, ok := liftwCache.Load(cacheKey); ok {
-		entry := val.(cacheEntry)
-		if time.Now().Before(entry.exp) {
-			w.Write(entry.data)
-			return
-		} else {
+	
+	if !bypassCache {
+		if val, ok := liftwCache.Load(cacheKey); ok {
+			entry := val.(cacheEntry)
+			if time.Now().Before(entry.exp) {
+				return entry.data, nil
+			}
 			liftwCache.Delete(cacheKey)
 		}
 	}
@@ -330,26 +320,22 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if bestMatch == nil {
 		if lastErr != "" {
-			http.Error(w, fmt.Sprintf(`{"error":"Exact match not found on liftw, last err: %v"}`, lastErr), http.StatusNotFound)
-			return
+			return nil, fmt.Errorf("exact match not found on liftw, last err: %v", lastErr)
 		}
-		http.Error(w, `{"error":"Exact match not found on liftw"}`, http.StatusNotFound)
-		return
+		return nil, fmt.Errorf("exact match not found on liftw")
 	}
 
 	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
 	infoClient := getHttpClient(8 * time.Second)
 	infoRes, err := infoClient.Get(infoUrl)
 	if err != nil || infoRes.StatusCode != 200 {
-		http.Error(w, `{"error":"Failed to get info"}`, http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to get info")
 	}
 	defer infoRes.Body.Close()
 
 	var info LiftwInfoResponse
 	if err := json.NewDecoder(infoRes.Body).Decode(&info); err != nil {
-		http.Error(w, `{"error":"Failed to decode info"}`, http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to decode info")
 	}
 
 	response := map[string]interface{}{
@@ -363,11 +349,43 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseBytes, err := json.Marshal(response)
-	if err == nil {
-		liftwCache.Store(cacheKey, cacheEntry{
-			data: responseBytes,
-			exp:  time.Now().Add(1 * time.Hour),
-		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response")
+	}
+
+	// Cache the result for 3 hours (increased from 1 hour to support longer cache warming)
+	liftwCache.Store(cacheKey, cacheEntry{
+		data: responseBytes,
+		exp:  time.Now().Add(3 * time.Hour),
+	})
+
+	return responseBytes, nil
+}
+
+func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	title := r.URL.Query().Get("title")
+	yearStr := r.URL.Query().Get("year")
+	vType := r.URL.Query().Get("type")
+	tmdb := r.URL.Query().Get("tmdb")
+	bypassCache := r.URL.Query().Get("bypass_cache") == "true"
+
+	if title == "" {
+		http.Error(w, `{"error":"Title is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	responseBytes, err := ResolveLiftw(title, yearStr, vType, tmdb, bypassCache)
+	if err != nil {
+		// Use StatusNotFound if match wasn't found, standard internal error otherwise
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), status)
+		return
 	}
 
 	w.Write(responseBytes)
