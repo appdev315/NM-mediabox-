@@ -14,23 +14,11 @@ export function Profile() {
   const { theme, setTheme } = useTheme();
 
   const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
-  const [favorites, setFavorites] = useState<any[]>([]);
-  // Use favorites to avoid unused var warning
-  console.log(favorites.length);
   const [showDonationModal, setShowDonationModal] = useState(false);
   const cryptoAddress = 'TKA34UexUySwB4CTbPaam4WEKGQjb4sU1U';
-
   const user = WebApp.initDataUnsafe?.user;
 
-
-
   useEffect(() => {
-    const fetchFavorites = () => {
-      const saved = JSON.parse(localStorage.getItem('favorites') || '[]');
-      setFavorites(saved);
-    };
-    fetchFavorites();
-    
     // Read showPrivate
   }, [user?.id, user?.username]);
 

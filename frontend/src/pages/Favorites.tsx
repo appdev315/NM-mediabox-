@@ -10,39 +10,87 @@ export function Favorites() {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
-
   const [activeTab, setActiveTab] = useState('movie');
   
-  const [tmdbFavs, setTmdbFavs] = useState<any[]>([]);
-  const [radioTvFavs, setRadioTvFavs] = useState<any[]>([]);
+  const [historyMovies, setHistoryMovies] = useState<any[]>([]);
+  const [historySeries, setHistorySeries] = useState<any[]>([]);
+  const [historyRadio, setHistoryRadio] = useState<any[]>([]);
+  const [historyTv, setHistoryTv] = useState<any[]>([]);
 
-  
   // Player states
   const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
   const [activeTvChannel, setActiveTvChannel] = useState<any | null>(null);
   const [tvError, setTvError] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
 
+  const loadHistory = () => {
+    try {
+      setHistoryMovies(JSON.parse(localStorage.getItem('history_movies') || '[]'));
+      setHistorySeries(JSON.parse(localStorage.getItem('history_series') || '[]'));
+      setHistoryRadio(JSON.parse(localStorage.getItem('history_radio') || '[]'));
+      setHistoryTv(JSON.parse(localStorage.getItem('history_tv') || '[]'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
-    setTmdbFavs(JSON.parse(localStorage.getItem('favorites') || '[]'));
-    setRadioTvFavs(JSON.parse(localStorage.getItem('radio_tv_favs') || '[]'));
+    loadHistory();
   }, []);
 
-  const removeTmdbFav = (e: React.MouseEvent, id: string) => {
+  const removeHistoryItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();
-    const newFavs = tmdbFavs.filter(f => f.id !== id);
-    setTmdbFavs(newFavs);
-    localStorage.setItem('favorites', JSON.stringify(newFavs));
+    try {
+      let key = '';
+      let list: any[] = [];
+      let setList: any = null;
+
+      if (type === 'movie') {
+        key = 'history_movies';
+        list = historyMovies;
+        setList = setHistoryMovies;
+      } else if (type === 'series') {
+        key = 'history_series';
+        list = historySeries;
+        setList = setHistorySeries;
+      } else if (type === 'radio') {
+        key = 'history_radio';
+        list = historyRadio;
+        setList = setHistoryRadio;
+      } else if (type === 'tv') {
+        key = 'history_tv';
+        list = historyTv;
+        setList = setHistoryTv;
+      }
+
+      if (key) {
+        const newList = list.filter(item => item.id !== id);
+        setList(newList);
+        localStorage.setItem(key, JSON.stringify(newList));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const removeRadioTvFav = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const newFavs = radioTvFavs.filter(f => f.id !== id);
-    setRadioTvFavs(newFavs);
-    localStorage.setItem('radio_tv_favs', JSON.stringify(newFavs));
+  const clearAllHistory = () => {
+    const confirmMsg = t('confirmClearHistory') || 'Вы уверены, что хотите очистить всю историю?';
+    if (window.confirm(confirmMsg)) {
+      try {
+        localStorage.removeItem('history_movies');
+        localStorage.removeItem('history_series');
+        localStorage.removeItem('history_radio');
+        localStorage.removeItem('history_tv');
+        setHistoryMovies([]);
+        setHistorySeries([]);
+        setHistoryRadio([]);
+        setHistoryTv([]);
+        setActiveTvChannel(null);
+      } catch (e) {
+        console.error(e);
+      }
+    }
   };
-
-
 
   const handlePlayRadio = (station: any) => {
     setActiveTvChannel(null);
@@ -65,30 +113,28 @@ export function Favorites() {
     }, 100);
   };
 
-  const renderTmdbList = (type: 'movie' | 'tv') => {
-    const list = tmdbFavs.filter(f => f.type === type);
-    if (list.length === 0) return <div className="text-center mt-12 opacity-50" style={{ color: 'var(--text-color)' }}>{t('emptyList')}</div>;
+  const renderTmdbList = (type: 'movie' | 'series') => {
+    const list = type === 'movie' ? historyMovies : historySeries;
+    if (list.length === 0) return <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>{t('emptyFavorites') || 'История пуста'}</div>;
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 w-[90%] mx-auto">
         {list.map((item: any, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
           <div 
-            onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
-            className="flex flex-col gap-2 cursor-pointer group"
+            onClick={() => navigate(`/movie/${item.id}?type=${type}`)}
+            className="flex flex-col gap-2 cursor-pointer group relative"
           >
-            <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl">
+            <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl aspect-[2/3]">
               <img 
                 src={item.poster} 
                 alt={item.title} 
-                className="w-full aspect-[2/3] object-cover"
+                className="w-full h-full object-cover"
               />
               <button 
-                className="absolute top-2 right-2 p-2 bg-black/50 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md"
-                onClick={(e) => removeTmdbFav(e, item.id)}
+                className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
+                onClick={(e) => removeHistoryItem(e, item.id, type)}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
+                ✕
               </button>
             </div>
             <div className="mt-1">
@@ -103,12 +149,12 @@ export function Favorites() {
   };
 
   const renderRadioTvList = (type: 'radio' | 'tv') => {
-    const list = radioTvFavs.filter(f => f.type === type);
-    if (list.length === 0) return <div className="text-center mt-12 opacity-50" style={{ color: 'var(--text-color)' }}>{t('emptyList')}</div>;
+    const list = type === 'radio' ? historyRadio : historyTv;
+    if (list.length === 0) return <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>{t('emptyFavorites') || 'История пуста'}</div>;
     
     return (
       <div className="flex flex-col gap-3">
-        {activeTvChannel && activeTab === 'TV' && (
+        {activeTvChannel && activeTab === 'tv' && (
           <div ref={playerRef} className="mb-6 rounded-2xl overflow-hidden shadow-xl border md:w-[80%] mx-auto scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
             <div className="bg-black flex justify-between items-center p-3">
               <div className="flex items-center gap-3">
@@ -137,22 +183,28 @@ export function Favorites() {
           </div>
         )}
 
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {list.map((item: any) => {
-            const isRadioActive = activeTab === 'Radio' && currentTrack?.id === item.id;
-            const isTvActive = activeTab === 'TV' && activeTvChannel?.id === item.id;
+            const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
+            const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
             const isActive = isRadioActive || isTvActive;
 
             return (
               <div 
                 key={item.id} 
                 onClick={() => type === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
-                className={`p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border ${isActive ? 'ring-2 ring-blue-500 scale-[0.98]' : 'hover:scale-[0.99]'}`}
+                className="p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border relative hover:scale-[0.99]"
                 style={{ 
                   backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
-                  borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
+                  borderColor: isActive ? 'var(--button-color)' : 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                 }}
               >
+                <button 
+                  className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
+                  onClick={(e) => removeHistoryItem(e, item.id, type)}
+                >
+                  ✕
+                </button>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                   {item.logo ? (
                     <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
@@ -164,17 +216,8 @@ export function Favorites() {
                   <div className="font-bold truncate text-[10px] sm:text-xs px-1" style={{ color: 'var(--text-color)' }}>{item.name}</div>
                   {item.group && <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>{item.group}</div>}
                 </div>
-                <div className="flex w-full justify-between items-center px-1 mt-auto">
-                <button 
-                  className="text-xl hover:scale-110 transition-transform drop-shadow-md" 
-                  style={{ color: '#fbbf24' }}
-                  onClick={(e) => removeRadioTvFav(e, item.id)}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                </button>
-                  <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">{isActive ? (type === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}</span>
+                <div className="flex w-full justify-end items-center px-1 mt-auto">
+                  <span style={{ color: 'var(--text-color)' }} className="text-xs p-1">{isActive ? (type === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}</span>
                 </div>
               </div>
             );
@@ -184,7 +227,7 @@ export function Favorites() {
     );
   };
 
-
+  const hasAnyHistory = historyMovies.length > 0 || historySeries.length > 0 || historyRadio.length > 0 || historyTv.length > 0;
 
   return (
     <div 
@@ -193,6 +236,25 @@ export function Favorites() {
     >
       <Header />
       
+      <div className="flex justify-between items-center mb-4 mt-2 px-1">
+        <h2 className="text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-color)' }}>
+          {t('myFavorites') || 'История'}
+        </h2>
+        {hasAnyHistory && (
+          <button 
+            onClick={clearAllHistory}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all active:scale-95 border"
+            style={{ 
+              backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+              color: 'rgb(248, 113, 113)',
+              borderColor: 'rgba(239, 68, 68, 0.2)' 
+            }}
+          >
+            {t('clearHistory') || 'Очистить историю'}
+          </button>
+        )}
+      </div>
+
       <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
         {[
           { id: 'movie', label: t('movies') },
@@ -202,14 +264,7 @@ export function Favorites() {
         ].map(tab => (
           <button 
             key={tab.id}
-            onClick={(e) => {
-              if (tab.id === 'private') {
-                e.preventDefault();
-                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
-                return;
-              }
-              setActiveTab(tab.id);
-            }}
+            onClick={() => setActiveTab(tab.id)}
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
               backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
@@ -223,23 +278,9 @@ export function Favorites() {
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {activeTab === 'movie' && renderTmdbList('movie')}
-        {activeTab === 'series' && renderTmdbList('tv')}
-        {activeTab === 'radio' && (
-          <div className="flex flex-col gap-6">
-            <div>
-              {renderRadioTvList('radio')}
-            </div>
-          </div>
-        )}
-        {activeTab === 'tv' && (
-          <div className="flex flex-col gap-6">
-            <div>
-              {renderRadioTvList('tv')}
-            </div>
-          </div>
-        )}
-
-
+        {activeTab === 'series' && renderTmdbList('series')}
+        {activeTab === 'radio' && renderRadioTvList('radio')}
+        {activeTab === 'tv' && renderRadioTvList('tv')}
       </div>
     </div>
   );

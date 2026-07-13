@@ -58,7 +58,7 @@ function BottomNav() {
         className={`font-bold transition-opacity opacity-100 flex items-center justify-center w-full`}
         style={{ color: location.pathname === '/favorites' ? 'var(--button-color)' : 'var(--text-color)' }}
       >
-        <span className="mr-2">⭐️</span> {location.pathname === '/favorites' ? t('home') : t('myFavorites')}
+        <span className="mr-2">🕒</span> {location.pathname === '/favorites' ? t('home') : t('myFavorites')}
       </Link>
     </div>
   );
