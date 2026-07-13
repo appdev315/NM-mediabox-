@@ -35,6 +35,7 @@ import { serverMetrics, statsRouter } from './src/routes/stats.js';
 import { tmdbRouter } from './src/routes/tmdb.js';
 import { streamRouter } from './src/routes/stream.js';
 import { adultRouter } from './src/routes/adult.js';
+import { liftwRouter } from './src/routes/liftw.js';
 
 const app = express();
 const port = process.env.PORT || 7860;
@@ -100,6 +101,7 @@ app.use(statsRouter);
 app.use(tmdbRouter);
 app.use(streamRouter);
 app.use(adultRouter);
+app.use(liftwRouter);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

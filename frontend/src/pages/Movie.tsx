@@ -116,6 +116,7 @@ export function Movie() {
     try {
       let finalIframe = null;
       let finalStreamUrl = null;
+      const allSources: {name: string, url: string}[] = [];
 
       const queryParams: Record<string, string> = {
         title: (movie as any).title || (movie as any).name || '',
@@ -127,41 +128,66 @@ export function Movie() {
       
       const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
-      
-      let data: any = {};
-      let attempts = 0;
-      const maxAttempts = 3;
 
-      while (attempts < maxAttempts) {
-        query.set('_t', Date.now().toString());
-        const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
-        data = await res.json();
-        
-        if (data.url || data.iframe || (data.sources && data.sources.length > 0)) {
-           break;
-        }
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-           console.log(`Attempt ${attempts} failed, waiting 1.5s before retry...`);
-           await new Promise(r => setTimeout(r, 1500));
-        }
+      // Parallel fetch: existing Go stream + liftw.ws
+      const liftwQuery = new URLSearchParams({
+        title: queryParams.title,
+        year: queryParams.year,
+        type: queryParams.type
+      });
+
+      const [goResult, liftwResult] = await Promise.allSettled([
+        // Existing Go-based stream lookup (with retries)
+        (async () => {
+          let data: any = {};
+          let attempts = 0;
+          const maxAttempts = 3;
+          while (attempts < maxAttempts) {
+            query.set('_t', Date.now().toString());
+            const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
+            data = await res.json();
+            if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
+            attempts++;
+            if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1500));
+          }
+          return data;
+        })(),
+        // liftw.ws lookup
+        (async () => {
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`);
+          if (!res.ok) return null;
+          return await res.json();
+        })().catch(() => null)
+      ]);
+
+      // Process Go stream result
+      const goData = goResult.status === 'fulfilled' ? goResult.value : {};
+      if (goData.url) {
+        finalStreamUrl = goData.url;
+      } else if (goData.iframe) {
+        finalIframe = goData.iframe;
+      }
+      if (goData.sources && goData.sources.length > 0) {
+        allSources.push(...goData.sources);
       }
 
-      if (data.url) {
-        finalStreamUrl = data.url;
-      } else if (data.iframe) {
-        finalIframe = data.iframe;
+      // Process liftw result — append as additional source
+      const liftwData = liftwResult.status === 'fulfilled' ? liftwResult.value : null;
+      if (liftwData && liftwData.iframe) {
+        allSources.push({ name: 'player3', url: liftwData.iframe });
       }
-      
-      if (data.sources && data.sources.length > 0) {
-        setSources(data.sources);
+
+      if (allSources.length > 0) {
+        setSources(allSources);
       }
 
       if (finalStreamUrl) {
         setStreamUrl(finalStreamUrl);
       } else if (finalIframe) {
         setIframeUrl(finalIframe);
+      } else if (allSources.length > 0) {
+        // If Go stream returned nothing but sources exist, use the first one
+        setIframeUrl(allSources[0].url);
       } else {
         alert("Stream not found");
       }
@@ -349,15 +375,18 @@ export function Movie() {
         {/* Source selection buttons below the player */}
         {sources.length > 1 && (
           <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-            {sources.map((s, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setIframeUrl(s.url)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
-              >
-                {idx === 0 ? t('player1') : t('player2')}
-              </button>
-            ))}
+            {sources.map((s, idx) => {
+              const labelKey = idx === 0 ? 'player1' : idx === 1 ? 'player2' : 'player3';
+              return (
+                <button 
+                  key={idx} 
+                  onClick={() => setIframeUrl(s.url)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
+                >
+                  {t(labelKey)}
+                </button>
+              );
+            })}
           </div>
         )}
 
