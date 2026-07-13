@@ -30,6 +30,7 @@ export function Movie() {
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const userSelectedRef = useRef(false);
 
   useEffect(() => {
     if (iframeUrl) {
@@ -62,9 +63,6 @@ export function Movie() {
     return () => clearInterval(interval);
   }, [isExtracting]);
 
-
-
-  // Load movie/series details and recommendations
   useEffect(() => {
     if (!id) return;
     let isMounted = true;
@@ -75,6 +73,7 @@ export function Movie() {
       setSources([]);
       setIsExtracting(false);
       setMovie(null);
+      userSelectedRef.current = false;
       try {
         const details = await fetchMovieDetails(id, mediaType);
         if (!isMounted) return;
@@ -128,6 +127,7 @@ export function Movie() {
     setStreamUrl(null);
     setIframeUrl(null);
     setSources([]);
+    userSelectedRef.current = false;
     
     // Scroll to player placeholder immediately
     setTimeout(() => {
@@ -205,6 +205,7 @@ export function Movie() {
           const preferredUrl = mapped[0].url;
           setIframeUrl(prev => {
             if (!prev) return preferredUrl;
+            if (userSelectedRef.current) return prev;
             // Switch to preferred if we are currently playing a fallback Go source
             const isPrevGo = foundSources.go.some((g: any) => g.url === prev) || foundSources.goIframe === prev;
             if (isPrevGo && (foundSources.liftw || foundSources.vidsrc)) {
@@ -458,16 +459,18 @@ export function Movie() {
         {/* Source selection buttons below the player */}
         {sources.length > 1 && (
           <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-            {sources.map((s: any) => {
-              const labelIndex = s.isLiftw ? 1 : sources.filter((src: any) => !src.isLiftw).indexOf(s) + 2;
-              const labelKey = labelIndex === 1 ? 'player1' : labelIndex === 2 ? 'player2' : 'player3';
+            {sources.map((s: any, idx: number) => {
+              const labelKey = `player${idx + 1}`;
               return (
                 <button 
                   key={s.url} 
-                  onClick={() => setIframeUrl(s.url)}
+                  onClick={() => {
+                    setIframeUrl(s.url);
+                    userSelectedRef.current = true;
+                  }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
                 >
-                  {t(labelKey)}
+                  {t(labelKey as any)}
                 </button>
               );
             })}
