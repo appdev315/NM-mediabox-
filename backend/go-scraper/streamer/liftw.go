@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -42,7 +43,14 @@ func getHttpClient(timeout time.Duration) *http.Client {
 			proxyStr = "http://" + proxyStr
 		}
 		if proxyUrl, err := url.Parse(proxyStr); err == nil {
-			client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
+			client.Transport = &http.Transport{
+				Proxy:           http.ProxyURL(proxyUrl),
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+	} else {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
 	return client
