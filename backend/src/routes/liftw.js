@@ -7,49 +7,113 @@ const LIFTW_API = 'https://api.liftw.ws';
 
 // Search liftw.ws and return iframe URL for the best match
 liftwRouter.get('/api/liftw', async (req, res) => {
-    const { title, year, type } = req.query;
+    const { title, year, type, tmdb } = req.query;
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
     try {
-        // Search by title
-        const searchRes = await axios.get(`${LIFTW_API}/search`, {
-            params: { q: title },
-            timeout: 8000
+        const isSeriesRequest = type === 'tv' || type === 'series';
+        
+        // Collect candidate titles to search and match
+        const candidates = new Set();
+        candidates.add(title.trim());
+
+        if (tmdb) {
+            try {
+                const tmdbType = isSeriesRequest ? 'tv' : 'movie';
+                const TMDB_API_KEY = process.env.TMDB_API_KEY || 'cd5b69242e715dc87d65957d7460eba2';
+                const tmdbRes = await axios.get(`https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${TMDB_API_KEY}&append_to_response=alternative_titles,translations`, {
+                    timeout: 4000
+                });
+                
+                const tmdbData = tmdbRes.data;
+                if (tmdbData) {
+                    if (tmdbData.title) candidates.add(tmdbData.title.trim());
+                    if (tmdbData.name) candidates.add(tmdbData.name.trim());
+                    if (tmdbData.original_title) candidates.add(tmdbData.original_title.trim());
+                    if (tmdbData.original_name) candidates.add(tmdbData.original_name.trim());
+
+                    // alternative titles
+                    const altResults = tmdbType === 'tv' 
+                        ? (tmdbData.alternative_titles?.results || []) 
+                        : (tmdbData.alternative_titles?.titles || []);
+                    for (const r of altResults) {
+                        if (r.title) candidates.add(r.title.trim());
+                    }
+
+                    // translations
+                    const transResults = tmdbData.translations?.translations || [];
+                    for (const t of transResults) {
+                        const nameVal = t.data?.name || t.data?.title;
+                        if (nameVal) candidates.add(nameVal.trim());
+                    }
+                }
+            } catch (err) {
+                console.error('[liftw] Failed to fetch TMDB translations:', err.message);
+            }
+        }
+
+        const cleanCandidates = Array.from(candidates).filter(Boolean);
+        const hasCyrillic = (str) => /[а-яё]/i.test(str);
+        const hasLatin = (str) => /[a-z]/i.test(str);
+
+        const prioritizedCandidates = cleanCandidates.sort((a, b) => {
+            const aCyr = hasCyrillic(a);
+            const bCyr = hasCyrillic(b);
+            if (aCyr && !bCyr) return -1;
+            if (!aCyr && bCyr) return 1;
+
+            const aLat = hasLatin(a);
+            const bLat = hasLatin(b);
+            if (aLat && !bLat) return -1;
+            if (!aLat && bLat) return 1;
+
+            return 0;
         });
 
-        const items = searchRes.data?.items || [];
-        if (items.length === 0) {
-            return res.status(404).json({ error: 'Not found on liftw' });
-        }
-
         // type mapping: liftw type 1 = movie, type 3 = series
-        const isSeriesRequest = type === 'tv' || type === 'series';
         const targetType = isSeriesRequest ? 3 : 1;
-
-        // Find best match: prefer same type, then match by year
-        let bestMatch = null;
-        const titleLower = String(title).toLowerCase().trim();
         const yearStr = year ? String(year) : '';
 
-        for (const item of items) {
-            const nameMatch = item.name?.toLowerCase().trim() === titleLower || 
-                              item.origin_name?.toLowerCase().trim() === titleLower;
-            const yearMatch = yearStr ? String(item.year) === yearStr : true;
-            const typeMatch = item.type === targetType;
+        const norm = (str) => String(str).toLowerCase().replace(/[^a-zа-я0-9]/gi, '').trim();
 
-            if (nameMatch && yearMatch && typeMatch) {
-                bestMatch = item;
-                break;
-            }
-            if (nameMatch && typeMatch && !bestMatch) {
-                bestMatch = item;
-            }
-            if (nameMatch && yearMatch && !bestMatch) {
-                bestMatch = item;
+        const matchCandidate = (item) => {
+            const typeMatch = item.type === targetType;
+            const itemYear = parseInt(item.year);
+            const targetYear = parseInt(yearStr);
+            const yearMatch = yearStr ? (itemYear === targetYear || itemYear === targetYear + 1 || itemYear === targetYear - 1) : true;
+            
+            if (!typeMatch || !yearMatch) return false;
+
+            const nameLower = norm(item.name);
+            const origLower = norm(item.origin_name);
+
+            return prioritizedCandidates.some(cand => {
+                const candNorm = norm(cand);
+                return nameLower === candNorm || origLower === candNorm;
+            });
+        };
+
+        // Try searching Liftw with prioritized candidates sequentially (limit to top 3)
+        let bestMatch = null;
+        const searchCandidates = prioritizedCandidates.slice(0, 3);
+
+        for (const cand of searchCandidates) {
+            try {
+                const searchRes = await axios.get(`${LIFTW_API}/search`, {
+                    params: { q: cand },
+                    timeout: 4000
+                });
+                const items = searchRes.data?.items || [];
+                bestMatch = items.find(matchCandidate);
+                if (bestMatch) {
+                    break;
+                }
+            } catch (err) {
+                console.error(`[liftw] Search failed for "${cand}":`, err.message);
             }
         }
 
-        // Fallback: if no reasonable match found, return 404 to avoid playing incorrect video
+        // Fallback: if no match found, return 404 to avoid playing incorrect video
         if (!bestMatch) {
             return res.status(404).json({ error: 'Exact match not found on liftw' });
         }
@@ -67,9 +131,9 @@ liftwRouter.get('/api/liftw', async (req, res) => {
         return res.json({
             iframe: info.iframe_uri,
             liftwId: info.id,
-            liftwType: info.type, // 1=movie, 3=series
+            liftwType: info.type,
             name: info.name,
-            episodes: info.episodes || null // null for movies, {season: [episodes]} for series
+            episodes: info.episodes || null
         });
 
     } catch (e) {
