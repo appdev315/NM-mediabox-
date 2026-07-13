@@ -115,18 +115,18 @@ body {
   display: block;
   width: 100%;
   grid-column: 1 / -1;
-  min-height: 150px;
+  min-height: 80px;
 }
 
 .exo-banner-movie-card {
   grid-column: 1 / -1;
-  min-height: 150px;
+  min-height: 80px;
 }
 
 @media (min-width: 768px) {
   .exo-native-ad-container,
   .exo-banner-movie-card {
-    min-height: 250px;
+    min-height: 120px;
   }
 }
 
