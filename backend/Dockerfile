@@ -1,5 +1,5 @@
 # Stage 1: Build Go microservice
-FROM golang:1.21-alpine AS go-builder
+FROM golang:alpine AS go-builder
 WORKDIR /app
 COPY go-scraper/go.mod go-scraper/go.sum ./
 RUN go mod download
