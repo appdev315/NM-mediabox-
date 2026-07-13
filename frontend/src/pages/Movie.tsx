@@ -391,11 +391,12 @@ export function Movie() {
         {/* Source selection buttons below the player */}
         {sources.length > 1 && (
           <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-            {sources.map((s: any, idx) => {
-              const labelKey = idx === 0 ? 'player1' : idx === 1 ? 'player2' : 'player3';
+            {sources.map((s: any) => {
+              const labelIndex = s.isLiftw ? 1 : sources.filter((src: any) => !src.isLiftw).indexOf(s) + 2;
+              const labelKey = labelIndex === 1 ? 'player1' : labelIndex === 2 ? 'player2' : 'player3';
               return (
                 <button 
-                  key={idx} 
+                  key={s.url} 
                   onClick={() => setIframeUrl(s.url)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
                 >
