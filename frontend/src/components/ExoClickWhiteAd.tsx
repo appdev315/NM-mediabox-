@@ -15,7 +15,7 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
 
     const loadAd = () => {
       if (containerRef.current) {
-        containerRef.current.innerHTML = `<ins class="eas6a97888e20" data-zoneid="${zoneId}" style="display:inline-block;width:100%;"></ins>`;
+        containerRef.current.innerHTML = `<ins class="eas6a97888e20" data-zoneid="${zoneId}" style="display:inline-block;width:100%;min-height:inherit;"></ins>`;
       }
 
       try {
