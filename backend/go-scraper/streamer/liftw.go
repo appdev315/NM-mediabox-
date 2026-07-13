@@ -38,6 +38,9 @@ func getHttpClient(timeout time.Duration) *http.Client {
 	if len(proxyUrls) > 0 {
 		idx := atomic.AddUint64(&proxyIdx, 1)
 		proxyStr := proxyUrls[idx%uint64(len(proxyUrls))]
+		if !strings.Contains(proxyStr, "://") {
+			proxyStr = "http://" + proxyStr
+		}
 		if proxyUrl, err := url.Parse(proxyStr); err == nil {
 			client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
 		}
@@ -233,10 +236,16 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 		searchLimit = len(candidates)
 	}
 
+	var lastErr error
 	for _, cand := range candidates[:searchLimit] {
 		sUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
 		res, err := client.Get(sUrl)
 		if err != nil {
+			lastErr = err
+			continue
+		}
+		if res.StatusCode != 200 {
+			lastErr = fmt.Errorf("Liftw returned status %d", res.StatusCode)
 			continue
 		}
 		
@@ -269,6 +278,8 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
+		} else {
+			lastErr = err
 		}
 		res.Body.Close()
 
@@ -278,6 +289,10 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if bestMatch == nil {
+		if lastErr != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"Exact match not found on liftw, last err: %v"}`, lastErr), http.StatusNotFound)
+			return
+		}
 		http.Error(w, `{"error":"Exact match not found on liftw"}`, http.StatusNotFound)
 		return
 	}
