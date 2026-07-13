@@ -317,6 +317,26 @@ export function Movie() {
     }
   };
 
+  const handlePlayerSwitch = (newUrl: string) => {
+    const currentSource = sources.find((s: any) => s.url === iframeUrl);
+    if (currentSource && currentSource.isLiftw && movie) {
+      console.log("User switched away from Liftw. Silently refreshing Liftw cache in background...");
+      const liftwQuery = new URLSearchParams({
+        title: (movie as any).title || (movie as any).name || '',
+        year: (movie as any).year || '',
+        type: mediaType,
+        tmdb: (movie as any).id?.toString() || '',
+        bypass_cache: 'true'
+      });
+      fetch(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`).catch(err => {
+        console.error("Silent Liftw refresh failed:", err);
+      });
+    }
+
+    setIframeUrl(newUrl);
+    userSelectedRef.current = true;
+  };
+
   if (loading && !movie) {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loading')}</div>;
   }
@@ -467,31 +487,20 @@ export function Movie() {
         </div>
 
         {/* Source selection buttons below the player */}
-        {sources.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-8 justify-center items-center">
+        {sources.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
             {sources.map((s: any, idx: number) => {
               const labelKey = `player${idx + 1}`;
               return (
                 <button 
                   key={s.url} 
-                  onClick={() => {
-                    setIframeUrl(s.url);
-                    userSelectedRef.current = true;
-                  }}
+                  onClick={() => handlePlayerSwitch(s.url)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
                 >
                   {t(labelKey as any)}
                 </button>
               );
             })}
-            
-            <button 
-              onClick={() => handleWatch(true)}
-              className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border flex items-center gap-1.5"
-              style={{ backgroundColor: 'transparent', color: 'var(--text-color)', borderColor: 'var(--hint-color)', opacity: 0.8 }}
-            >
-              🔄 {language === 'ru-RU' ? 'Обновить плеер' : 'Reload player'}
-            </button>
           </div>
         )}
 
