@@ -14,7 +14,7 @@ export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdPro
 
     const loadAd = () => {
       if (containerRef.current) {
-        containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964558" data-ex_av="name" style="display:inline-block;width:100%;"></ins>';
+        containerRef.current.innerHTML = '<ins class="eas6a97888e20" data-zoneid="5964558" data-ex_av="name" style="display:inline-block;width:100%;min-height:250px;"></ins>';
       }
 
       try {
