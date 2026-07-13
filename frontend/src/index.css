@@ -114,6 +114,8 @@ body {
 .exo-native-ad-container {
   display: block;
   width: 100%;
+  grid-column: 1 / -1;
+  min-height: 250px;
 }
 
 .exo-native-ad-container img {
