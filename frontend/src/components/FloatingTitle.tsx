@@ -3,7 +3,7 @@ import { WebApp } from '../telegram';
 import { Capacitor } from '@capacitor/core';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 
 export function FloatingTitle() {
   const navigate = useNavigate();
@@ -20,13 +20,18 @@ export function FloatingTitle() {
   const isMainRoute = ['/', '/adult', '/radio-tv', '/movies', '/favorites'].includes(location.pathname);
   const isTelegram = Boolean(WebApp.platform && WebApp.platform !== 'unknown');
 
+  const locationPathRef = useRef(location.pathname);
+  useEffect(() => {
+    locationPathRef.current = location.pathname;
+  }, [location.pathname]);
+
   const handleBackNavigation = useCallback(() => {
     // Only trigger ad if we are coming back from a movie
-    if (location.pathname.includes('/movie/')) {
+    if (locationPathRef.current.includes('/movie/')) {
       triggerPostAd();
     }
     navigate(-1);
-  }, [location.pathname, triggerPostAd, navigate]);
+  }, [triggerPostAd, navigate]);
 
   // Handle Telegram native back button
   useEffect(() => {

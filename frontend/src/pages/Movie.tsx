@@ -412,11 +412,12 @@ export function Movie() {
         {liftwEpisodes && sources.find((s: any) => s.url === iframeUrl)?.isLiftw && (
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)).map(season => (
-                <button
-                  key={season}
-                  onClick={() => {
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              <div className="flex-1 relative">
+                <select
+                  value={activeSeason}
+                  onChange={(e) => {
+                    const season = e.target.value;
                     setActiveSeason(season);
                     setActiveEpisode(liftwEpisodes[season][0]);
                     const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
@@ -424,31 +425,43 @@ export function Movie() {
                       iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: liftwEpisodes[season][0] }, '*');
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${activeSeason === season ? 'bg-[var(--button-color)] text-[var(--button-text-color)]' : 'bg-[var(--hint-color)] text-[var(--text-color)]'}`}
+                  className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {season} {t('season') || 'Сезон'}
-                </button>
-              ))}
-            </div>
-            {activeSeason && liftwEpisodes[activeSeason] && (
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto pr-2 pb-2 scrollbar-thin">
-                {[...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)).map((ep: string) => (
-                  <button
-                    key={ep}
-                    onClick={() => {
+                  {Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)).map(season => (
+                    <option key={season} value={season}>
+                      {season} {t('season') || 'Сезон'}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+              </div>
+
+              {activeSeason && liftwEpisodes[activeSeason] && (
+                <div className="flex-1 relative">
+                  <select
+                    value={activeEpisode}
+                    onChange={(e) => {
+                      const ep = e.target.value;
                       setActiveEpisode(ep);
                       const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
                       if (iframe && iframe.contentWindow) {
                         iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(activeSeason), episode: ep }, '*');
                       }
                     }}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors text-center ${activeEpisode === ep ? 'bg-[var(--button-color)] text-[var(--button-text-color)]' : 'bg-[var(--hint-color)] text-[var(--text-color)]'}`}
+                    className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                    style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                   >
-                    {ep}
-                  </button>
-                ))}
-              </div>
-            )}
+                    {[...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)).map((ep: string) => (
+                      <option key={ep} value={ep}>
+                        {ep} Серия
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
