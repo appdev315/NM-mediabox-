@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
-
-
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
@@ -12,24 +10,50 @@ import { RadioTVContent } from './RadioTV';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
 import { shouldShowAd } from '../utils/adPlacement';
+import { useHomeState } from '../context/HomeStateContext';
 
 export function Home() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
   const { language, t } = useLanguage();
   const { triggerAd } = useAdManager();
 
-  
-  const [activeTab, setActiveTab] = useState<'movie' | 'series' | 'radio' | 'tv'>(
-    (location.state as any)?.tab || 'movie'
-  );
-  const [items, setItems] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
+  const {
+    activeTab,
+    setActiveTab,
+    items,
+    setItems,
+    page,
+    setPage,
+    selectedGenre,
+    setSelectedGenre,
+    searchQuery,
+    setSearchQuery,
+    isSearching,
+    setIsSearching,
+    scrollY,
+    setScrollY
+  } = useHomeState();
+
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [selectedGenre, setSelectedGenre] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+  const isFirstRender = useRef(true);
+
+  // Restore scroll position when items are loaded
+  useEffect(() => {
+    if (items.length > 0 && scrollY > 0) {
+      const timer = setTimeout(() => {
+        window.scrollTo(0, scrollY);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [items.length]);
+
+  // Save scroll position when unmounting
+  useEffect(() => {
+    return () => {
+      setScrollY(window.scrollY);
+    };
+  }, [setScrollY]);
 
   // Load genres when tab or language changes
   useEffect(() => {
@@ -42,10 +66,15 @@ export function Home() {
     }
   }, [activeTab, fetchGenres, isSearching, language]);
 
-
-
   // Load content
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      if (items.length > 0) {
+        return;
+      }
+    }
+
     const loadContent = async () => {
       try {
         if (searchQuery.trim().length > 0) {
@@ -56,7 +85,6 @@ export function Home() {
           setIsSearching(false);
           let results;
           
-          // Initial load for popular content
           if (!selectedGenre && page === 1) {
             results = await fetchTrending(activeTab === 'movie' ? 'movie' : 'tv');
           } else {
@@ -85,12 +113,11 @@ export function Home() {
     const handleScroll = () => {
       if (loading || isSearching) return;
       
-      const scrollY = window.scrollY;
+      const scrollYPos = window.scrollY;
       const windowHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       
-      // If user has scrolled to within 100px of the bottom
-      if (scrollY + windowHeight >= documentHeight - 100) {
+      if (scrollYPos + windowHeight >= documentHeight - 100) {
         setPage(p => p + 1);
       }
     };
