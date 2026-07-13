@@ -205,7 +205,21 @@ export function Home() {
                 </div>
                 <div className="mt-1 px-1">
                   <h3 className="font-bold text-sm leading-tight line-clamp-1">{item.title}</h3>
-                  <p className="text-xs opacity-70 mt-1 font-medium">{item.year}</p>
+                  <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
+                    {item.rating && item.rating > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span 
+                          className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
+                          style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
+                        >
+                          IMDb
+                        </span>
+                        <span className="font-bold">{item.rating.toFixed(1)}</span>
+                      </span>
+                    )}
+                    {item.rating && item.rating > 0 && item.year && <span className="opacity-40">•</span>}
+                    {item.year && <span>{item.year}</span>}
+                  </p>
                 </div>
               </div>
               {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
