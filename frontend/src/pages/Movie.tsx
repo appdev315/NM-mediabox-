@@ -136,7 +136,8 @@ export function Movie() {
       const liftwQuery = new URLSearchParams({
         title: queryParams.title,
         year: queryParams.year,
-        type: queryParams.type
+        type: queryParams.type,
+        tmdb: queryParams.tmdb
       });
 
       const [goResult, liftwResult] = await Promise.allSettled([
