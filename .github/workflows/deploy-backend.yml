@@ -19,7 +19,20 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # Create clean deployment directory
+          mkdir -p /tmp/hf-deploy
+          cp -r backend/. /tmp/hf-deploy/
+          cd /tmp/hf-deploy
+          
+          # Initialize fresh git repository
+          git init
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
+          git checkout -b main
+          git add .
+          git commit -m "Deploy: clean history without binary files"
+          
+          # Force push to HF
           git remote add space https://EVRO90:$HF_TOKEN@huggingface.co/spaces/EVRO90/NM6
-          git push space `git subtree split --prefix backend main -q`:main --force
+          git push space main --force
+
