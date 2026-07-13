@@ -8,15 +8,11 @@ export function ExoClickBanner18() {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Determine how many banners to show based on screen width
+    // Determine how many banners to show based on screen width (max 2)
     const width = window.innerWidth;
     let count = 1;
-    if (width >= 1300) {
-      count = 4; // Extra Large Desktop: 4 banners
-    } else if (width >= 1080) {
-      count = 3; // Desktop: 3 banners
-    } else if (width >= 720) {
-      count = 2; // Tablet: 2 banners
+    if (width >= 720) {
+      count = 2;
     }
 
     const loadAd = () => {
