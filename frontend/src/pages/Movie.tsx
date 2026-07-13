@@ -163,21 +163,10 @@ export function Movie() {
         })().catch(() => null)
       ]);
 
-      // Process Go stream result
-      const goData = goResult.status === 'fulfilled' ? goResult.value : {};
-      if (goData.url) {
-        finalStreamUrl = goData.url;
-      } else if (goData.iframe) {
-        finalIframe = goData.iframe;
-      }
-      if (goData.sources && goData.sources.length > 0) {
-        allSources.push(...goData.sources);
-      }
-
-      // Process liftw result — append as additional source
+      // Process liftw result — prepend as primary source (Player 1)
       const liftwData = liftwResult.status === 'fulfilled' ? liftwResult.value : null;
       if (liftwData && liftwData.iframe) {
-        allSources.push({ name: 'player3', url: liftwData.iframe, isLiftw: true });
+        allSources.push({ name: 'player1', url: liftwData.iframe, isLiftw: true });
         if (liftwData.episodes) {
           setLiftwEpisodes(liftwData.episodes);
           const firstSeason = Object.keys(liftwData.episodes)[0];
@@ -186,6 +175,17 @@ export function Movie() {
             setActiveEpisode(liftwData.episodes[firstSeason][0]);
           }
         }
+      }
+
+      // Process Go stream result
+      const goData = goResult.status === 'fulfilled' ? goResult.value : {};
+      if (goData.url) {
+        finalStreamUrl = goData.url;
+      } else if (goData.iframe && !liftwData?.iframe) {
+        finalIframe = goData.iframe;
+      }
+      if (goData.sources && goData.sources.length > 0) {
+        allSources.push(...goData.sources);
       }
 
       if (allSources.length > 0) {
@@ -409,7 +409,7 @@ export function Movie() {
         {/* Liftw Seasons and Episodes UI */}
         {liftwEpisodes && sources.find((s: any) => s.url === iframeUrl)?.isLiftw && (
           <div className="mb-8">
-            <h3 className="font-bold text-lg mb-3">Сезоны и серии</h3>
+            <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
             <div className="flex flex-wrap gap-2 mb-4">
               {Object.keys(liftwEpisodes).map(season => (
                 <button
@@ -424,7 +424,7 @@ export function Movie() {
                   }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${activeSeason === season ? 'bg-[var(--button-color)] text-[var(--button-text-color)]' : 'bg-[var(--hint-color)] text-[var(--text-color)]'}`}
                 >
-                  {season} Сезон
+                  {season} {t('season') || 'Сезон'}
                 </button>
               ))}
             </div>
