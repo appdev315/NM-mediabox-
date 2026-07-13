@@ -22,6 +22,13 @@ var (
 	proxyIdx  uint64
 )
 
+var liftwCache sync.Map
+
+type cacheEntry struct {
+	data []byte
+	exp  time.Time
+}
+
 func getHttpClient(timeout time.Duration) *http.Client {
 	proxyOnce.Do(func() {
 		if p := os.Getenv("PROXY_URL"); p != "" {
@@ -160,6 +167,73 @@ func sortCandidates(cands []string) []string {
 	return cands
 }
 
+func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
+	searchLimit := 3
+	if len(candidates) < 3 {
+		searchLimit = len(candidates)
+	}
+
+	for _, cand := range candidates[:searchLimit] {
+		searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
+		var res *http.Response
+		var err error
+		var sRes LiftwSearchResponse
+		success := false
+
+		for attempt := 0; attempt < 3; attempt++ {
+			client := getHttpClient(4 * time.Second)
+			res, err = client.Get(searchUrl)
+			if err != nil {
+				*lastErr = err.Error()
+				continue
+			}
+			if res.StatusCode != 200 {
+				*lastErr = fmt.Sprintf("status code %d", res.StatusCode)
+				res.Body.Close()
+				continue
+			}
+			if decodeErr := json.NewDecoder(res.Body).Decode(&sRes); decodeErr == nil {
+				success = true
+				res.Body.Close()
+				break
+			}
+			res.Body.Close()
+		}
+
+		if !success {
+			continue
+		}
+
+		for i := range sRes.Items {
+			item := sRes.Items[i]
+			if !validTypesMap[item.Type] {
+				continue
+			}
+			if targetYear > 0 {
+				if item.Year != targetYear && item.Year != targetYear+1 && item.Year != targetYear-1 {
+					continue
+				}
+			}
+
+			nameLower := normString(item.Name)
+			origLower := normString(item.OriginName)
+
+			matched := false
+			for _, c := range candidates {
+				cn := normString(c)
+				if nameLower == cn || origLower == cn {
+					matched = true
+					break
+				}
+			}
+			if matched {
+				return &item
+			}
+		}
+	}
+	return nil
+}
+
 func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -174,11 +248,45 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s", title, yearStr, vType, tmdb)
+	if val, ok := liftwCache.Load(cacheKey); ok {
+		entry := val.(cacheEntry)
+		if time.Now().Before(entry.exp) {
+			w.Write(entry.data)
+			return
+		} else {
+			liftwCache.Delete(cacheKey)
+		}
+	}
+
 	isSeries := (vType == "tv" || vType == "series")
-	
 	candidates := []string{strings.TrimSpace(title)}
 
-	if tmdb != "" {
+	validTypesMap := make(map[int]bool)
+	if isSeries {
+		validTypesMap[3] = true
+		validTypesMap[4] = true
+		validTypesMap[5] = true
+		validTypesMap[7] = true
+	} else {
+		validTypesMap[1] = true
+		validTypesMap[2] = true
+		validTypesMap[6] = true
+	}
+
+	targetYear := 0
+	if yearStr != "" {
+		if y, err := strconv.Atoi(yearStr); err == nil {
+			targetYear = y
+		}
+	}
+
+	var lastErr string
+	// Fast path: try the exact title without calling TMDB!
+	bestMatch := searchLiftwCandidates(candidates, targetYear, validTypesMap, &lastErr)
+
+	// Fallback: If not found, fetch TMDB alternative titles and search them
+	if bestMatch == nil && tmdb != "" {
 		tmdbType := "movie"
 		if isSeries {
 			tmdbType = "tv"
@@ -211,99 +319,12 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			res.Body.Close()
 		}
-	}
-
-	candidates = uniqueStrings(candidates)
-	candidates = sortCandidates(candidates)
-
-	// Valid types
-	validTypesMap := make(map[int]bool)
-	if isSeries {
-		validTypesMap[3] = true
-		validTypesMap[4] = true
-		validTypesMap[5] = true
-		validTypesMap[7] = true
-	} else {
-		validTypesMap[1] = true
-		validTypesMap[2] = true
-		validTypesMap[6] = true
-	}
-
-	targetYear := 0
-	if yearStr != "" {
-		if y, err := strconv.Atoi(yearStr); err == nil {
-			targetYear = y
-		}
-	}
-
-	var bestMatch *LiftwSearchItem
-	searchLimit := 3
-	if len(candidates) < 3 {
-		searchLimit = len(candidates)
-	}
-
-	var lastErr string
-	for _, cand := range candidates[:searchLimit] {
-		searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
-		var res *http.Response
-		var err error
-		var sRes LiftwSearchResponse
-		success := false
+		candidates = uniqueStrings(candidates)
+		candidates = sortCandidates(candidates)
 		
-		for attempt := 0; attempt < 3; attempt++ {
-			client := getHttpClient(4 * time.Second)
-			res, err = client.Get(searchUrl)
-			if err != nil {
-				lastErr = err.Error()
-				continue
-			}
-			if res.StatusCode != 200 {
-				lastErr = fmt.Sprintf("status code %d", res.StatusCode)
-				res.Body.Close()
-				continue
-			}
-			if decodeErr := json.NewDecoder(res.Body).Decode(&sRes); decodeErr == nil {
-				success = true
-				res.Body.Close()
-				break
-			}
-			res.Body.Close()
-		}
-
-		if !success {
-			continue
-		}
-		
-		for i := range sRes.Items {
-			item := sRes.Items[i]
-			if !validTypesMap[item.Type] {
-				continue
-			}
-			if targetYear > 0 {
-				if item.Year != targetYear && item.Year != targetYear+1 && item.Year != targetYear-1 {
-					continue
-				}
-			}
-
-			nameLower := normString(item.Name)
-			origLower := normString(item.OriginName)
-
-			matched := false
-			for _, c := range candidates {
-				cn := normString(c)
-				if nameLower == cn || origLower == cn {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				bestMatch = &item
-				break
-			}
-		}
-
-		if bestMatch != nil {
-			break
+		// Search the rest of candidates
+		if len(candidates) > 1 {
+			bestMatch = searchLiftwCandidates(candidates[1:], targetYear, validTypesMap, &lastErr)
 		}
 	}
 
@@ -331,17 +352,23 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if info.IframeURI == "" {
-		http.Error(w, `{"error":"No iframe found on liftw"}`, http.StatusNotFound)
-		return
-	}
-
-	resp := map[string]interface{}{
-		"iframe":    info.IframeURI,
+	response := map[string]interface{}{
 		"liftwId":   info.ID,
 		"liftwType": info.Type,
 		"name":      info.Name,
-		"episodes":  info.Episodes,
+		"iframe":    info.IframeURI,
 	}
-	json.NewEncoder(w).Encode(resp)
+	if info.Episodes != nil {
+		response["episodes"] = info.Episodes
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err == nil {
+		liftwCache.Store(cacheKey, cacheEntry{
+			data: responseBytes,
+			exp:  time.Now().Add(1 * time.Hour),
+		})
+	}
+
+	w.Write(responseBytes)
 }
