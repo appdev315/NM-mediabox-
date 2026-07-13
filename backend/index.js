@@ -15,7 +15,12 @@ if (process.env.PROXY_URL) {
 
     let proxyIndex = 0;
     axios.interceptors.request.use((config) => {
-        if (proxyAgents.length > 0) {
+        const isLocal = config.url && (
+            config.url.includes('localhost') || 
+            config.url.includes('127.0.0.1') || 
+            config.url.startsWith('/')
+        );
+        if (proxyAgents.length > 0 && !isLocal) {
             const agent = proxyAgents[proxyIndex];
             proxyIndex = (proxyIndex + 1) % proxyAgents.length;
             config.httpsAgent = agent;
