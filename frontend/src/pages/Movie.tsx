@@ -163,8 +163,8 @@ export function Movie() {
         
         if (foundSources.go.length > 0) {
           combined.push(...foundSources.go);
-        } else if (foundSources.goIframe && !foundSources.liftw && language === 'ru-RU') {
-          // Only use goIframe if we have no Liftw
+        } else if (foundSources.goIframe && language === 'ru-RU') {
+          // Include goIframe as a fallback player
           combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
         }
 
