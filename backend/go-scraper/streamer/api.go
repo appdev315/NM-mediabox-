@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"scraper/types"
 )
 
-var imdbCache = make(map[string]string)
+var imdbCache sync.Map
 
 func StreamApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -25,8 +26,8 @@ func StreamApiHandler(w http.ResponseWriter, r *http.Request) {
 	imdbId := r.URL.Query().Get("imdb")
 
 	if imdbId == "" && tmdb != "" {
-		if cached, ok := imdbCache[tmdb]; ok {
-			imdbId = cached
+		if cached, ok := imdbCache.Load(tmdb); ok {
+			imdbId = cached.(string)
 		} else {
 			tmdbEndpoint := "movie"
 			if vType == "tv" || vType == "series" {
@@ -41,7 +42,7 @@ func StreamApiHandler(w http.ResponseWriter, r *http.Request) {
 				if err := json.NewDecoder(res.Body).Decode(&data); err == nil {
 					if id, ok := data["imdb_id"].(string); ok && id != "" {
 						imdbId = id
-						imdbCache[tmdb] = id
+						imdbCache.Store(tmdb, id)
 					}
 				}
 				res.Body.Close()
