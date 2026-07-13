@@ -1,2 +1,5 @@
 node_modules/
 .env
+go-scraper/server
+go-scraper/go-server
+go-server
