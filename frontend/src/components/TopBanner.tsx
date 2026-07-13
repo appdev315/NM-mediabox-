@@ -34,7 +34,7 @@ export function TopBanner() {
       </a>
       
       <a 
-        href="/mediabox.apk" 
+        href="/mediabox.apk?v=2" 
         download
         className="bg-green-500 hover:bg-green-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
       >

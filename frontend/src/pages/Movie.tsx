@@ -182,10 +182,18 @@ export function Movie() {
         })().catch(() => null)
       ]);
 
-      // Process liftw result — prepend as primary source (Player 1)
+      // 1. Process VidSrc for non-Russian users
+      if (language !== 'ru-RU' && queryParams.tmdb) {
+        const vidsrcUrl = mediaType === 'tv' 
+          ? `https://vidsrc.net/embed/tv?tmdb=${queryParams.tmdb}`
+          : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
+        allSources.push({ name: 'vidsrc', url: vidsrcUrl, isLiftw: false });
+      }
+
+      // 2. Process liftw result
       const liftwData = liftwResult.status === 'fulfilled' ? liftwResult.value : null;
       if (liftwData && liftwData.iframe) {
-        allSources.push({ name: 'player1', url: liftwData.iframe, isLiftw: true });
+        allSources.push({ name: 'liftw', url: liftwData.iframe, isLiftw: true });
         if (liftwData.episodes) {
           setLiftwEpisodes(liftwData.episodes);
           const firstSeason = Object.keys(liftwData.episodes)[0];
@@ -196,18 +204,22 @@ export function Movie() {
         }
       }
 
-      // Process Go stream result
+      // 3. Process Go stream result
       const goData = goResult.status === 'fulfilled' ? goResult.value : {};
       if (goData.url) {
         finalStreamUrl = goData.url;
-      } else if (goData.iframe && !liftwData?.iframe) {
+      } else if (goData.iframe && !liftwData?.iframe && (language === 'ru-RU')) {
         finalIframe = goData.iframe;
       }
       if (goData.sources && goData.sources.length > 0) {
         allSources.push(...goData.sources);
       }
 
+      // 4. Ensure sequential player naming and set sources
       if (allSources.length > 0) {
+        allSources.forEach((source, index) => {
+          source.name = `player${index + 1}`;
+        });
         setSources(allSources);
       }
 
