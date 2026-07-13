@@ -43,7 +43,7 @@ export function ExoClickBanner18() {
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full mb-6 clear-both block overflow-hidden">
+    <div ref={containerRef} className="w-full mb-6">
     </div>
   );
 }
