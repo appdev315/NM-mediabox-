@@ -411,7 +411,7 @@ export function Movie() {
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
             <div className="flex flex-wrap gap-2 mb-4">
-              {Object.keys(liftwEpisodes).map(season => (
+              {Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)).map(season => (
                 <button
                   key={season}
                   onClick={() => {
@@ -430,7 +430,7 @@ export function Movie() {
             </div>
             {activeSeason && liftwEpisodes[activeSeason] && (
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto pr-2 pb-2 scrollbar-thin">
-                {liftwEpisodes[activeSeason].map((ep: string) => (
+                {[...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)).map((ep: string) => (
                   <button
                     key={ep}
                     onClick={() => {
