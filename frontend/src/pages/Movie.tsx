@@ -135,8 +135,6 @@ export function Movie() {
     }, 100);
 
     try {
-      const allSources: {name: string, url: string, isLiftw?: boolean}[] = [];
-
       const queryParams: Record<string, string> = {
         title: (movie as any).title || (movie as any).name || '',
         year: (movie as any).year || '',
@@ -156,14 +154,44 @@ export function Movie() {
         tmdb: queryParams.tmdb
       });
 
+      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any } = { vidsrc: null, liftw: null, go: [], goIframe: null };
+
+      const updateUI = () => {
+        const combined = [];
+        if (foundSources.vidsrc) combined.push(foundSources.vidsrc);
+        if (foundSources.liftw) combined.push(foundSources.liftw);
+        
+        if (foundSources.go.length > 0) {
+          combined.push(...foundSources.go);
+        } else if (foundSources.goIframe && !foundSources.liftw && language === 'ru-RU') {
+          // Only use goIframe if we have no Liftw
+          combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
+        }
+
+        const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
+        setSources(mapped);
+
+        if (mapped.length > 0) {
+          const preferredUrl = mapped[0].url;
+          setIframeUrl(prev => {
+            if (!prev) return preferredUrl;
+            // Switch to preferred if we are currently playing a fallback Go source
+            const isPrevGo = foundSources.go.some((g: any) => g.url === prev) || foundSources.goIframe === prev;
+            if (isPrevGo && (foundSources.liftw || foundSources.vidsrc)) {
+              return preferredUrl;
+            }
+            return prev;
+          });
+        }
+      };
+
       // 1. Process VidSrc immediately
       if (language !== 'ru-RU' && queryParams.tmdb) {
         const vidsrcUrl = mediaType === 'tv' 
           ? `https://vidsrc.net/embed/tv?tmdb=${queryParams.tmdb}`
           : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
-        allSources.push({ name: 'vidsrc', url: vidsrcUrl, isLiftw: false });
-        setSources([...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` })));
-        setIframeUrl(vidsrcUrl);
+        foundSources.vidsrc = { name: 'vidsrc', url: vidsrcUrl, isLiftw: false };
+        updateUI();
         setIsExtracting(false); // Unblock UI early
       }
 
@@ -174,10 +202,8 @@ export function Movie() {
           if (!res.ok) return;
           const liftwData = await res.json();
           if (liftwData && liftwData.iframe) {
-            allSources.push({ name: 'liftw', url: liftwData.iframe, isLiftw: true });
-            const mappedSources = [...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` }));
-            setSources(mappedSources);
-            setIframeUrl(prev => prev || liftwData.iframe);
+            foundSources.liftw = { name: 'liftw', url: liftwData.iframe, isLiftw: true };
+            updateUI();
             
             if (liftwData.episodes) {
               setLiftwEpisodes(liftwData.episodes);
@@ -215,15 +241,13 @@ export function Movie() {
           setIsExtracting(false); // Unblock UI early
         } 
         if (data.iframe && language === 'ru-RU') {
-          // Only fallback to Go iframe if nothing else set
-          setIframeUrl(prev => prev || data.iframe);
+          foundSources.goIframe = data.iframe;
+          updateUI();
           setIsExtracting(false);
         }
         if (data.sources && data.sources.length > 0) {
-          allSources.push(...data.sources);
-          const mappedSources = [...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` }));
-          setSources(mappedSources);
-          setIframeUrl(prev => prev || mappedSources[0].url);
+          foundSources.go = data.sources;
+          updateUI();
           setIsExtracting(false);
         }
       };
@@ -231,8 +255,9 @@ export function Movie() {
       // Execute fetches concurrently
       await Promise.allSettled([fetchLiftw(), fetchGo()]);
 
-      if (allSources.length === 0) {
-         // Handled by final block if nothing found
+      const hasAnySource = foundSources.vidsrc || foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
+      if (!hasAnySource) {
+         // No sources found at all
       }
     } catch (err) {
       console.error("Failed to extract stream", err);
