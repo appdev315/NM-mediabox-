@@ -318,6 +318,14 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     setTvError(false);
     setTvLoading(true);
 
+    // Unlock video element for mobile browsers (user interaction context)
+    if (videoRef.current) {
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => { /* ignore */ });
+      }
+    }
+
     // channel.url is already processed by parseM3u (HTTP streams use Cloudflare proxy)
     // We play it directly first. If it's HTTPS and fails (e.g. CORS), the fallback logic will catch it.
     setActiveTvChannel({ ...channel, originalUrl: channel.url });
