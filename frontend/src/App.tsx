@@ -15,6 +15,7 @@ import { AdultFavorites } from './pages/AdultFavorites';
 
 import { ThemeProvider } from './context/ThemeContext';
 import { AdProvider } from './context/AdManager';
+import { HomeStateProvider } from './context/HomeStateContext';
 import { useNavigate } from 'react-router-dom';
 
 import { FloatingTitle } from './components/FloatingTitle';
@@ -124,12 +125,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AudioPlayerProvider>
-        <AdProvider>
-          <>
-
-            {isAdultApp ? <AdultApp /> : <MainApp />}
-          </>
-        </AdProvider>
+        <HomeStateProvider>
+          <AdProvider>
+            <>
+              {isAdultApp ? <AdultApp /> : <MainApp />}
+            </>
+          </AdProvider>
+        </HomeStateProvider>
       </AudioPlayerProvider>
     </ThemeProvider>
   );
