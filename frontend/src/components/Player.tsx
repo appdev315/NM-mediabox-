@@ -131,6 +131,7 @@ export function Player({ iframeUrl }: PlayerProps) {
         </div>
       )}
       <iframe 
+        id="video-iframe"
         src={iframeUrl}
         onLoad={() => setIframeLoaded(true)}
         className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}

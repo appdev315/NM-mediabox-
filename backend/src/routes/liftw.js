@@ -49,9 +49,9 @@ liftwRouter.get('/api/liftw', async (req, res) => {
             }
         }
 
-        // Fallback: just use the first result of matching type, or first overall
+        // Fallback: if no reasonable match found, return 404 to avoid playing incorrect video
         if (!bestMatch) {
-            bestMatch = items.find(i => i.type === targetType) || items[0];
+            return res.status(404).json({ error: 'Exact match not found on liftw' });
         }
 
         // Get detailed info
