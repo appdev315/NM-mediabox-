@@ -5,12 +5,45 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
+
+var (
+	proxyUrls []string
+	proxyOnce sync.Once
+	proxyIdx  uint64
+)
+
+func getHttpClient(timeout time.Duration) *http.Client {
+	proxyOnce.Do(func() {
+		if p := os.Getenv("PROXY_URL"); p != "" {
+			parts := strings.Split(p, ",")
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					proxyUrls = append(proxyUrls, part)
+				}
+			}
+		}
+	})
+
+	client := &http.Client{Timeout: timeout}
+	if len(proxyUrls) > 0 {
+		idx := atomic.AddUint64(&proxyIdx, 1)
+		proxyStr := proxyUrls[idx%uint64(len(proxyUrls))]
+		if proxyUrl, err := url.Parse(proxyStr); err == nil {
+			client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
+		}
+	}
+	return client
+}
 
 type TMDBAltTitles struct {
 	Results []struct {
@@ -140,7 +173,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 			tmdbType = "tv"
 		}
 		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=cd5b69242e715dc87d65957d7460eba2&append_to_response=alternative_titles,translations", tmdbType, tmdb)
-		client := &http.Client{Timeout: 4 * time.Second}
+		client := getHttpClient(4 * time.Second)
 		res, err := client.Get(tmdbUrl)
 		if err == nil && res.StatusCode == 200 {
 			var tData TMDBResponse
@@ -193,7 +226,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var bestMatch *LiftwSearchItem
-	client := &http.Client{Timeout: 4 * time.Second}
+	client := getHttpClient(4 * time.Second)
 
 	searchLimit := 3
 	if len(candidates) < 3 {
@@ -250,7 +283,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
-	infoClient := &http.Client{Timeout: 8 * time.Second}
+	infoClient := getHttpClient(8 * time.Second)
 	infoRes, err := infoClient.Get(infoUrl)
 	if err != nil || infoRes.StatusCode != 200 {
 		http.Error(w, `{"error":"Failed to get info"}`, http.StatusInternalServerError)
