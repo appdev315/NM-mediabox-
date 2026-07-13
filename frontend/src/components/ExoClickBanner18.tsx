@@ -23,7 +23,7 @@ export function ExoClickBanner18() {
       if (containerRef.current) {
         let html = '<div class="flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap">';
         for (let i = 0; i < count; i++) {
-          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:flex; justify-content:center;"></ins>';
+          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:inline-block;width:300px;height:250px;"></ins>';
         }
         html += '</div>';
         containerRef.current.innerHTML = html;
