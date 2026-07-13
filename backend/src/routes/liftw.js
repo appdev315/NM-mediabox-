@@ -70,14 +70,14 @@ liftwRouter.get('/api/liftw', async (req, res) => {
             return 0;
         });
 
-        // type mapping: liftw type 1 = movie, type 3 = series
-        const targetType = isSeriesRequest ? 3 : 1;
+        // type mapping: liftw types: 1=movie, 2=cartoon, 6=anime movie | 3=series, 5=animated series, 7=anime series, 4=tv show
+        const validTypes = isSeriesRequest ? [3, 4, 5, 7] : [1, 2, 6];
         const yearStr = year ? String(year) : '';
 
         const norm = (str) => String(str).toLowerCase().replace(/[^a-zа-я0-9]/gi, '').trim();
 
         const matchCandidate = (item) => {
-            const typeMatch = item.type === targetType;
+            const typeMatch = validTypes.includes(item.type);
             const itemYear = parseInt(item.year);
             const targetYear = parseInt(yearStr);
             const yearMatch = yearStr ? (itemYear === targetYear || itemYear === targetYear + 1 || itemYear === targetYear - 1) : true;
