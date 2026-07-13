@@ -95,7 +95,8 @@ export function useApi() {
     country: item.production_countries?.[0]?.name || '',
     genre: item.genres?.map((g: any) => g.name).join(', ') || '',
     seasons: item.seasons || [],
-    imdb_id: item.imdb_id || item.external_ids?.imdb_id || ''
+    imdb_id: item.imdb_id || item.external_ids?.imdb_id || '',
+    rating: item.vote_average || 0
   });
 
   const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {

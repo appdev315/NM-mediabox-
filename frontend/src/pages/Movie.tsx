@@ -19,7 +19,7 @@ export function Movie() {
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [sources, setSources] = useState<{name: string, url: string}[]>([]);
+  const [sources, setSources] = useState<{name: string, url: string, isLiftw?: boolean}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
@@ -27,6 +27,9 @@ export function Movie() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
+  const [activeSeason, setActiveSeason] = useState<string>('');
+  const [activeEpisode, setActiveEpisode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,7 +119,7 @@ export function Movie() {
     try {
       let finalIframe = null;
       let finalStreamUrl = null;
-      const allSources: {name: string, url: string}[] = [];
+      const allSources: {name: string, url: string, isLiftw?: boolean}[] = [];
 
       const queryParams: Record<string, string> = {
         title: (movie as any).title || (movie as any).name || '',
@@ -174,7 +177,15 @@ export function Movie() {
       // Process liftw result — append as additional source
       const liftwData = liftwResult.status === 'fulfilled' ? liftwResult.value : null;
       if (liftwData && liftwData.iframe) {
-        allSources.push({ name: 'player3', url: liftwData.iframe });
+        allSources.push({ name: 'player3', url: liftwData.iframe, isLiftw: true });
+        if (liftwData.episodes) {
+          setLiftwEpisodes(liftwData.episodes);
+          const firstSeason = Object.keys(liftwData.episodes)[0];
+          if (firstSeason) {
+            setActiveSeason(firstSeason);
+            setActiveEpisode(liftwData.episodes[firstSeason][0]);
+          }
+        }
       }
 
       if (allSources.length > 0) {
@@ -306,6 +317,11 @@ export function Movie() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-2 text-sm font-bold opacity-100 mb-2 drop-shadow-sm items-center">
+          {movie.rating && movie.rating > 0 && <span className="flex items-center gap-1"><span className="text-yellow-400">⭐</span> {movie.rating.toFixed(1)}</span>}
+          {movie.rating && movie.rating > 0 && (movie.imdb_id || movie.id) && <span className="opacity-50">•</span>}
+          {(movie.imdb_id || movie.id) && <span className="bg-yellow-400 text-black px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">IMDb</span>}
+        </div>
         <div className="flex flex-wrap gap-2 text-sm opacity-100 mb-6 font-medium drop-shadow-sm">
           {movie.year && <span>{movie.year}</span>}
           {movie.year && movie.country && <span>•</span>}
@@ -375,7 +391,7 @@ export function Movie() {
         {/* Source selection buttons below the player */}
         {sources.length > 1 && (
           <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-            {sources.map((s, idx) => {
+            {sources.map((s: any, idx) => {
               const labelKey = idx === 0 ? 'player1' : idx === 1 ? 'player2' : 'player3';
               return (
                 <button 
@@ -389,6 +405,51 @@ export function Movie() {
             })}
           </div>
         )}
+
+        {/* Liftw Seasons and Episodes UI */}
+        {liftwEpisodes && sources.find((s: any) => s.url === iframeUrl)?.isLiftw && (
+          <div className="mb-8">
+            <h3 className="font-bold text-lg mb-3">Сезоны и серии</h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {Object.keys(liftwEpisodes).map(season => (
+                <button
+                  key={season}
+                  onClick={() => {
+                    setActiveSeason(season);
+                    setActiveEpisode(liftwEpisodes[season][0]);
+                    const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
+                    if (iframe && iframe.contentWindow) {
+                      iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: liftwEpisodes[season][0] }, '*');
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${activeSeason === season ? 'bg-[var(--button-color)] text-[var(--button-text-color)]' : 'bg-[var(--hint-color)] text-[var(--text-color)]'}`}
+                >
+                  {season} Сезон
+                </button>
+              ))}
+            </div>
+            {activeSeason && liftwEpisodes[activeSeason] && (
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[300px] overflow-y-auto pr-2 pb-2 scrollbar-thin">
+                {liftwEpisodes[activeSeason].map((ep: string) => (
+                  <button
+                    key={ep}
+                    onClick={() => {
+                      setActiveEpisode(ep);
+                      const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
+                      if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(activeSeason), episode: ep }, '*');
+                      }
+                    }}
+                    className={`py-2 rounded-lg text-sm font-bold transition-colors text-center ${activeEpisode === ep ? 'bg-[var(--button-color)] text-[var(--button-text-color)]' : 'bg-[var(--hint-color)] text-[var(--text-color)]'}`}
+                  >
+                    {ep}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
 
         {recommendations.length > 0 && (
           <>
