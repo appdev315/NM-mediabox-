@@ -45,8 +45,8 @@ export function FloatingTitle() {
   }, [isMainRoute, isTelegram, handleBackNavigation]);
 
   if (isMainRoute) {
-    // Hide the title/return button in 18+ Telegram bot on main pages (as originally requested)
-    if (isAdultApp && isTelegram) {
+    // Hide the title/return button in 18+ app on main pages
+    if (isAdultApp) {
       return null;
     }
 
