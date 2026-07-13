@@ -24,7 +24,6 @@ export function Movie() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
@@ -81,9 +80,6 @@ export function Movie() {
         if (!isMounted) return;
         setMovie(details);
         
-        const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-        setIsFavorite(favs.some((f: any) => f.id === details.id));
-
         const recs = await fetchRecommendations(id, mediaType);
         if (isMounted) setRecommendations(recs);
       } catch (err) {
@@ -106,6 +102,28 @@ export function Movie() {
 
   const handleWatch = async () => {
     if (!movie) return;
+    
+    // Add to history
+    try {
+      const historyKey = mediaType === 'tv' ? 'history_series' : 'history_movies';
+      let hist = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      hist = hist.filter((item: any) => item.id !== movie.id);
+      hist.unshift({
+        id: movie.id,
+        title: movie.title,
+        poster: movie.poster,
+        type: mediaType === 'tv' ? 'series' : 'movie',
+        year: movie.year,
+        rating: movie.rating
+      });
+      if (hist.length > 30) {
+        hist = hist.slice(0, 30);
+      }
+      localStorage.setItem(historyKey, JSON.stringify(hist));
+    } catch (e) {
+      console.error('Failed to save to history:', e);
+    }
+
     setIsExtracting(true);
     setStreamUrl(null);
     setIframeUrl(null);
@@ -214,26 +232,6 @@ export function Movie() {
     }
   };
 
-  const addToFavorites = () => {
-    try {
-      if (!movie) return;
-      let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
-      if (!isFavorite) {
-        favs.unshift({ id: movie.id, title: movie.title, type: mediaType, poster: movie.poster });
-        localStorage.setItem('favorites', JSON.stringify(favs));
-        setIsFavorite(true);
-        WebApp.HapticFeedback.notificationOccurred('success');
-      } else {
-        favs = favs.filter((f: any) => f.id !== movie.id);
-        localStorage.setItem('favorites', JSON.stringify(favs));
-        setIsFavorite(false);
-        WebApp.HapticFeedback.notificationOccurred('warning');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   if (loading && !movie) {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loading')}</div>;
   }
@@ -266,16 +264,6 @@ export function Movie() {
               className="p-3 rounded-full shadow-lg active:scale-95 transition-transform flex-shrink-0"
             >
               ➦
-            </button>
-            <button 
-              onClick={addToFavorites}
-              style={{ 
-                backgroundColor: isFavorite ? 'var(--button-color)' : 'var(--hint-color)', 
-                color: isFavorite ? 'var(--button-text-color)' : 'var(--button-color)' 
-              }}
-              className="p-3 rounded-full shadow-lg active:scale-95 transition-transform flex-shrink-0"
-            >
-              ★
             </button>
 
             {showShareMenu && (

@@ -82,28 +82,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [tvError, setTvError] = useState(false);
   const [tvLoading, setTvLoading] = useState(false);
 
-  // Favorites State
-  const [favorites, setFavorites] = useState<Station[]>([]);
-
   const { playTrack, currentTrack, stop } = useAudioPlayer();
   const { t } = useLanguage();
-
-  useEffect(() => {
-    const savedFavs = localStorage.getItem('radio_tv_favs');
-    if (savedFavs) {
-      try { setFavorites(JSON.parse(savedFavs)); } catch (e) { }
-    }
-  }, []);
-
-  const toggleFavorite = (e: React.MouseEvent, item: Station) => {
-    e.stopPropagation();
-    setFavorites(prev => {
-      const isFav = prev.some(f => f.id === item.id);
-      const newFavs = isFav ? prev.filter(f => f.id !== item.id) : [...prev, item];
-      localStorage.setItem('radio_tv_favs', JSON.stringify(newFavs));
-      return newFavs;
-    });
-  };
 
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
@@ -319,6 +299,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       coverUrl: station.logo,
       type: 'radio'
     });
+
+    // Add to history
+    try {
+      let hist = JSON.parse(localStorage.getItem('history_radio') || '[]');
+      hist = hist.filter((item: any) => item.id !== station.id);
+      hist.unshift({ ...station, type: 'radio' });
+      if (hist.length > 30) hist = hist.slice(0, 30);
+      localStorage.setItem('history_radio', JSON.stringify(hist));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handlePlayTv = (channel: Station) => {
@@ -330,6 +321,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     // channel.url is already processed by parseM3u (HTTP streams use Cloudflare proxy)
     // We play it directly first. If it's HTTPS and fails (e.g. CORS), the fallback logic will catch it.
     setActiveTvChannel({ ...channel, originalUrl: channel.url });
+
+    // Add to history
+    try {
+      let hist = JSON.parse(localStorage.getItem('history_tv') || '[]');
+      hist = hist.filter((item: any) => item.id !== channel.id);
+      hist.unshift({ ...channel, type: 'tv' });
+      if (hist.length > 30) hist = hist.slice(0, 30);
+      localStorage.setItem('history_tv', JSON.stringify(hist));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const tryAlternativeTvSource = async (channel: Station) => {
@@ -726,22 +728,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                     </div>
 
                     <div className="flex w-full justify-between items-center px-1 mt-auto">
-                      <button
-                        onClick={(e) => toggleFavorite(e, item)}
-                        className="text-xl hover:scale-110 transition-transform p-1"
-                        style={{ color: favorites.some(f => f.id === item.id) ? '#fbbf24' : 'var(--hint-color)' }}
-                      >
-                        {favorites.some(f => f.id === item.id) ? (
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                          </svg>
-                        ) : (
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="transparent" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md opacity-90 hover:opacity-100">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                          </svg>
-                        )}
-                      </button>
-                      <span style={{ color: 'var(--text-color)' }} className="text-sm p-1">
+                      <span style={{ color: 'var(--text-color)' }} className="text-sm p-1 ml-auto">
                         {isActive ? (
                           <div className="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></div>
                         ) : (

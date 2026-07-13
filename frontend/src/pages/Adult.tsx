@@ -61,15 +61,12 @@ export function Adult() {
 
   const [ageConfirmed, setAgeConfirmed] = useState(true);
   
-  const [favorites, setFavorites] = useState<any[]>([]);
+
   
 
   useEffect(() => {
     
-    const savedFavs = localStorage.getItem('private_favs');
-    if (savedFavs) {
-      try { setFavorites(JSON.parse(savedFavs)); } catch(e){}
-    }
+
 
 
     // Check if age was already confirmed
@@ -158,15 +155,7 @@ export function Adult() {
     }
   };
 
-  const toggleFavorite = (e: React.MouseEvent, item: any) => {
-    e.stopPropagation();
-    setFavorites(prev => {
-      const isFav = prev.some(f => f.id === item.id);
-      const newFavs = isFav ? prev.filter(f => f.id !== item.id) : [...prev, item];
-      localStorage.setItem('private_favs', JSON.stringify(newFavs));
-      return newFavs;
-    });
-  };
+
 
 
 
@@ -284,14 +273,6 @@ export function Adult() {
                   <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
                     {v.duration}
                   </div>
-                  <button 
-                    onClick={(e) => toggleFavorite(e, v)}
-                    className="absolute top-2 right-2 p-2 bg-black/50 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill={favorites.some(f => f.id === v.id) ? "#fbbf24" : "transparent"} stroke={favorites.some(f => f.id === v.id) ? "#fbbf24" : "white"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </button>
                 </div>
                 <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
               </div>
