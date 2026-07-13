@@ -16,7 +16,7 @@ import (
 var xvideosRegex = regexp.MustCompile(`/video\.([^/]+)`)
 
 func SearchXvideos(query string, page int) []types.Video {
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := GetHTTPClient(8 * time.Second)
 	url := "https://www.xvideos.com/"
 	if query != "" {
 		url = fmt.Sprintf("https://www.xvideos.com/?k=%s&p=%d", query, page)
