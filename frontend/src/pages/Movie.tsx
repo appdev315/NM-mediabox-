@@ -135,8 +135,6 @@ export function Movie() {
     }, 100);
 
     try {
-      let finalIframe = null;
-      let finalStreamUrl = null;
       const allSources: {name: string, url: string, isLiftw?: boolean}[] = [];
 
       const queryParams: Record<string, string> = {
@@ -158,80 +156,83 @@ export function Movie() {
         tmdb: queryParams.tmdb
       });
 
-      const [goResult, liftwResult] = await Promise.allSettled([
-        // Existing Go-based stream lookup (with retries)
-        (async () => {
-          let data: any = {};
-          let attempts = 0;
-          const maxAttempts = 3;
-          while (attempts < maxAttempts) {
-            query.set('_t', Date.now().toString());
-            const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
-            data = await res.json();
-            if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
-            attempts++;
-            if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1500));
-          }
-          return data;
-        })(),
-        // liftw.ws lookup
-        (async () => {
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`);
-          if (!res.ok) return null;
-          return await res.json();
-        })().catch(() => null)
-      ]);
-
-      // 1. Process VidSrc for non-Russian users
+      // 1. Process VidSrc immediately
       if (language !== 'ru-RU' && queryParams.tmdb) {
         const vidsrcUrl = mediaType === 'tv' 
           ? `https://vidsrc.net/embed/tv?tmdb=${queryParams.tmdb}`
           : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
         allSources.push({ name: 'vidsrc', url: vidsrcUrl, isLiftw: false });
+        setSources([...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` })));
+        setIframeUrl(vidsrcUrl);
+        setIsExtracting(false); // Unblock UI early
       }
 
-      // 2. Process liftw result
-      const liftwData = liftwResult.status === 'fulfilled' ? liftwResult.value : null;
-      if (liftwData && liftwData.iframe) {
-        allSources.push({ name: 'liftw', url: liftwData.iframe, isLiftw: true });
-        if (liftwData.episodes) {
-          setLiftwEpisodes(liftwData.episodes);
-          const firstSeason = Object.keys(liftwData.episodes)[0];
-          if (firstSeason) {
-            setActiveSeason(firstSeason);
-            setActiveEpisode(liftwData.episodes[firstSeason][0]);
+      // 2. Fetch liftw asynchronously
+      const fetchLiftw = async () => {
+        try {
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`);
+          if (!res.ok) return;
+          const liftwData = await res.json();
+          if (liftwData && liftwData.iframe) {
+            allSources.push({ name: 'liftw', url: liftwData.iframe, isLiftw: true });
+            const mappedSources = [...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` }));
+            setSources(mappedSources);
+            setIframeUrl(prev => prev || liftwData.iframe);
+            
+            if (liftwData.episodes) {
+              setLiftwEpisodes(liftwData.episodes);
+              const firstSeason = Object.keys(liftwData.episodes)[0];
+              if (firstSeason) {
+                setActiveSeason(firstSeason);
+                setActiveEpisode(liftwData.episodes[firstSeason][0]);
+              }
+            }
+            setIsExtracting(false); // Unblock UI early
           }
+        } catch (e) {
+          console.error("Liftw fetch failed", e);
         }
-      }
+      };
 
-      // 3. Process Go stream result
-      const goData = goResult.status === 'fulfilled' ? goResult.value : {};
-      if (goData.url) {
-        finalStreamUrl = goData.url;
-      } else if (goData.iframe && !liftwData?.iframe && (language === 'ru-RU')) {
-        finalIframe = goData.iframe;
-      }
-      if (goData.sources && goData.sources.length > 0) {
-        allSources.push(...goData.sources);
-      }
+      // 3. Fetch Go stream asynchronously
+      const fetchGo = async () => {
+        let data: any = {};
+        let attempts = 0;
+        const maxAttempts = 2; // Reduced from 3
+        while (attempts < maxAttempts) {
+          try {
+            query.set('_t', Date.now().toString());
+            const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
+            data = await res.json();
+            if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
+          } catch(e) {}
+          attempts++;
+          if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1000));
+        }
 
-      // 4. Ensure sequential player naming and set sources
-      if (allSources.length > 0) {
-        allSources.forEach((source, index) => {
-          source.name = `player${index + 1}`;
-        });
-        setSources(allSources);
-      }
+        if (data.url) {
+          setStreamUrl(prev => prev || data.url);
+          setIsExtracting(false); // Unblock UI early
+        } 
+        if (data.iframe && language === 'ru-RU') {
+          // Only fallback to Go iframe if nothing else set
+          setIframeUrl(prev => prev || data.iframe);
+          setIsExtracting(false);
+        }
+        if (data.sources && data.sources.length > 0) {
+          allSources.push(...data.sources);
+          const mappedSources = [...allSources].map((s, i) => ({ ...s, name: `player${i + 1}` }));
+          setSources(mappedSources);
+          setIframeUrl(prev => prev || mappedSources[0].url);
+          setIsExtracting(false);
+        }
+      };
 
-      if (finalStreamUrl) {
-        setStreamUrl(finalStreamUrl);
-      } else if (finalIframe) {
-        setIframeUrl(finalIframe);
-      } else if (allSources.length > 0) {
-        // If Go stream returned nothing but sources exist, use the first one
-        setIframeUrl(allSources[0].url);
-      } else {
-        alert("Stream not found");
+      // Execute fetches concurrently
+      await Promise.allSettled([fetchLiftw(), fetchGo()]);
+
+      if (allSources.length === 0) {
+         // Handled by final block if nothing found
       }
     } catch (err) {
       console.error("Failed to extract stream", err);

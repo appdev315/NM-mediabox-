@@ -23,6 +23,9 @@ streamRouter.get('/api/proxy/stream', async (req, res) => {
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
         res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         const ct = response.headers['content-type'];
         if (ct) res.setHeader('Content-Type', ct);
@@ -59,6 +62,9 @@ streamRouter.get('/api/proxy', async (req, res) => {
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
         res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         const ct = response.headers['content-type'];
         if (ct) res.setHeader('Content-Type', ct);
