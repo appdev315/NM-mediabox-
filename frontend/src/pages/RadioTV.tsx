@@ -705,11 +705,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                       borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                     }}
                   >
-                    {activeTab === 'tv' && item.isHttp && (
-                      <div className="absolute top-1 right-1 text-[8px] bg-orange-500/80 text-white px-1.5 py-0.5 rounded shadow-sm z-10 font-bold backdrop-blur-md">
-                        APP
-                      </div>
-                    )}
+
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                       {item.logo ? (
                         <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />

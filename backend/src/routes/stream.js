@@ -6,7 +6,7 @@ export const streamRouter = express.Router();
 
 const GO_SERVICE_URL = 'http://localhost:8080';
 
-streamRouter.get('/api/proxy/stream', proxyLimiter, async (req, res) => {
+streamRouter.get('/api/proxy/stream', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
@@ -42,7 +42,7 @@ streamRouter.get('/api/proxy/stream', proxyLimiter, async (req, res) => {
     }
 });
 
-streamRouter.get('/api/proxy', proxyLimiter, async (req, res) => {
+streamRouter.get('/api/proxy', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
