@@ -95,6 +95,7 @@ func main() {
 	http.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
 	http.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
 	http.HandleFunc("/api/stream", streamer.StreamApiHandler)
+	http.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
 
 	log.Println("Go microservice started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
