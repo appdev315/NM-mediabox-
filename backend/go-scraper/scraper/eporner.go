@@ -3,7 +3,6 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -24,7 +23,7 @@ type EpornerResponse struct {
 }
 
 func SearchEporner(query string, page int) []types.Video {
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := GetHTTPClient(8 * time.Second)
 	epPage := page + 1
 	searchQ := "popular"
 	if query != "" {
