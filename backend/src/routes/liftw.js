@@ -18,7 +18,14 @@ liftwRouter.get('/api/liftw', async (req, res) => {
         return res.json(response.data);
     } catch (e) {
         if (e.response && e.response.status === 404) {
-            const goErr = e.response.data && e.response.data.error ? e.response.data.error : 'Not found on liftw (Go)';
+            let goErr = 'Not found on liftw (Go)';
+            if (e.response.data) {
+                if (typeof e.response.data === 'string') {
+                    goErr = e.response.data;
+                } else if (e.response.data.error) {
+                    goErr = e.response.data.error;
+                }
+            }
             return res.status(404).json({ error: goErr });
         }
         return res.status(500).json({ error: e.message });
