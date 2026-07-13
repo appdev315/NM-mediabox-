@@ -51,7 +51,7 @@ export function Home() {
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
           const results = await searchContent(searchQuery);
-          setItems(results.filter((r: any) => r.type === (activeTab === 'movie' ? 'movie' : 'series')));
+          setItems(results);
         } else {
           setIsSearching(false);
           let results;
