@@ -156,6 +156,36 @@ export function Movie() {
 
       const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any } = { vidsrc: null, liftw: null, go: [], goIframe: null };
 
+      let isLiftwDone = false;
+      let isGoDone = false;
+
+      const evaluateUIUnblock = () => {
+        if (foundSources.vidsrc) {
+          setIsExtracting(false);
+          return;
+        }
+        
+        if (language === 'ru-RU') {
+          // Liftw is primary for RU. Wait for it.
+          if (!isLiftwDone) return;
+          
+          if (foundSources.liftw) {
+            setIsExtracting(false); // Liftw found, unblock
+            return;
+          }
+          
+          // Liftw didn't find anything, fallback to Go
+          if (isGoDone) {
+            setIsExtracting(false);
+          }
+        } else {
+          // If not RU and no vidsrc (fallback), wait for both
+          if (isLiftwDone && isGoDone) {
+            setIsExtracting(false);
+          }
+        }
+      };
+
       const updateUI = () => {
         const combined = [];
         if (foundSources.vidsrc) combined.push(foundSources.vidsrc);
@@ -192,18 +222,18 @@ export function Movie() {
           : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
         foundSources.vidsrc = { name: 'vidsrc', url: vidsrcUrl, isLiftw: false };
         updateUI();
-        setIsExtracting(false); // Unblock UI early
+        evaluateUIUnblock();
       }
 
       // 2. Fetch liftw asynchronously
       const fetchLiftw = async () => {
+        const start = performance.now();
         try {
           const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`);
           if (!res.ok) return;
           const liftwData = await res.json();
           if (liftwData && liftwData.iframe) {
             foundSources.liftw = { name: 'liftw', url: liftwData.iframe, isLiftw: true };
-            updateUI();
             
             if (liftwData.episodes) {
               setLiftwEpisodes(liftwData.episodes);
@@ -213,42 +243,52 @@ export function Movie() {
                 setActiveEpisode(liftwData.episodes[firstSeason][0]);
               }
             }
-            setIsExtracting(false); // Unblock UI early
           }
         } catch (e) {
           console.error("Liftw fetch failed", e);
+        } finally {
+          const end = performance.now();
+          console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
+          isLiftwDone = true;
+          updateUI();
+          evaluateUIUnblock();
         }
       };
 
       // 3. Fetch Go stream asynchronously
       const fetchGo = async () => {
+        const start = performance.now();
         let data: any = {};
         let attempts = 0;
         const maxAttempts = 2; // Reduced from 3
-        while (attempts < maxAttempts) {
-          try {
-            query.set('_t', Date.now().toString());
-            const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
-            data = await res.json();
-            if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
-          } catch(e) {}
-          attempts++;
-          if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1000));
-        }
+        
+        try {
+          while (attempts < maxAttempts) {
+            try {
+              query.set('_t', Date.now().toString());
+              const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
+              data = await res.json();
+              if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
+            } catch(e) {}
+            attempts++;
+            if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1000));
+          }
 
-        if (data.url) {
-          setStreamUrl(prev => prev || data.url);
-          setIsExtracting(false); // Unblock UI early
-        } 
-        if (data.iframe && language === 'ru-RU') {
-          foundSources.goIframe = data.iframe;
+          if (data.url) {
+            setStreamUrl(prev => prev || data.url);
+          } 
+          if (data.iframe && language === 'ru-RU') {
+            foundSources.goIframe = data.iframe;
+          }
+          if (data.sources && data.sources.length > 0) {
+            foundSources.go = data.sources;
+          }
+        } finally {
+          const end = performance.now();
+          console.log(`[Perf] Go fetch (attempts: ${attempts + 1}) completed in ${((end - start) / 1000).toFixed(2)}s`);
+          isGoDone = true;
           updateUI();
-          setIsExtracting(false);
-        }
-        if (data.sources && data.sources.length > 0) {
-          foundSources.go = data.sources;
-          updateUI();
-          setIsExtracting(false);
+          evaluateUIUnblock();
         }
       };
 
