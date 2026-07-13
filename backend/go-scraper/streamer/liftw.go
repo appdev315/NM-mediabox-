@@ -237,59 +237,70 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var bestMatch *LiftwSearchItem
-	client := getHttpClient(4 * time.Second)
-
 	searchLimit := 3
 	if len(candidates) < 3 {
 		searchLimit = len(candidates)
 	}
 
-	var lastErr error
+	var lastErr string
 	for _, cand := range candidates[:searchLimit] {
-		sUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
-		res, err := client.Get(sUrl)
-		if err != nil {
-			lastErr = err
-			continue
+		searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
+		var res *http.Response
+		var err error
+		var sRes LiftwSearchResponse
+		success := false
+		
+		for attempt := 0; attempt < 3; attempt++ {
+			client := getHttpClient(4 * time.Second)
+			res, err = client.Get(searchUrl)
+			if err != nil {
+				lastErr = err.Error()
+				continue
+			}
+			if res.StatusCode != 200 {
+				lastErr = fmt.Sprintf("status code %d", res.StatusCode)
+				res.Body.Close()
+				continue
+			}
+			if decodeErr := json.NewDecoder(res.Body).Decode(&sRes); decodeErr == nil {
+				success = true
+				res.Body.Close()
+				break
+			}
+			res.Body.Close()
 		}
-		if res.StatusCode != 200 {
-			lastErr = fmt.Errorf("Liftw returned status %d", res.StatusCode)
+
+		if !success {
 			continue
 		}
 		
-		var sRes LiftwSearchResponse
-		if err := json.NewDecoder(res.Body).Decode(&sRes); err == nil {
-			for i := range sRes.Items {
-				item := sRes.Items[i]
-				if !validTypesMap[item.Type] {
+		for i := range sRes.Items {
+			item := sRes.Items[i]
+			if !validTypesMap[item.Type] {
+				continue
+			}
+			if targetYear > 0 {
+				if item.Year != targetYear && item.Year != targetYear+1 && item.Year != targetYear-1 {
 					continue
 				}
-				if targetYear > 0 {
-					if item.Year != targetYear && item.Year != targetYear+1 && item.Year != targetYear-1 {
-						continue
-					}
-				}
+			}
 
-				nameLower := normString(item.Name)
-				origLower := normString(item.OriginName)
+			nameLower := normString(item.Name)
+			origLower := normString(item.OriginName)
 
-				matched := false
-				for _, c := range candidates {
-					cn := normString(c)
-					if nameLower == cn || origLower == cn {
-						matched = true
-						break
-					}
-				}
-				if matched {
-					bestMatch = &item
+			matched := false
+			for _, c := range candidates {
+				cn := normString(c)
+				if nameLower == cn || origLower == cn {
+					matched = true
 					break
 				}
 			}
-		} else {
-			lastErr = err
+			if matched {
+				bestMatch = &item
+				break
+			}
 		}
-		res.Body.Close()
 
 		if bestMatch != nil {
 			break
@@ -297,7 +308,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if bestMatch == nil {
-		if lastErr != nil {
+		if lastErr != "" {
 			http.Error(w, fmt.Sprintf(`{"error":"Exact match not found on liftw, last err: %v"}`, lastErr), http.StatusNotFound)
 			return
 		}
