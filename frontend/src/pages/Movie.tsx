@@ -99,7 +99,7 @@ export function Movie() {
     triggerMovieAd();
   }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
-  const handleWatch = async () => {
+  const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
     
     // Add to history
@@ -145,6 +145,9 @@ export function Movie() {
       
       const query = new URLSearchParams(queryParams);
       query.append('_t', Date.now().toString());
+      if (forceRefresh) {
+        query.append('bypass_cache', 'true');
+      }
 
       // Parallel fetch: existing Go stream + liftw.ws
       const liftwQuery = new URLSearchParams({
@@ -153,6 +156,9 @@ export function Movie() {
         type: queryParams.type,
         tmdb: queryParams.tmdb
       });
+      if (forceRefresh) {
+        liftwQuery.append('bypass_cache', 'true');
+      }
 
       const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any } = { vidsrc: null, liftw: null, go: [], goIframe: null };
 
@@ -401,7 +407,7 @@ export function Movie() {
         {!(isExtracting || streamUrl || iframeUrl) && (
           <div className="flex flex-col gap-3 mb-6">
             <button
-              onClick={handleWatch}
+              onClick={() => handleWatch(false)}
               className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg animate-pulse-glow"
               style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
             >
@@ -448,6 +454,10 @@ export function Movie() {
                 height="100%"
                 controls
                 playsinline
+                onError={() => {
+                  console.log("ReactPlayer loading error, force-refreshing streams...");
+                  handleWatch(true);
+                }}
                 // @ts-ignore
                 config={{ file: { forceVideo: true, forceHLS: false } }}
               />
@@ -457,8 +467,8 @@ export function Movie() {
         </div>
 
         {/* Source selection buttons below the player */}
-        {sources.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
+        {sources.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-8 justify-center items-center">
             {sources.map((s: any, idx: number) => {
               const labelKey = `player${idx + 1}`;
               return (
@@ -474,6 +484,14 @@ export function Movie() {
                 </button>
               );
             })}
+            
+            <button 
+              onClick={() => handleWatch(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border flex items-center gap-1.5"
+              style={{ backgroundColor: 'transparent', color: 'var(--text-color)', borderColor: 'var(--hint-color)', opacity: 0.8 }}
+            >
+              🔄 {language === 'ru-RU' ? 'Обновить плеер' : 'Reload player'}
+            </button>
           </div>
         )}
 

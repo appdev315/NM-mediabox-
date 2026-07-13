@@ -97,6 +97,8 @@ func main() {
 	http.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	http.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
 
+	streamer.StartCacheWarmer()
+
 	log.Println("Go microservice started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
