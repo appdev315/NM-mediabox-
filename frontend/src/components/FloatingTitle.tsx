@@ -30,8 +30,18 @@ export function FloatingTitle() {
     if (locationPathRef.current.includes('/movie/')) {
       triggerPostAd();
     }
-    navigate(-1);
-  }, [triggerPostAd, navigate]);
+    
+    // Fallback if there is no browser history (e.g. standalone PWA launched from a movie details link)
+    if (window.history.length <= 1) {
+      if (isAdultApp) {
+        navigate('/adult');
+      } else {
+        navigate('/');
+      }
+    } else {
+      navigate(-1);
+    }
+  }, [triggerPostAd, navigate, isAdultApp]);
 
   // Handle Telegram native back button
   useEffect(() => {

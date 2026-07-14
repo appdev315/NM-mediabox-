@@ -348,27 +348,7 @@ export function Movie() {
 
 
   return (
-    <div className="pb-20 animate-fade-in relative">
-      {/* Back Button */}
-      <button
-        onClick={() => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate('/');
-          }
-        }}
-        className="absolute left-4 z-50 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-95 flex items-center justify-center shadow-lg border hover:bg-black/70"
-        style={{ 
-          top: 'calc(16px + env(safe-area-inset-top))',
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          color: '#ffffff',
-          borderColor: 'rgba(255, 255, 255, 0.2)'
-        }}
-      >
-        <span className="text-xl leading-none font-bold">←</span>
-      </button>
-
+    <div className="pb-20 animate-fade-in">
       <div className="relative">
         <img 
           src={movie.poster} 
