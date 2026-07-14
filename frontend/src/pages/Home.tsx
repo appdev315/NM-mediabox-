@@ -11,6 +11,7 @@ import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
 import { shouldShowAd } from '../utils/adPlacement';
 import { useHomeState } from '../context/HomeStateContext';
+import { Capacitor } from '@capacitor/core';
 
 export function Home() {
   const navigate = useNavigate();
@@ -251,6 +252,9 @@ export function Home() {
               </div>
               {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
               {shouldShowAd(idx) && <ExoClickWhiteAd className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />}
+              {(idx + 1) % 20 === 0 && (!Capacitor.isNativePlatform() && WebApp.platform === 'unknown') && (
+                <MonetagDirectAdCard index={Math.floor(idx / 20)} />
+              )}
               </React.Fragment>
             ))}
           </div>
@@ -272,6 +276,79 @@ export function Home() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+interface AdCardProps {
+  index: number;
+}
+
+function MonetagDirectAdCard({ index }: AdCardProps) {
+  const { language } = useLanguage();
+  
+  const ads = [
+    {
+      poster: "https://image.tmdb.org/t/p/w500/8Gxv2wY4Qszxc65XotGmqAs0d0K.jpg",
+      title: language === 'ru-RU' ? "Случайный популярный фильм 🍿" : "Random Popular Movie 🍿",
+      rating: 8.8,
+      year: 2026
+    },
+    {
+      poster: "https://image.tmdb.org/t/p/w500/lfRkRw7lH56TZ575Ofx4j198vAd.jpg",
+      title: language === 'ru-RU' ? "Фильм-сюрприз дня 🔥" : "Surprise Movie of the Day 🔥",
+      rating: 9.2,
+      year: 2026
+    },
+    {
+      poster: "https://image.tmdb.org/t/p/w500/jRXYjXNq9nIq2z5r6sc56Ugro4Z.jpg",
+      title: language === 'ru-RU' ? "Смотреть хит проката 🎬" : "Watch Box Office Hit 🎬",
+      rating: 8.5,
+      year: 2026
+    }
+  ];
+
+  const ad = ads[index % ads.length];
+  const directLink = "https://omg10.com/4/11283475";
+
+  const handleClick = () => {
+    window.open(directLink, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div 
+      onClick={handleClick}
+      className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
+    >
+      <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
+        <img 
+          src={ad.poster} 
+          alt={ad.title} 
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
+          loading="lazy"
+        />
+        {/* Ad Tag Badge */}
+        <div className="absolute top-2 left-2 bg-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-md uppercase tracking-wider">
+          Promo
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      </div>
+      <div className="mt-1 px-1">
+        <h3 className="font-bold text-sm leading-tight line-clamp-1">{ad.title}</h3>
+        <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
+          <span className="flex items-center gap-1">
+            <span 
+              className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
+              style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
+            >
+              IMDb
+            </span>
+            <span className="font-bold">{ad.rating.toFixed(1)}</span>
+          </span>
+          <span className="opacity-40">•</span>
+          <span>{ad.year}</span>
+        </p>
+      </div>
     </div>
   );
 }
