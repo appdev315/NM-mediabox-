@@ -84,19 +84,6 @@ export function AdultVideo() {
     <div className="pb-20">
       <div className="p-4 pt-24">
         <div className="flex items-center gap-3 mb-6">
-          <button 
-            onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate('/adult');
-              }
-            }}
-            className="p-2 rounded-full hover:bg-white/10 active:scale-95 transition-transform font-bold text-lg"
-            style={{ color: 'var(--button-color)' }}
-          >
-            ←
-          </button>
           <h1 className="text-xl font-bold">Private Collection 🍓</h1>
         </div>
         
