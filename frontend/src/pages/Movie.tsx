@@ -194,13 +194,21 @@ export function Movie() {
 
       const updateUI = () => {
         const combined = [];
-        if (foundSources.vidsrc) combined.push(foundSources.vidsrc);
-        if (foundSources.liftw) combined.push(foundSources.liftw);
         
+        // 1. Liftw (Primary Main Player)
+        if (foundSources.liftw) {
+          combined.push(foundSources.liftw);
+        }
+        
+        // 2. VidSrc (Secondary Fallback for non-RU)
+        if (foundSources.vidsrc) {
+          combined.push(foundSources.vidsrc);
+        }
+        
+        // 3. Go microservice sources
         if (foundSources.go.length > 0) {
           combined.push(...foundSources.go);
         } else if (foundSources.goIframe && language === 'ru-RU') {
-          // Include goIframe as a fallback player
           combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
         }
 
