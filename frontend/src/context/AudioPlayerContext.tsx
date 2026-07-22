@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
+import Hls from 'hls.js';
 
 export interface Track {
   id: string;
@@ -28,6 +29,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [isBuffering, setIsBuffering] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause
+  const hlsRef = useRef<Hls | null>(null);
 
   // Refs to always hold the latest state — avoids stale closures
   const isPlayingRef = useRef(isPlaying);
@@ -42,6 +44,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (audio) {
       audio.pause();
       audio.src = '';
+    }
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
     }
     setIsPlaying(false);
     setIsBuffering(false);
@@ -78,19 +84,65 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(track);
     setIsBuffering(true);
 
+    // Clean up previous Hls instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
     // Use preload="auto" for radio for bigger buffer
     audio.preload = track.type === 'radio' ? 'auto' : 'none';
     
-    // Add a cache buster for radio to avoid caching dead streams
-    const url = track.type === 'radio' 
+    // Add a cache buster for radio (only if NOT HLS) to avoid caching dead streams
+    const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+    const url = (track.type === 'radio' && !isHls) 
       ? `${track.url}${track.url.includes('?') ? '&' : '?'}cb=${Date.now()}`
       : track.url;
       
-    audio.src = url;
+    if (isHls) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 30,
+        });
+        hls.loadSource(url);
+        hls.attachMedia(audio);
+        hlsRef.current = hls;
+
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error('[Hls] Fatal network error, trying to recover...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error('[Hls] Fatal media error, trying to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error('[Hls] Fatal HLS error, stopping...');
+                stop();
+                break;
+            }
+          }
+        });
+      } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        audio.src = url;
+      } else {
+        console.error('HLS is not supported on this browser');
+        audio.src = url;
+      }
+    } else {
+      audio.src = url;
+    }
+
     audio.load();
     audio.play().catch(() => setIsBuffering(false));
     setIsPlaying(true);
-  }, [togglePlayPause]); // togglePlayPause is stable (no deps)
+  }, [togglePlayPause, stop]); // togglePlayPause is stable (no deps)
 
   // MediaSession — separate effect so handlers always use latest refs
   useEffect(() => {
@@ -138,16 +190,33 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
       // SYNCHRONOUS RECONNECT: 
       // Do NOT use setTimeout here. If the screen is off, the OS will suspend JS 
-      // when the audio stops. If we use setTimeout, it never fires. 
-      // By reconnecting synchronously, we keep the audio session alive.
+      // when the audio stops. By reconnecting synchronously, we keep the audio session alive.
+      const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
       const baseUrl = track.url;
-      audio.src = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
-      audio.load();
-      audio.play().catch((err) => {
-        console.error('[Radio] Sync reconnect failed:', err);
-        setIsBuffering(false);
-        setIsPlaying(false);
-      });
+      const url = (!isHls) 
+        ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`
+        : baseUrl;
+
+      if (isHls && hlsRef.current) {
+        hlsRef.current.loadSource(url);
+        audio.play().catch((err) => {
+          console.error('[Radio] Hls reconnect play failed:', err);
+          if (err.name !== 'NotAllowedError') {
+            setIsBuffering(false);
+            setIsPlaying(false);
+          }
+        });
+      } else {
+        audio.src = url;
+        audio.load();
+        audio.play().catch((err) => {
+          console.error('[Radio] Sync reconnect failed:', err);
+          if (err.name !== 'NotAllowedError') {
+            setIsBuffering(false);
+            setIsPlaying(false);
+          }
+        });
+      }
     };
 
     // --- Event handlers ---
