@@ -29,6 +29,23 @@ type cacheEntry struct {
 	exp  time.Time
 }
 
+func init() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		for range ticker.C {
+			now := time.Now()
+			liftwCache.Range(func(key, value interface{}) bool {
+				if entry, ok := value.(cacheEntry); ok {
+					if now.After(entry.exp) {
+						liftwCache.Delete(key)
+					}
+				}
+				return true
+			})
+		}
+	}()
+}
+
 func getHttpClient(timeout time.Duration) *http.Client {
 	proxyOnce.Do(func() {
 		if p := os.Getenv("PROXY_URL"); p != "" {

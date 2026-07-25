@@ -88,16 +88,8 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed, err := url.Parse(targetUrl)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
-		return
-	}
-
-	// Security check for local IPs
-	host := parsed.Hostname()
-	if host == "localhost" || host == "127.0.0.1" || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.") {
-		http.Error(w, "Invalid host", http.StatusForbidden)
+	if !IsAllowedProxyUrl(targetUrl) {
+		http.Error(w, "Invalid host or URL not allowed", http.StatusForbidden)
 		return
 	}
 
@@ -110,8 +102,7 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "*/*")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := defaultClient.Do(req)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Proxy Error: %v", err), http.StatusBadGateway)
 		return

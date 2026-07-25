@@ -109,6 +109,7 @@ function AdultApp() {
 export default function App() {
   useEffect(() => {
     WebApp.ready();
+    WebApp.expand();
   }, []);
 
   const hostname = window.location.hostname;
