@@ -261,23 +261,39 @@ export function Adult() {
       ) : (
         <>
           <ExoClickBanner18 />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-[90%] mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-full">
             {videos.map((v, idx) => (
-              <React.Fragment key={v.id}>
-              <div 
-                className="cursor-pointer active:scale-95 transition-transform"
-                onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || category } })}
-              >
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm">
-                  <img src={v.poster} className="w-full h-full object-cover" alt="" />
-                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-                    {v.duration}
+              <React.Fragment key={`${v.id}-${idx}`}>
+                <div 
+                  className="cursor-pointer active:scale-95 transition-transform"
+                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || category } })}
+                >
+                  <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm bg-[var(--hint-color)]">
+                    <img 
+                      src={v.poster} 
+                      className="w-full h-full object-cover" 
+                      alt="" 
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
+                      }}
+                    />
+                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+                      {v.duration}
+                    </div>
                   </div>
+                  <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
-                <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
-              </div>
-              {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
-              {(idx + 1) % 12 === 0 && <ExoClickNativeAd className="exo-native-ad-container" />}
+                {(idx + 1) % 15 === 0 && (
+                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
+                    <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
+                  </div>
+                )}
+                {(idx + 1) % 12 === 0 && (
+                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
+                    <ExoClickNativeAd className="exo-native-ad-container" />
+                  </div>
+                )}
               </React.Fragment>
             ))}
           </div>

@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.romanbushuev.mediabox',
   appName: 'mediabox',
   webDir: 'dist',
+  backgroundColor: '#17212b',
   plugins: {
     CapacitorHttp: {
       enabled: true,

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
+import { clientCache } from '../utils/clientCache';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api'; 
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api'; 
@@ -64,16 +65,23 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}) => {
-    const url = new URL(`${EXPRESS_API_BASE}/tmdb${endpoint}`);
-    url.searchParams.append('language', language);
+  const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append('language', language);
     Object.entries(params).forEach(([key, val]) => {
       if (val !== undefined && val !== '') {
-        url.searchParams.append(key, String(val));
+        searchParams.append(key, String(val));
       }
     });
 
-    const response = await fetch(url.toString());
+    const cacheKey = `tmdb_${endpoint}_${searchParams.toString()}`;
+    const cached = clientCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
+    const response = await fetch(url);
     if (!response.ok) {
       let msg = `Ошибка сервера: ${response.status}`;
       try {
@@ -82,7 +90,11 @@ export function useApi() {
       } catch(e) {}
       throw new Error(msg);
     }
-    return await response.json();
+    const data = await response.json();
+    if (data) {
+      clientCache.set(cacheKey, data, ttlSeconds);
+    }
+    return data;
   }, [language]);
 
   const mapTMDB = (item: any, forceType?: 'movie' | 'series') => ({

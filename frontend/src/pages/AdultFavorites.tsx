@@ -62,8 +62,16 @@ export function AdultFavorites() {
                 className="cursor-pointer active:scale-95 transition-transform group relative"
                 onClick={() => navigate(`/adult/${v.id}`)}
               >
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-lg group-hover:shadow-xl transition-shadow">
-                  <img src={v.poster} className="w-full h-full object-cover" alt="" />
+                <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-lg group-hover:shadow-xl transition-shadow bg-[var(--hint-color)]">
+                  <img 
+                    src={v.poster} 
+                    className="w-full h-full object-cover" 
+                    alt="" 
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
+                    }}
+                  />
                   <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
                     {v.duration}
                   </div>
@@ -74,7 +82,7 @@ export function AdultFavorites() {
                     ✕
                   </button>
                 </div>
-                <p className="text-sm font-bold line-clamp-2 leading-snug" style={{ color: 'var(--text-color)' }}>{v.title}</p>
+                <p className="text-sm font-bold line-clamp-2 leading-snug break-words" style={{ color: 'var(--text-color)' }}>{v.title}</p>
               </div>
             ))}
           </div>

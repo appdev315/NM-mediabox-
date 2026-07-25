@@ -117,31 +117,39 @@ export function Favorites() {
     const list = type === 'movie' ? historyMovies : historySeries;
     if (list.length === 0) return <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>{t('emptyFavorites') || 'История пуста'}</div>;
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 w-[90%] mx-auto">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 w-full">
         {list.map((item: any, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
-          <div 
-            onClick={() => navigate(`/movie/${item.id}?type=${type}`)}
-            className="flex flex-col gap-2 cursor-pointer group relative"
-          >
-            <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl aspect-[2/3]">
-              <img 
-                src={item.poster} 
-                alt={item.title} 
-                className="w-full h-full object-cover"
-              />
-              <button 
-                className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
-                onClick={(e) => removeHistoryItem(e, item.id, type)}
-              >
-                ✕
-              </button>
+            <div 
+              onClick={() => navigate(`/movie/${item.id}?type=${type}`)}
+              className="flex flex-col gap-2 cursor-pointer group relative"
+            >
+              <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl aspect-[2/3] bg-[var(--hint-color)]">
+                <img 
+                  src={item.poster} 
+                  alt={item.title} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
+                  }}
+                />
+                <button 
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
+                  onClick={(e) => removeHistoryItem(e, item.id, type)}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-1">
+                <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
+              </div>
             </div>
-            <div className="mt-1">
-              <h3 className="font-bold text-sm leading-tight line-clamp-1" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
-            </div>
-          </div>
-          {(idx + 1) % 15 === 0 && <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />}
+            {(idx + 1) % 15 === 0 && (
+              <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
+                <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
+              </div>
+            )}
           </React.Fragment>
         ))}
       </div>

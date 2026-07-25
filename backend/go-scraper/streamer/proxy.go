@@ -2,11 +2,21 @@ package streamer
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
+
+var defaultClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        1000,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
 
 func IsAllowedProxyUrl(urlStr string) bool {
 	parsed, err := url.Parse(urlStr)
@@ -20,12 +30,18 @@ func IsAllowedProxyUrl(urlStr string) bool {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return false
 	}
-	if strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "0.") || strings.HasPrefix(host, "169.254.") {
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
 		return false
 	}
-	if strings.HasPrefix(host, "172.") {
-		return false
+
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return false
+		}
 	}
+
 	return true
 }
 
@@ -40,7 +56,6 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("GET", targetUrl, nil)
 	if err != nil {
 		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
@@ -49,7 +64,7 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	req.Header.Set("Accept", "*/*")
 
-	res, err := client.Do(req)
+	res, err := defaultClient.Do(req)
 	if err != nil {
 		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
 		return

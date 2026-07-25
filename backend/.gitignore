@@ -2,4 +2,6 @@ node_modules/
 .env
 go-scraper/server
 go-scraper/go-server
+go-scraper/main
+go-scraper/go-scraper-test
 go-server
