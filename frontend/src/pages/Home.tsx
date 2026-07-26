@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
+import { clientCache } from '../utils/clientCache';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
@@ -95,8 +96,19 @@ export function Home() {
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
-          setHomeSections((sections as any[]) || []);
+          const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const cachedSync = clientCache.get(cacheKey) as any[];
+          if (Array.isArray(cachedSync) && cachedSync.length > 0) {
+            // Instant 0ms render from client cache (NO loading spinner!)
+            setHomeSections(cachedSync);
+            // Silent background update without triggering loading state
+            fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
+              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(fresh);
+            });
+          } else {
+            const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
+            setHomeSections((sections as any[]) || []);
+          }
         }
       } catch (err) {
         console.error("Failed to load content:", err);
