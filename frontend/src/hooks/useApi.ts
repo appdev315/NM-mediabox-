@@ -194,21 +194,39 @@ export function useApi() {
       const trendingData = await tmdbFetch(`/trending/${type}/day`);
       const trendingItems = (trendingData.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
 
-      // Popular genres list to populate main feed
+      // Full list of ALL TMDB genres to build rich full home feed
       const genresToFetch = type === 'movie' ? [
         { id: 28, name: language === 'ru-RU' ? '💥 Боевики' : '💥 Action' },
-        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
-        { id: 27, name: language === 'ru-RU' ? '😱 Ужасы' : '😱 Horror' },
-        { id: 878, name: language === 'ru-RU' ? '🚀 Фантастика' : '🚀 Sci-Fi' },
-        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
+        { id: 12, name: language === 'ru-RU' ? '🧭 Приключения' : '🧭 Adventure' },
         { id: 16, name: language === 'ru-RU' ? '🎨 Мультфильмы' : '🎨 Animation' },
+        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
+        { id: 80, name: language === 'ru-RU' ? '🕵️ Криминал' : '🕵️ Crime' },
+        { id: 99, name: language === 'ru-RU' ? '📹 Документальные' : '📹 Documentary' },
+        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
+        { id: 10751, name: language === 'ru-RU' ? '👨‍👩‍👧‍👦 Семейные' : '👨‍👩‍👧‍👦 Family' },
+        { id: 14, name: language === 'ru-RU' ? '🪄 Фэнтези' : '🪄 Fantasy' },
+        { id: 36, name: language === 'ru-RU' ? '📜 Исторические' : '📜 History' },
+        { id: 27, name: language === 'ru-RU' ? '😱 Ужасы' : '😱 Horror' },
+        { id: 10402, name: language === 'ru-RU' ? '🎵 Музыкальные' : '🎵 Music' },
+        { id: 9648, name: language === 'ru-RU' ? '🔍 Детективы' : '🔍 Mystery' },
+        { id: 10749, name: language === 'ru-RU' ? '💖 Мелодрамы' : '💖 Romance' },
+        { id: 878, name: language === 'ru-RU' ? '🚀 Фантастика' : '🚀 Sci-Fi' },
+        { id: 53, name: language === 'ru-RU' ? '🔪 Триллеры' : '🔪 Thriller' },
+        { id: 10752, name: language === 'ru-RU' ? '⚔️ Военные' : '⚔️ War' },
+        { id: 37, name: language === 'ru-RU' ? '🤠 Вестерны' : '🤠 Western' },
       ] : [
         { id: 10759, name: language === 'ru-RU' ? '💥 Боевики и Приключения' : '💥 Action & Adventure' },
-        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
-        { id: 9648, name: language === 'ru-RU' ? '🕵️ Детективы и Мистика' : '🕵️ Mystery' },
-        { id: 10765, name: language === 'ru-RU' ? '🚀 Фантастика' : '🚀 Sci-Fi & Fantasy' },
-        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
         { id: 16, name: language === 'ru-RU' ? '🎨 Мультсериалы' : '🎨 Animation' },
+        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
+        { id: 80, name: language === 'ru-RU' ? '🕵️ Криминал' : '🕵️ Crime' },
+        { id: 99, name: language === 'ru-RU' ? '📹 Документальные' : '📹 Documentary' },
+        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
+        { id: 10751, name: language === 'ru-RU' ? '👨‍👩‍👧‍👦 Семейные' : '👨‍👩‍👧‍👦 Family' },
+        { id: 10762, name: language === 'ru-RU' ? '👶 Детские' : '👶 Kids' },
+        { id: 9648, name: language === 'ru-RU' ? '🔍 Детективы' : '🔍 Mystery' },
+        { id: 10765, name: language === 'ru-RU' ? '🚀 Фантастика и Фэнтези' : '🚀 Sci-Fi & Fantasy' },
+        { id: 10768, name: language === 'ru-RU' ? '⚔️ Война и Политика' : '⚔️ War & Politics' },
+        { id: 37, name: language === 'ru-RU' ? '🤠 Вестерны' : '🤠 Western' },
       ];
 
       // Fetch genre sections in parallel

@@ -5,10 +5,8 @@ import { clientCache } from '../utils/clientCache';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
-import { BannerAd } from '../components/BannerAd';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { RadioTVContent } from './RadioTV';
-import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 
@@ -269,7 +267,7 @@ export function Home() {
           {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
           {isCategorizedMode ? (
             <div className="space-y-8 w-full animate-fade-in">
-              {homeSections.map((section, sIdx) => (
+              {homeSections.map((section) => (
                 <div key={section.id} className="w-full">
                   <div className="flex justify-between items-center mb-3 px-1">
                     <h2 className="text-lg sm:text-xl font-bold tracking-tight">{section.name}</h2>
@@ -292,13 +290,9 @@ export function Home() {
                     {section.items.map((item: any) => renderMovieCard(item))}
                   </div>
 
-                  {/* Inter-Section Ad Banner (Strictly OUTSIDE the grid container) */}
+                  {/* Inter-Section Ad Banner (Duplicating the top working ExoClickMainBanner format) */}
                   <div className="w-full my-6 flex justify-center">
-                    {sIdx % 2 === 0 ? (
-                      <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />
-                    ) : (
-                      <BannerAd type="mainbot" />
-                    )}
+                    <ExoClickMainBanner />
                   </div>
                 </div>
               ))}
