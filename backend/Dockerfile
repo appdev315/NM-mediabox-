@@ -18,9 +18,13 @@ WORKDIR /app
 # Install SSL root certificates for outbound HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata
 
-COPY --from=builder /app/go-server ./go-server
+# Set up non-root user for Hugging Face Spaces (user ID 1000)
+RUN adduser -D -u 1000 user
+USER user
+
+COPY --from=builder --chown=user /app/go-server /app/go-server
 
 EXPOSE 7860
 ENV PORT=7860
 
-CMD ["./go-server"]
+CMD ["/app/go-server"]
