@@ -27,53 +27,16 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return (localStorage.getItem('mb_home_activeTab') as TabType) || 'movie';
   });
 
-  const [items, setItems] = useState<any[]>(() => {
-    const saved = localStorage.getItem('mb_home_items');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [page, setPage] = useState<number>(() => {
-    const saved = localStorage.getItem('mb_home_page');
-    return saved ? parseInt(saved, 10) : 1;
-  });
-
-  const [selectedGenre, setSelectedGenreState] = useState<string>(() => {
-    return localStorage.getItem('mb_home_selectedGenre') || '';
-  });
-
-  const [searchQuery, setSearchQueryState] = useState<string>(() => {
-    return localStorage.getItem('mb_home_searchQuery') || '';
-  });
-
-  const [isSearching, setIsSearchingState] = useState<boolean>(() => {
-    return localStorage.getItem('mb_home_isSearching') === 'true';
-  });
-
+  const [items, setItems] = useState<any[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const [selectedGenre, setSelectedGenreState] = useState<string>('');
+  const [searchQuery, setSearchQueryState] = useState<string>('');
+  const [isSearching, setIsSearchingState] = useState<boolean>(false);
   const [scrollY, setScrollY] = useState<number>(0);
 
   useEffect(() => {
     localStorage.setItem('mb_home_activeTab', activeTab);
   }, [activeTab]);
-
-  useEffect(() => {
-    localStorage.setItem('mb_home_items', JSON.stringify(items));
-  }, [items]);
-
-  useEffect(() => {
-    localStorage.setItem('mb_home_page', String(page));
-  }, [page]);
-
-  useEffect(() => {
-    localStorage.setItem('mb_home_selectedGenre', selectedGenre);
-  }, [selectedGenre]);
-
-  useEffect(() => {
-    localStorage.setItem('mb_home_searchQuery', searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    localStorage.setItem('mb_home_isSearching', String(isSearching));
-  }, [isSearching]);
 
   const setActiveTab = (tab: TabType) => {
     setActiveTabState(tab);
