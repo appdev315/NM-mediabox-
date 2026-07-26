@@ -10,6 +10,7 @@ export const translations = {
   "searchPlaceholder": "Поиск фильмов и сериалов...",
   "allGenres": "Все жанры",
   "loadMore": "Загрузить еще",
+  "showMore": "Показать еще",
   "downloadsTab": "Скачать",
   "home": "Главная",
   "profile": "Профиль",

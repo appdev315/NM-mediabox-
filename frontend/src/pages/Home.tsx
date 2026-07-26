@@ -9,12 +9,11 @@ import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { RadioTVContent } from './RadioTV';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { WebApp } from '../telegram';
-import { shouldShowAd } from '../utils/adPlacement';
 import { useHomeState } from '../context/HomeStateContext';
 
 export function Home() {
   const navigate = useNavigate();
-  const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, loading } = useApi();
+  const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, loading } = useApi();
   const { language, t } = useLanguage();
   const { triggerAd } = useAdManager();
 
@@ -36,17 +35,18 @@ export function Home() {
   } = useHomeState();
 
   const [genres, setGenres] = useState<Genre[]>([]);
+  const [homeSections, setHomeSections] = useState<any[]>([]);
   const isFirstRender = useRef(true);
 
   // Restore scroll position when items are loaded
   useEffect(() => {
-    if (items.length > 0 && scrollY > 0) {
+    if ((items.length > 0 || homeSections.length > 0) && scrollY > 0) {
       const timer = setTimeout(() => {
         window.scrollTo(0, scrollY);
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [items.length]);
+  }, [items.length, homeSections.length]);
 
   // Save scroll position when unmounting
   useEffect(() => {
@@ -70,7 +70,7 @@ export function Home() {
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      if (items.length > 0) {
+      if (items.length > 0 || homeSections.length > 0) {
         return;
       }
     }
@@ -81,23 +81,22 @@ export function Home() {
           setIsSearching(true);
           const results = await searchContent(searchQuery);
           setItems(results);
-        } else {
+        } else if (selectedGenre || page > 1) {
           setIsSearching(false);
-          let results;
-          
-          if (!selectedGenre && page === 1) {
-            results = await fetchTrending(activeTab === 'movie' ? 'movie' : 'tv');
-          } else {
-            results = activeTab === 'movie' 
-              ? await fetchMovies(page, selectedGenre)
-              : await fetchSeries(page, selectedGenre);
-          }
+          const results = activeTab === 'movie' 
+            ? await fetchMovies(page, selectedGenre)
+            : await fetchSeries(page, selectedGenre);
             
           if (page === 1) {
             setItems(results || []);
           } else {
             setItems(prev => [...prev, ...(results || [])]);
           }
+        } else {
+          // Default categorized home feed (12 cards per genre section, cached for 24 hours)
+          setIsSearching(false);
+          const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
+          setHomeSections((sections as any[]) || []);
         }
       } catch (err) {
         console.error("Failed to load content:", err);
@@ -106,12 +105,12 @@ export function Home() {
 
     const timeoutId = setTimeout(loadContent, searchQuery ? 300 : 0);
     return () => clearTimeout(timeoutId);
-  }, [activeTab, page, selectedGenre, searchQuery, fetchTrending, fetchMovies, fetchSeries, searchContent, language]);
+  }, [activeTab, page, selectedGenre, searchQuery, fetchTrending, fetchMovies, fetchSeries, fetchCategorizedHome, searchContent, language]);
 
-  // Infinite scroll listener
+  // Infinite scroll listener (only active when in single-genre or search mode)
   useEffect(() => {
     const handleScroll = () => {
-      if (loading || isSearching) return;
+      if (loading || isSearching || (!selectedGenre && !searchQuery)) return;
       
       const scrollYPos = window.scrollY;
       const windowHeight = window.innerHeight;
@@ -124,7 +123,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, page]);
+  }, [loading, isSearching, page, selectedGenre, searchQuery]);
 
   const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     setActiveTab(tab);
@@ -132,6 +131,7 @@ export function Home() {
     setSelectedGenre('');
     setSearchQuery('');
     setItems([]);
+    setHomeSections([]);
     setIsSearching(false);
     triggerAd();
   };
@@ -140,6 +140,48 @@ export function Home() {
     setSearchQuery(e.target.value);
     setPage(1);
   };
+
+  const renderMovieCard = (item: any) => (
+    <div 
+      key={item.id}
+      onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
+      className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
+    >
+      <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
+        <img 
+          src={item.poster} 
+          alt={item.title} 
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      </div>
+      <div className="mt-1 px-1">
+        <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
+        <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
+          {item.rating && item.rating > 0 && (
+            <span className="flex items-center gap-1">
+              <span 
+                className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
+                style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
+              >
+                IMDb
+              </span>
+              <span className="font-bold">{item.rating.toFixed(1)}</span>
+            </span>
+          )}
+          {item.rating && item.rating > 0 && item.year && <span className="opacity-40">•</span>}
+          {item.year && <span>{item.year}</span>}
+        </p>
+      </div>
+    </div>
+  );
+
+  const isCategorizedMode = !selectedGenre && !isSearching && page === 1;
 
   return (
     <div 
@@ -212,70 +254,61 @@ export function Home() {
             </div>
           )}
 
-          {/* Content Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-full animate-fade-in">
-            {items.map((item, idx) => (
-              <React.Fragment key={`${item.id}-${idx}`}>
-                <div 
-                  onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
-                  className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
-                >
-                  <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
-                    <img 
-                      src={item.poster} 
-                      alt={item.title} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
-                      }}
-                    />
-                    {/* Subtle Gradient Overlay on Hover for depth */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
+          {isCategorizedMode ? (
+            <div className="space-y-8 w-full animate-fade-in">
+              {homeSections.map((section, sIdx) => (
+                <div key={section.id} className="w-full">
+                  <div className="flex justify-between items-center mb-3 px-1">
+                    <h2 className="text-lg sm:text-xl font-bold tracking-tight">{section.name}</h2>
+                    {section.genreId && (
+                      <button
+                        onClick={() => {
+                          setSelectedGenre(section.genreId);
+                          setPage(1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="text-xs sm:text-sm font-bold text-[var(--button-color)] hover:opacity-80 transition-opacity flex items-center gap-1 bg-black/10 dark:bg-white/10 px-3 py-1.5 rounded-lg"
+                      >
+                        {t('showMore') || 'Показать еще'} →
+                      </button>
+                    )}
                   </div>
-                  <div className="mt-1 px-1">
-                    <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
-                    <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
-                      {item.rating && item.rating > 0 && (
-                        <span className="flex items-center gap-1">
-                          <span 
-                            className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
-                            style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
-                          >
-                            IMDb
-                          </span>
-                          <span className="font-bold">{item.rating.toFixed(1)}</span>
-                        </span>
-                      )}
-                      {item.rating && item.rating > 0 && item.year && <span className="opacity-40">•</span>}
-                      {item.year && <span>{item.year}</span>}
-                    </p>
+
+                  {/* 12-Card Grid (Grid cols 2 / 3 / 4 / 6 align perfectly with 12 cards) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
+                    {section.items.map((item: any) => renderMovieCard(item))}
+                  </div>
+
+                  {/* Inter-Section Ad Banner (Strictly OUTSIDE the grid container) */}
+                  <div className="w-full my-6 flex justify-center">
+                    {sIdx % 2 === 0 ? (
+                      <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />
+                    ) : (
+                      <BannerAd type="mainbot" />
+                    )}
                   </div>
                 </div>
-                {(idx + 1) % 15 === 0 && (
-                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
-                    <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
-                  </div>
-                )}
-                {shouldShowAd(idx) && (
-                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
-                    <ExoClickWhiteAd className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            /* MODE 2: Single Genre or Search Mode Grid */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full animate-fade-in">
+              {items.map((item) => renderMovieCard(item))}
+            </div>
+          )}
           
-          {loading && items.length === 0 && (
+          {loading && (isCategorizedMode ? homeSections.length === 0 : items.length === 0) && (
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>
             </div>
           )}
 
-          {loading && items.length > 0 && <div className="text-center mt-6 mb-6 opacity-80 font-medium">{t('loading')}</div>}
+          {loading && (items.length > 0 || homeSections.length > 0) && (
+            <div className="text-center mt-6 mb-6 opacity-80 font-medium">{t('loading')}</div>
+          )}
 
-          {!loading && items.length === 0 && (
+          {!loading && (isCategorizedMode ? homeSections.length === 0 : items.length === 0) && (
             <div className="text-center mt-12 opacity-80 flex flex-col items-center gap-2">
               <span className="text-4xl">🎬</span>
               <p>{t('notFound')}</p>
@@ -283,7 +316,7 @@ export function Home() {
           )}
 
           {/* Infinite Scroll Indicator */}
-          {!isSearching && items.length > 0 && (
+          {!isCategorizedMode && items.length > 0 && (
             <div className="h-10 w-full mt-4 flex items-center justify-center">
               {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
             </div>

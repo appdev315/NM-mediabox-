@@ -182,5 +182,64 @@ export function useApi() {
     }
   }, [tmdbFetch]);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, loading, error };
+  const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv') => {
+    const cacheKey = `categorized_home_v2_${type}_${language}`;
+    const cached = clientCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    return withLoading(async () => {
+      // 1. Trending (12 items)
+      const trendingData = await tmdbFetch(`/trending/${type}/day`);
+      const trendingItems = (trendingData.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+
+      // Popular genres list to populate main feed
+      const genresToFetch = type === 'movie' ? [
+        { id: 28, name: language === 'ru-RU' ? '💥 Боевики' : '💥 Action' },
+        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
+        { id: 27, name: language === 'ru-RU' ? '😱 Ужасы' : '😱 Horror' },
+        { id: 878, name: language === 'ru-RU' ? '🚀 Фантастика' : '🚀 Sci-Fi' },
+        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
+        { id: 16, name: language === 'ru-RU' ? '🎨 Мультфильмы' : '🎨 Animation' },
+      ] : [
+        { id: 10759, name: language === 'ru-RU' ? '💥 Боевики и Приключения' : '💥 Action & Adventure' },
+        { id: 35, name: language === 'ru-RU' ? '🎭 Комедии' : '🎭 Comedy' },
+        { id: 9648, name: language === 'ru-RU' ? '🕵️ Детективы и Мистика' : '🕵️ Mystery' },
+        { id: 10765, name: language === 'ru-RU' ? '🚀 Фантастика' : '🚀 Sci-Fi & Fantasy' },
+        { id: 18, name: language === 'ru-RU' ? '🍿 Драмы' : '🍿 Drama' },
+        { id: 16, name: language === 'ru-RU' ? '🎨 Мультсериалы' : '🎨 Animation' },
+      ];
+
+      // Fetch genre sections in parallel
+      const genreResults = await Promise.all(
+        genresToFetch.map(async (g) => {
+          try {
+            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', { with_genres: g.id, page: 1 });
+            const mapped = (data.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+            return {
+              id: String(g.id),
+              name: g.name,
+              genreId: String(g.id),
+              items: mapped
+            };
+          } catch (e) {
+            return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
+          }
+        })
+      );
+
+      const sections = [
+        { id: 'trending', name: language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular', genreId: '', items: trendingItems },
+        ...genreResults.filter(s => s.items.length > 0)
+      ];
+
+      // Cache categorized sections for 24 HOURS (86400s) as requested by user
+      clientCache.set(cacheKey, sections, 86400);
+
+      return sections;
+    });
+  }, [language, tmdbFetch, withLoading]);
+
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, loading, error };
 }
