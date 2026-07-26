@@ -13,18 +13,17 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o go-server main.go
 
 # Stage 2: Minimal runtime image (Alpine Linux)
 FROM alpine:latest
-WORKDIR /app
-
-# Install SSL root certificates for outbound HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata
 
-# Set up non-root user for Hugging Face Spaces (user ID 1000)
 RUN adduser -D -u 1000 user
 USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+WORKDIR $HOME
 
-COPY --from=builder --chown=user /app/go-server /app/go-server
+COPY --from=builder --chown=user /app/go-server $HOME/go-server
 
 EXPOSE 7860
 ENV PORT=7860
 
-CMD ["/app/go-server"]
+CMD ["/home/user/go-server"]
