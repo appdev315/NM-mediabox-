@@ -2,11 +2,7 @@
 FROM golang:alpine AS builder
 WORKDIR /app
 
-# Install ca-certificates and git if needed
 RUN apk add --no-cache ca-certificates git
-
-COPY go-scraper/go.mod go-scraper/go.sum ./
-RUN go mod download
 
 COPY go-scraper/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o go-server main.go
