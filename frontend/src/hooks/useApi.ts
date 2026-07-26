@@ -182,14 +182,14 @@ export function useApi() {
     }
   }, [tmdbFetch]);
 
-  const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv') => {
+  const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
     const cacheKey = `categorized_home_v2_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
-    if (cached) {
+    if (!silent && cached) {
       return cached;
     }
 
-    return withLoading(async () => {
+    const fetcher = async () => {
       // 1. Trending (12 items)
       const trendingData = await tmdbFetch(`/trending/${type}/day`);
       const trendingItems = (trendingData.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
@@ -238,7 +238,17 @@ export function useApi() {
       clientCache.set(cacheKey, sections, 86400);
 
       return sections;
-    });
+    };
+
+    if (silent) {
+      try {
+        return await fetcher();
+      } catch (e) {
+        return cached || [];
+      }
+    }
+
+    return withLoading(fetcher);
   }, [language, tmdbFetch, withLoading]);
 
   return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, loading, error };
