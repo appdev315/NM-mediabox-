@@ -104,7 +104,7 @@ export function Home() {
       }
     };
 
-    const timeoutId = setTimeout(loadContent, 500);
+    const timeoutId = setTimeout(loadContent, searchQuery ? 300 : 0);
     return () => clearTimeout(timeoutId);
   }, [activeTab, page, selectedGenre, searchQuery, fetchTrending, fetchMovies, fetchSeries, searchContent, language]);
 
@@ -267,7 +267,13 @@ export function Home() {
             ))}
           </div>
           
-          {loading && <div className="text-center mt-6 mb-6 opacity-80 font-medium">{t('loading')}</div>}
+          {loading && items.length === 0 && (
+            <div className="flex justify-center py-20">
+              <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+
+          {loading && items.length > 0 && <div className="text-center mt-6 mb-6 opacity-80 font-medium">{t('loading')}</div>}
 
           {!loading && items.length === 0 && (
             <div className="text-center mt-12 opacity-80 flex flex-col items-center gap-2">
