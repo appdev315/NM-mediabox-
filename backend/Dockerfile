@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates git
 
 COPY go-scraper/ ./
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o go-server main.go
 
 # Stage 2: Minimal runtime image (Alpine Linux)
