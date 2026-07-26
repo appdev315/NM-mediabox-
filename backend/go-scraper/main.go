@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
+	"scraper/middleware"
 	"scraper/scraper"
 	"scraper/streamer"
 	"scraper/types"
@@ -14,7 +18,6 @@ import (
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	q := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
@@ -67,7 +70,6 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 func detailsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	id := r.URL.Query().Get("id")
 	if id == "" {
@@ -89,16 +91,53 @@ func detailsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	http.HandleFunc("/api/adult/search", searchHandler)
-	http.HandleFunc("/api/adult/details", detailsHandler)
-	http.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
-	http.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
-	http.HandleFunc("/api/stream", streamer.StreamApiHandler)
-	http.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "OK",
+		"message": "MediaBox Go API is running",
+	})
+}
 
+func main() {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", rootHandler)
+	mux.HandleFunc("/api/health", middleware.HealthHandler)
+	mux.HandleFunc("/api/stats", middleware.StatsHandler)
+
+	// TMDB proxy (supports wildcards /api/tmdb/*)
+	mux.HandleFunc("/api/tmdb/", streamer.TMDBApiHandler)
+
+	// Adult endpoints
+	mux.HandleFunc("/api/adult/search", middleware.CheckAdultAccess(searchHandler))
+	mux.HandleFunc("/api/adult/details", middleware.CheckAdultAccess(detailsHandler))
+
+	// Stream and proxy handlers
+	mux.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
+	mux.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
+	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
+	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
+
+	// Start background cache warmer for trends
 	streamer.StartCacheWarmer()
 
-	log.Println("Go microservice started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Apply global middleware chain: RateLimiter -> Metrics -> CORS -> Mux
+	rateLimiter := middleware.RateLimiterMiddleware(10*time.Minute, 150)
+	handler := middleware.CORSMiddleware(middleware.MetricsMiddleware(rateLimiter(mux)))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "7860"
+	}
+	if !strings.HasPrefix(port, ":") {
+		port = ":" + port
+	}
+
+	log.Printf("MediaBox Unified Go Microservice starting on %s...", port)
+	log.Fatal(http.ListenAndServe(port, handler))
 }
