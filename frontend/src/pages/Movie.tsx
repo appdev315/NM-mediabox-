@@ -216,17 +216,35 @@ export function Movie() {
         setSources(mapped);
 
         if (mapped.length > 0) {
-          const preferredUrl = mapped[0].url;
-          setIframeUrl(prev => {
-            if (!prev) return preferredUrl;
-            if (userSelectedRef.current) return prev;
-            // Switch to preferred if we are currently playing a fallback Go source
-            const isPrevGo = foundSources.go.some((g: any) => g.url === prev) || foundSources.goIframe === prev;
-            if (isPrevGo && (foundSources.liftw || foundSources.vidsrc)) {
-              return preferredUrl;
+          if (language === 'ru-RU') {
+            // STRICT LIFTW PRIORITY for Russian language:
+            // Do NOT switch iframeUrl to Go/Anwap while Liftw is still fetching.
+            if (foundSources.liftw) {
+              if (!userSelectedRef.current) {
+                setIframeUrl(foundSources.liftw.url);
+              }
+            } else if (isLiftwDone) {
+              // Liftw finished and found nothing: fallback to secondary Go source
+              const preferredUrl = mapped[0].url;
+              setIframeUrl(prev => {
+                if (!prev) return preferredUrl;
+                if (userSelectedRef.current) return prev;
+                return preferredUrl;
+              });
             }
-            return prev;
-          });
+          } else {
+            // Non-RU languages: standard preferred selection
+            const preferredUrl = mapped[0].url;
+            setIframeUrl(prev => {
+              if (!prev) return preferredUrl;
+              if (userSelectedRef.current) return prev;
+              const isPrevGo = foundSources.go.some((g: any) => g.url === prev) || foundSources.goIframe === prev;
+              if (isPrevGo && (foundSources.liftw || foundSources.vidsrc)) {
+                return preferredUrl;
+              }
+              return prev;
+            });
+          }
         }
       };
 
