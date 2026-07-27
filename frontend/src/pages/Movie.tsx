@@ -165,13 +165,15 @@ export function Movie() {
       let isLiftwDone = false;
       let isGoDone = false;
 
+      const isRu = !language || language.toLowerCase().startsWith('ru');
+
       const evaluateUIUnblock = () => {
         if (foundSources.vidsrc) {
           setIsExtracting(false);
           return;
         }
         
-        if (language === 'ru-RU') {
+        if (isRu) {
           // Liftw is primary for RU. Wait for it.
           if (!isLiftwDone) return;
           
@@ -200,27 +202,32 @@ export function Movie() {
           combined.push(foundSources.liftw);
         }
         
-        // 2. VidSrc (Secondary Fallback for non-RU)
-        if (foundSources.vidsrc) {
+        // 2. VidSrc (Secondary Fallback strictly ONLY for non-RU)
+        if (!isRu && foundSources.vidsrc) {
           combined.push(foundSources.vidsrc);
         }
         
-        // 3. Go microservice sources (for ru-RU, cap fallback to 1 source so there are max 2 players total)
+        // 3. Go microservice sources (for RU, cap fallback to 1 source so total is max 2)
         if (foundSources.go.length > 0) {
-          if (language === 'ru-RU') {
+          if (isRu) {
             combined.push(foundSources.go[0]);
           } else {
             combined.push(...foundSources.go);
           }
-        } else if (foundSources.goIframe && language === 'ru-RU') {
+        } else if (foundSources.goIframe && isRu) {
           combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
+        }
+
+        // HARD CAP FOR RUSSIAN: Strictly MAX 2 PLAYERS (Player 1: Liftw, Player 2: Anwap/Go)
+        if (isRu && combined.length > 2) {
+          combined.length = 2;
         }
 
         const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
         setSources(mapped);
 
         if (mapped.length > 0) {
-          if (language === 'ru-RU') {
+          if (isRu) {
             // STRICT LIFTW PRIORITY for Russian language:
             // Do NOT switch iframeUrl to Go/Anwap while Liftw is still fetching.
             if (foundSources.liftw) {
@@ -252,8 +259,8 @@ export function Movie() {
         }
       };
 
-      // 1. Process VidSrc immediately
-      if (language !== 'ru-RU' && queryParams.tmdb) {
+      // 1. Process VidSrc immediately (strictly non-RU)
+      if (!isRu && queryParams.tmdb) {
         const vidsrcUrl = mediaType === 'tv' 
           ? `https://vidsrc.net/embed/tv?tmdb=${queryParams.tmdb}`
           : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
