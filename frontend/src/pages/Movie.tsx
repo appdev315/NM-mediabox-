@@ -205,9 +205,13 @@ export function Movie() {
           combined.push(foundSources.vidsrc);
         }
         
-        // 3. Go microservice sources
+        // 3. Go microservice sources (for ru-RU, cap fallback to 1 source so there are max 2 players total)
         if (foundSources.go.length > 0) {
-          combined.push(...foundSources.go);
+          if (language === 'ru-RU') {
+            combined.push(foundSources.go[0]);
+          } else {
+            combined.push(...foundSources.go);
+          }
         } else if (foundSources.goIframe && language === 'ru-RU') {
           combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
         }
