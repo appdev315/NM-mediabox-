@@ -100,7 +100,7 @@ export function useApi() {
   const mapTMDB = (item: any, forceType?: 'movie' | 'series') => ({
     id: item.id,
     title: item.title || item.name || item.original_title || 'Без названия',
-    poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
+    poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
     description: item.overview || '',
     year: item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : ''),
     type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
