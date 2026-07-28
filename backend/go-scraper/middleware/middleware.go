@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -10,6 +12,31 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	Writer io.Writer
+}
+
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func GzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+
+		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		next.ServeHTTP(gzw, r)
+	})
+}
 
 type ErrorMetrics struct {
 	Total        uint64 `json:"total"`
