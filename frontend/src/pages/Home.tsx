@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage, countriesList } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
@@ -25,6 +25,8 @@ export function Home() {
     setPage,
     selectedGenre,
     setSelectedGenre,
+    selectedCountry,
+    setSelectedCountry,
     searchQuery,
     setSearchQuery,
     isSearching,
@@ -80,11 +82,11 @@ export function Home() {
           setIsSearching(true);
           const results = await searchContent(searchQuery);
           setItems(results);
-        } else if (selectedGenre || page > 1) {
+        } else if (selectedGenre || selectedCountry || page > 1) {
           setIsSearching(false);
           const results = activeTab === 'movie' 
-            ? await fetchMovies(page, selectedGenre)
-            : await fetchSeries(page, selectedGenre);
+            ? await fetchMovies(page, selectedGenre, selectedCountry)
+            : await fetchSeries(page, selectedGenre, selectedCountry);
             
           if (page === 1) {
             setItems(results || []);
@@ -115,12 +117,12 @@ export function Home() {
 
     const timeoutId = setTimeout(loadContent, searchQuery ? 300 : 0);
     return () => clearTimeout(timeoutId);
-  }, [activeTab, page, selectedGenre, searchQuery, fetchTrending, fetchMovies, fetchSeries, fetchCategorizedHome, searchContent, language]);
+  }, [activeTab, page, selectedGenre, selectedCountry, searchQuery, fetchTrending, fetchMovies, fetchSeries, fetchCategorizedHome, searchContent, language]);
 
-  // Infinite scroll listener (only active when in single-genre or search mode)
+  // Infinite scroll listener (only active when in single-genre, country, or search mode)
   useEffect(() => {
     const handleScroll = () => {
-      if (loading || isSearching || (!selectedGenre && !searchQuery)) return;
+      if (loading || isSearching || (!selectedGenre && !selectedCountry && !searchQuery)) return;
       
       const scrollYPos = window.scrollY;
       const windowHeight = window.innerHeight;
@@ -133,7 +135,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, page, selectedGenre, searchQuery]);
+  }, [loading, isSearching, page, selectedGenre, selectedCountry, searchQuery]);
 
   const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     setActiveTab(tab);
@@ -192,7 +194,7 @@ export function Home() {
     </div>
   );
 
-  const isCategorizedMode = !selectedGenre && !isSearching && page === 1;
+  const isCategorizedMode = !selectedGenre && !selectedCountry && !isSearching && page === 1;
 
   return (
     <div 
@@ -250,9 +252,10 @@ export function Home() {
 
           {/* Filters (hidden when searching) */}
           {!isSearching && (
-            <div className="flex gap-3 mb-6">
+            <div className="flex flex-col gap-2.5 mb-6">
+              {/* Genre Dropdown */}
               <select 
-                className="flex-1 p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm"
+                className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
                 style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 value={selectedGenre}
                 onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
@@ -260,6 +263,21 @@ export function Home() {
                 <option value="">{t('allGenres')}</option>
                 {genres.map(g => (
                   <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+
+              {/* Country Dropdown (Placed directly below Genres) */}
+              <select 
+                className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
+                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                value={selectedCountry}
+                onChange={(e) => { setSelectedCountry(e.target.value); setPage(1); }}
+              >
+                <option value="">{t('allCountries')}</option>
+                {countriesList.map(c => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name[language] || c.name['en-US']}
+                  </option>
                 ))}
               </select>
             </div>
