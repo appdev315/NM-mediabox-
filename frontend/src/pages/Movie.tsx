@@ -160,34 +160,42 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any } = { vidsrc: null, liftw: null, go: [], goIframe: null };
+      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any, globalEmbeds: any[] } = { 
+        vidsrc: null, 
+        liftw: null, 
+        go: [], 
+        goIframe: null,
+        globalEmbeds: []
+      };
 
       let isLiftwDone = false;
       let isGoDone = false;
 
       const isRu = !language || language.toLowerCase().startsWith('ru');
 
+      // YouTube-Grade Instant Client-Side Embed Construction (0ms latency, 0 server load)
+      if (queryParams.tmdb) {
+        const tmdbId = queryParams.tmdb;
+        const embedType = mediaType === 'tv' ? 'tv' : 'movie';
+        foundSources.globalEmbeds = [
+          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/${embedType}/${tmdbId}`, isLiftw: false },
+          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/${embedType}/${tmdbId}`, isLiftw: false },
+          { name: 'EmbedSU', url: `https://embed.su/embed/${embedType}/${tmdbId}`, isLiftw: false }
+        ];
+      }
+
       const evaluateUIUnblock = () => {
-        if (foundSources.vidsrc) {
+        if (!isRu && foundSources.globalEmbeds.length > 0) {
           setIsExtracting(false);
           return;
         }
         
         if (isRu) {
-          // Liftw is primary for RU. Wait for it.
           if (!isLiftwDone) return;
-          
-          if (foundSources.liftw) {
-            setIsExtracting(false); // Liftw found, unblock
-            return;
-          }
-          
-          // Liftw didn't find anything, fallback to Go
-          if (isGoDone) {
+          if (foundSources.liftw || isGoDone) {
             setIsExtracting(false);
           }
         } else {
-          // If not RU and no vidsrc (fallback), wait for both
           if (isLiftwDone && isGoDone) {
             setIsExtracting(false);
           }
@@ -195,19 +203,14 @@ export function Movie() {
       };
 
       const updateUI = () => {
-        const combined = [];
+        const combined: any[] = [];
         
-        // 1. Liftw (Primary Main Player)
+        // 1. Liftw (Primary Main Player for RU)
         if (foundSources.liftw) {
           combined.push(foundSources.liftw);
         }
         
-        // 2. VidSrc (Secondary Fallback strictly ONLY for non-RU)
-        if (!isRu && foundSources.vidsrc) {
-          combined.push(foundSources.vidsrc);
-        }
-        
-        // 3. Go microservice sources (for RU, cap fallback to 1 source so total is max 2)
+        // 2. Go microservice sources (for RU, cap fallback)
         if (foundSources.go.length > 0) {
           if (isRu) {
             combined.push(foundSources.go[0]);
@@ -218,9 +221,18 @@ export function Movie() {
           combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
         }
 
-        // HARD CAP FOR RUSSIAN: Strictly MAX 2 PLAYERS (Player 1: Liftw, Player 2: Anwap/Go)
-        if (isRu && combined.length > 2) {
-          combined.length = 2;
+        // 3. Global Embeds (Primary for non-RU, Fallback for RU if Liftw missing)
+        if (!isRu || !foundSources.liftw) {
+          foundSources.globalEmbeds.forEach(e => {
+            if (!combined.some(c => c.url === e.url)) {
+              combined.push(e);
+            }
+          });
+        }
+
+        // Cap Russian to max 3 players
+        if (isRu && combined.length > 3) {
+          combined.length = 3;
         }
 
         const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
@@ -228,14 +240,11 @@ export function Movie() {
 
         if (mapped.length > 0) {
           if (isRu) {
-            // STRICT LIFTW PRIORITY for Russian language:
-            // Do NOT switch iframeUrl to Go/Anwap while Liftw is still fetching.
             if (foundSources.liftw) {
               if (!userSelectedRef.current) {
                 setIframeUrl(foundSources.liftw.url);
               }
             } else if (isLiftwDone) {
-              // Liftw finished and found nothing: fallback to secondary Go source
               const preferredUrl = mapped[0].url;
               setIframeUrl(prev => {
                 if (!prev) return preferredUrl;
@@ -244,30 +253,32 @@ export function Movie() {
               });
             }
           } else {
-            // Non-RU languages: standard preferred selection
+            // Non-RU languages: instant preferred selection (0ms)
             const preferredUrl = mapped[0].url;
             setIframeUrl(prev => {
               if (!prev) return preferredUrl;
               if (userSelectedRef.current) return prev;
-              const isPrevGo = foundSources.go.some((g: any) => g.url === prev) || foundSources.goIframe === prev;
-              if (isPrevGo && (foundSources.liftw || foundSources.vidsrc)) {
-                return preferredUrl;
-              }
-              return prev;
+              return preferredUrl;
             });
           }
         }
       };
 
-      // 1. Process VidSrc immediately (strictly non-RU)
-      if (!isRu && queryParams.tmdb) {
-        const vidsrcUrl = mediaType === 'tv' 
-          ? `https://vidsrc.net/embed/tv?tmdb=${queryParams.tmdb}`
-          : `https://vidsrc.net/embed/movie?tmdb=${queryParams.tmdb}`;
-        foundSources.vidsrc = { name: 'vidsrc', url: vidsrcUrl, isLiftw: false };
+      // Non-RU languages: Unblock UI INSTANTLY in 0ms with Global Embeds
+      if (!isRu && foundSources.globalEmbeds.length > 0) {
         updateUI();
-        evaluateUIUnblock();
+        setIsExtracting(false);
       }
+
+      // 1.5s Safety Timeout for RU (If Liftw doesn't return in 1.5s, fallback to Global Embed)
+      const ruTimeoutTimer = setTimeout(() => {
+        if (isRu && !foundSources.liftw) {
+          console.log('[Perf] RU Liftw 1.5s timeout reached, activating global embed fallback');
+          isLiftwDone = true;
+          updateUI();
+          setIsExtracting(false);
+        }
+      }, 1500);
 
       // 2. Fetch liftw asynchronously
       const fetchLiftw = async () => {
@@ -291,6 +302,7 @@ export function Movie() {
         } catch (e) {
           console.error("Liftw fetch failed", e);
         } finally {
+          clearTimeout(ruTimeoutTimer);
           const end = performance.now();
           console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           isLiftwDone = true;
@@ -304,7 +316,7 @@ export function Movie() {
         const start = performance.now();
         let data: any = {};
         let attempts = 0;
-        const maxAttempts = 2; // Reduced from 3
+        const maxAttempts = 2;
         
         try {
           while (attempts < maxAttempts) {
@@ -329,7 +341,7 @@ export function Movie() {
           }
         } finally {
           const end = performance.now();
-          console.log(`[Perf] Go fetch (attempts: ${attempts + 1}) completed in ${((end - start) / 1000).toFixed(2)}s`);
+          console.log(`[Perf] Go fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           isGoDone = true;
           updateUI();
           evaluateUIUnblock();
