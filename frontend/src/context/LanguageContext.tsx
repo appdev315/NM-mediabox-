@@ -9,6 +9,7 @@ export const translations = {
   "series": "Сериалы",
   "searchPlaceholder": "Поиск фильмов и сериалов...",
   "allGenres": "Все жанры",
+  "allCountries": "Все страны",
   "loadMore": "Загрузить еще",
   "showMore": "Показать еще",
   "downloadsTab": "Скачать",
@@ -86,6 +87,7 @@ export const translations = {
   "series": "TV Shows",
   "searchPlaceholder": "Search movies and TV shows...",
   "allGenres": "All genres",
+  "allCountries": "All countries",
   "loadMore": "Load more",
   "downloadsTab": "Download",
   "home": "Home",
@@ -240,4 +242,36 @@ export const useLanguage = () => {
   }
   return context;
 };
+
+export const getDefaultCountryForLanguage = (lang: Language): string => {
+  switch (lang) {
+    case 'ru-RU': return 'RU';
+    case 'en-US': return 'US';
+    case 'id-ID': return 'ID';
+    case 'ko-KR': return 'KR';
+    case 'es-ES': return 'ES';
+    case 'de-DE': return 'DE';
+    case 'fr-FR': return 'FR';
+    case 'hi-IN': return 'IN';
+    default: return 'US';
+  }
+};
+
+export const countriesList = [
+  { code: 'US', flag: '🇺🇸', name: { 'ru-RU': 'США', 'en-US': 'USA', 'ko-KR': '미국', 'id-ID': 'Amerika Serikat', 'es-ES': 'Estados Unidos', 'de-DE': 'USA', 'fr-FR': 'États-Unis', 'hi-IN': 'अमेरिका', 'fa-IR': 'آمریکا' } },
+  { code: 'RU', flag: '🇷🇺', name: { 'ru-RU': 'Россия', 'en-US': 'Russia', 'ko-KR': '러시아', 'id-ID': 'Rusia', 'es-ES': 'Rusia', 'de-DE': 'Russland', 'fr-FR': 'Russie', 'hi-IN': 'रूस', 'fa-IR': 'روسیه' } },
+  { code: 'ID', flag: '🇮🇩', name: { 'ru-RU': 'Индонезия', 'en-US': 'Indonesia', 'ko-KR': '인도네시아', 'id-ID': 'Indonesia', 'es-ES': 'Indonesia', 'de-DE': 'Indonesien', 'fr-FR': 'Indonésie', 'hi-IN': 'इंडोनेशिया', 'fa-IR': 'اندونزی' } },
+  { code: 'KR', flag: '🇰🇷', name: { 'ru-RU': 'Южная Корея', 'en-US': 'South Korea', 'ko-KR': '대한민국', 'id-ID': 'Korea Selatan', 'es-ES': 'Corea del Sur', 'de-DE': 'Südkorea', 'fr-FR': 'Corée du Sud', 'hi-IN': 'दक्षिण कोरिया', 'fa-IR': 'کره جنوبی' } },
+  { code: 'JP', flag: '🇯🇵', name: { 'ru-RU': 'Япония', 'en-US': 'Japan', 'ko-KR': '일본', 'id-ID': 'Jepang', 'es-ES': 'Japón', 'de-DE': 'Japan', 'fr-FR': 'Japon', 'hi-IN': 'जापान', 'fa-IR': 'ژاپن' } },
+  { code: 'FR', flag: '🇫🇷', name: { 'ru-RU': 'Франция', 'en-US': 'France', 'ko-KR': '프랑스', 'id-ID': 'Prancis', 'es-ES': 'Francia', 'de-DE': 'Frankreich', 'fr-FR': 'France', 'hi-IN': 'फ्रांस', 'fa-IR': 'فرانسه' } },
+  { code: 'GB', flag: '🇬🇧', name: { 'ru-RU': 'Великобритания', 'en-US': 'United Kingdom', 'ko-KR': '영국', 'id-ID': 'Inggris', 'es-ES': 'Reino Unido', 'de-DE': 'Großbritannien', 'fr-FR': 'Royaume-Uni', 'hi-IN': 'ब्रिटेन', 'fa-IR': 'بریتانیا' } },
+  { code: 'DE', flag: '🇩🇪', name: { 'ru-RU': 'Германия', 'en-US': 'Germany', 'ko-KR': '독일', 'id-ID': 'Jerman', 'es-ES': 'Alemania', 'de-DE': 'Deutschland', 'fr-FR': 'Allemagne', 'hi-IN': 'जर्मनी', 'fa-IR': 'آلمان' } },
+  { code: 'IT', flag: '🇮🇹', name: { 'ru-RU': 'Италия', 'en-US': 'Italy', 'ko-KR': '이탈리아', 'id-ID': 'Italia', 'es-ES': 'Italia', 'de-DE': 'Italien', 'fr-FR': 'Italie', 'hi-IN': 'इटली', 'fa-IR': 'ایتالیا' } },
+  { code: 'CN', flag: '🇨🇳', name: { 'ru-RU': 'Китай', 'en-US': 'China', 'ko-KR': '중국', 'id-ID': 'Tiongkok', 'es-ES': 'China', 'de-DE': 'China', 'fr-FR': 'Chine', 'hi-IN': 'चीन', 'fa-IR': 'چین' } },
+  { code: 'ES', flag: '🇪🇸', name: { 'ru-RU': 'Испания', 'en-US': 'Spain', 'ko-KR': '스페인', 'id-ID': 'Spanyol', 'es-ES': 'España', 'de-DE': 'Spanien', 'fr-FR': 'España', 'hi-IN': 'स्पेन', 'fa-IR': 'اسپانیا' } },
+  { code: 'IN', flag: '🇮🇳', name: { 'ru-RU': 'Индия', 'en-US': 'India', 'ko-KR': '인도', 'id-ID': 'India', 'es-ES': 'India', 'de-DE': 'Indien', 'fr-FR': 'Inde', 'hi-IN': 'भारत', 'fa-IR': 'هند' } },
+  { code: 'TR', flag: '🇹🇷', name: { 'ru-RU': 'Турция', 'en-US': 'Turkey', 'ko-KR': '튀르키예', 'id-ID': 'Turki', 'es-ES': 'Turquía', 'de-DE': 'Türkei', 'fr-FR': 'Turquie', 'hi-IN': 'तुर्की', 'fa-IR': 'ترکیه' } },
+  { code: 'CA', flag: '🇨🇦', name: { 'ru-RU': 'Канада', 'en-US': 'Canada', 'ko-KR': '캐나다', 'id-ID': 'Kanada', 'es-ES': 'Canadá', 'de-DE': 'Kanada', 'fr-FR': 'Canada', 'hi-IN': 'कनाडा', 'fa-IR': 'کانادا' } },
+  { code: 'AU', flag: '🇦🇺', name: { 'ru-RU': 'Австралия', 'en-US': 'Australia', 'ko-KR': '호주', 'id-ID': 'Australia', 'es-ES': 'Australia', 'de-DE': 'Australien', 'fr-FR': 'Australie', 'hi-IN': 'ऑस्ट्रेलिया', 'fa-IR': 'استرالیا' } }
+];
 
