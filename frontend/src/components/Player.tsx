@@ -119,17 +119,15 @@ export function Player({ iframeUrl }: PlayerProps) {
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
-      {!iframeLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8">
-          <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
-            <div 
-              className="h-full bg-[#fbbf24] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
-              style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
-            />
-          </div>
-          <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</span>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-700 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+          <div 
+            className="h-full bg-[#fbbf24] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+            style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+          />
         </div>
-      )}
+        <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</span>
+      </div>
       <iframe 
         id="video-iframe"
         src={iframeUrl}
