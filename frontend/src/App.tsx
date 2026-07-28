@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
@@ -6,12 +6,14 @@ import { useLanguage } from './context/LanguageContext';
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { Home } from './pages/Home';
-import { Movie } from './pages/Movie';
-import { Profile } from './pages/Profile';
-import { Adult } from './pages/Adult';
-import { Favorites } from './pages/Favorites';
-import { AdultVideo } from './pages/AdultVideo';
-import { AdultFavorites } from './pages/AdultFavorites';
+
+// Lazy-loaded routes for code-splitting and bundle size reduction
+const Movie = lazy(() => import('./pages/Movie').then(m => ({ default: m.Movie })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Favorites = lazy(() => import('./pages/Favorites').then(m => ({ default: m.Favorites })));
+const Adult = lazy(() => import('./pages/Adult').then(m => ({ default: m.Adult })));
+const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default: m.AdultVideo })));
+const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
 
 import { ThemeProvider } from './context/ThemeContext';
 import { AdProvider } from './context/AdManager';
@@ -71,14 +73,15 @@ function MainApp() {
       <DeepLinkHandler isAdultApp={false} />
       <div className="pb-16 min-h-screen relative flex flex-col">
         <TopBanner />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/movies" element={<Home />} />
-          <Route path="/movie/:id" element={<Movie />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/favorites" element={<Favorites />} />
-          {/* Adult route removed! */}
-        </Routes>
+        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/movies" element={<Home />} />
+            <Route path="/movie/:id" element={<Movie />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/favorites" element={<Favorites />} />
+          </Routes>
+        </Suspense>
       </div>
       <BottomNav />
       <FloatingTitle />
@@ -92,13 +95,15 @@ function AdultApp() {
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
       <div className="pb-16 min-h-screen relative">
-        <Routes>
-          <Route path="/" element={<Adult />} />
-          <Route path="/adult" element={<Adult />} />
-          <Route path="/adult/:id" element={<AdultVideo />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/favorites" element={<AdultFavorites />} />
-        </Routes>
+        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Routes>
+            <Route path="/" element={<Adult />} />
+            <Route path="/adult" element={<Adult />} />
+            <Route path="/adult/:id" element={<AdultVideo />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/favorites" element={<AdultFavorites />} />
+          </Routes>
+        </Suspense>
       </div>
       <BottomNav />
       <FloatingTitle />

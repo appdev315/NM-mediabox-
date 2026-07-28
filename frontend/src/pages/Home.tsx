@@ -163,6 +163,7 @@ export function Home() {
           alt={item.title} 
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
