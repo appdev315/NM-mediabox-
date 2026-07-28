@@ -137,7 +137,28 @@ export function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, isSearching, page, selectedGenre, selectedCountry, searchQuery]);
 
+  // Tablet & Mobile virtual keyboard geometry reset effect
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        if (window.visualViewport.height >= window.innerHeight * 0.85) {
+          window.scrollTo(0, window.scrollY);
+        }
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+    }
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+      }
+    };
+  }, []);
+
   const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
+    (document.activeElement as HTMLElement)?.blur();
     setActiveTab(tab);
     setPage(1);
     setSelectedGenre('');
@@ -156,7 +177,10 @@ export function Home() {
   const renderMovieCard = (item: any) => (
     <div 
       key={item.id}
-      onClick={() => navigate(`/movie/${item.id}?type=${item.type}`)}
+      onClick={() => {
+        (document.activeElement as HTMLElement)?.blur();
+        navigate(`/movie/${item.id}?type=${item.type}`);
+      }}
       className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
     >
       <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
@@ -245,6 +269,11 @@ export function Home() {
               placeholder={t('searchPlaceholder')} 
               value={searchQuery}
               onChange={handleSearchChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
               className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
               style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
             />
