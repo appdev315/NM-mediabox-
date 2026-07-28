@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 type tmdbCacheEntry struct {
@@ -20,9 +22,10 @@ type tmdbCacheEntry struct {
 }
 
 var (
-	tmdbCache    sync.Map
-	tmdbApiKey   string
-	tmdbApiKeyOnce sync.Once
+	tmdbCache       sync.Map
+	tmdbSingleGroup singleflight.Group
+	tmdbApiKey      string
+	tmdbApiKeyOnce  sync.Once
 )
 
 func getTMDBApiKey() string {
@@ -76,7 +79,7 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	cacheKey := targetUrl.String()
 
-	// Check in-memory cache
+	// Check in-memory cache (0ms hit)
 	if val, ok := tmdbCache.Load(cacheKey); ok {
 		entry := val.(tmdbCacheEntry)
 		if time.Now().Before(entry.expiry) {
@@ -92,72 +95,87 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 		tmdbCache.Delete(cacheKey)
 	}
 
-	// TTL: 2 hours for search endpoints, 24 hours for all other endpoints
-	ttl := 24 * time.Hour
-	if strings.Contains(r.URL.Path, "/search") {
-		ttl = 2 * time.Hour
-	}
+	// Singleflight: collapse duplicate concurrent requests for uncached endpoints
+	val, fetchErr, _ := tmdbSingleGroup.Do(cacheKey, func() (interface{}, error) {
+		// Re-check cache inside singleflight callback
+		if cachedVal, ok := tmdbCache.Load(cacheKey); ok {
+			entry := cachedVal.(tmdbCacheEntry)
+			if time.Now().Before(entry.expiry) {
+				return entry, nil
+			}
+		}
 
-	client := defaultClient
+		// TTL: 2 hours for search endpoints, 24 hours for all other endpoints
+		ttl := 24 * time.Hour
+		if strings.Contains(r.URL.Path, "/search") {
+			ttl = 2 * time.Hour
+		}
 
-	var res *http.Response
-	var fetchErr error
+		client := defaultClient
+		var res *http.Response
+		var attemptErr error
 
-	// Retry up to 3 times with exponential backoff
-	for attempt := 1; attempt <= 3; attempt++ {
-		req, err := http.NewRequest("GET", targetUrl.String(), nil)
+		for attempt := 1; attempt <= 3; attempt++ {
+			req, err := http.NewRequest("GET", targetUrl.String(), nil)
+			if err != nil {
+				attemptErr = err
+				break
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MediaBoxBackend/1.0")
+			req.Header.Set("Accept", "application/json")
+
+			res, attemptErr = client.Do(req)
+			if attemptErr == nil && res.StatusCode == 200 {
+				break
+			}
+
+			if res != nil {
+				res.Body.Close()
+			}
+
+			log.Printf("[TMDB] Fetch attempt %d failed for %s: %v", attempt, path, attemptErr)
+			if attempt < 3 {
+				time.Sleep(time.Duration(attempt) * 1 * time.Second)
+			}
+		}
+
+		if attemptErr != nil || res == nil {
+			return nil, fmt.Errorf("TMDB fetch failed: %v", attemptErr)
+		}
+		defer res.Body.Close()
+
+		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
-			fetchErr = err
-			break
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MediaBoxBackend/1.0")
-		req.Header.Set("Accept", "application/json")
-
-		res, fetchErr = client.Do(req)
-		if fetchErr == nil && res.StatusCode == 200 {
-			break
+			return nil, fmt.Errorf("Failed to read response: %v", err)
 		}
 
-		if res != nil {
-			res.Body.Close()
-		}
-
-		log.Printf("[TMDB] Fetch attempt %d failed for %s: %v", attempt, path, fetchErr)
-		if attempt < 3 {
-			time.Sleep(time.Duration(attempt) * 1 * time.Second)
-		}
-	}
-
-	if fetchErr != nil || res == nil {
-		log.Printf("[TMDB] All 3 fetch attempts failed for %s: %v", path, fetchErr)
-		http.Error(w, fmt.Sprintf(`{"error":"TMDB fetch failed: %v"}`, fetchErr), http.StatusInternalServerError)
-		return
-	}
-	defer res.Body.Close()
-
-	bodyBytes, err := io.ReadAll(res.Body)
-	if err != nil {
-		http.Error(w, `{"error":"Failed to read response"}`, http.StatusInternalServerError)
-		return
-	}
-
-	// Cache successful responses
-	if res.StatusCode == 200 {
-		tmdbCache.Store(cacheKey, tmdbCacheEntry{
+		entry := tmdbCacheEntry{
 			data:       bodyBytes,
 			statusCode: res.StatusCode,
 			headers:    res.Header.Clone(),
 			expiry:     time.Now().Add(ttl),
-		})
+		}
+
+		if res.StatusCode == 200 {
+			tmdbCache.Store(cacheKey, entry)
+		}
+		return entry, nil
+	})
+
+	if fetchErr != nil {
+		log.Printf("[TMDB] Singleflight fetch error for %s: %v", path, fetchErr)
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, fetchErr.Error()), http.StatusInternalServerError)
+		return
 	}
 
-	for k, vv := range res.Header {
+	entry := val.(tmdbCacheEntry)
+	for k, vv := range entry.headers {
 		for _, v := range vv {
 			w.Header().Add(k, v)
 		}
 	}
-	w.WriteHeader(res.StatusCode)
-	w.Write(bodyBytes)
+	w.WriteHeader(entry.statusCode)
+	w.Write(entry.data)
 }
 
 func ClearTMDBCache() {
