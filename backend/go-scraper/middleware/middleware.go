@@ -3,6 +3,7 @@ package middleware
 import (
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -46,17 +47,45 @@ type ErrorMetrics struct {
 	DonorBans    uint64 `json:"donorBans"`
 }
 
+type CategoryMetrics struct {
+	Movies uint64 `json:"movies"`
+	Series uint64 `json:"series"`
+	Radio  uint64 `json:"radio"`
+	TV     uint64 `json:"tv"`
+}
+
+type DonorMetrics struct {
+	LiftwRequests uint64 `json:"liftwRequests"`
+	LiftwFails    uint64 `json:"liftwFails"`
+	GoRequests    uint64 `json:"goRequests"`
+	GoFails       uint64 `json:"goFails"`
+}
+
+type RecentError struct {
+	Timestamp string `json:"timestamp"`
+	Path      string `json:"path"`
+	Status    int    `json:"status"`
+	Message   string `json:"message"`
+}
+
 type ServerMetrics struct {
-	StartTime          int64        `json:"startTime"`
-	TotalRequests      uint64       `json:"totalRequests"`
-	SuccessfulRequests uint64       `json:"successfulRequests"`
-	Errors             ErrorMetrics `json:"errors"`
+	StartTime          int64           `json:"startTime"`
+	TotalRequests      uint64          `json:"totalRequests"`
+	SuccessfulRequests uint64          `json:"successfulRequests"`
+	UniqueIPs          uint64          `json:"uniqueIPs"`
+	Categories         CategoryMetrics `json:"categories"`
+	Donors             DonorMetrics    `json:"donors"`
+	Errors             ErrorMetrics    `json:"errors"`
+	RecentErrors       []RecentError   `json:"recentErrors"`
 }
 
 var (
 	GlobalMetrics = ServerMetrics{
-		StartTime: time.Now().UnixMilli(),
+		StartTime:    time.Now().UnixMilli(),
+		RecentErrors: make([]RecentError, 0),
 	}
+	metricsMutex  sync.Mutex
+	uniqueIPStore sync.Map
 )
 
 // Allowed origins for CORS
@@ -132,9 +161,51 @@ func (lrw *statusResponseWriter) WriteHeader(code int) {
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
+func RecordRecentError(path string, status int, msg string) {
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
+
+	errEntry := RecentError{
+		Timestamp: time.Now().Format("15:04:05"),
+		Path:      path,
+		Status:    status,
+		Message:   msg,
+	}
+
+	GlobalMetrics.RecentErrors = append(GlobalMetrics.RecentErrors, errEntry)
+	if len(GlobalMetrics.RecentErrors) > 5 {
+		GlobalMetrics.RecentErrors = GlobalMetrics.RecentErrors[len(GlobalMetrics.RecentErrors)-5:]
+	}
+}
+
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint64(&GlobalMetrics.TotalRequests, 1)
+
+		// Unique IP tracking
+		ip := getClientIP(r)
+		if _, loaded := uniqueIPStore.LoadOrStore(ip, true); !loaded {
+			atomic.AddUint64(&GlobalMetrics.UniqueIPs, 1)
+		}
+
+		// Category tracking
+		path := r.URL.Path
+		if strings.Contains(path, "/discover/movie") || strings.Contains(path, "/api/movie") {
+			atomic.AddUint64(&GlobalMetrics.Categories.Movies, 1)
+		} else if strings.Contains(path, "/discover/tv") || strings.Contains(path, "/api/series") {
+			atomic.AddUint64(&GlobalMetrics.Categories.Series, 1)
+		} else if strings.Contains(path, "/api/radio") {
+			atomic.AddUint64(&GlobalMetrics.Categories.Radio, 1)
+		} else if strings.Contains(path, "/api/tv") {
+			atomic.AddUint64(&GlobalMetrics.Categories.TV, 1)
+		}
+
+		// Donor tracking
+		if strings.Contains(path, "/api/liftw") {
+			atomic.AddUint64(&GlobalMetrics.Donors.LiftwRequests, 1)
+		} else if strings.Contains(path, "/api/stream") {
+			atomic.AddUint64(&GlobalMetrics.Donors.GoRequests, 1)
+		}
 
 		lrw := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(lrw, r)
@@ -144,6 +215,13 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
 		} else {
 			atomic.AddUint64(&GlobalMetrics.Errors.Total, 1)
+
+			if strings.Contains(path, "/api/liftw") {
+				atomic.AddUint64(&GlobalMetrics.Donors.LiftwFails, 1)
+			} else if strings.Contains(path, "/api/stream") {
+				atomic.AddUint64(&GlobalMetrics.Donors.GoFails, 1)
+			}
+
 			switch code {
 			case 429:
 				atomic.AddUint64(&GlobalMetrics.Errors.RateLimits, 1)
@@ -155,6 +233,10 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 				if code >= 500 {
 					atomic.AddUint64(&GlobalMetrics.Errors.Internal, 1)
 				}
+			}
+
+			if code >= 400 {
+				RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 			}
 		}
 	})
@@ -237,6 +319,9 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	metricsMutex.Lock()
+	defer metricsMutex.Unlock()
+
 	uptimeSec := (time.Now().UnixMilli() - GlobalMetrics.StartTime) / 1000
 	stats := map[string]interface{}{
 		"uptime_seconds": uptimeSec,
@@ -246,11 +331,27 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("reset") == "true" {
 		atomic.StoreUint64(&GlobalMetrics.TotalRequests, 0)
 		atomic.StoreUint64(&GlobalMetrics.SuccessfulRequests, 0)
+		atomic.StoreUint64(&GlobalMetrics.UniqueIPs, 0)
+		atomic.StoreUint64(&GlobalMetrics.Categories.Movies, 0)
+		atomic.StoreUint64(&GlobalMetrics.Categories.Series, 0)
+		atomic.StoreUint64(&GlobalMetrics.Categories.Radio, 0)
+		atomic.StoreUint64(&GlobalMetrics.Categories.TV, 0)
+		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwRequests, 0)
+		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwFails, 0)
+		atomic.StoreUint64(&GlobalMetrics.Donors.GoRequests, 0)
+		atomic.StoreUint64(&GlobalMetrics.Donors.GoFails, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.Total, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.RateLimits, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.NotFounds, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.Internal, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.DonorBans, 0)
+		GlobalMetrics.RecentErrors = make([]RecentError, 0)
+
+		// Clear unique IP map
+		uniqueIPStore.Range(func(key, value interface{}) bool {
+			uniqueIPStore.Delete(key)
+			return true
+		})
 	}
 
 	json.NewEncoder(w).Encode(stats)
