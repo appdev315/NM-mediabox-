@@ -60,8 +60,8 @@ func SearchEporner(query string, page int) []types.Video {
 func EpornerDetails(id string) *types.VideoDetails {
 	realID := strings.Replace(id, "eporner_", "", 1)
 	mirrors := []string{
-		fmt.Sprintf("https://www.eporner.org/embed/%s/", realID),
-		fmt.Sprintf("https://www.eporner.net/embed/%s/", realID),
+		fmt.Sprintf("https://eporner.live/embed/%s/", realID),
+		fmt.Sprintf("https://www.eporner.live/embed/%s/", realID),
 		fmt.Sprintf("https://www.eporner.com/embed/%s/", realID),
 	}
 	return &types.VideoDetails{
