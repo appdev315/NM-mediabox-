@@ -6,8 +6,8 @@
    - You MUST NEVER start modifying files, editing code, or making changes without the USER's explicit permission and prior approval.
    
 2. **REQUIRED WORKFLOW:**
-   - **Step 1: Plan & Analyze:** First, analyze the task and prepare a concise, clear preliminary implementation plan (in-chat 5-7 lines or `implementation_plan.md` for major architectural overhauls).
-   - **Step 2: Seek Approval:** Present the plan to the USER and wait for their explicit approval.
+   - **Step 1: Plan & Analyze:** First, analyze the task and prepare a clear, efficient preliminary implementation plan directly in the chat.
+   - **Step 2: Seek Approval:** Present the plan to the USER in chat and wait for their explicit approval.
    - **Step 3: Execution Only After Approval:** ONLY after the USER explicitly approves the plan (e.g. "Proceed", "Approved", "Давай"), you are permitted to edit code or run modifying commands.
    
 3. **ENFORCEMENT:**
@@ -28,7 +28,7 @@
 
 ## ⚡ ОПТИМИЗАЦИЯ ТОКЕНОВ И СКОРОСТИ ОТВЕТА (Token-Saving Protocol)
 
-1. **Компактные планы в чате:** Выводить лаконичный план из 5–7 строк прямо в чате (без создания отдельных тяжелых файлов для простых задач).
+1. **Планы прямо в чате:** Выводить лаконичный и эффективный план изменений напрямую в чате (без плодения лишних файлов артефактов).
 2. **Отказ от повторения условий (Zero Echoing):** Начинать ответ сразу с сути и аналитики, без перефразирования вопроса пользователя.
 3. **Точечные диффы:** Редактировать файлы строго через точечный инструмент replacement, не переписывая файлы целиком.
 
