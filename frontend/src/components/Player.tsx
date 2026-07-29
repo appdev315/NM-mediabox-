@@ -70,21 +70,32 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
 
   const currentUrl = activeMirrors[mirrorIndex] || iframeUrl;
 
-  // Auto-Fallback Sentinel: if current mirror fails to load within 3.5s, auto-rotate to next mirror!
+  // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
   useEffect(() => {
     setIframeLoaded(false);
-    
-    const sentinelTimer = setTimeout(() => {
-      if (!iframeLoaded && activeMirrors.length > 1) {
-        const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
-        setMirrorIndex(nextIdx);
-      }
-    }, 3500);
-    
-    return () => clearTimeout(sentinelTimer);
-  }, [currentUrl, mirrorIndex, activeMirrors, iframeLoaded]);
 
-  // Loading progress bar animation - cleared immediately once loaded
+    const fallbackTimer = setTimeout(() => {
+      setIframeLoaded(true);
+    }, 6000);
+
+    // Auto-Fallback Sentinel for Adult multi-mirrors
+    let sentinelTimer: any = null;
+    if (activeMirrors.length > 1) {
+      sentinelTimer = setTimeout(() => {
+        if (!iframeLoaded) {
+          const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
+          setMirrorIndex(nextIdx);
+        }
+      }, 3500);
+    }
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      if (sentinelTimer) clearTimeout(sentinelTimer);
+    };
+  }, [currentUrl, mirrorIndex, activeMirrors]);
+
+  // Loading progress bar animation
   useEffect(() => {
     let interval: any;
     if (!iframeLoaded) {
@@ -106,11 +117,12 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
-    // Save working mirror domain to localStorage for instant future loads
-    try {
-      const parsed = new URL(currentUrl);
-      localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
-    } catch (e) {}
+    if (provider !== 'generic') {
+      try {
+        const parsed = new URL(currentUrl);
+        localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
+      } catch (e) {}
+    }
   };
 
   // Power-Optimized WakeLock Lifecycle Management
@@ -125,15 +137,12 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     };
 
     const requestWakeLock = async () => {
-      // Only request Screen WakeLock when tab is active AND iframe is loaded
       if ('wakeLock' in navigator && document.visibilityState === 'visible' && iframeLoaded) {
         try {
           if (!wakeLockRef.current) {
             wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
           }
-        } catch (err) {
-          // Wake lock rejected or unsupported
-        }
+        } catch (err) {}
       }
     };
 
@@ -204,17 +213,15 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
-      {!iframeLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 pointer-events-none">
-          <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
-            <div 
-              className="h-full bg-[#fbbf24] transition-all duration-300 ease-out"
-              style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
-            />
-          </div>
-          <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase">{t('loading')} {Math.round(loadingProgress)}%</span>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-500 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+          <div 
+            className="h-full bg-[#fbbf24] transition-all duration-300 ease-out"
+            style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+          />
         </div>
-      )}
+        <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase">{t('loading')} {Math.round(loadingProgress)}%</span>
+      </div>
 
       <iframe 
         id="video-iframe"
@@ -239,7 +246,7 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
           </button>
         )}
 
-        {provider === 'xvideos' && (
+        {(provider === 'xvideos' || provider === 'generic') && (
           <button 
             onClick={toggleFullscreen}
             className="bg-black/60 hover:bg-black/90 text-white p-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition-transform active:scale-95"
