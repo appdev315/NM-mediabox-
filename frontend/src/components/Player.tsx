@@ -9,6 +9,7 @@ interface PlayerProps {
 
 export function Player({ iframeUrl, mirrors }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const wakeLockRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -76,7 +77,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     const sentinelTimer = setTimeout(() => {
       if (!iframeLoaded && activeMirrors.length > 1) {
         const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
-        console.warn(`[PlayerSentinel] Mirror ${currentUrl} timed out. Auto-switching to mirror index ${nextIdx}`);
         setMirrorIndex(nextIdx);
       }
     }, 3500);
@@ -84,7 +84,7 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     return () => clearTimeout(sentinelTimer);
   }, [currentUrl, mirrorIndex, activeMirrors, iframeLoaded]);
 
-  // Loading progress bar animation
+  // Loading progress bar animation - cleared immediately once loaded
   useEffect(() => {
     let interval: any;
     if (!iframeLoaded) {
@@ -113,6 +113,50 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     } catch (e) {}
   };
 
+  // Power-Optimized WakeLock Lifecycle Management
+  useEffect(() => {
+    const releaseWakeLock = async () => {
+      if (wakeLockRef.current) {
+        try {
+          await wakeLockRef.current.release();
+        } catch (e) {}
+        wakeLockRef.current = null;
+      }
+    };
+
+    const requestWakeLock = async () => {
+      // Only request Screen WakeLock when tab is active AND iframe is loaded
+      if ('wakeLock' in navigator && document.visibilityState === 'visible' && iframeLoaded) {
+        try {
+          if (!wakeLockRef.current) {
+            wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          }
+        } catch (err) {
+          // Wake lock rejected or unsupported
+        }
+      }
+    };
+
+    if (iframeLoaded) {
+      requestWakeLock();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (iframeLoaded) requestWakeLock();
+      } else {
+        releaseWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [iframeLoaded]);
+
   useEffect(() => {
     WebApp.expand();
     WebApp.enableClosingConfirmation();
@@ -124,27 +168,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
       WebApp.requestFullscreen();
     }
 
-    let wakeLock: any = null;
-    const requestWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await (navigator as any).wakeLock.request('screen');
-        }
-      } catch (err) {
-        console.error(`Wake Lock error:`, err);
-      }
-    };
-
-    requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     const handleFullscreenChange = () => {
       setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
     };
@@ -153,10 +176,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
-      if (wakeLock) {
-        wakeLock.release().catch(console.error);
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       WebApp.disableClosingConfirmation();
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
@@ -185,22 +204,24 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
-      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-700 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
-          <div 
-            className="h-full bg-[#fbbf24] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
-            style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
-          />
+      {!iframeLoaded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 pointer-events-none">
+          <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+            <div 
+              className="h-full bg-[#fbbf24] transition-all duration-300 ease-out"
+              style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+            />
+          </div>
+          <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase">{t('loading')} {Math.round(loadingProgress)}%</span>
         </div>
-        <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</span>
-      </div>
+      )}
 
       <iframe 
         id="video-iframe"
         key={currentUrl}
         src={currentUrl}
         onLoad={handleIframeLoad}
-        className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
