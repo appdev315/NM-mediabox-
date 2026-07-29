@@ -10,6 +10,24 @@ import { RadioTVContent } from './RadioTV';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 
+// Fisher-Yates array shuffle algorithm (O(N)) for dynamic card mixing on launch
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+const shuffleSections = (sections: any[]) => {
+  if (!Array.isArray(sections)) return [];
+  return sections.map(sec => ({
+    ...sec,
+    items: shuffleArray(sec.items || [])
+  }));
+};
+
 export function Home() {
   const navigate = useNavigate();
   const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, loading } = useApi();
@@ -19,14 +37,14 @@ export function Home() {
   const {
     activeTab,
     setActiveTab,
-    items,
-    setItems,
-    page,
-    setPage,
     selectedGenre,
     setSelectedGenre,
     selectedCountry,
     setSelectedCountry,
+    page,
+    setPage,
+    items,
+    setItems,
     searchQuery,
     setSearchQuery,
     isSearching,
@@ -94,20 +112,20 @@ export function Home() {
             setItems(prev => [...prev, ...(results || [])]);
           }
         } else {
-          // Default categorized home feed (12 cards per genre section, cached for 24 hours)
+          // Default categorized home feed (12 cards per genre section, cached for 24 hours, shuffled on startup)
           setIsSearching(false);
           const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
-            // Instant 0ms render from client cache (NO loading spinner!)
-            setHomeSections(cachedSync);
+            // Instant 0ms render from client cache with shuffled cards for fresh layout
+            setHomeSections(shuffleSections(cachedSync));
             // Silent background update without triggering loading state
             fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
-              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(fresh);
+              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(shuffleSections(fresh));
             });
           } else {
             const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
-            setHomeSections((sections as any[]) || []);
+            setHomeSections(shuffleSections((sections as any[]) || []));
           }
         }
       } catch (err) {
