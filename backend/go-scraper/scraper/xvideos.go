@@ -98,8 +98,17 @@ func XvideosDetails(id string) *types.VideoDetails {
 		}
 	}
 
+	mirrors := []string{
+		fmt.Sprintf("https://www.xv-ru.com/embedframe/%s", realID),
+		fmt.Sprintf("https://www.xvideos2.com/embedframe/%s", realID),
+		fmt.Sprintf("https://www.xvideos3.com/embedframe/%s", realID),
+		fmt.Sprintf("https://www.xvideos.es/embedframe/%s", realID),
+		fmt.Sprintf("https://www.xvideos.com/embedframe/%s", realID),
+	}
+
 	return &types.VideoDetails{
-		Iframe: fmt.Sprintf("https://www.xvideos.com/embedframe/%s", realID),
-		Mp4:    nil,
+		Iframe:  mirrors[0],
+		Mp4:     nil,
+		Mirrors: mirrors,
 	}
 }
