@@ -1,30 +1,90 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 
 interface PlayerProps {
   iframeUrl: string;
+  mirrors?: string[];
 }
 
-export function Player({ iframeUrl }: PlayerProps) {
+export function Player({ iframeUrl, mirrors }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [mirrorIndex, setMirrorIndex] = useState(0);
   const { t } = useLanguage();
-  const isXvideos = iframeUrl.includes('xvideos.com');
 
+  // Determine provider type
+  const provider = useMemo(() => {
+    if (iframeUrl.includes('xvideos') || iframeUrl.includes('xv-ru')) return 'xvideos';
+    if (iframeUrl.includes('eporner')) return 'eporner';
+    return 'generic';
+  }, [iframeUrl]);
+
+  // Compute full mirror list
+  const activeMirrors = useMemo(() => {
+    if (mirrors && mirrors.length > 0) return mirrors;
+
+    if (provider === 'xvideos') {
+      const match = iframeUrl.match(/\/embedframe\/([^/?#]+)/);
+      const id = match ? match[1] : '';
+      if (id) {
+        return [
+          `https://www.xv-ru.com/embedframe/${id}`,
+          `https://www.xvideos2.com/embedframe/${id}`,
+          `https://www.xvideos3.com/embedframe/${id}`,
+          `https://www.xvideos.es/embedframe/${id}`,
+          `https://www.xvideos.com/embedframe/${id}`
+        ];
+      }
+    } else if (provider === 'eporner') {
+      const match = iframeUrl.match(/\/embed\/([^/?#]+)/);
+      const id = match ? match[1] : '';
+      if (id) {
+        return [
+          `https://www.eporner.org/embed/${id}/`,
+          `https://www.eporner.net/embed/${id}/`,
+          `https://www.eporner.com/embed/${id}/`
+        ];
+      }
+    }
+    return [iframeUrl];
+  }, [iframeUrl, mirrors, provider]);
+
+  // Read stored working mirror preference on launch
+  useEffect(() => {
+    if (provider !== 'generic') {
+      const savedDomain = localStorage.getItem(`preferred_mirror_${provider}`);
+      if (savedDomain) {
+        const foundIdx = activeMirrors.findIndex(m => m.includes(savedDomain));
+        if (foundIdx !== -1) {
+          setMirrorIndex(foundIdx);
+          return;
+        }
+      }
+    }
+    setMirrorIndex(0);
+  }, [iframeUrl, activeMirrors, provider]);
+
+  const currentUrl = activeMirrors[mirrorIndex] || iframeUrl;
+
+  // Auto-Fallback Sentinel: if current mirror fails to load within 3.5s, auto-rotate to next mirror!
   useEffect(() => {
     setIframeLoaded(false);
     
-    // Fallback to hide spinner after 8 seconds if onLoad doesn't fire on mobile WebViews
-    const timer = setTimeout(() => {
-      setIframeLoaded(true);
-    }, 8000);
+    const sentinelTimer = setTimeout(() => {
+      if (!iframeLoaded && activeMirrors.length > 1) {
+        const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
+        console.warn(`[PlayerSentinel] Mirror ${currentUrl} timed out. Auto-switching to mirror index ${nextIdx}`);
+        setMirrorIndex(nextIdx);
+      }
+    }, 3500);
     
-    return () => clearTimeout(timer);
-  }, [iframeUrl]);
+    return () => clearTimeout(sentinelTimer);
+  }, [currentUrl, mirrorIndex, activeMirrors, iframeLoaded]);
 
+  // Loading progress bar animation
   useEffect(() => {
     let interval: any;
     if (!iframeLoaded) {
@@ -44,12 +104,19 @@ export function Player({ iframeUrl }: PlayerProps) {
     return () => clearInterval(interval);
   }, [iframeLoaded]);
 
+  const handleIframeLoad = () => {
+    setIframeLoaded(true);
+    // Save working mirror domain to localStorage for instant future loads
+    try {
+      const parsed = new URL(currentUrl);
+      localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
+    } catch (e) {}
+  };
+
   useEffect(() => {
     WebApp.expand();
     WebApp.enableClosingConfirmation();
     
-    // Attempt to request true fullscreen if supported by the client (Bot API 8.0+)
-    // Only do this on mobile platforms, as it's annoying on desktop/web
     const platform = WebApp.platform || 'unknown';
     const isMobile = ['android', 'android_x', 'ios'].includes(platform);
     
@@ -57,7 +124,6 @@ export function Player({ iframeUrl }: PlayerProps) {
       WebApp.requestFullscreen();
     }
 
-    // Request screen wake lock to prevent screen from turning off/dimming during playback
     let wakeLock: any = null;
     const requestWakeLock = async () => {
       try {
@@ -128,28 +194,44 @@ export function Player({ iframeUrl }: PlayerProps) {
         </div>
         <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</span>
       </div>
+
       <iframe 
         id="video-iframe"
-        src={iframeUrl}
-        onLoad={() => setIframeLoaded(true)}
+        key={currentUrl}
+        src={currentUrl}
+        onLoad={handleIframeLoad}
         className={`transition-opacity duration-500 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />
-      {isXvideos && (
-        <button 
-          onClick={toggleFullscreen}
-          className="absolute top-2 right-2 bg-black/50 hover:bg-black/80 text-white p-2 rounded-lg z-10 transition-colors"
-          title="Toggle Fullscreen"
-        >
-          {isFullscreen ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-          )}
-        </button>
-      )}
+
+      {/* Control Overlay Buttons */}
+      <div className="absolute top-2 right-2 flex items-center gap-2 z-30 opacity-80 hover:opacity-100 transition-opacity">
+        {activeMirrors.length > 1 && (
+          <button
+            onClick={() => setMirrorIndex((mirrorIndex + 1) % activeMirrors.length)}
+            className="bg-black/60 hover:bg-black/90 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition-transform active:scale-95"
+            title="Switch Mirror"
+          >
+            🔄 Зеркало {mirrorIndex + 1}/{activeMirrors.length}
+          </button>
+        )}
+
+        {provider === 'xvideos' && (
+          <button 
+            onClick={toggleFullscreen}
+            className="bg-black/60 hover:bg-black/90 text-white p-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition-transform active:scale-95"
+            title="Toggle Fullscreen"
+          >
+            {isFullscreen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

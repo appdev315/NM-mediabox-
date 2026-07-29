@@ -272,8 +272,18 @@ export function Adult() {
                       className="w-full h-full object-cover" 
                       alt="" 
                       onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
+                        const img = e.currentTarget;
+                        const src = img.src;
+                        if (src.includes('thumb-cdn77.xvideos-cdn.com')) {
+                          img.src = src.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
+                        } else if (src.includes('thumbs-gcore.xvideos-cdn.com')) {
+                          img.src = src.replace('thumbs-gcore.xvideos-cdn.com', 'static-ss.xvideos-cdn.com');
+                        } else if (src.includes('static-ca-cdn.eporner.com')) {
+                          img.src = src.replace('static-ca-cdn.eporner.com', 'static.eporner.com');
+                        } else {
+                          img.onerror = null;
+                          img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
+                        }
                       }}
                     />
                     <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">

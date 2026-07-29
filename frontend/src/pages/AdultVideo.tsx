@@ -95,7 +95,7 @@ export function AdultVideo() {
                 playing
               />
             ) : details.iframe ? (
-              <Player iframeUrl={details.iframe} />
+              <Player iframeUrl={details.iframe} mirrors={details.mirrors} />
             ) : null}
           </div>
         </div>

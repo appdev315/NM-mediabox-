@@ -10,8 +10,9 @@ type Video struct {
 }
 
 type VideoDetails struct {
-	Iframe string  `json:"iframe"`
-	Mp4    *string `json:"mp4"`
+	Iframe  string   `json:"iframe"`
+	Mp4     *string  `json:"mp4"`
+	Mirrors []string `json:"mirrors,omitempty"`
 }
 
 type StreamSource struct {
