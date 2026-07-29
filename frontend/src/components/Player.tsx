@@ -43,8 +43,8 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
       const id = match ? match[1] : '';
       if (id) {
         return [
-          `https://www.eporner.org/embed/${id}/`,
-          `https://www.eporner.net/embed/${id}/`,
+          `https://eporner.live/embed/${id}/`,
+          `https://www.eporner.live/embed/${id}/`,
           `https://www.eporner.com/embed/${id}/`
         ];
       }
