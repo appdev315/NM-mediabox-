@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { EXPRESS_API_BASE } from '../hooks/useApi';
+import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
@@ -45,6 +45,7 @@ const CATEGORIES = [
 export function Adult() {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { fetchAdultSearch } = useApi();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -89,13 +90,10 @@ export function Adult() {
     }
     
     try {
-      const initData = WebApp?.initData || '';
-      const headers = { 'Authorization': `tma ${initData}` };
-      const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(searchQuery)}&page=${pageNum}`, { headers });
-      const data = await res.json();
+      const data = await fetchAdultSearch(searchQuery, pageNum);
       if (Array.isArray(data)) {
         // Shuffle the array so even the same page feels different
-        const shuffled = data.sort(() => 0.5 - Math.random());
+        const shuffled = [...data].sort(() => 0.5 - Math.random());
         if (append) {
           setVideos(prev => {
             // Filter out duplicates
