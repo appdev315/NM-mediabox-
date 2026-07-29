@@ -186,7 +186,7 @@ func processNextBatch() {
 		for _, item := range batch {
 			// Check if already in cache and not expired (ResolveLiftw bypassCache=false does this automatically)
 			// Wait, to see if it actually scraped or used cache, we check cache first
-			cacheKey := fmt.Sprintf("%s|%s|%s|%d", item.Title, item.Year, item.Type, strconv.Itoa(item.ID))
+			cacheKey := fmt.Sprintf("%s|%s|%s|%d", item.Title, item.Year, item.Type, item.ID)
 			if val, ok := liftwCache.Load(cacheKey); ok {
 				entry := val.(cacheEntry)
 				if time.Now().Before(entry.exp) {
