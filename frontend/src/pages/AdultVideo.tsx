@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { WebApp } from '../telegram';
-import { EXPRESS_API_BASE } from '../hooks/useApi';
+import { useApi } from '../hooks/useApi';
 import ReactPlayer from 'react-player';
 import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
@@ -9,17 +8,16 @@ import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 
-
 export function AdultVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
+  const { fetchAdultStream, fetchAdultSearch } = useApi();
   
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState<any>(null);
   const [relatedVideos, setRelatedVideos] = useState<any[]>([]);
-
 
   useEffect(() => {
     if (!id) return;
@@ -27,40 +25,37 @@ export function AdultVideo() {
       setLoading(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       try {
-        const initData = WebApp?.initData || '';
-        const headers = { 'Authorization': `tma ${initData}` };
-        
-        // Fetch Video Details
-        const res = await fetch(`${EXPRESS_API_BASE}/adult/stream?id=${encodeURIComponent(id)}`, { headers });
-        const data = await res.json();
-        setDetails(data);
+        // Fetch Video Details using cached API helper
+        const data = await fetchAdultStream(id);
+        if (data) {
+          setDetails(data);
 
-        // Save to adult history
-        try {
-          let hist = JSON.parse(localStorage.getItem('history_adult') || '[]');
-          hist = hist.filter((item: any) => item.id !== data.id);
-          hist.unshift({
-            id: data.id,
-            title: data.title || 'Video',
-            poster: data.poster || '',
-            duration: data.duration || '',
-            type: 'adult'
-          });
-          if (hist.length > 30) hist = hist.slice(0, 30);
-          localStorage.setItem('history_adult', JSON.stringify(hist));
-        } catch (e) {
-          console.error(e);
+          // Save to adult history
+          try {
+            let hist = JSON.parse(localStorage.getItem('history_adult') || '[]');
+            hist = hist.filter((item: any) => item.id !== data.id);
+            hist.unshift({
+              id: data.id,
+              title: data.title || 'Video',
+              poster: data.poster || '',
+              duration: data.duration || '',
+              type: 'adult'
+            });
+            if (hist.length > 30) hist = hist.slice(0, 30);
+            localStorage.setItem('history_adult', JSON.stringify(hist));
+          } catch (e) {
+            console.error(e);
+          }
         }
 
-        // Fetch Related Videos
+        // Fetch Related Videos using cached API helper
         let cat = location.state?.category || 'teen';
         if (cat === '') cat = 'milf'; // fallback if empty
-        const relatedRes = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(cat)}&page=0`, { headers });
-        const relatedData = await relatedRes.json();
+        const relatedData = await fetchAdultSearch(cat, 0);
         
         if (Array.isArray(relatedData)) {
           // Shuffle and take up to 20
-          const shuffled = relatedData.sort(() => 0.5 - Math.random());
+          const shuffled = [...relatedData].sort(() => 0.5 - Math.random());
           setRelatedVideos(shuffled.slice(0, 20));
         }
       } catch (e) {
@@ -70,7 +65,7 @@ export function AdultVideo() {
       }
     };
     fetchVideoAndRelated();
-  }, [id, location.state]);
+  }, [id, location.state, fetchAdultStream, fetchAdultSearch]);
 
   if (loading) {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">Loading video...</div>;

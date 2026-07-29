@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,8 +17,19 @@ import (
 	"scraper/types"
 )
 
+type adultCacheEntry struct {
+	data string
+	exp  time.Time
+}
+
+var (
+	adultSearchCache  sync.Map
+	adultDetailsCache sync.Map
+)
+
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	q := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
@@ -25,6 +37,15 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil {
 			page = p
+		}
+	}
+
+	cacheKey := fmt.Sprintf("%s_%d", q, page)
+	if val, ok := adultSearchCache.Load(cacheKey); ok {
+		entry := val.(adultCacheEntry)
+		if time.Now().Before(entry.exp) {
+			w.Write([]byte(entry.data))
+			return
 		}
 	}
 
@@ -65,16 +86,32 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		mixed = []types.Video{}
 	}
 
-	json.NewEncoder(w).Encode(mixed)
+	dataBytes, err := json.Marshal(mixed)
+	if err == nil {
+		adultSearchCache.Store(cacheKey, adultCacheEntry{
+			data: string(dataBytes),
+			exp:  time.Now().Add(1 * time.Hour),
+		})
+	}
+	w.Write(dataBytes)
 }
 
 func detailsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, `{"error":"Missing id"}`, http.StatusBadRequest)
 		return
+	}
+
+	if val, ok := adultDetailsCache.Load(id); ok {
+		entry := val.(adultCacheEntry)
+		if time.Now().Before(entry.exp) {
+			w.Write([]byte(entry.data))
+			return
+		}
 	}
 
 	var details *types.VideoDetails
@@ -85,7 +122,14 @@ func detailsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if details != nil {
-		json.NewEncoder(w).Encode(details)
+		dataBytes, err := json.Marshal(details)
+		if err == nil {
+			adultDetailsCache.Store(id, adultCacheEntry{
+				data: string(dataBytes),
+				exp:  time.Now().Add(1 * time.Hour),
+			})
+		}
+		w.Write(dataBytes)
 	} else {
 		http.Error(w, `{"error":"Video not found"}`, http.StatusNotFound)
 	}
@@ -116,6 +160,7 @@ func main() {
 	// Adult endpoints
 	mux.HandleFunc("/api/adult/search", middleware.CheckAdultAccess(searchHandler))
 	mux.HandleFunc("/api/adult/details", middleware.CheckAdultAccess(detailsHandler))
+	mux.HandleFunc("/api/adult/stream", middleware.CheckAdultAccess(detailsHandler))
 
 	// Stream and proxy handlers
 	mux.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)

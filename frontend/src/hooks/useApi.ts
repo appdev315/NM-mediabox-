@@ -271,5 +271,41 @@ export function useApi() {
     return withLoading(fetcher);
   }, [language, tmdbFetch, withLoading]);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, loading, error };
+  const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
+    const cacheKey = `adult_search_${query}_${pageNum}`;
+    const cached = clientCache.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const initData = WebApp?.initData || '';
+    const headers = { 'Authorization': `tma ${initData}` };
+    const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(query)}&page=${pageNum}`, { headers });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      clientCache.set(cacheKey, data, 3600);
+    }
+    return data;
+  }, []);
+
+  const fetchAdultStream = useCallback(async (id: string) => {
+    const cacheKey = `adult_stream_${id}`;
+    const cached = clientCache.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const initData = WebApp?.initData || '';
+    const headers = { 'Authorization': `tma ${initData}` };
+    const res = await fetch(`${EXPRESS_API_BASE}/adult/details?id=${encodeURIComponent(id)}`, { headers });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data) {
+      clientCache.set(cacheKey, data, 3600);
+    }
+    return data;
+  }, []);
+
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, loading, error };
 }
