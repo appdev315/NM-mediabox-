@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -29,7 +28,7 @@ var (
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
 	q := r.URL.Query().Get("q")
 	pageStr := r.URL.Query().Get("page")
@@ -40,49 +39,15 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cacheKey := fmt.Sprintf("%s_%d", q, page)
-	if val, ok := adultSearchCache.Load(cacheKey); ok {
-		entry := val.(adultCacheEntry)
-		if time.Now().Before(entry.exp) {
-			w.Write([]byte(entry.data))
-			return
-		}
+	xvideosRes := scraper.SearchXvideos(q, page)
+	if xvideosRes == nil {
+		xvideosRes = []types.Video{}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	var xvideosRes []types.Video
-	var epornerRes []types.Video
-
-	go func() {
-		defer wg.Done()
-		xvideosRes = scraper.SearchXvideos(q, page)
-	}()
-
-	go func() {
-		defer wg.Done()
-		epornerRes = scraper.SearchEporner(q, page)
-	}()
-
-	wg.Wait()
-
-	var mixed []types.Video
-	mixed = append(mixed, xvideosRes...)
-	for _, ev := range epornerRes {
-		mixed = append(mixed, ev)
-	}
-
-	if mixed == nil {
-		mixed = []types.Video{}
-	}
-
-	dataBytes, err := json.Marshal(mixed)
-	if err == nil {
-		adultSearchCache.Store(cacheKey, adultCacheEntry{
-			data: string(dataBytes),
-			exp:  time.Now().Add(1 * time.Hour),
-		})
+	dataBytes, err := json.Marshal(xvideosRes)
+	if err != nil {
+		w.Write([]byte("[]"))
+		return
 	}
 	w.Write(dataBytes)
 }
