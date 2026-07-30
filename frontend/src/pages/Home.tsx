@@ -42,7 +42,7 @@ export function Home() {
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
     if (searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && page === 1 && homeSections.length === 0) {
-      const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+      const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
         setHomeSections(cached);

@@ -1,7 +1,7 @@
 /**
- * Client-side Caching Utility for MediaBox
- * Stores API responses (TMDB metadata, trending, details) in localStorage + In-Memory cache
- * to eliminate redundant network requests and provide instant UI rendering on user device.
+ * Enhanced Client-side Caching Utility for MediaBox
+ * Leverages IndexedDB for non-blocking storage of large API payloads
+ * and In-Memory Map for instant 0ms synchronous UI reads.
  */
 
 interface CacheEntry<T> {
@@ -11,35 +11,112 @@ interface CacheEntry<T> {
 
 const memoryCache = new Map<string, CacheEntry<any>>();
 const CACHE_PREFIX = 'mb_cache_';
+const DB_NAME = 'mediabox_cache_db';
+const STORE_NAME = 'kv_store';
+const DB_VERSION = 1;
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getDB(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !window.indexedDB) {
+        reject(new Error('IndexedDB not supported'));
+        return;
+      }
+      const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = (event: any) => {
+        const db = event.target.result as IDBDatabase;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+      request.onsuccess = (event: any) => resolve(event.target.result as IDBDatabase);
+      request.onerror = (event: any) => reject(event.target.error);
+    });
+  }
+  return dbPromise;
+}
+
+// Background sync from IndexedDB into memoryCache on startup
+async function initIndexedDBCache(): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    const now = Date.now();
+
+    request.onsuccess = (event: any) => {
+      const cursor = event.target.result as IDBCursorWithValue;
+      if (cursor) {
+        const key = cursor.key as string;
+        const entry = cursor.value as CacheEntry<any>;
+        if (entry && entry.expiry && now < entry.expiry) {
+          if (!memoryCache.has(key)) {
+            memoryCache.set(key, entry);
+          }
+        }
+        cursor.continue();
+      }
+    };
+  } catch (e) {
+    console.warn('[ClientCache] IndexedDB init deferred:', e);
+  }
+
+  // Migrate legacy localStorage cache to avoid blocking
+  try {
+    const now = Date.now();
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          try {
+            const entry: CacheEntry<any> = JSON.parse(stored);
+            if (now < entry.expiry) {
+              memoryCache.set(key, entry);
+              idbSet(key, entry);
+            }
+          } catch (e) {}
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+}
+
+async function idbSet(fullKey: string, entry: CacheEntry<any>): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(entry, fullKey);
+  } catch (e) {}
+}
+
+async function idbRemove(fullKey: string): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(fullKey);
+  } catch (e) {}
+}
 
 export const clientCache = {
   get<T>(key: string): T | null {
     const fullKey = CACHE_PREFIX + key;
     const now = Date.now();
 
-    // 1. Check in-memory cache first (fastest)
+    // 1. Instant check in memory map (0ms Main Thread overhead)
     if (memoryCache.has(fullKey)) {
       const entry = memoryCache.get(fullKey)!;
       if (now < entry.expiry) {
         return entry.data as T;
       }
       memoryCache.delete(fullKey);
-    }
-
-    // 2. Check localStorage
-    try {
-      const stored = localStorage.getItem(fullKey);
-      if (stored) {
-        const entry: CacheEntry<T> = JSON.parse(stored);
-        if (now < entry.expiry) {
-          // Re-populate memory cache
-          memoryCache.set(fullKey, entry);
-          return entry.data;
-        }
-        localStorage.removeItem(fullKey);
-      }
-    } catch (e) {
-      console.warn('[ClientCache] Failed to read from localStorage:', e);
+      idbRemove(fullKey);
     }
 
     return null;
@@ -50,23 +127,17 @@ export const clientCache = {
     const expiry = Date.now() + ttlSeconds * 1000;
     const entry: CacheEntry<T> = { data, expiry };
 
-    // Save in memory
+    // Update memory cache synchronously
     memoryCache.set(fullKey, entry);
 
-    // Save in localStorage
-    try {
-      localStorage.setItem(fullKey, JSON.stringify(entry));
-    } catch (e) {
-      console.warn('[ClientCache] Failed to save to localStorage:', e);
-    }
+    // Save to IndexedDB asynchronously in non-blocking macro-task
+    idbSet(fullKey, entry);
   },
 
   remove(key: string): void {
     const fullKey = CACHE_PREFIX + key;
     memoryCache.delete(fullKey);
-    try {
-      localStorage.removeItem(fullKey);
-    } catch (e) {}
+    idbRemove(fullKey);
   },
 
   clearExpired(): void {
@@ -74,31 +145,14 @@ export const clientCache = {
     for (const [key, entry] of memoryCache.entries()) {
       if (now >= entry.expiry) {
         memoryCache.delete(key);
+        idbRemove(key);
       }
     }
-
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(CACHE_PREFIX)) {
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            try {
-              const entry = JSON.parse(stored);
-              if (now >= entry.expiry) {
-                keysToRemove.push(key);
-              }
-            } catch (e) {
-              keysToRemove.push(key);
-            }
-          }
-        }
-      }
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch (e) {}
   }
 };
 
-// Periodically clean up expired items on load
-clientCache.clearExpired();
+// Initialize IndexedDB hydration in background
+if (typeof window !== 'undefined') {
+  initIndexedDBCache();
+}
+

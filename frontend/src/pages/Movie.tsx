@@ -8,6 +8,7 @@ import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useApi, EXPRESS_API_BASE } from '../hooks/useApi';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 
 export function Movie() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export function Movie() {
   const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
   const { triggerMovieAd } = useAdManager();
+  const { savedTimecode } = usePlaybackResilience({ mediaId: id });
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -31,6 +33,30 @@ export function Movie() {
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
+
+  const handleSeasonEpisodeChange = (season: string, episode: string) => {
+    setActiveSeason(season);
+    setActiveEpisode(episode);
+
+    const currentSource = sources.find((s: any) => s.url === iframeUrl);
+    if (currentSource?.isLiftw) {
+      const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: parseInt(episode) }, '*');
+      }
+    } else {
+      setIframeUrl(prev => {
+        if (!prev) return prev;
+        if (prev.includes('/embed/tv/')) {
+          const parts = prev.split('/embed/tv/')[1]?.split('/') || [];
+          const tmdbId = parts[0];
+          const base = prev.split('/embed/tv/')[0];
+          return `${base}/embed/tv/${tmdbId}/${season}/${episode}`;
+        }
+        return prev;
+      });
+    }
+  };
 
   useEffect(() => {
     if (iframeUrl) {
@@ -176,11 +202,16 @@ export function Movie() {
       // YouTube-Grade Instant Client-Side Embed Construction (0ms latency, 0 server load)
       if (queryParams.tmdb) {
         const tmdbId = queryParams.tmdb;
-        const embedType = mediaType === 'tv' ? 'tv' : 'movie';
-        foundSources.globalEmbeds = [
-          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/${embedType}/${tmdbId}`, isLiftw: false },
-          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/${embedType}/${tmdbId}`, isLiftw: false },
-          { name: 'EmbedSU', url: `https://embed.su/embed/${embedType}/${tmdbId}`, isLiftw: false }
+        const sNum = activeSeason || '1';
+        const eNum = activeEpisode || '1';
+        foundSources.globalEmbeds = mediaType === 'tv' ? [
+          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
+          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
+          { name: 'EmbedSU', url: `https://embed.su/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false }
+        ] : [
+          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`, isLiftw: false },
+          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/movie/${tmdbId}`, isLiftw: false },
+          { name: 'EmbedSU', url: `https://embed.su/embed/movie/${tmdbId}`, isLiftw: false }
         ];
       }
 
@@ -512,7 +543,7 @@ export function Movie() {
             ) : iframeUrl ? (
               <div className="w-full h-full flex flex-col relative group">
                 <div className="flex-1 w-full h-full">
-                  <Player iframeUrl={iframeUrl} />
+                  <Player iframeUrl={iframeUrl} initialTimecode={savedTimecode || undefined} mediaId={id} />
                 </div>
               </div>
             ) : streamUrl ? (
@@ -552,27 +583,24 @@ export function Movie() {
           </div>
         )}
 
-        {/* Liftw Seasons and Episodes UI */}
-        {liftwEpisodes && sources.find((s: any) => s.url === iframeUrl)?.isLiftw && (
+        {/* TV Series Seasons and Episodes UI */}
+        {mediaType === 'tv' && (
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <div className="flex-1 relative">
                 <select
-                  value={activeSeason}
+                  value={activeSeason || '1'}
                   onChange={(e) => {
                     const season = e.target.value;
-                    setActiveSeason(season);
-                    setActiveEpisode(liftwEpisodes[season][0]);
-                    const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
-                    if (iframe && iframe.contentWindow) {
-                      iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: liftwEpisodes[season][0] }, '*');
-                    }
+                    const availableEpisodes = liftwEpisodes && liftwEpisodes[season] ? liftwEpisodes[season] : ['1'];
+                    const defaultEpisode = availableEpisodes[0] || '1';
+                    handleSeasonEpisodeChange(season, defaultEpisode);
                   }}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)).map(season => (
+                  {(liftwEpisodes ? Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)) : (movie?.seasons ? movie.seasons.filter((s: any) => s.season_number > 0).map((s: any) => String(s.season_number)) : ['1', '2', '3', '4', '5'])).map((season: string) => (
                     <option key={season} value={season}>
                       {season} {t('season') || 'Сезон'}
                     </option>
@@ -581,30 +609,27 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
 
-              {activeSeason && liftwEpisodes[activeSeason] && (
-                <div className="flex-1 relative">
-                  <select
-                    value={activeEpisode}
-                    onChange={(e) => {
-                      const ep = e.target.value;
-                      setActiveEpisode(ep);
-                      const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
-                      if (iframe && iframe.contentWindow) {
-                        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(activeSeason), episode: ep }, '*');
-                      }
-                    }}
-                    className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
-                    style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                  >
-                    {[...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)).map((ep: string) => (
-                      <option key={ep} value={ep}>
-                        {ep} Серия
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
-                </div>
-              )}
+              <div className="flex-1 relative">
+                <select
+                  value={activeEpisode || '1'}
+                  onChange={(e) => {
+                    const ep = e.target.value;
+                    handleSeasonEpisodeChange(activeSeason || '1', ep);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                >
+                  {(liftwEpisodes && activeSeason && liftwEpisodes[activeSeason] 
+                    ? [...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)) 
+                    : Array.from({ length: 24 }, (_, i) => String(i + 1))
+                  ).map((ep: string) => (
+                    <option key={ep} value={ep}>
+                      {ep} Серия
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+              </div>
             </div>
           </div>
         )}

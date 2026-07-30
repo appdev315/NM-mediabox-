@@ -1,26 +1,67 @@
 /**
- * Fetches a URL with automatic retries on failure.
- * This helps mask network instability and timeout errors.
+ * Network Fetching Utility with Exponential Backoff, Jitter, and Retry logic.
+ * Retries strictly on transient network failures (TypeError) and HTTP 5xx, 429, 408 status codes.
  */
-export async function fetchWithRetry(url: string | RequestInfo | URL, options: RequestInit = {}, retries: number = 3, backoff: number = 1000): Promise<Response> {
-  let lastError: Error | null = null;
-  
-  for (let i = 0; i < retries; i++) {
+
+export interface FetchWithRetryOptions extends RequestInit {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  retryOnStatus?: number[];
+}
+
+const DEFAULT_RETRY_STATUSES = [408, 429, 500, 502, 503, 504];
+
+function isRetryableError(error: unknown, status?: number, retryOnStatus = DEFAULT_RETRY_STATUSES): boolean {
+  if (status !== undefined) {
+    return retryOnStatus.includes(status);
+  }
+  // TypeError is thrown by fetch API on network disconnects / DNS failures
+  if (error instanceof TypeError) {
+    return true;
+  }
+  return false;
+}
+
+function calculateJitteredBackoff(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
+  const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+  const jitter = Math.random() * 300;
+  return Math.min(maxDelayMs, exponentialDelay + jitter);
+}
+
+export async function fetchWithRetry(
+  url: string | URL,
+  options: FetchWithRetryOptions = {}
+): Promise<Response> {
+  const {
+    maxRetries = 3,
+    baseDelayMs = 500,
+    maxDelayMs = 8000,
+    retryOnStatus = DEFAULT_RETRY_STATUSES,
+    ...fetchOptions
+  } = options;
+
+  let attempt = 0;
+
+  while (true) {
     try {
-      const response = await fetch(url, options);
-      // We also retry if the response is a 5xx error (server error/timeout)
-      if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)) {
+      const response = await fetch(url, fetchOptions);
+
+      if (response.ok || attempt >= maxRetries || !isRetryableError(null, response.status, retryOnStatus)) {
         return response;
       }
-      if (i === retries - 1) return response;
-      throw new Error(`HTTP Error ${response.status}`);
-    } catch (err: any) {
-      lastError = err;
-      if (i < retries - 1) {
-        // Wait before retrying (exponential backoff: 1s, 2s, 4s...)
-        await new Promise(resolve => setTimeout(resolve, backoff * Math.pow(2, i)));
+
+      attempt++;
+      const delay = calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    } catch (error: unknown) {
+      if (attempt >= maxRetries || !isRetryableError(error, undefined, retryOnStatus)) {
+        throw error;
       }
+
+      attempt++;
+      const delay = calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  throw lastError;
 }
