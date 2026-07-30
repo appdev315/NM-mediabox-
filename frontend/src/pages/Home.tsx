@@ -10,27 +10,9 @@ import { RadioTVContent } from './RadioTV';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 
-// Fisher-Yates array shuffle algorithm (O(N)) for dynamic card mixing on launch
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-};
-
-const shuffleSections = (sections: any[]) => {
-  if (!Array.isArray(sections)) return [];
-  return sections.map(sec => ({
-    ...sec,
-    items: shuffleArray(sec.items || [])
-  }));
-};
-
 export function Home() {
   const navigate = useNavigate();
-  const { fetchTrending, fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, loading } = useApi();
+  const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, loading } = useApi();
   const { language, t } = useLanguage();
   const { triggerAd } = useAdManager();
 
@@ -57,6 +39,37 @@ export function Home() {
   const [homeSections, setHomeSections] = useState<any[]>([]);
   const isFirstRender = useRef(true);
 
+  // Synchronous initial restore from client cache for 0ms loading state on tab switch
+  useEffect(() => {
+    if (searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && page === 1 && homeSections.length === 0) {
+      const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+      const cached = clientCache.get(cacheKey) as any[];
+      if (Array.isArray(cached) && cached.length > 0) {
+        setHomeSections(cached);
+      }
+    }
+  }, [activeTab, language]);
+
+  useEffect(() => {
+    WebApp.expand();
+    const platform = WebApp.platform || 'unknown';
+    const isMobile = ['android', 'android_x', 'ios'].includes(platform);
+    if (isMobile && WebApp.requestFullscreen) {
+      WebApp.requestFullscreen();
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadGenres = async () => {
+      if (activeTab === 'movie' || activeTab === 'series') {
+        const type = activeTab === 'movie' ? 'movie' : 'tv';
+        const data = await fetchGenres(type);
+        setGenres(data);
+      }
+    };
+    loadGenres();
+  }, [activeTab, fetchGenres]);
+
   // Restore scroll position when items are loaded
   useEffect(() => {
     if ((items.length > 0 || homeSections.length > 0) && scrollY > 0) {
@@ -73,17 +86,6 @@ export function Home() {
       setScrollY(window.scrollY);
     };
   }, [setScrollY]);
-
-  // Load genres when tab or language changes
-  useEffect(() => {
-    const loadGenres = async () => {
-      const g = await fetchGenres(activeTab === 'movie' ? 'movie' : 'tv');
-      setGenres(g);
-    };
-    if (!isSearching) {
-      loadGenres();
-    }
-  }, [activeTab, fetchGenres, isSearching, language]);
 
   // Load content
   useEffect(() => {
@@ -112,30 +114,29 @@ export function Home() {
             setItems(prev => [...prev, ...(results || [])]);
           }
         } else {
-          // Default categorized home feed (12 cards per genre section, cached for 24 hours, shuffled on startup)
+          // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
           const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
-            // Instant 0ms render from client cache with shuffled cards for fresh layout
-            setHomeSections(shuffleSections(cachedSync));
+            // Instant 0ms render from client cache
+            setHomeSections(cachedSync);
             // Silent background update without triggering loading state
             fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
-              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(shuffleSections(fresh));
+              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(fresh);
             });
           } else {
             const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
-            setHomeSections(shuffleSections((sections as any[]) || []));
+            setHomeSections((sections as any[]) || []);
           }
         }
       } catch (err) {
-        console.error("Failed to load content:", err);
+        console.error('Failed to load content', err);
       }
     };
 
-    const timeoutId = setTimeout(loadContent, searchQuery ? 300 : 0);
-    return () => clearTimeout(timeoutId);
-  }, [activeTab, page, selectedGenre, selectedCountry, searchQuery, fetchTrending, fetchMovies, fetchSeries, fetchCategorizedHome, searchContent, language]);
+    loadContent();
+  }, [activeTab, page, selectedGenre, selectedCountry, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
 
   // Infinite scroll listener (only active when in single-genre, country, or search mode)
   useEffect(() => {
@@ -333,7 +334,7 @@ export function Home() {
           {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
           {isCategorizedMode ? (
             <div className="space-y-8 w-full animate-fade-in">
-              {homeSections.map((section) => (
+              {homeSections.map((section: any) => (
                 <div key={section.id} className="w-full">
                   <div className="flex justify-between items-center mb-3 px-1">
                     <h2 className="text-lg sm:text-xl font-bold tracking-tight">{section.name}</h2>
