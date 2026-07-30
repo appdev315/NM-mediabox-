@@ -20,8 +20,20 @@ import { AdProvider } from './context/AdManager';
 import { HomeStateProvider } from './context/HomeStateContext';
 import { useNavigate } from 'react-router-dom';
 
+import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
 import { TopBanner } from './components/TopBanner';
+
+function NetworkBanner() {
+  const { isOnline } = useNetworkStatus();
+  if (isOnline) return null;
+
+  return (
+    <div className="bg-amber-600/90 text-white text-xs font-semibold text-center py-1 px-3 w-full backdrop-blur-sm z-50 sticky top-0 animate-pulse">
+      📡 Соединение частично отсутствует — используется локальный кэш
+    </div>
+  );
+}
 
 function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   const navigate = useNavigate();
@@ -61,7 +73,7 @@ function BottomNav() {
         className={`font-bold transition-opacity opacity-100 flex items-center justify-center w-full`}
         style={{ color: location.pathname === '/favorites' ? 'var(--button-color)' : 'var(--text-color)' }}
       >
-        <span className="mr-2">🕒</span> {location.pathname === '/favorites' ? t('home') : t('myFavorites')}
+        {location.pathname === '/favorites' ? t('home') : t('myFavorites')}
       </Link>
     </div>
   );
@@ -71,6 +83,7 @@ function MainApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
+      <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
         <TopBanner />
         <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
@@ -94,6 +107,7 @@ function AdultApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
+      <NetworkBanner />
       <div className="pb-16 min-h-screen relative">
         <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
           <Routes>

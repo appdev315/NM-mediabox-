@@ -103,8 +103,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
+          lowLatencyMode: false,
+          maxBufferLength: 30,
+          maxBufferSize: 60 * 1024 * 1024, // 60MB RAM buffer
           backBufferLength: 30,
+          manifestLoadingMaxRetry: 5,
+          levelLoadingMaxRetry: 5,
+          fragLoadingMaxRetry: 6,
         });
         hls.loadSource(url);
         hls.attachMedia(audio);
@@ -114,15 +119,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error('[Hls] Fatal network error, trying to recover...');
+                console.warn('[HLS] Network error encountered, attempting automatic recovery...');
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error('[Hls] Fatal media error, trying to recover...');
+                console.warn('[HLS] Media error encountered, attempting automatic recovery...');
                 hls.recoverMediaError();
                 break;
               default:
-                console.error('[Hls] Fatal HLS error, stopping...');
+                console.error('[HLS] Fatal unrecoverable error, destroying instance');
                 stop();
                 break;
             }
@@ -266,17 +271,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onOnline = () => {
-      console.log('[Network] Back online');
+      console.log('[Network] Back online, refreshing live radio stream...');
       const track = currentTrackRef.current;
       if (track?.type === 'radio' && isPlayingRef.current) {
-        // Reset reconnect counter and immediately try to resume
         reconnectAttempt = 0;
-        const src = audio.src;
-        if (src) {
-          audio.src = src;
-          audio.load();
-          audio.play().catch(() => { });
-        }
+        const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+        const freshUrl = !isHls 
+          ? `${track.url}${track.url.includes('?') ? '&' : '?'}cb=${Date.now()}`
+          : track.url;
+        audio.pause();
+        audio.src = freshUrl;
+        audio.load();
+        audio.play().catch(() => { });
       }
     };
 

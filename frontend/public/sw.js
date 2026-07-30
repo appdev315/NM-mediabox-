@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mediabox-v1';
+const CACHE_NAME = 'mediabox-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -31,19 +31,44 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
   const url = new URL(event.request.url);
 
-  // Stale-While-Revalidate strategy for static resources
-  if (url.origin === location.origin || url.hostname === 'image.tmdb.org') {
+  // 1. Bypass Service Worker caching for Media Streams (Video/Audio) and Range HTTP Requests
+  if (
+    url.pathname.endsWith('.m3u8') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.mp4') ||
+    url.pathname.endsWith('.m4s') ||
+    url.pathname.endsWith('.mp3') ||
+    url.pathname.endsWith('.aac') ||
+    url.pathname.endsWith('.ogg') ||
+    url.pathname.endsWith('.wav') ||
+    event.request.destination === 'audio' ||
+    event.request.headers.has('range')
+  ) {
+    return; // Pass through to browser network directly without SW Interception
+  }
+
+  // 2. Stale-While-Revalidate strategy for TMDB API, Poster Images, and App Assets
+  const isTargetAsset = 
+    url.origin === location.origin || 
+    url.hostname === 'image.tmdb.org' ||
+    url.pathname.includes('/tmdb/') ||
+    url.pathname.includes('/api/');
+
+  if (isTargetAsset) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
-          const fetchPromise = fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch(() => cachedResponse);
+          const fetchPromise = fetch(event.request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                cache.put(event.request, networkResponse.clone());
+              }
+              return networkResponse;
+            })
+            .catch(() => cachedResponse);
           return cachedResponse || fetchPromise;
         });
       })

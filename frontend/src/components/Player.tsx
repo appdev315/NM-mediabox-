@@ -5,9 +5,11 @@ import { useLanguage } from '../context/LanguageContext';
 interface PlayerProps {
   iframeUrl: string;
   mirrors?: string[];
+  initialTimecode?: number;
+  mediaId?: string | number;
 }
 
-export function Player({ iframeUrl, mirrors }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wakeLockRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -56,7 +58,20 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
     setMirrorIndex(0);
   }, [iframeUrl, activeMirrors, provider]);
 
-  const currentUrl = activeMirrors[mirrorIndex] || iframeUrl;
+  const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
+
+  // Append restored timecode parameter when available
+  const currentUrl = useMemo(() => {
+    if (!initialTimecode || initialTimecode <= 5) return rawUrl;
+    const startSec = Math.floor(initialTimecode);
+    if (rawUrl.includes('#')) {
+      return `${rawUrl}&t=${startSec}`;
+    }
+    if (rawUrl.includes('?')) {
+      return `${rawUrl}&start=${startSec}#t=${startSec}`;
+    }
+    return `${rawUrl}?start=${startSec}#t=${startSec}`;
+  }, [rawUrl, initialTimecode]);
 
   // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
   useEffect(() => {
