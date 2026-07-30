@@ -68,31 +68,26 @@ jobs:
 
             LOG_BLOCK=""
             if [ -n "$RECENT_ERRORS_RAW" ]; then
-              LOG_BLOCK="
-
-📝 <b>Ошибки в логах (для передачи ИИ):</b>
-<code>
-${RECENT_ERRORS_RAW}
-</code>"
+              LOG_BLOCK=$'\n\n📝 <b>Ошибки в логах (для передачи ИИ):</b>\n<code>\n'"${RECENT_ERRORS_RAW}"$'\n</code>'
             fi
             
             STATS_MSG="📊 <b>Сводка Media-Box (За 8 часов)</b>
 
-⏳ <b>Аптайм:</b> ${HOURS}ч ${MINUTES}м
-👥 <b>Уникальных IP:</b> <b>${UNIQUE_IPS}</b>
-🌐 <b>Запросов:</b> <b>${TOTAL}</b> | ✅ <b>Успех:</b> <b>${SUCCESS_RATE}%</b>
+          ⏳ <b>Аптайм:</b> ${HOURS}ч ${MINUTES}м
+          👥 <b>Уникальных IP:</b> <b>${UNIQUE_IPS}</b>
+          🌐 <b>Запросов:</b> <b>${TOTAL}</b> | ✅ <b>Успех:</b> <b>${SUCCESS_RATE}%</b>
 
-📊 <b>Активность по разделам:</b>
-🎬 Фильмы: ${MOVIES} | 📺 Сериалы: ${SERIES}
-📻 Радио: ${RADIO} | 📺 ТВ: ${TV}
+          📊 <b>Активность по разделам:</b>
+          🎬 Фильмы: ${MOVIES} | 📺 Сериалы: ${SERIES}
+          📻 Радио: ${RADIO} | 📺 ТВ: ${TV}
 
-📡 <b>Диагностика доноров:</b>
-🏎 <b>Liftw (Плеер 1):</b> ${LIFTW_REQ} зап. | ${LIFTW_SUCCESS_PCT}% успех
-⚡ <b>Anwap/Go (Плеер 2):</b> ${GO_REQ} зап. | ${GO_FAIL} сбоев
+          📡 <b>Диагностика доноров:</b>
+          🏎 <b>Liftw (Плеер 1):</b> ${LIFTW_REQ} зап. | ${LIFTW_SUCCESS_PCT}% успех
+          ⚡ <b>Anwap/Go (Плеер 2):</b> ${GO_REQ} зап. | ${GO_FAIL} сбоев
 
-📋 <b>Детализация проблем:</b>
-🔍 404 (Не найдено): ${NF} | 🚫 403 (Баны): ${BANS}
-🛑 429 (Лимиты): ${RL} | 🔥 500 (Ошибки парсера): ${INTERNAL}${LOG_BLOCK}"
+          📋 <b>Детализация проблем:</b>
+          🔍 404 (Не найдено): ${NF} | 🚫 403 (Баны): ${BANS}
+          🛑 429 (Лимиты): ${RL} | 🔥 500 (Ошибки парсера): ${INTERNAL}${LOG_BLOCK}"
 
             STATS_MSG=$(echo "$STATS_MSG" | sed 's/^[ \t]*//')
             echo "STATS_MSG<<EOF" >> $GITHUB_ENV
