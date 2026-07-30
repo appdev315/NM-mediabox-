@@ -12,7 +12,7 @@ import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 
 
 const CATEGORIES = [
-  { id: '', label: 'All / Random' },
+  { id: '', label: 'All Categories / Все категории' },
   { id: 'milf', label: 'MILF' },
   { id: 'teen', label: 'Teens' },
   { id: 'japanese', label: 'Japanese' },
@@ -42,13 +42,97 @@ const CATEGORIES = [
   { id: 'toys', label: 'Toys' }
 ];
 
+const ADULT_COUNTRIES = [
+  { id: '', labelRu: 'Все страны 🌐', labelEn: 'All Countries 🌐' },
+  { id: 'australian', labelRu: '🇦🇺 Австралия', labelEn: '🇦🇺 Australia' },
+  { id: 'austrian', labelRu: '🇦🇹 Австрия', labelEn: '🇦🇹 Austria' },
+  { id: 'azerbaijan', labelRu: '🇦🇿 Азербайджан', labelEn: '🇦🇿 Azerbaijan' },
+  { id: 'argentina', labelRu: '🇦🇷 Аргентина', labelEn: '🇦🇷 Argentina' },
+  { id: 'afghanistan', labelRu: '🇦🇫 Афганистан', labelEn: '🇦🇫 Afghanistan' },
+  { id: 'bangladesh', labelRu: '🇧🇩 Бангладеш', labelEn: '🇧🇩 Bangladesh' },
+  { id: 'belgian', labelRu: '🇧🇪 Бельгия', labelEn: '🇧🇪 Belgium' },
+  { id: 'bulgarian', labelRu: '🇧🇬 Болгария', labelEn: '🇧🇬 Bulgaria' },
+  { id: 'bolivia', labelRu: '🇧🇴 Боливия', labelEn: '🇧🇴 Bolivia' },
+  { id: 'brazilian', labelRu: '🇧🇷 Бразилия', labelEn: '🇧🇷 Brazil' },
+  { id: 'british', labelRu: '🇬🇧 Великобритания', labelEn: '🇬🇧 United Kingdom' },
+  { id: 'hungarian', labelRu: '🇭🇺 Венгрия', labelEn: '🇭🇺 Hungary' },
+  { id: 'venezuela', labelRu: '🇻🇪 Венесуэла', labelEn: '🇻🇪 Venezuela' },
+  { id: 'vietnamese', labelRu: '🇻🇳 Вьетнам', labelEn: '🇻🇳 Vietnam' },
+  { id: 'guatemala', labelRu: '🇬🇹 Гватемала', labelEn: '🇬🇹 Guatemala' },
+  { id: 'german', labelRu: '🇩🇪 Германия', labelEn: '🇩🇪 Germany' },
+  { id: 'hong kong', labelRu: '🇭🇰 Гонконг', labelEn: '🇭🇰 Hong Kong' },
+  { id: 'greek', labelRu: '🇬🇷 Греция', labelEn: '🇬🇷 Greece' },
+  { id: 'georgian', labelRu: '🇬🇪 Грузия', labelEn: '🇬🇪 Georgia' },
+  { id: 'danish', labelRu: '🇩🇰 Дания', labelEn: '🇩🇰 Denmark' },
+  { id: 'dominican', labelRu: '🇩🇴 Доминиканская Республика', labelEn: '🇩🇴 Dominican Republic' },
+  { id: 'egyptian', labelRu: '🇪🇬 Египет', labelEn: '🇪🇬 Egypt' },
+  { id: 'israeli', labelRu: '🇮🇱 Израиль', labelEn: '🇮🇱 Israel' },
+  { id: 'indian', labelRu: '🇮🇳 Индия', labelEn: '🇮🇳 India' },
+  { id: 'indonesian', labelRu: '🇮🇩 Индонезия', labelEn: '🇮🇩 Indonesia' },
+  { id: 'jordan', labelRu: '🇯🇴 Иордания', labelEn: '🇯🇴 Jordan' },
+  { id: 'iraq', labelRu: '🇮🇶 Ирак', labelEn: '🇮🇶 Iraq' },
+  { id: 'irish', labelRu: '🇮🇪 Ирландия', labelEn: '🇮🇪 Ireland' },
+  { id: 'iceland', labelRu: '🇮🇸 Исландия', labelEn: '🇮🇸 Iceland' },
+  { id: 'spanish', labelRu: '🇪🇸 Испания', labelEn: '🇪🇸 Spain' },
+  { id: 'italian', labelRu: '🇮🇹 Италия', labelEn: '🇮🇹 Italy' },
+  { id: 'cambodia', labelRu: '🇰🇭 Камбоджа', labelEn: '🇰🇭 Cambodia' },
+  { id: 'cameroon', labelRu: '🇨🇲 Камерун', labelEn: '🇨🇲 Cameroon' },
+  { id: 'canadian', labelRu: '🇨🇦 Канада', labelEn: '🇨🇦 Canada' },
+  { id: 'qatar', labelRu: '🇶🇦 Катар', labelEn: '🇶🇦 Qatar' },
+  { id: 'kenya', labelRu: '🇰🇪 Кения', labelEn: '🇰🇪 Kenya' },
+  { id: 'cyprus', labelRu: '🇨🇾 Кипр', labelEn: '🇨🇾 Cyprus' },
+  { id: 'chinese', labelRu: '🇨🇳 Китай', labelEn: '🇨🇳 China' },
+  { id: 'colombian', labelRu: '🇨🇴 Колумбия', labelEn: '🇨🇴 Colombia' },
+  { id: 'laos', labelRu: '🇱🇦 Лаос', labelEn: '🇱🇦 Laos' },
+  { id: 'latvian', labelRu: '🇱🇻 Латвия', labelEn: '🇱🇻 Latvia' },
+  { id: 'lebanon', labelRu: '🇱🇧 Ливан', labelEn: '🇱🇧 Lebanon' },
+  { id: 'malaysian', labelRu: '🇲🇾 Малайзия', labelEn: '🇲🇾 Malaysia' },
+  { id: 'malta', labelRu: '🇲🇹 Мальта', labelEn: '🇲🇹 Malta' },
+  { id: 'moroccan', labelRu: '🇲🇦 Марокко', labelEn: '🇲🇦 Morocco' },
+  { id: 'mexican', labelRu: '🇲🇽 Мексика', labelEn: '🇲🇽 Mexico' },
+  { id: 'moldova', labelRu: '🇲🇩 Молдова', labelEn: '🇲🇩 Moldova' },
+  { id: 'myanmar', labelRu: '🇲🇲 Мьянма', labelEn: '🇲🇲 Myanmar' },
+  { id: 'nigerian', labelRu: '🇳🇬 Нигерия', labelEn: '🇳🇬 Nigeria' },
+  { id: 'dutch', labelRu: '🇳🇱 Нидерланды', labelEn: '🇳🇱 Netherlands' },
+  { id: 'new zealand', labelRu: '🇳🇿 Новая Зеландия', labelEn: '🇳🇿 New Zealand' },
+  { id: 'norwegian', labelRu: '🇳🇴 Норвегия', labelEn: '🇳🇴 Norway' },
+  { id: 'pakistani', labelRu: '🇵🇰 Пакистан', labelEn: '🇵🇰 Pakistan' },
+  { id: 'peruvian', labelRu: '🇵🇪 Перу', labelEn: '🇵🇪 Peru' },
+  { id: 'polish', labelRu: '🇵🇱 Польша', labelEn: '🇵🇱 Poland' },
+  { id: 'portuguese', labelRu: '🇵🇹 Португалия', labelEn: '🇵🇹 Portugal' },
+  { id: 'korean', labelRu: '🇰🇷 Республика Корея', labelEn: '🇰🇷 South Korea' },
+  { id: 'singapore', labelRu: '🇸🇬 Сингапур', labelEn: '🇸🇬 Singapore' },
+  { id: 'russian', labelRu: '🇷🇺 Россия', labelEn: '🇷🇺 Russia' },
+  { id: 'romanian', labelRu: '🇷🇴 Румыния', labelEn: '🇷🇴 Romania' },
+  { id: 'senegal', labelRu: '🇸🇳 Сенегал', labelEn: '🇸🇳 Senegal' },
+  { id: 'serbian', labelRu: '🇷🇸 Сербия', labelEn: '🇷🇸 Serbia' },
+  { id: 'slovakia', labelRu: '🇸🇰 Словакия', labelEn: '🇸🇰 Slovakia' },
+  { id: 'american', labelRu: '🇺🇸 США', labelEn: '🇺🇸 USA' },
+  { id: 'thai', labelRu: '🇹🇭 Таиланд', labelEn: '🇹🇭 Thailand' },
+  { id: 'taiwanese', labelRu: '🇹🇼 Тайвань', labelEn: '🇹🇼 Taiwan' },
+  { id: 'tunisia', labelRu: '🇹🇳 Тунис', labelEn: '🇹🇳 Tunisia' },
+  { id: 'ukrainian', labelRu: '🇺🇦 Украина', labelEn: '🇺🇦 Ukraine' },
+  { id: 'filipina', labelRu: '🇵🇭 Филиппины', labelEn: '🇵🇭 Philippines' },
+  { id: 'finnish', labelRu: '🇫🇮 Финляндия', labelEn: '🇫🇮 Finland' },
+  { id: 'french', labelRu: '🇫🇷 Франция', labelEn: '🇫🇷 France' },
+  { id: 'czech', labelRu: '🇨🇿 Чешская Республика', labelEn: '🇨🇿 Czech Republic' },
+  { id: 'chilean', labelRu: '🇨🇱 Чили', labelEn: '🇨🇱 Chile' },
+  { id: 'swiss', labelRu: '🇨🇭 Швейцария', labelEn: '🇨🇭 Switzerland' },
+  { id: 'swedish', labelRu: '🇸🇪 Швеция', labelEn: '🇸🇪 Sweden' },
+  { id: 'sri lanka', labelRu: '🇱🇰 Шри-Ланка', labelEn: '🇱🇰 Sri Lanka' },
+  { id: 'ecuador', labelRu: '🇪🇨 Эквадор', labelEn: '🇪🇨 Ecuador' },
+  { id: 'south africa', labelRu: '🇿🇦 Южная Африка', labelEn: '🇿🇦 South Africa' },
+  { id: 'japanese', labelRu: '🇯🇵 Япония', labelEn: '🇯🇵 Japan' }
+];
+
 export function Adult() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { fetchAdultSearch } = useApi();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [country, setCountry] = useState('');
   
   // Start with a random category initially
   const [category, setCategory] = useState(() => {
@@ -57,6 +141,7 @@ export function Adult() {
   });
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const isRu = language === 'ru-RU';
   
   const hasAccess = true;
 
@@ -147,33 +232,36 @@ export function Adult() {
     e.preventDefault();
     if (hasAccess) {
       setPage(0);
-      loadVideos(query || category, 0, false);
+      loadVideos(query || country || category, 0, false);
     }
   };
-
-
-
-
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setCategory(val);
+    setCountry('');
     setQuery('');
     setPage(0);
     if (hasAccess) {
       if (val === '') {
         const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-        const randomPage = Math.floor(Math.random() * 10);
-        loadVideos(randomCat, randomPage, false);
+        loadVideos(randomCat, 0, false);
       } else {
         loadVideos(val, 0, false);
       }
     }
   };
 
-
-
-
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setCountry(val);
+    setCategory('');
+    setQuery('');
+    setPage(0);
+    if (hasAccess) {
+      loadVideos(val, 0, false);
+    }
+  };
 
   if (hasAccess && !ageConfirmed) {
     return (
@@ -228,15 +316,26 @@ export function Adult() {
         <h1 className="text-2xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
       
-      <div className="flex gap-2 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-4">
         <select 
-          className="flex-1 p-3 rounded-2xl outline-none text-sm border-none appearance-none font-medium shadow-sm"
+          className="w-full p-3 rounded-2xl outline-none text-xs sm:text-sm border-none appearance-none font-medium shadow-sm truncate"
           style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
           value={category}
           onChange={handleCategoryChange}
         >
           {CATEGORIES.map(c => (
             <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
+
+        <select 
+          className="w-full p-3 rounded-2xl outline-none text-xs sm:text-sm border-none appearance-none font-medium shadow-sm truncate"
+          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+          value={country}
+          onChange={handleCountryChange}
+        >
+          {ADULT_COUNTRIES.map(c => (
+            <option key={c.id} value={c.id}>{isRu ? c.labelRu : c.labelEn}</option>
           ))}
         </select>
       </div>
@@ -246,11 +345,13 @@ export function Adult() {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск роликов 18+ (Secret Room)..."
-          className="w-full p-4 rounded-2xl outline-none font-medium shadow-sm transition-shadow focus:shadow-md"
+          placeholder={t('search')}
+          className="w-full p-4 rounded-2xl outline-none font-medium shadow-sm transition-shadow focus:shadow-md text-sm"
           style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
         />
       </form>
+
+
 
       {loading && !isLoadingMore ? (
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
