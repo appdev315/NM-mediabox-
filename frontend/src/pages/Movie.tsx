@@ -230,8 +230,8 @@ export function Movie() {
           });
         }
 
-        // Cap Russian to max 3 players
-        if (isRu && combined.length > 3) {
+        // Cap to max 3 players globally
+        if (combined.length > 3) {
           combined.length = 3;
         }
 
