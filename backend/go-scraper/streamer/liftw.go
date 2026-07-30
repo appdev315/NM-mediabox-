@@ -396,12 +396,12 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	responseBytes, err := ResolveLiftw(title, yearStr, vType, tmdb, bypassCache)
 	if err != nil {
-		// Use StatusNotFound if match wasn't found, standard internal error otherwise
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
+		status := http.StatusBadGateway
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "not found") {
 			status = http.StatusNotFound
 		}
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), status)
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, errMsg), status)
 		return
 	}
 
