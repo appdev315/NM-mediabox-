@@ -63,12 +63,13 @@ jobs:
               LIFTW_SUCCESS_PCT="100.0"
             fi
 
-            # Extract Recent Errors for 1-click copy block
-            RECENT_ERRORS_RAW=$(echo "$BODY" | jq -r '.metrics.recentErrors[]? | "[\(.status)] \(.timestamp) \(.path) -> \(.message)"')
+            # Extract Recent Errors for 1-click copy block (HTML entity escaped to prevent Telegram 400 Bad Request)
+            RECENT_ERRORS_RAW=$(echo "$BODY" | jq -r '.metrics.recentErrors[]? | "[\(.status)] \(.timestamp) \(.path) -> \(.message)"' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
             LOG_BLOCK=""
             if [ -n "$RECENT_ERRORS_RAW" ]; then
               LOG_BLOCK="
+
 📝 <b>Ошибки в логах (для передачи ИИ):</b>
 <code>
 ${RECENT_ERRORS_RAW}
@@ -102,10 +103,10 @@ ${RECENT_ERRORS_RAW}
       - name: Send Telegram Notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          CHAT_ID: ${{ secrets.TG_CHAT_ID || secrets.ADMIN_CHAT_ID || secrets.TG_ADMIN_ID || secrets.TELEGRAM_CHAT_ID }}
         run: |
           MESSAGE="${ERROR_MSG:-$STATS_MSG}"
+          TARGET_CHAT="${CHAT_ID:-484803732}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d parse_mode="HTML" \
-            -d text="$MESSAGE"
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg chat_id "$TARGET_CHAT" --arg text "$MESSAGE" '{chat_id: $chat_id, parse_mode: "HTML", text: $text}')"
