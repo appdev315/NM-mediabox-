@@ -17,20 +17,34 @@ var xvideosRegex = regexp.MustCompile(`/video\.([^/]+)`)
 
 func SearchXvideos(query string, page int) []types.Video {
 	client := GetHTTPClient(8 * time.Second)
-	url := "https://www.xvideos.com/"
-	if query != "" {
-		url = fmt.Sprintf("https://www.xvideos.com/?k=%s&p=%d", query, page)
-	} else if page > 0 {
-		url = fmt.Sprintf("https://www.xvideos.com/new/%d/", page)
+	domains := []string{"www.xv-ru.com", "www.xvideos2.com", "www.xvideos3.com", "www.xvideos.com"}
+
+	var res *http.Response
+	var err error
+
+	for _, domain := range domains {
+		reqUrl := fmt.Sprintf("https://%s/", domain)
+		if query != "" {
+			reqUrl = fmt.Sprintf("https://%s/?k=%s&p=%d", domain, query, page)
+		} else if page > 0 {
+			reqUrl = fmt.Sprintf("https://%s/new/%d/", domain, page)
+		}
+
+		req, _ := http.NewRequest("GET", reqUrl, nil)
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Cookie", "lang=english")
+
+		res, err = client.Do(req)
+		if err == nil && res.StatusCode == 200 {
+			break
+		}
+		if res != nil {
+			res.Body.Close()
+		}
 	}
 
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Cookie", "lang=english")
-
-	res, err := client.Do(req)
-	if err != nil || res.StatusCode != 200 {
+	if res == nil || res.StatusCode != 200 {
 		return []types.Video{}
 	}
 	defer res.Body.Close()

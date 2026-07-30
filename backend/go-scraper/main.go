@@ -68,18 +68,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 
 	var mixed []types.Video
-	maxLen := len(xvideosRes)
-	if len(epornerRes) > maxLen {
-		maxLen = len(epornerRes)
-	}
-
-	for i := 0; i < maxLen; i++ {
-		if i < len(epornerRes) {
-			mixed = append(mixed, epornerRes[i])
-		}
-		if i < len(xvideosRes) {
-			mixed = append(mixed, xvideosRes[i])
-		}
+	mixed = append(mixed, xvideosRes...)
+	for _, ev := range epornerRes {
+		mixed = append(mixed, ev)
 	}
 
 	if mixed == nil {
