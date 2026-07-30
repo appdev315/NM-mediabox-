@@ -89,3 +89,13 @@ When executing any development, architectural design, or coding tasks in Antigra
 3. **PRECISION DIFF EDITS:** Modify files strictly via targeted replacements (`replace_file_content`).
 4. **ACCESSIBLE CHAT COMMUNICATION:** Explain technical concepts to the user in clear, accessible Russian, while keeping code at 100% Senior quality.
 5. **MANDATORY RUNTIME VERIFICATION:** Run build/test verification commands after editing code before declaring completion.
+
+---
+
+## 7. Mandatory Exhaustive Cleanup & Dependency Audit (Total Purge Rule)
+
+1. **COMPREHENSIVE CODEBASE AUDIT UPON REMOVAL OR REPLACEMENT**:
+   - Whenever a function, module, provider, API endpoint, domain mirror, or dependency is removed, disabled, or replaced:
+   - The agent MUST perform an exhaustive codebase-wide search (e.g. `grep_search` across all frontend, backend, config, and script files).
+   - ALL lingering references, imports, conditional fallback branches (`if/else`), `onError` handlers, type definitions, and environment variables related to the removed symbol MUST be purged completely in a single pass.
+   - Partial or incomplete cleanups requiring repetitive follow-up edits are strictly prohibited.
