@@ -39,7 +39,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
           className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
         />
         <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 ${variant === 'wide' ? 'p-2' : 'p-4'}`}>
-          <div className={`${variant === 'wide' ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'} ${type === 'adult' ? 'bg-red-500/80' : (type === 'mainbot' ? 'bg-purple-500/80' : 'bg-blue-500/80')} rounded-full flex items-center justify-center shadow-lg animate-bounce`}>
+          <div className={`${variant === 'wide' ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'} ${type === 'adult' ? 'bg-red-500/80' : (type === 'mainbot' ? 'bg-purple-500/80' : 'bg-blue-500/80')} rounded-full flex items-center justify-center shadow-lg`}>
             <span className={variant === 'wide' ? 'text-lg' : 'text-2xl'}>{type === 'adult' ? '🔞' : (type === 'mainbot' ? '🍿' : '✈️')}</span>
           </div>
           <span className={`font-extrabold text-center text-white drop-shadow-md ${variant === 'wide' ? 'text-sm' : 'text-lg'}`}>

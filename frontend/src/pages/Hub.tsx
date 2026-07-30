@@ -70,7 +70,7 @@ export function Hub() {
       {/* Navigation Arrows for Web */}
       <button 
         onClick={scrollLeft}
-        className="hidden md:flex absolute left-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md shadow-lg transition-all"
+        className="hidden md:flex absolute left-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 shadow-lg transition-all"
         style={{ color: 'var(--text-color)' }}
       >
         <span className="text-2xl opacity-70">‹</span>
@@ -78,7 +78,7 @@ export function Hub() {
 
       <button 
         onClick={scrollRight}
-        className="hidden md:flex absolute right-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md shadow-lg transition-all"
+        className="hidden md:flex absolute right-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 shadow-lg transition-all"
         style={{ color: 'var(--text-color)' }}
       >
         <span className="text-2xl opacity-70">›</span>
@@ -93,8 +93,7 @@ export function Hub() {
           <div key={index} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center p-4">
             <Link
               to={tile.to}
-              className={`relative overflow-hidden rounded-[40px] w-full max-w-sm aspect-[4/5] md:aspect-[3/4] flex flex-col items-center justify-center transition-all transform active:scale-[0.97] border border-white/5 shadow-2xl bg-gradient-to-br ${tile.gradient}`}
-              style={{ backdropFilter: 'blur(20px)' }}
+              className={`relative overflow-hidden rounded-[40px] w-full max-w-sm aspect-[4/5] md:aspect-[3/4] flex flex-col items-center justify-center active:scale-[0.97] border border-white/5 shadow-lg bg-gradient-to-br ${tile.gradient}`}
               onClick={(e) => {
                 e.preventDefault();
                 if (animatingId) return;
@@ -105,7 +104,7 @@ export function Hub() {
               }}
             >
               <div className="flex flex-col items-center justify-center gap-8 relative z-10 w-full h-full p-8 text-center">
-                <div className="relative text-8xl md:text-9xl drop-shadow-2xl filter transition-transform duration-500">
+                <div className="relative text-8xl md:text-9xl filter">
                   <div className={animatingId === tile.id ? tile.animClass : ''}>
                     {tile.icon}
                   </div>

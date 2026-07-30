@@ -162,6 +162,7 @@ export function Home() {
       if (window.visualViewport) {
         if (window.visualViewport.height >= window.innerHeight * 0.85) {
           window.scrollTo(0, window.scrollY);
+          try { WebApp.expand(); } catch (_) {}
         }
       }
     };
@@ -206,7 +207,7 @@ export function Home() {
         <img 
           src={item.poster} 
           alt={item.title} 
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform"
+          className="w-full h-full object-cover"
           loading="lazy"
           decoding="async"
           onError={(e) => {
@@ -214,7 +215,7 @@ export function Home() {
             e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
       </div>
       <div className="mt-1 px-1">
         <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
@@ -300,7 +301,7 @@ export function Home() {
 
           {/* Filters (hidden when searching) */}
           {!isSearching && (
-            <div className="flex flex-col gap-2.5 mb-6">
+            <div className="grid grid-cols-2 gap-2 mb-4">
               {/* Genre Dropdown */}
               <select 
                 className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
@@ -333,7 +334,7 @@ export function Home() {
 
           {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
           {isCategorizedMode ? (
-            <div className="space-y-8 w-full animate-fade-in">
+            <div className="space-y-5 w-full">
               {homeSections.map((section: any) => (
                 <div key={section.id} className="w-full">
                   <div className="flex justify-between items-center mb-3 px-1">

@@ -309,12 +309,12 @@ export function Adult() {
   }
 
   return (
-    <div className="px-3 sm:px-4 pb-20 pt-24 sm:pt-24">
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-extrabold">{t('privateCollection')} 🍓</h1>
+    <div className="px-3 sm:px-4 pb-20 pt-16 sm:pt-16">
+      <div className="flex items-center gap-3 mb-3">
+        <h1 className="text-xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
       
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <select 
           className="w-full p-3 rounded-2xl outline-none text-xs sm:text-sm border-none appearance-none font-medium shadow-sm truncate"
           style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
@@ -338,13 +338,17 @@ export function Adult() {
         </select>
       </div>
 
-      <form onSubmit={handleSearch} className="mb-6 relative">
+      <form onSubmit={handleSearch} className="mb-4 relative">
         <input 
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onBlur={() => {
+            window.scrollTo(0, window.scrollY);
+            try { WebApp.expand(); } catch (_) {}
+          }}
           placeholder={t('search')}
-          className="w-full p-4 rounded-2xl outline-none font-medium shadow-sm transition-shadow focus:shadow-md text-sm"
+          className="w-full p-3 rounded-xl outline-none font-medium text-sm"
           style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
         />
       </form>
@@ -356,18 +360,20 @@ export function Adult() {
       ) : (
         <>
           <ExoClickBanner18 />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
             {videos.map((v, idx) => (
               <React.Fragment key={`${v.id}-${idx}`}>
                 <div 
-                  className="cursor-pointer active:scale-95 transition-transform"
-                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || category } })}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || country || category } })}
                 >
-                  <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm bg-[var(--hint-color)]">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
                     <img 
                       src={v.poster} 
                       className="w-full h-full object-cover" 
                       alt="" 
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         const img = e.currentTarget;
                         const src = img.src;
@@ -381,7 +387,7 @@ export function Adult() {
                         }
                       }}
                     />
-                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+                    <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
                       {v.duration}
                     </div>
                   </div>
