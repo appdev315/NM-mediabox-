@@ -92,17 +92,15 @@ export function Adult() {
     try {
       const data = await fetchAdultSearch(searchQuery, pageNum);
       if (Array.isArray(data)) {
-        // Shuffle the array so even the same page feels different
-        const shuffled = [...data].sort(() => 0.5 - Math.random());
         if (append) {
           setVideos(prev => {
             // Filter out duplicates
             const existingIds = new Set(prev.map(v => v.id));
-            const newVideos = shuffled.filter(v => !existingIds.has(v.id));
+            const newVideos = data.filter(v => !existingIds.has(v.id));
             return [...prev, ...newVideos];
           });
         } else {
-          setVideos(shuffled);
+          setVideos(data);
         }
       }
     } catch (e) {
