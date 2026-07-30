@@ -129,21 +129,31 @@ export function useApi() {
 
   const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string) => {
     return withLoading(async () => {
-      const params: any = { page };
+      const params: any = { page, sort_by: 'popularity.desc' };
       if (genreId) params.with_genres = genreId;
-      if (countryCode) params.with_origin_country = countryCode;
+      if (countryCode) {
+        params.with_origin_country = countryCode;
+        params['vote_count.gte'] = 3;
+      }
       const data = await tmdbFetch('/discover/movie', params);
-      return data.results.map((item: TMDBMovie) => mapTMDB(item, 'movie'));
+      return (data.results || [])
+        .filter((item: TMDBMovie) => !!item.poster_path)
+        .map((item: TMDBMovie) => mapTMDB(item, 'movie'));
     });
   }, [tmdbFetch, withLoading]);
 
   const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string) => {
     return withLoading(async () => {
-      const params: any = { page };
+      const params: any = { page, sort_by: 'popularity.desc' };
       if (genreId) params.with_genres = genreId;
-      if (countryCode) params.with_origin_country = countryCode;
+      if (countryCode) {
+        params.with_origin_country = countryCode;
+        params['vote_count.gte'] = 3;
+      }
       const data = await tmdbFetch('/discover/tv', params);
-      return data.results.map((item: TMDBMovie) => mapTMDB(item, 'series'));
+      return (data.results || [])
+        .filter((item: TMDBMovie) => !!item.poster_path)
+        .map((item: TMDBMovie) => mapTMDB(item, 'series'));
     });
   }, [tmdbFetch, withLoading]);
 

@@ -10,7 +10,6 @@ interface PlayerProps {
 export function Player({ iframeUrl, mirrors }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wakeLockRef = useRef<any>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [mirrorIndex, setMirrorIndex] = useState(0);
@@ -177,39 +176,13 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
       WebApp.requestFullscreen();
     }
 
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
-    };
-    
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
     return () => {
       WebApp.disableClosingConfirmation();
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
       }
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
   }, []);
-
-  const toggleFullscreen = async () => {
-    const el = wrapperRef.current as any;
-    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-      if (el?.requestFullscreen) {
-        await el.requestFullscreen();
-      } else if (el?.webkitRequestFullscreen) {
-        await el.webkitRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
-      }
-    }
-  };
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
@@ -233,33 +206,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />
-
-      {/* Control Overlay Buttons */}
-      <div className="absolute top-2 right-2 flex items-center gap-2 z-30 opacity-80 hover:opacity-100 transition-opacity">
-        {activeMirrors.length > 1 && (
-          <button
-            onClick={() => setMirrorIndex((mirrorIndex + 1) % activeMirrors.length)}
-            className="bg-black/60 hover:bg-black/90 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition-transform active:scale-95"
-            title="Switch Mirror"
-          >
-            🔄 Зеркало {mirrorIndex + 1}/{activeMirrors.length}
-          </button>
-        )}
-
-        {(provider === 'xvideos' || provider === 'generic') && (
-          <button 
-            onClick={toggleFullscreen}
-            className="bg-black/60 hover:bg-black/90 text-white p-1.5 rounded-lg border border-white/20 backdrop-blur-sm transition-transform active:scale-95"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-            )}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
