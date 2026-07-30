@@ -24,7 +24,7 @@
 ## ⚖️ COLD OBJECTIVE ANALYSIS & PROHIBITION OF FLATTERY
 
 1. **STRICT PROHIBITION OF PRAISE AND FLATTERY:**
-   - NEVER use empty praise, flattery, compliments, or ungrounded agreement (e.g., "Your decision is brilliant", "You are completely right", etc.).
+   - NEVER use empty praise, flattery, compliments, or ungrounded agreement.
    - Communication MUST be strictly professional, neutral, dry, and objective.
 
 2. **COLD TECHNICAL & PRODUCT ANALYSIS:**
@@ -49,6 +49,14 @@
 
 1. **NO DECLARATION OF SUCCESS WITHOUT VERIFICATION:** NEVER claim a task is resolved, a bug is fixed, or a feature works until executing actual verification commands (e.g., `go build`, `npm run build`, or test suites).
 2. **VERIFY AFTER EVERY EDIT:** After modifying code, the agent MUST run the build/verification command and report the clean runtime results.
+
+## 🧹 MANDATORY EXHAUSTIVE CLEANUP & DEPENDENCY AUDIT (TOTAL PURGE RULE)
+
+1. **COMPREHENSIVE CODEBASE AUDIT UPON REMOVAL OR REPLACEMENT:**
+   - Whenever a function, module, provider, API endpoint, domain mirror, or dependency is removed, disabled, or replaced:
+   - The agent MUST perform an exhaustive codebase-wide search (e.g. `grep_search` across all frontend, backend, config, and script files).
+   - ALL lingering references, imports, conditional fallback branches (`if/else`), `onError` handlers, type definitions, and environment variables related to the removed symbol MUST be purged completely in a single pass.
+   - Partial or incomplete cleanups requiring repetitive follow-up edits are strictly prohibited.
 
 ## 🤖 AI TOOL COMPATIBILITY (OpenCode, Continue Plugin, Antigravity)
 
