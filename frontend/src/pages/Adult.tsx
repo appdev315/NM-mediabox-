@@ -246,7 +246,7 @@ export function Adult() {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('searchPlaceholder')}
+          placeholder="Поиск роликов 18+ (Secret Room)..."
           className="w-full p-4 rounded-2xl outline-none font-medium shadow-sm transition-shadow focus:shadow-md"
           style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
         />
