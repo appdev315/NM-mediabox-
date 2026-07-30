@@ -18,7 +18,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
   // Determine provider type
   const provider = useMemo(() => {
     if (iframeUrl.includes('xvideos') || iframeUrl.includes('xv-ru')) return 'xvideos';
-    if (iframeUrl.includes('eporner')) return 'eporner';
     return 'generic';
   }, [iframeUrl]);
 
@@ -36,16 +35,6 @@ export function Player({ iframeUrl, mirrors }: PlayerProps) {
           `https://www.xvideos3.com/embedframe/${id}`,
           `https://www.xvideos.es/embedframe/${id}`,
           `https://www.xvideos.com/embedframe/${id}`
-        ];
-      }
-    } else if (provider === 'eporner') {
-      const match = iframeUrl.match(/\/embed\/([^/?#]+)/);
-      const id = match ? match[1] : '';
-      if (id) {
-        return [
-          `https://eporner.live/embed/${id}/`,
-          `https://www.eporner.live/embed/${id}/`,
-          `https://www.eporner.com/embed/${id}/`
         ];
       }
     }

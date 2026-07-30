@@ -70,12 +70,7 @@ func detailsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var details *types.VideoDetails
-	if len(id) > 8 && id[:8] == "eporner_" {
-		details = scraper.EpornerDetails(id)
-	} else {
-		details = scraper.XvideosDetails(id)
-	}
+	details := scraper.XvideosDetails(id)
 
 	if details != nil {
 		dataBytes, err := json.Marshal(details)
