@@ -278,8 +278,6 @@ export function Adult() {
                           img.src = src.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
                         } else if (src.includes('thumbs-gcore.xvideos-cdn.com')) {
                           img.src = src.replace('thumbs-gcore.xvideos-cdn.com', 'static-ss.xvideos-cdn.com');
-                        } else if (src.includes('static-ca-cdn.eporner.com')) {
-                          img.src = src.replace('static-ca-cdn.eporner.com', 'static.eporner.com');
                         } else {
                           img.onerror = null;
                           img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
