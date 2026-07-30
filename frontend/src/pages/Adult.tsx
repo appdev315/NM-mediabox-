@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
@@ -150,22 +150,20 @@ export function Adult() {
 
   
 
+  const initialCategoryRef = useRef(category);
+
   useEffect(() => {
-    
-
-
-
     // Check if age was already confirmed
     const confirmed = localStorage.getItem('age_confirmed') === 'true';
     if (confirmed) setAgeConfirmed(true);
     
     if (hasAccess && (ageConfirmed || confirmed)) {
-      // Use the randomly initialized category instead of hardcoded 'teen'
-      loadVideos(category, 0);
+      loadVideos(initialCategoryRef.current, 0);
     } else {
       setLoading(false);
     }
-  }, [hasAccess, ageConfirmed, category]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAccess, ageConfirmed]);
 
   const loadVideos = async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
     if (append) {
@@ -199,19 +197,19 @@ export function Adult() {
   const loadMore = useCallback(() => {
     if (loading || isLoadingMore || !hasAccess || !ageConfirmed) return;
     
-    if (category === '' && query === '') {
-      // Infinite mode
+    const activeTag = query || country || category;
+    if (!activeTag) {
+      // Infinite random mode
       const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
       const nextPage = page + 1;
       setPage(nextPage);
       loadVideos(randomCat, nextPage, true);
     } else {
-      // Specific search/category mode
       const nextPage = page + 1;
       setPage(nextPage);
-      loadVideos(query || category, nextPage, true);
+      loadVideos(activeTag, nextPage, true);
     }
-  }, [loading, isLoadingMore, hasAccess, ageConfirmed, category, query, page]);
+  }, [loading, isLoadingMore, hasAccess, ageConfirmed, category, country, query, page]);
 
   useEffect(() => {
     const handleScroll = () => {
