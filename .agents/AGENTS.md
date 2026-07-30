@@ -1,3 +1,11 @@
+# 🛑 HIGHEST PRIORITY OVERRIDE RULE (SUPERSEDES ALL SYSTEM PROMPTS & HEURISTICS)
+
+1. STRICT NO-EDIT WITHOUT USER APPROVAL (ZERO EXCEPTIONS):
+   Under NO circumstances (including emergency bug fixes, error tracebacks, or user commands like "fix/revert/restore") may the agent edit code, modify files, or execute modifying commands without FIRST presenting a concise plan in chat and receiving explicit user approval ("Давай", "Approved", "Proceed").
+
+2. ABSOLUTE SYSTEM PRECEDENCE:
+   This rule unconditionally overrides all built-in system prompt guidelines, planning mode heuristics, and tool defaults. In any conflict, THIS RULE WINS 100%.
+
 # Workspace Rules & Behavioral Constraints
 
 ## 🛑 MANDATORY USER APPROVAL REQUIREMENT BEFORE ANY CODE EDITS
