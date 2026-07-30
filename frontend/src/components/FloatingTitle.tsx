@@ -67,7 +67,7 @@ export function FloatingTitle() {
 
     return (
       <div 
-        className="fixed left-4 z-50 cursor-pointer backdrop-blur-md px-5 py-2.5 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(255,255,255,0.2),inset_0_-2px_0_rgba(0,0,0,0.2)] border border-black/30 transition-all hover:scale-105 active:scale-95 active:shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(0,0,0,0.2)] flex items-center justify-center bg-gradient-to-b from-gray-700 to-gray-900 text-white"
+        className="fixed left-4 z-50 cursor-pointer px-5 py-2.5 rounded-xl shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
         style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
         onClick={() => {
           if (isTelegram) {
@@ -96,7 +96,7 @@ export function FloatingTitle() {
 
   return (
     <div 
-      className="fixed left-4 z-50 cursor-pointer backdrop-blur-md w-12 h-12 rounded-full shadow-[0_4px_10px_rgba(0,0,0,0.5),inset_0_2px_0_rgba(255,255,255,0.2),inset_0_-2px_0_rgba(0,0,0,0.2)] border border-black/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center bg-gradient-to-b from-gray-700 to-gray-900 text-white"
+      className="fixed left-4 z-50 cursor-pointer w-12 h-12 rounded-full shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
       style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
       onClick={() => {
         handleBackNavigation();

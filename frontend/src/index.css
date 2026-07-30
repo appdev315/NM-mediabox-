@@ -178,28 +178,9 @@ html, body {
 
 /* Performance-Optimized Visual Enhancements */
 
-/* GPU Accelerated Card Hover */
+/* Lightweight card tap feedback (no GPU-heavy ::after or hover transforms) */
 .card-hover {
-  will-change: transform;
-  transition: transform 0.3s ease;
-}
-.card-hover:hover, .card-hover:active {
-  transform: translateY(-4px);
-}
-/* Fake shadow using pseudo element for performance */
-.card-hover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 10px 25px -5px var(--tg-theme-button-color, rgba(79, 172, 254, 0.4));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-  pointer-events: none;
-}
-.card-hover:hover::after, .card-hover:active::after {
-  opacity: 0.2;
+  will-change: auto;
 }
 
 /* Animations */
