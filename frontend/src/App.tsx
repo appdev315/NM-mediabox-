@@ -130,6 +130,12 @@ export default function App() {
     WebApp.ready();
     WebApp.expand();
 
+    // Set Telegram native WebApp container background to dark theme color to prevent white bars
+    try {
+      if (WebApp.setBackgroundColor) WebApp.setBackgroundColor('#17212b');
+      if (WebApp.setHeaderColor) WebApp.setHeaderColor('#17212b');
+    } catch (_) {}
+
     // Global fix: force layout recalculation after virtual keyboard dismissal on tablets/mobile
     const handleViewportResize = () => {
       if (window.visualViewport) {
@@ -147,14 +153,27 @@ export default function App() {
       }
     };
 
+    // Listen for input blur (keyboard hide) across the app
+    const handleFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+        setTimeout(() => {
+          window.scrollTo(0, window.scrollY);
+          try { WebApp.expand(); } catch (_) {}
+        }, 100);
+      }
+    };
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize);
     }
+    document.addEventListener('focusout', handleFocusOut);
 
     return () => {
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
       }
+      document.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
 
