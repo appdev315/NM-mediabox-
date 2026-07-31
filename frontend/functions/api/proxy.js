@@ -32,8 +32,21 @@ export async function onRequest(context) {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return new Response("Invalid protocol", { status: 403 });
     }
-    const host = parsed.hostname;
-    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.')) {
+    const host = parsed.hostname.toLowerCase();
+    
+    // Comprehensive SSRF protection for local, link-local, and RFC1918 private ranges
+    const isPrivateIp = 
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      host.startsWith('169.254.') || // Link-local
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host); // 172.16.0.0/12
+
+    if (isPrivateIp) {
       return new Response("Invalid host", { status: 403 });
     }
   } catch (e) {

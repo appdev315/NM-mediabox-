@@ -145,19 +145,12 @@ export function Adult() {
   
   const hasAccess = true;
 
-  const [ageConfirmed, setAgeConfirmed] = useState(true);
-  
-
-  
+  const [ageConfirmed, setAgeConfirmed] = useState(() => localStorage.getItem('age_confirmed') === 'true');
 
   const initialCategoryRef = useRef(category);
 
   useEffect(() => {
-    // Check if age was already confirmed
-    const confirmed = localStorage.getItem('age_confirmed') === 'true';
-    if (confirmed) setAgeConfirmed(true);
-    
-    if (hasAccess && (ageConfirmed || confirmed)) {
+    if (hasAccess && ageConfirmed) {
       loadVideos(initialCategoryRef.current, 0);
     } else {
       setLoading(false);

@@ -35,7 +35,7 @@ func StreamApiHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			
 			client := &http.Client{Timeout: 4 * time.Second}
-			url := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s/external_ids?api_key=cd5b69242e715dc87d65957d7460eba2", tmdbEndpoint, tmdb)
+			url := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s/external_ids?api_key=%s", tmdbEndpoint, tmdb, getTMDBApiKey())
 			res, err := client.Get(url)
 			if err == nil && res.StatusCode == 200 {
 				var data map[string]interface{}

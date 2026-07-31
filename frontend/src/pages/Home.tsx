@@ -116,7 +116,7 @@ export function Home() {
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const cacheKey = `categorized_home_v2_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
             // Instant 0ms render from client cache
