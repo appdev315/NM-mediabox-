@@ -216,15 +216,12 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			continue
 		}
 
+		var fallbackItem *LiftwSearchItem
+
 		for i := range sRes.Items {
 			item := sRes.Items[i]
 			if !validTypesMap[item.Type] {
 				continue
-			}
-			if targetYear > 0 {
-				if item.Year != targetYear && item.Year != targetYear+1 && item.Year != targetYear-1 {
-					continue
-				}
 			}
 
 			nameLower := normString(item.Name)
@@ -233,14 +230,37 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			matched := false
 			for _, c := range candidates {
 				cn := normString(c)
+				if cn == "" {
+					continue
+				}
+				// 1. Exact match after normalization
 				if nameLower == cn || origLower == cn {
 					matched = true
 					break
 				}
+				// 2. Prefix or substring match for candidates with at least 3 characters
+				if len([]rune(cn)) >= 3 {
+					if strings.HasPrefix(nameLower, cn) || strings.HasPrefix(origLower, cn) ||
+						strings.Contains(nameLower, cn) || strings.Contains(origLower, cn) {
+						matched = true
+						break
+					}
+				}
 			}
+
 			if matched {
-				return &item
+				// High confidence match: exact or +/- 2 years allowance
+				if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
+					return &item
+				}
+				if fallbackItem == nil {
+					fallbackItem = &item
+				}
 			}
+		}
+
+		if fallbackItem != nil {
+			return fallbackItem
 		}
 	}
 	return nil
