@@ -6,6 +6,8 @@ import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import React from 'react';
 
+import { favoritesManager } from '../utils/favoritesManager';
+
 export function Favorites() {
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -24,53 +26,37 @@ export function Favorites() {
   const playerRef = useRef<HTMLDivElement>(null);
 
   const loadHistory = () => {
-    try {
-      setHistoryMovies(JSON.parse(localStorage.getItem('history_movies') || '[]'));
-      setHistorySeries(JSON.parse(localStorage.getItem('history_series') || '[]'));
-      setHistoryRadio(JSON.parse(localStorage.getItem('history_radio') || '[]'));
-      setHistoryTv(JSON.parse(localStorage.getItem('history_tv') || '[]'));
-    } catch (e) {
-      console.error(e);
-    }
+    setHistoryMovies(favoritesManager.getLocal('movie'));
+    setHistorySeries(favoritesManager.getLocal('series'));
+    setHistoryRadio(favoritesManager.getLocal('radio'));
+    setHistoryTv(favoritesManager.getLocal('tv'));
   };
 
   useEffect(() => {
+    // 1. Instant 0ms load from LocalStorage
     loadHistory();
+
+    // 2. Non-blocking Background Cloud Backup Sync
+    const syncCloudData = async () => {
+      const types = ['movie', 'series', 'radio', 'tv'];
+      for (const type of types) {
+        const merged = await favoritesManager.hydrateFromCloud(type);
+        if (type === 'movie') setHistoryMovies(merged);
+        else if (type === 'series') setHistorySeries(merged);
+        else if (type === 'radio') setHistoryRadio(merged);
+        else if (type === 'tv') setHistoryTv(merged);
+      }
+    };
+    syncCloudData();
   }, []);
 
   const removeHistoryItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();
-    try {
-      let key = '';
-      let list: any[] = [];
-      let setList: any = null;
-
-      if (type === 'movie') {
-        key = 'history_movies';
-        list = historyMovies;
-        setList = setHistoryMovies;
-      } else if (type === 'series') {
-        key = 'history_series';
-        list = historySeries;
-        setList = setHistorySeries;
-      } else if (type === 'radio') {
-        key = 'history_radio';
-        list = historyRadio;
-        setList = setHistoryRadio;
-      } else if (type === 'tv') {
-        key = 'history_tv';
-        list = historyTv;
-        setList = setHistoryTv;
-      }
-
-      if (key) {
-        const newList = list.filter(item => item.id !== id);
-        setList(newList);
-        localStorage.setItem(key, JSON.stringify(newList));
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    const updated = favoritesManager.remove(type, id);
+    if (type === 'movie') setHistoryMovies(updated);
+    else if (type === 'series') setHistorySeries(updated);
+    else if (type === 'radio') setHistoryRadio(updated);
+    else if (type === 'tv') setHistoryTv(updated);
   };
 
   const clearAllHistory = () => {

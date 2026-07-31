@@ -35,48 +35,96 @@ app.onError((err, c) => {
 app.use('/api/user/*', tgAuthMiddleware);
 
 app.post('/api/user/favorites', async (c) => {
-  const user = c.get('tgUser') || { id: 1, first_name: 'DemoUser' };
-  const { movieId } = await c.req.json();
-  
-  if (c.env.DB) {
-    await c.env.DB.prepare(
-      `INSERT OR IGNORE INTO users (telegram_id, first_name) VALUES (?, ?)`
-    ).bind(user.id, user.first_name).run();
+  const user = c.get('tgUser') || { id: 1, first_name: 'Guest' };
+  const body = await c.req.json();
+  const itemId = String(body.id || body.movieId || body.item_id);
+  const type = String(body.type || 'movie');
+  const title = body.title || '';
+  const poster = body.poster || body.coverUrl || '';
+  const year = body.year || '';
+  const dataJson = JSON.stringify(body);
 
-    await c.env.DB.prepare(
-      `INSERT OR IGNORE INTO favorites (telegram_id, movie_id) VALUES (?, ?)`
-    ).bind(user.id, movieId).run();
+  if (c.env.DB && itemId) {
+    try {
+      await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO users (telegram_id, first_name) VALUES (?, ?)`
+      ).bind(user.id, user.first_name || 'User').run();
+
+      await c.env.DB.prepare(`
+        INSERT INTO favorites (telegram_id, item_id, type, title, poster, year, data_json, added_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(telegram_id, item_id, type)
+        DO UPDATE SET title = excluded.title, poster = excluded.poster, data_json = excluded.data_json, added_at = CURRENT_TIMESTAMP
+      `).bind(user.id, itemId, type, title, poster, year, dataJson).run();
+    } catch (e) {
+      console.error('D1 error on save favorite:', e);
+    }
   }
-  
+
+  return c.json({ success: true });
+});
+
+app.delete('/api/user/favorites', async (c) => {
+  const user = c.get('tgUser') || { id: 1 };
+  const body = await c.req.json();
+  const itemId = String(body.id || body.movieId || body.item_id);
+  const type = String(body.type || 'movie');
+
+  if (c.env.DB && itemId) {
+    try {
+      await c.env.DB.prepare(
+        `DELETE FROM favorites WHERE telegram_id = ? AND item_id = ? AND type = ?`
+      ).bind(user.id, itemId, type).run();
+    } catch (e) {
+      console.error('D1 error on delete favorite:', e);
+    }
+  }
+
   return c.json({ success: true });
 });
 
 app.get('/api/user/favorites', async (c) => {
   const user = c.get('tgUser') || { id: 1 };
-  
+
   if (c.env.DB) {
-    const { results } = await c.env.DB.prepare(
-      `SELECT movie_id FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC`
-    ).bind(user.id).all();
-    return c.json({ favorites: results });
+    try {
+      const { results } = await c.env.DB.prepare(
+        `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC`
+      ).bind(user.id).all();
+
+      const items = (results || []).map((row: any) => {
+        if (row.data_json) {
+          try { return JSON.parse(row.data_json); } catch (_) {}
+        }
+        return row;
+      });
+
+      return c.json({ favorites: items });
+    } catch (e) {
+      console.error('D1 error on get favorites:', e);
+    }
   }
-  
+
   return c.json({ favorites: [] });
 });
 
 app.post('/api/user/history', async (c) => {
   const user = c.get('tgUser') || { id: 1 };
-  const { movieId, timecode } = await c.req.json();
-  
-  if (c.env.DB) {
-    await c.env.DB.prepare(`
-      INSERT INTO history (telegram_id, movie_id, timecode, updated_at) 
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(telegram_id, movie_id) 
-      DO UPDATE SET timecode = excluded.timecode, updated_at = CURRENT_TIMESTAMP
-    `).bind(user.id, movieId, timecode).run();
+  const { itemId, type = 'movie', timecode } = await c.req.json();
+
+  if (c.env.DB && itemId) {
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO history (telegram_id, item_id, type, timecode, updated_at) 
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(telegram_id, item_id, type) 
+        DO UPDATE SET timecode = excluded.timecode, updated_at = CURRENT_TIMESTAMP
+      `).bind(user.id, String(itemId), type, timecode).run();
+    } catch (e) {
+      console.error('D1 error on history:', e);
+    }
   }
-  
+
   return c.json({ success: true });
 });
 
