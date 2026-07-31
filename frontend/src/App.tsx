@@ -129,6 +129,33 @@ export default function App() {
   useEffect(() => {
     WebApp.ready();
     WebApp.expand();
+
+    // Global fix: force layout recalculation after virtual keyboard dismissal on tablets/mobile
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const vvHeight = window.visualViewport.height;
+        // Keyboard is dismissed when visualViewport height is close to window.innerHeight
+        if (vvHeight >= window.innerHeight * 0.85) {
+          // Force the document to recalculate its height, eliminating the white bar
+          document.documentElement.style.height = `${vvHeight}px`;
+          requestAnimationFrame(() => {
+            document.documentElement.style.height = '';
+            window.scrollTo(0, window.scrollY);
+            try { WebApp.expand(); } catch (_) {}
+          });
+        }
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+      }
+    };
   }, []);
 
   const hostname = window.location.hostname;

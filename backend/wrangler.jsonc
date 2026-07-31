@@ -2,7 +2,14 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "backend",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-06-21",
+	"compatibility_date": "2025-06-01",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_id": "YOUR_D1_DATABASE_ID",
+			"database_name": "mediabox"
+		}
+	],
 	"kv_namespaces": [
 		{
 			"binding": "CACHE",
@@ -12,7 +19,10 @@
 	"vars": {
 		"HF_BACKEND_URL": "https://evro90-nm6.hf.space"
 	}
+	// To create the D1 database, run:
+	// npx wrangler d1 create mediabox
+	// Then replace YOUR_D1_DATABASE_ID with the returned ID
+	//
 	// To create the KV namespace, run:
 	// npx wrangler kv namespace create CACHE
-	// Then replace REPLACE_WITH_KV_NAMESPACE_ID with the returned ID
 }

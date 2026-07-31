@@ -38,7 +38,7 @@ var (
 func fetchTopTrending() []warmItem {
 	var items []warmItem
 	client := &http.Client{Timeout: 10 * time.Second}
-	apiKey := "cd5b69242e715dc87d65957d7460eba2"
+	apiKey := getTMDBApiKey()
 
 	// Fetch 100 movies (5 pages)
 	for page := 1; page <= 5; page++ {
