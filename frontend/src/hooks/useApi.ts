@@ -105,6 +105,7 @@ export function useApi() {
     year: item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : ''),
     type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
     country: item.production_countries?.[0]?.name || '',
+    origin_country: item.origin_country || item.production_countries?.map((c: any) => c.iso_3166_1) || [],
     genre: item.genres?.map((g: any) => g.name).join(', ') || '',
     seasons: item.seasons || [],
     imdb_id: item.imdb_id || item.external_ids?.imdb_id || '',

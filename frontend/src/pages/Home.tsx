@@ -184,7 +184,8 @@ export function Home() {
         onClick={(e) => {
           e.stopPropagation();
           (document.activeElement as HTMLElement)?.blur();
-          navigate(`/movie/${item.id}?type=${mediaType}`);
+          const countryQuery = selectedCountry ? `&country=${selectedCountry}` : '';
+          navigate(`/movie/${item.id}?type=${mediaType}${countryQuery}`);
         }}
         className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
       >
