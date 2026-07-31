@@ -1,7 +1,6 @@
 package streamer
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,13 +67,8 @@ func getHttpClient(timeout time.Duration) *http.Client {
 		}
 		if proxyUrl, err := url.Parse(proxyStr); err == nil {
 			client.Transport = &http.Transport{
-				Proxy:           http.ProxyURL(proxyUrl),
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				Proxy: http.ProxyURL(proxyUrl),
 			}
-		}
-	} else {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
 	return client
@@ -209,12 +203,13 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 				res.Body.Close()
 				continue
 			}
-			if decodeErr := json.NewDecoder(res.Body).Decode(&sRes); decodeErr == nil {
+			decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
+			res.Body.Close()
+			if decodeErr == nil {
 				success = true
-				res.Body.Close()
 				break
 			}
-			res.Body.Close()
+			*lastErr = fmt.Sprintf("decode error: %v", decodeErr)
 		}
 
 		if !success {
@@ -298,7 +293,7 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 		if isSeries {
 			tmdbType = "tv"
 		}
-		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=cd5b69242e715dc87d65957d7460eba2&append_to_response=alternative_titles,translations", tmdbType, tmdb)
+		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
 		client := getHttpClient(4 * time.Second)
 		res, err := client.Get(tmdbUrl)
 		if err == nil && res.StatusCode == 200 {

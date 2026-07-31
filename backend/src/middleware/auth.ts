@@ -49,12 +49,13 @@ export const tgAuthMiddleware = async (c: Context, next: Next) => {
   const initData = authHeader.split(' ')[1];
   const botToken = c.env.TELEGRAM_BOT_TOKEN; 
   
-  // В режиме разработки локально мы можем пропускать валидацию, если нет токена (для тестов)
-  if (botToken) {
-    const isValid = await validateTelegramWebAppData(initData, botToken);
-    if (!isValid) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
+  if (!botToken) {
+    return c.json({ error: 'Server misconfigured: TELEGRAM_BOT_TOKEN not set' }, 500);
+  }
+
+  const isValid = await validateTelegramWebAppData(initData, botToken);
+  if (!isValid) {
+    return c.json({ error: 'Forbidden' }, 403);
   }
   
   const urlParams = new URLSearchParams(initData);

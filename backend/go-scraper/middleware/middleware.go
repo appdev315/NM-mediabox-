@@ -244,6 +244,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 
 // IP-based Rate Limiter
 type rateLimitEntry struct {
+	mu        sync.Mutex
 	count     int
 	resetTime time.Time
 }
@@ -251,6 +252,26 @@ type rateLimitEntry struct {
 var (
 	rateLimiterMap sync.Map
 )
+
+func init() {
+	// Background sweeper: evict expired rate limiter entries every 10 minutes to prevent memory leak
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		for range ticker.C {
+			now := time.Now()
+			rateLimiterMap.Range(func(key, value interface{}) bool {
+				entry := value.(*rateLimitEntry)
+				entry.mu.Lock()
+				expired := now.After(entry.resetTime)
+				entry.mu.Unlock()
+				if expired {
+					rateLimiterMap.Delete(key)
+				}
+				return true
+			})
+		}
+	}()
+}
 
 func getClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -276,14 +297,17 @@ func RateLimiterMiddleware(window time.Duration, maxRequests int) func(http.Hand
 			val, _ := rateLimiterMap.LoadOrStore(ip, &rateLimitEntry{count: 0, resetTime: now.Add(window)})
 			entry := val.(*rateLimitEntry)
 
+			entry.mu.Lock()
 			if now.After(entry.resetTime) {
 				entry.count = 1
 				entry.resetTime = now.Add(window)
 			} else {
 				entry.count++
 			}
+			currentCount := entry.count
+			entry.mu.Unlock()
 
-			if entry.count > maxRequests {
+			if currentCount > maxRequests {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				w.Write([]byte(`{"error":"Too many requests, please slow down"}`))

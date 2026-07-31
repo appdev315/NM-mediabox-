@@ -30,11 +30,16 @@
   --button-text-color: #ffffff;
 }
 
-html, body {
+html {
+  height: 100%;
+  background-color: var(--bg-color);
+}
+
+body {
   background-color: var(--bg-color);
   color: var(--text-color);
   margin: 0;
-  min-height: 100vh;
+  min-height: 100%;
   min-height: 100dvh;
   overflow-x: hidden;
   overflow-y: auto !important;

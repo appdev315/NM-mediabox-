@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"scraper/middleware"
@@ -39,6 +42,17 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check search cache with TTL
+	cacheKey := q + "|" + strconv.Itoa(page)
+	if val, ok := adultSearchCache.Load(cacheKey); ok {
+		entry := val.(adultCacheEntry)
+		if time.Now().Before(entry.exp) {
+			w.Write([]byte(entry.data))
+			return
+		}
+		adultSearchCache.Delete(cacheKey)
+	}
+
 	xvideosRes := scraper.SearchXvideos(q, page)
 	if xvideosRes == nil {
 		xvideosRes = []types.Video{}
@@ -49,6 +63,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("[]"))
 		return
 	}
+
+	// Store in cache with 30 min TTL
+	adultSearchCache.Store(cacheKey, adultCacheEntry{
+		data: string(dataBytes),
+		exp:  time.Now().Add(30 * time.Minute),
+	})
+
 	w.Write(dataBytes)
 }
 
@@ -134,6 +155,29 @@ func main() {
 		port = ":" + port
 	}
 
-	log.Printf("MediaBox Unified Go Microservice starting on %s...", port)
-	log.Fatal(http.ListenAndServe(port, handler))
+	srv := &http.Server{
+		Addr:    port,
+		Handler: handler,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Printf("MediaBox Unified Go Microservice starting on %s...", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down gracefully (10s timeout)...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Forced shutdown: %v", err)
+	}
+	log.Println("Server stopped cleanly.")
 }

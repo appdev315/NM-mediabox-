@@ -156,26 +156,7 @@ export function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, isSearching, page, selectedGenre, selectedCountry, searchQuery]);
 
-  // Tablet & Mobile virtual keyboard geometry reset effect
-  useEffect(() => {
-    const handleViewportResize = () => {
-      if (window.visualViewport) {
-        if (window.visualViewport.height >= window.innerHeight * 0.85) {
-          window.scrollTo(0, window.scrollY);
-          try { WebApp.expand(); } catch (_) {}
-        }
-      }
-    };
 
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-    }
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-      }
-    };
-  }, []);
 
   const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     (document.activeElement as HTMLElement)?.blur();
