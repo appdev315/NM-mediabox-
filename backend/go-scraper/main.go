@@ -126,6 +126,13 @@ func main() {
 	mux.HandleFunc("/api/health", middleware.HealthHandler)
 	mux.HandleFunc("/api/stats", middleware.StatsHandler)
 
+	// Telegram Webhook handler to acknowledge bot updates and eliminate 404 logs
+	mux.HandleFunc("/api/telegram/webhook/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok":true}`))
+	})
+
 	// TMDB proxy (supports wildcards /api/tmdb/*)
 	mux.HandleFunc("/api/tmdb/", streamer.TMDBApiHandler)
 

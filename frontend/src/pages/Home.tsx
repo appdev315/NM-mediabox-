@@ -175,15 +175,19 @@ export function Home() {
     setPage(1);
   };
 
-  const renderMovieCard = (item: any) => (
-    <div 
-      key={item.id}
-      onClick={() => {
-        (document.activeElement as HTMLElement)?.blur();
-        navigate(`/movie/${item.id}?type=${item.type}`);
-      }}
-      className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
-    >
+  const renderMovieCard = (item: any) => {
+    if (!item || !item.id) return null;
+    const mediaType = item.type || (activeTab === 'series' ? 'series' : 'movie');
+    return (
+      <div 
+        key={`${item.id}_${mediaType}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          (document.activeElement as HTMLElement)?.blur();
+          navigate(`/movie/${item.id}?type=${mediaType}`);
+        }}
+        className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
+      >
       <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
         <img 
           src={item.poster} 
@@ -218,6 +222,7 @@ export function Home() {
       </div>
     </div>
   );
+};
 
   const isCategorizedMode = !selectedGenre && !selectedCountry && !isSearching && page === 1;
 

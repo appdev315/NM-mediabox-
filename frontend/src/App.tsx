@@ -143,12 +143,11 @@ export default function App() {
       window.dispatchEvent(new Event('resize'));
     };
 
-    // When virtual keyboard closes on inputs, reset scroll position and stretch UI
+    // When virtual keyboard closes on inputs, recalculate layout without jumping to top
     const handleFocusOut = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
         setTimeout(() => {
-          window.scrollTo(0, 0);
           handleViewportChange();
         }, 50);
       }

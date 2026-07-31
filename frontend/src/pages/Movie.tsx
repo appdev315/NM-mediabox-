@@ -418,11 +418,33 @@ export function Movie() {
   };
 
   if (loading && !movie) {
-    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loading')}</div>;
+    return (
+      <div className="p-4 pt-20 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="self-start mb-6 px-4 py-2 rounded-xl bg-black/20 text-sm font-bold flex items-center gap-2"
+        >
+          ← {t('back') || 'Назад'}
+        </button>
+        <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="font-medium opacity-50">{t('loading')}</div>
+      </div>
+    );
   }
 
   if (!movie) {
-    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('movieNotFound')}</div>;
+    return (
+      <div className="p-4 pt-20 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="self-start mb-6 px-4 py-2 rounded-xl bg-black/20 text-sm font-bold flex items-center gap-2"
+        >
+          ← {t('back') || 'Назад'}
+        </button>
+        <div className="text-4xl mb-2">🎬</div>
+        <div className="font-medium opacity-70 mb-4">{t('movieNotFound')}</div>
+      </div>
+    );
   }
 
 
