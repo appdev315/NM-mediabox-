@@ -197,7 +197,11 @@ export function Movie() {
       let isLiftwDone = false;
       let isGoDone = false;
 
-      const isRu = !language || language.toLowerCase().startsWith('ru');
+      const countryParam = (searchParams.get('country') || '').toUpperCase();
+      const originCountries: string[] = movie?.origin_country || [];
+      const isRu = countryParam === 'RU' || countryParam === 'SU' || 
+                         originCountries.includes('RU') || originCountries.includes('SU') || 
+                         (movie?.country && /россия|ссср|russia/i.test(movie.country));
 
       // YouTube-Grade Instant Client-Side Embed Construction (0ms latency, 0 server load)
       if (queryParams.tmdb) {
