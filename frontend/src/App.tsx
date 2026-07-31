@@ -130,49 +130,44 @@ export default function App() {
     WebApp.ready();
     WebApp.expand();
 
-    // Set Telegram native WebApp container background to dark theme color to prevent white bars
     try {
       if (WebApp.setBackgroundColor) WebApp.setBackgroundColor('#17212b');
       if (WebApp.setHeaderColor) WebApp.setHeaderColor('#17212b');
     } catch (_) {}
 
-    // Global fix: force layout recalculation after virtual keyboard dismissal on tablets/mobile
-    const handleViewportResize = () => {
-      if (window.visualViewport) {
-        const vvHeight = window.visualViewport.height;
-        // Keyboard is dismissed when visualViewport height is close to window.innerHeight
-        if (vvHeight >= window.innerHeight * 0.85) {
-          // Force the document to recalculate its height, eliminating the white bar
-          document.documentElement.style.height = `${vvHeight}px`;
-          requestAnimationFrame(() => {
-            document.documentElement.style.height = '';
-            window.scrollTo(0, window.scrollY);
-            try { WebApp.expand(); } catch (_) {}
-          });
-        }
-      }
+    // Clean viewport realignment using official Telegram WebApp viewportChanged event
+    const handleViewportChange = () => {
+      try {
+        WebApp.expand();
+      } catch (_) {}
+      window.dispatchEvent(new Event('resize'));
     };
 
-    // Listen for input blur (keyboard hide) across the app
+    // When virtual keyboard closes on inputs, reset scroll position and stretch UI
     const handleFocusOut = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
         setTimeout(() => {
-          window.scrollTo(0, window.scrollY);
-          try { WebApp.expand(); } catch (_) {}
-        }, 100);
+          window.scrollTo(0, 0);
+          handleViewportChange();
+        }, 50);
       }
     };
 
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-    }
+    try {
+      if (WebApp.onEvent) {
+        WebApp.onEvent('viewportChanged', handleViewportChange);
+      }
+    } catch (_) {}
+
     document.addEventListener('focusout', handleFocusOut);
 
     return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-      }
+      try {
+        if (WebApp.offEvent) {
+          WebApp.offEvent('viewportChanged', handleViewportChange);
+        }
+      } catch (_) {}
       document.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
