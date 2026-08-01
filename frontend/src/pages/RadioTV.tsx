@@ -242,6 +242,12 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
             if (current.name) {
               const streamUrl = line.trim();
               
+              // Skip DASH MPD manifests and HTML iframe webpages which break HLS.js
+              if (streamUrl.includes('.mpd') || streamUrl.includes('smotrim.ru/iframe') || streamUrl.includes('/iframe/')) {
+                current = {};
+                return;
+              }
+
               if (streamUrl.startsWith('https://')) {
                 // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
