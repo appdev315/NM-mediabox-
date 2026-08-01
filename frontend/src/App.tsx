@@ -1,5 +1,6 @@
 import { useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { App as CapacitorApp } from '@capacitor/app';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
 
@@ -16,10 +17,8 @@ const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default:
 const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
 
 import { ThemeProvider } from './context/ThemeContext';
-import { AdProvider } from './context/AdManager';
 import { HomeStateProvider } from './context/HomeStateContext';
-import { useNavigate } from 'react-router-dom';
-
+import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
 import { TopBanner } from './components/TopBanner';
@@ -79,10 +78,40 @@ function BottomNav() {
   );
 }
 
+function HardwareBackButtonHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const handleBackButton = async () => {
+      const currentPath = location.pathname;
+      if (currentPath !== '/' && currentPath !== '/movies' && currentPath !== '/adult') {
+        navigate(-1);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    };
+
+    let backListener: any = null;
+    try {
+      backListener = CapacitorApp.addListener('backButton', handleBackButton);
+    } catch (_) {}
+
+    return () => {
+      if (backListener) {
+        backListener.then((h: any) => h.remove?.()).catch(() => {});
+      }
+    };
+  }, [navigate, location.pathname]);
+
+  return null;
+}
+
 function MainApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
+      <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
         <TopBanner />
@@ -107,6 +136,7 @@ function AdultApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
+      <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative">
         <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>

@@ -208,7 +208,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
       if (!url) throw new Error("URL not found in config");
 
-      const fetchUrl = needsProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
+      const fetchUrl = needsProxy ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(url)}` : url;
       const res = await fetchWithRetry(fetchUrl);
       
       let resText = '';
@@ -246,7 +246,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                 // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
               } else {
-                // HTTP goes through Express proxy to avoid Mixed Content
+                // HTTP goes through Go backend proxy to avoid Mixed Content on Android
                 const WORKER_URL = `${EXPRESS_API_BASE}/proxy`;
                 
                 channels.push({ 
@@ -288,14 +288,16 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     // If a TV channel is playing, stop it
     setActiveTvChannel(null);
 
-    // Radio plays DIRECTLY — no proxy needed.
-    // Browser allows cross-origin <audio src>, and proxying infinite
-    // audio streams would overload the backend.
+    // If HTTP stream, proxy through EXPRESS_API_BASE/proxy to bypass Android WebView mixed content block
+    const finalUrl = station.url.startsWith('http://')
+      ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(station.url)}`
+      : station.url;
+
     playTrack({
       id: station.id,
       title: station.name,
       artist: station.group || 'Live Radio',
-      url: station.url,
+      url: finalUrl,
       coverUrl: station.logo,
       type: 'radio'
     });
@@ -326,9 +328,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       }
     }
 
-    // channel.url is already processed by parseM3u (HTTP streams use Cloudflare proxy)
-    // We play it directly first. If it's HTTPS and fails (e.g. CORS), the fallback logic will catch it.
-    setActiveTvChannel({ ...channel, originalUrl: channel.url });
+    setActiveTvChannel(channel);
 
     // Add to history
     try {
@@ -342,10 +342,10 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
   };
 
-  const tryAlternativeTvSource = async (channel: Station) => {
+  const tryAlternativeTvSource = async (channel: Station): Promise<boolean> => {
     const config = (window as any)._tvConfig;
     const c = (window as any)._tvCountry;
-    if (!config || !c || !config.tvPlaylists?.[c]) return false;
+    if (!config || !c || !config.tvPlaylists[c]) return false;
 
     const currentSourceIndex = parseInt(tvSource) - 1;
     if (isNaN(currentSourceIndex)) return false; // not a numbered source
@@ -369,7 +369,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
               const newUrl = lines[j].trim();
               const proxied = newUrl.startsWith('https://') 
                 ? newUrl 
-                : `/api/proxy?url=${encodeURIComponent(newUrl)}`;
+                : `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(newUrl)}`;
 
               setActiveTvChannel({ 
                 ...channel, 
@@ -471,15 +471,15 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   hls.startLoad();
                 } else {
                   // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
-                  // let's try wrapping it in our Cloudflare proxy
-                  if (activeTvChannel && !activeTvChannel.url.includes('/api/proxy')) {
-                    console.log('[TV] Stream failed, trying Cloudflare proxy fallback...');
+                  // let's try wrapping it in our Go proxy
+                  if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
+                    console.log('[TV] Stream failed, trying Go proxy fallback...');
                     clearPlaybackTimeout();
                     hls.destroy();
                     hlsRef.current = null;
                     networkRetries = 0;
                     
-                    const proxiedUrl = `/api/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                    const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
                     setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
                   } else {
                     console.error('fatal network error, max retries reached');
@@ -507,14 +507,14 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                 break;
               default:
                 // Same fallback logic for other fatal errors
-                if (activeTvChannel && !activeTvChannel.url.includes('/api/proxy')) {
-                  console.log('[TV] Media error, trying Cloudflare proxy fallback...');
+                if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
+                  console.log('[TV] Media error, trying Go proxy fallback...');
                   clearPlaybackTimeout();
                   hls.destroy();
                   hlsRef.current = null;
                   networkRetries = 0;
                   
-                  const proxiedUrl = `/api/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                  const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
                   setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
                 } else {
                   console.error('fatal media error, max retries reached');
