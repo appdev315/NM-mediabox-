@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useLanguage, getDefaultCountryForLanguage } from './LanguageContext';
 
 type TabType = 'movie' | 'series' | 'radio' | 'tv';
 
@@ -26,7 +25,6 @@ interface HomeState {
 const HomeStateContext = createContext<HomeState | undefined>(undefined);
 
 export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { language } = useLanguage();
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
     return (localStorage.getItem('mb_home_activeTab') as TabType) || 'movie';
@@ -35,17 +33,10 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [items, setItems] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [selectedGenre, setSelectedGenreState] = useState<string>('');
-  const [selectedCountry, setSelectedCountryState] = useState<string>(() => getDefaultCountryForLanguage(language));
+  const [selectedCountry, setSelectedCountryState] = useState<string>('');
   const [searchQuery, setSearchQueryState] = useState<string>('');
   const [isSearching, setIsSearchingState] = useState<boolean>(false);
   const [scrollY, setScrollY] = useState<number>(0);
-
-  // Sync default country when language changes
-  useEffect(() => {
-    setSelectedCountryState(getDefaultCountryForLanguage(language));
-    setPage(1);
-    setItems([]);
-  }, [language]);
 
   useEffect(() => {
     localStorage.setItem('mb_home_activeTab', activeTab);
@@ -90,7 +81,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setItems([]);
     setPage(1);
     setSelectedGenreState('');
-    setSelectedCountryState(getDefaultCountryForLanguage(language));
+    setSelectedCountryState('');
     setSearchQueryState('');
     setIsSearchingState(false);
     setScrollY(0);
