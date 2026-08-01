@@ -242,29 +242,41 @@ export function Movie() {
       const updateUI = () => {
         const combined: any[] = [];
         
-        // 1. Liftw (Primary Main Player for RU)
-        if (foundSources.liftw) {
-          combined.push(foundSources.liftw);
-        }
-        
-        // 2. Go microservice sources (for RU, cap fallback)
-        if (foundSources.go.length > 0) {
-          if (isRu) {
-            combined.push(foundSources.go[0]);
-          } else {
-            combined.push(...foundSources.go);
+        if (isRu) {
+          // 1. Liftw (Primary Main Player for RU)
+          if (foundSources.liftw) {
+            combined.push(foundSources.liftw);
           }
-        } else if (foundSources.goIframe && isRu) {
-          combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
-        }
-
-        // 3. Global Embeds (Primary for non-RU, Fallback for RU if Liftw missing)
-        if (!isRu || !foundSources.liftw) {
+          // 2. Go microservice sources (for RU, cap fallback)
+          if (foundSources.go.length > 0) {
+            combined.push(foundSources.go[0]);
+          } else if (foundSources.goIframe) {
+            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
+          }
+          // 3. Global Embeds (Fallback for RU if Liftw missing)
           foundSources.globalEmbeds.forEach(e => {
             if (!combined.some(c => c.url === e.url)) {
               combined.push(e);
             }
           });
+        } else {
+          // 1. Global Embeds (Primary for non-RU / Indonesia: 2Embed, VidLink, SmashyStream)
+          foundSources.globalEmbeds.forEach(e => {
+            if (!combined.some(c => c.url === e.url)) {
+              combined.push(e);
+            }
+          });
+          // 2. Liftw / Go as fallbacks for non-RU
+          if (foundSources.liftw && !combined.some(c => c.url === foundSources.liftw.url)) {
+            combined.push(foundSources.liftw);
+          }
+          if (foundSources.go.length > 0) {
+            foundSources.go.forEach(g => {
+              if (!combined.some(c => c.url === g.url)) {
+                combined.push(g);
+              }
+            });
+          }
         }
 
         // Cap to max 3 players globally
@@ -276,28 +288,12 @@ export function Movie() {
         setSources(mapped);
 
         if (mapped.length > 0) {
-          if (isRu) {
-            if (foundSources.liftw) {
-              if (!userSelectedRef.current) {
-                setIframeUrl(foundSources.liftw.url);
-              }
-            } else if (isLiftwDone) {
-              const preferredUrl = mapped[0].url;
-              setIframeUrl(prev => {
-                if (!prev) return preferredUrl;
-                if (userSelectedRef.current) return prev;
-                return preferredUrl;
-              });
-            }
-          } else {
-            // Non-RU languages: instant preferred selection (0ms)
-            const preferredUrl = mapped[0].url;
-            setIframeUrl(prev => {
-              if (!prev) return preferredUrl;
-              if (userSelectedRef.current) return prev;
-              return preferredUrl;
-            });
-          }
+          const preferredUrl = mapped[0].url;
+          setIframeUrl(prev => {
+            if (!prev) return preferredUrl;
+            if (userSelectedRef.current) return prev;
+            return preferredUrl;
+          });
         }
       };
 
