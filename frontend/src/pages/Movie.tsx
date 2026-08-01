@@ -199,7 +199,7 @@ export function Movie() {
 
       const countryParam = (searchParams.get('country') || '').toUpperCase();
       const originCountries: string[] = movie?.origin_country || [];
-      const isRu = countryParam === 'RU' || countryParam === 'SU' || 
+      const isRu = language === 'ru-RU' || countryParam === 'RU' || countryParam === 'SU' || 
                          originCountries.includes('RU') || originCountries.includes('SU') || 
                          (movie?.country && /россия|ссср|russia/i.test(movie.country));
 
