@@ -97,20 +97,28 @@ export function useApi() {
     return data;
   }, [language]);
 
-  const mapTMDB = (item: any, forceType?: 'movie' | 'series') => ({
-    id: item.id,
-    title: item.title || item.name || item.original_title || 'Без названия',
-    poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
-    description: item.overview || '',
-    year: item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : ''),
-    type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
-    country: item.production_countries?.[0]?.name || '',
-    origin_country: item.origin_country || item.production_countries?.map((c: any) => c.iso_3166_1) || [],
-    genre: item.genres?.map((g: any) => g.name).join(', ') || '',
-    seasons: item.seasons || [],
-    imdb_id: item.imdb_id || item.external_ids?.imdb_id || '',
-    rating: item.vote_average || 0
-  });
+  const mapTMDB = (item: any, forceType?: 'movie' | 'series') => {
+    const rawDate = item.release_date || item.first_air_date || '';
+    const releaseTimestamp = rawDate ? new Date(rawDate).getTime() : 0;
+    const isUpcoming = Boolean(releaseTimestamp > 0 && releaseTimestamp > Date.now());
+
+    return {
+      id: item.id,
+      title: item.title || item.name || item.original_title || 'Без названия',
+      poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
+      description: item.overview || '',
+      year: item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : ''),
+      type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
+      country: item.production_countries?.[0]?.name || '',
+      origin_country: item.origin_country || item.production_countries?.map((c: any) => c.iso_3166_1) || [],
+      genre: item.genres?.map((g: any) => g.name).join(', ') || '',
+      seasons: item.seasons || [],
+      imdb_id: item.imdb_id || item.external_ids?.imdb_id || '',
+      rating: item.vote_average || 0,
+      release_date: rawDate,
+      isUpcoming
+    };
+  };
 
   const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {
     return withLoading(async () => {
