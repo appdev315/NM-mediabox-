@@ -197,6 +197,13 @@ export function Home() {
         className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
       >
       <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
+        {item.isUpcoming && (
+          <div className="absolute top-2 left-2 z-20">
+            <span className="bg-amber-500/90 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md backdrop-blur-sm flex items-center gap-1 border border-amber-400/40">
+              ⏳ {(t as any)('comingSoon') || 'Скоро...'}
+            </span>
+          </div>
+        )}
         <img 
           src={item.poster} 
           alt={item.title} 
