@@ -38,6 +38,7 @@ export function Home() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [homeSections, setHomeSections] = useState<any[]>([]);
   const isFirstRender = useRef(true);
+  const hasRestoredScrollRef = useRef(false);
 
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
@@ -70,15 +71,18 @@ export function Home() {
     loadGenres();
   }, [activeTab, fetchGenres]);
 
-  // Restore scroll position when items are loaded
+  // Restore scroll position ONCE when returning to Home page
   useEffect(() => {
-    if ((items.length > 0 || homeSections.length > 0) && scrollY > 0) {
+    if (!hasRestoredScrollRef.current && (items.length > 0 || homeSections.length > 0) && scrollY > 0) {
+      hasRestoredScrollRef.current = true;
+      const targetY = scrollY;
       const timer = setTimeout(() => {
-        window.scrollTo(0, scrollY);
+        window.scrollTo(0, targetY);
+        setScrollY(0);
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [items.length, homeSections.length]);
+  }, [items.length, homeSections.length, scrollY, setScrollY]);
 
   // Save scroll position when unmounting
   useEffect(() => {
@@ -163,10 +167,13 @@ export function Home() {
     setActiveTab(tab);
     setPage(1);
     setSelectedGenre('');
+    setSelectedCountry('');
     setSearchQuery('');
     setItems([]);
     setHomeSections([]);
     setIsSearching(false);
+    hasRestoredScrollRef.current = false;
+    setScrollY(0);
     triggerAd();
   };
 
