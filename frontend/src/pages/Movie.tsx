@@ -288,12 +288,28 @@ export function Movie() {
         setSources(mapped);
 
         if (mapped.length > 0) {
-          const preferredUrl = mapped[0].url;
-          setIframeUrl(prev => {
-            if (!prev) return preferredUrl;
-            if (userSelectedRef.current) return prev;
-            return preferredUrl;
-          });
+          if (isRu) {
+            if (foundSources.liftw) {
+              if (!userSelectedRef.current) {
+                setIframeUrl(foundSources.liftw.url);
+              }
+            } else if (isLiftwDone) {
+              const preferredUrl = mapped[0].url;
+              setIframeUrl(prev => {
+                if (!prev) return preferredUrl;
+                if (userSelectedRef.current) return prev;
+                return preferredUrl;
+              });
+            }
+          } else {
+            // Non-RU: instant preferred selection (0ms)
+            const preferredUrl = mapped[0].url;
+            setIframeUrl(prev => {
+              if (!prev) return preferredUrl;
+              if (userSelectedRef.current) return prev;
+              return preferredUrl;
+            });
+          }
         }
       };
 
