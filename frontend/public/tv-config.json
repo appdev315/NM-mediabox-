@@ -1,14 +1,22 @@
 {
   "tvPlaylists": {
     "ru": [
-      "https://iptv-org.github.io/iptv/countries/ru.m3u",
-      "https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/ru.m3u",
-      "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_russia.m3u8"
+      "https://raw.githubusercontent.com/yuriy-v/iptv/main/iptv.m3u",
+      "https://raw.githubusercontent.com/m3u8ru/iptv/main/ru.m3u",
+      "https://iptv-org.github.io/iptv/languages/rus.m3u",
+      "https://iptv-org.github.io/iptv/countries/ru.m3u"
     ],
     "us": [
       "https://iptv-org.github.io/iptv/countries/us.m3u",
-      "https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/us.m3u",
       "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_usa.m3u8"
+    ],
+    "by": [
+      "https://iptv-org.github.io/iptv/countries/by.m3u",
+      "https://raw.githubusercontent.com/yuriy-v/iptv/main/iptv.m3u"
+    ],
+    "kz": [
+      "https://iptv-org.github.io/iptv/countries/kz.m3u",
+      "https://raw.githubusercontent.com/yuriy-v/iptv/main/iptv.m3u"
     ]
   }
 }
