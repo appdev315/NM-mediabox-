@@ -209,13 +209,15 @@ export function Movie() {
         const sNum = activeSeason || '1';
         const eNum = activeEpisode || '1';
         foundSources.globalEmbeds = mediaType === 'tv' ? [
-          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
-          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
-          { name: 'EmbedSU', url: `https://embed.su/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false }
+          { name: '2Embed', url: `https://www.2embed.cc/embedtv/${tmdbId}&s=${sNum}&e=${eNum}`, isLiftw: false },
+          { name: 'VidLink', url: `https://vidlink.pro/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
+          { name: 'SmashyStream', url: `https://embed.smashystream.com/playere.php?tmdb=${tmdbId}&season=${sNum}&episode=${eNum}`, isLiftw: false },
+          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false }
         ] : [
-          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`, isLiftw: false },
-          { name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/movie/${tmdbId}`, isLiftw: false },
-          { name: 'EmbedSU', url: `https://embed.su/embed/movie/${tmdbId}`, isLiftw: false }
+          { name: '2Embed', url: `https://www.2embed.cc/embed/${tmdbId}`, isLiftw: false },
+          { name: 'VidLink', url: `https://vidlink.pro/movie/${tmdbId}`, isLiftw: false },
+          { name: 'SmashyStream', url: `https://embed.smashystream.com/playere.php?tmdb=${tmdbId}`, isLiftw: false },
+          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`, isLiftw: false }
         ];
       }
 
@@ -550,7 +552,7 @@ export function Movie() {
             <div className="w-full bg-red-500/10 text-red-400 text-xs text-center py-2 px-4 font-medium rounded-lg mb-2 flex justify-center items-center border border-red-500/20">
               <span className="flex items-center gap-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                {language === 'en-US' ? 'If a window asks to "Open Link", press "Cancel" to continue.' : 'Если появится запрос "Открыть ссылку", нажмите "Отмена".'}
+                {t('cancelPrompt')}
               </span>
             </div>
           )}
