@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
+const DOMAINS = [
+  'a.magsrv.com',
+  'a.ad-delivery.net',
+  'syndication.exoclick.com'
+];
+
 export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+  const [domainIndex, setDomainIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -13,13 +21,24 @@ export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
 
   const isMobile = containerWidth < 768;
   const zoneId = isMobile ? "5965686" : "5965676";
-  
-  // Sizing based on user settings: desktop is 900x250, mobile is 320x50.
   const width = isMobile ? 320 : 900;
   const height = isMobile ? 50 : 250;
-  const iframeUrl = `https://a.magsrv.com/iframe.php?idzone=${zoneId}&size=${width}x${height}`;
 
-  // Calculate scaling factor if container width is smaller than the banner width (with 24px padding margin)
+  const currentDomain = DOMAINS[domainIndex] || DOMAINS[0];
+  const iframeUrl = `https://${currentDomain}/iframe.php?idzone=${zoneId}&size=${width}x${height}`;
+
+  const handleError = () => {
+    if (domainIndex + 1 < DOMAINS.length) {
+      setDomainIndex(prev => prev + 1);
+    } else {
+      setHasError(true);
+    }
+  };
+
+  if (hasError) {
+    return null;
+  }
+
   const padding = 24;
   const maxAvailableWidth = containerWidth - padding;
   const scale = maxAvailableWidth < width ? maxAvailableWidth / width : 1;
@@ -45,6 +64,7 @@ export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
           height={height}
           scrolling="no"
           frameBorder="0"
+          onError={handleError}
           style={{ border: 'none', overflow: 'hidden' }}
         />
       </div>
