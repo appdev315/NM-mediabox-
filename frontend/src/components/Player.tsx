@@ -140,7 +140,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode }: PlayerProps) {
     };
 
     const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && document.visibilityState === 'visible' && iframeLoaded) {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible' && document.hasFocus() && iframeLoaded) {
         try {
           if (!wakeLockRef.current) {
             wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
@@ -154,17 +154,31 @@ export function Player({ iframeUrl, mirrors, initialTimecode }: PlayerProps) {
     }
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && document.hasFocus()) {
         if (iframeLoaded) requestWakeLock();
       } else {
         releaseWakeLock();
       }
     };
 
+    const handleBlur = () => {
+      releaseWakeLock();
+    };
+
+    const handleFocus = () => {
+      if (iframeLoaded && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       releaseWakeLock();
     };
   }, [iframeLoaded]);
