@@ -82,27 +82,68 @@ function HardwareBackButtonHandler() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Telegram WebApp BackButton sync
   useEffect(() => {
-    const handleBackButton = async () => {
-      const currentPath = location.pathname;
-      if (currentPath !== '/' && currentPath !== '/movies' && currentPath !== '/adult') {
-        navigate(-1);
-      } else {
-        CapacitorApp.exitApp();
+    try {
+      if (WebApp && WebApp.BackButton) {
+        const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
+        if (!isRoot) {
+          WebApp.BackButton.show();
+          const handleTgBack = () => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate('/', { replace: true });
+            }
+          };
+          WebApp.BackButton.onClick(handleTgBack);
+          return () => {
+            WebApp.BackButton.offClick(handleTgBack);
+          };
+        } else {
+          WebApp.BackButton.hide();
+        }
+      }
+    } catch (_) {}
+  }, [location.pathname, navigate]);
+
+  // Native Android Capacitor Hardware Back Button handler
+  useEffect(() => {
+    let backListener: any = null;
+
+    const registerBackHandler = async () => {
+      try {
+        backListener = await CapacitorApp.addListener('backButton', (data) => {
+          const currentPath = window.location.pathname;
+          const isRoot = currentPath === '/' || currentPath === '/movies' || currentPath === '/adult';
+
+          if (!isRoot) {
+            if (data?.canGoBack || window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate('/', { replace: true });
+            }
+          } else {
+            CapacitorApp.exitApp();
+          }
+        });
+      } catch (e) {
+        console.error('Capacitor backButton setup error:', e);
       }
     };
 
-    let backListener: any = null;
-    try {
-      backListener = CapacitorApp.addListener('backButton', handleBackButton);
-    } catch (_) {}
+    registerBackHandler();
 
     return () => {
       if (backListener) {
-        backListener.then((h: any) => h.remove?.()).catch(() => {});
+        if (typeof backListener.remove === 'function') {
+          backListener.remove();
+        } else if (backListener.then) {
+          backListener.then((h: any) => h?.remove?.()).catch(() => {});
+        }
       }
     };
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   return null;
 }
