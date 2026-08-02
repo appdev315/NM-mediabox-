@@ -356,11 +356,15 @@ export function Movie() {
             
             if (liftwData.episodes) {
               setLiftwEpisodes(liftwData.episodes);
-              const firstSeason = Object.keys(liftwData.episodes)[0];
-              if (firstSeason) {
-                setActiveSeason(firstSeason);
-                setActiveEpisode(liftwData.episodes[firstSeason][0]);
-              }
+              setActiveSeason(prevSeason => {
+                if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
+                return Object.keys(liftwData.episodes)[0] || '1';
+              });
+              setActiveEpisode(prevEp => {
+                if (prevEp) return prevEp;
+                const firstSeason = Object.keys(liftwData.episodes)[0];
+                return (firstSeason && liftwData.episodes[firstSeason]?.[0]) || '1';
+              });
             }
           }
         } catch (e) {
@@ -446,7 +450,15 @@ export function Movie() {
       });
     }
 
-    setIframeUrl(newUrl);
+    let targetUrl = newUrl;
+    if (mediaType === 'tv' && targetUrl.includes('/embed/tv/') && activeSeason && activeEpisode) {
+      const parts = targetUrl.split('/embed/tv/')[1]?.split('/') || [];
+      const tmdbId = parts[0];
+      const base = targetUrl.split('/embed/tv/')[0];
+      targetUrl = `${base}/embed/tv/${tmdbId}/${activeSeason}/${activeEpisode}`;
+    }
+
+    setIframeUrl(targetUrl);
     userSelectedRef.current = true;
   };
 
