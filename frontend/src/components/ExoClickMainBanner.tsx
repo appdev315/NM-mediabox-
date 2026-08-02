@@ -12,10 +12,17 @@ export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    let ticking = false;
     const handleResize = () => {
-      setContainerWidth(window.innerWidth);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setContainerWidth(window.innerWidth);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 

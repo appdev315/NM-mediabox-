@@ -144,19 +144,26 @@ export function Home() {
 
   // Infinite scroll listener (only active when in single-genre, country, or search mode)
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
       if (loading || isSearching || (!selectedGenre && !selectedCountry && !searchQuery)) return;
       
-      const scrollYPos = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      if (scrollYPos + windowHeight >= documentHeight - 100) {
-        setPage(p => p + 1);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollYPos = window.scrollY;
+          const windowHeight = window.innerHeight;
+          const documentHeight = document.documentElement.scrollHeight;
+          
+          if (scrollYPos + windowHeight >= documentHeight - 100) {
+            setPage(p => p + 1);
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
     
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, isSearching, page, selectedGenre, selectedCountry, searchQuery]);
 
