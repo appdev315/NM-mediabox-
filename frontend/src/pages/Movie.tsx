@@ -33,6 +33,15 @@ export function Movie() {
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
@@ -148,6 +157,12 @@ export function Movie() {
     } catch (e) {
       console.error('Failed to save to history:', e);
     }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsExtracting(true);
     setStreamUrl(null);

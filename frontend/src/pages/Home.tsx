@@ -214,12 +214,14 @@ export function Home() {
         <img 
           src={item.poster} 
           alt={item.title} 
+          width={300}
+          height={450}
           className="w-full h-full object-cover"
           loading="lazy"
           decoding="async"
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
+            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
           }}
         />
 
@@ -343,7 +345,7 @@ export function Home() {
           {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
           {isCategorizedMode ? (
             <div className="space-y-5 w-full">
-              {homeSections.map((section: any) => (
+              {homeSections.map((section: any, idx: number) => (
                 <div key={section.id} className="w-full">
                   <div className="flex justify-between items-center mb-3 px-1">
                     <h2 className="text-lg sm:text-xl font-bold tracking-tight">{section.name}</h2>
@@ -366,10 +368,12 @@ export function Home() {
                     {section.items.map((item: any) => renderMovieCard(item))}
                   </div>
 
-                  {/* Inter-Section Ad Banner (Duplicating the top working ExoClickMainBanner format) */}
-                  <div className="w-full my-6 flex justify-center">
-                    <ExoClickMainBanner />
-                  </div>
+                  {/* Inter-Section Ad Banner (Render max 2 banners across home feed) */}
+                  {(idx === 1 || idx === 4) && (
+                    <div className="w-full my-6 flex justify-center">
+                      <ExoClickMainBanner />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
