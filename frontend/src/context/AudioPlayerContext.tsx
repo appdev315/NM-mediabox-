@@ -40,14 +40,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Stable callbacks that read from refs instead of captured state
   const stop = useCallback(() => {
     isUserPausedRef.current = true;
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-    }
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
+    }
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
     }
     setIsPlaying(false);
     setIsBuffering(false);
