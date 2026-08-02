@@ -93,19 +93,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     // Use preload="auto" for radio for bigger buffer
     audio.preload = track.type === 'radio' ? 'auto' : 'none';
     
-    // Add a cache buster for radio (only if NOT HLS) to avoid caching dead streams
     const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-    const url = (track.type === 'radio' && !isHls) 
-      ? `${track.url}${track.url.includes('?') ? '&' : '?'}cb=${Date.now()}`
-      : track.url;
+    const url = track.url;
       
     if (isHls) {
-      if (Hls.isSupported()) {
+      if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native Apple Hardware HLS (Safari / macOS / iOS) — ~0% CPU, hardware DSP audio decoding
+        audio.src = url;
+      } else if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
           maxBufferLength: 30,
-          maxBufferSize: 60 * 1024 * 1024, // 60MB RAM buffer
+          maxBufferSize: 30 * 1024 * 1024,
           backBufferLength: 30,
           manifestLoadingMaxRetry: 5,
           levelLoadingMaxRetry: 5,
@@ -133,11 +133,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             }
           }
         });
-      } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (Safari)
-        audio.src = url;
       } else {
-        console.error('HLS is not supported on this browser');
         audio.src = url;
       }
     } else {
@@ -292,16 +288,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     if (currentTrackRef.current?.type === 'radio') {
       heartbeatInterval = setInterval(() => {
+        if (document.hidden) return; // Allow macOS Safari App Nap power savings
         if (!currentTrackRef.current || currentTrackRef.current.type !== 'radio') return;
         if (!isPlayingRef.current || audio.paused) return;
 
-        // If currentTime hasn't advanced in 15 seconds, stream is frozen
+        // If currentTime hasn't advanced in 20 seconds, stream is frozen
         if (audio.currentTime > 0 && audio.currentTime === lastCurrentTime) {
           console.warn('[Radio] Heartbeat: stream frozen, reconnecting...');
           attemptReconnect('heartbeat: frozen stream');
         }
         lastCurrentTime = audio.currentTime;
-      }, 15000);
+      }, 20000);
     }
 
     // --- Register listeners ---
