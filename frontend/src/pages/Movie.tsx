@@ -598,7 +598,7 @@ export function Movie() {
                   handleWatch(true);
                 }}
                 // @ts-ignore
-                config={{ file: { forceVideo: true, forceHLS: false } }}
+                config={{ file: { forceVideo: true, forceHLS: false, attributes: { playsInline: true, preload: 'metadata' } } }}
               />
             ) : null}
           </div>
