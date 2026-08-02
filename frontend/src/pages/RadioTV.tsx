@@ -397,15 +397,22 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
   // Infinite scroll for Radio / TV
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const windowH = window.innerHeight;
-      const docH = document.documentElement.scrollHeight;
-      if (scrollY + windowH >= docH - 100) {
-        setVisibleCount(v => v + 50);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const windowH = window.innerHeight;
+          const docH = document.documentElement.scrollHeight;
+          if (scrollY + windowH >= docH - 100) {
+            setVisibleCount(v => v + 50);
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 

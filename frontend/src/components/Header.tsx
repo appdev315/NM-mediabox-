@@ -14,10 +14,22 @@ export function Header() {
       setShowScrollTop(false);
       return;
     }
+    let ticking = false;
+    let lastState = false;
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const shouldShow = window.scrollY > 300;
+          if (shouldShow !== lastState) {
+            lastState = shouldShow;
+            setShowScrollTop(shouldShow);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [location.pathname, isAdultApp]);
 

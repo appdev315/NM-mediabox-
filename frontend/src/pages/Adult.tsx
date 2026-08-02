@@ -205,17 +205,24 @@ export function Adult() {
   }, [loading, isLoadingMore, hasAccess, ageConfirmed, category, country, query, page]);
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      if (scrollY + windowHeight >= documentHeight - 100) {
-        loadMore();
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const windowHeight = window.innerHeight;
+          const documentHeight = document.documentElement.scrollHeight;
+          
+          if (scrollY + windowHeight >= documentHeight - 100) {
+            loadMore();
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
     
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loadMore]);
 
