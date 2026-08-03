@@ -70,16 +70,10 @@ export function FloatingTitle() {
         className="fixed left-4 z-50 cursor-pointer px-5 py-2.5 rounded-xl shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
         style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
         onClick={() => {
-          if (isTelegram) {
-             WebApp.HapticFeedback.impactOccurred('light');
-             WebApp.openTelegramLink(isAdultApp ? 'https://t.me/mediaboxxxbot' : 'https://t.me/moviemaniakbot');
-          } else {
-            if (isAdultApp) {
-              window.location.href = '/';
-            } else {
-              navigate('/');
-            }
+          if (WebApp.HapticFeedback) {
+            WebApp.HapticFeedback.impactOccurred('light');
           }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       >
         <span className={`${isWeb ? 'text-3xl' : 'text-lg'} font-black tracking-wider drop-shadow-md`}>

@@ -8,8 +8,12 @@ async function validateTelegramWebAppData(telegramInitData: string, botToken: st
   
   initData.delete('hash');
   
-  const keys = Array.from(initData.keys()).sort();
-  const dataCheckString = keys.map(key => `${key}=${initData.get(key)}`).join('\n');
+  const keys: string[] = [];
+  initData.forEach((_, key) => {
+    if (!keys.includes(key)) keys.push(key);
+  });
+  keys.sort();
+  const dataCheckString = keys.map(key => `${key}=${initData.get(key) || ''}`).join('\n');
   
   const encoder = new TextEncoder();
   const secretKeyMaterial = await crypto.subtle.importKey(
