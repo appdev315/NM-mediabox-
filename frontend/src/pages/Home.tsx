@@ -113,7 +113,11 @@ export function Home() {
           if (page === 1) {
             setItems(results || []);
           } else {
-            setItems(prev => [...prev, ...(results || [])]);
+            setItems(prev => {
+              const existingIds = new Set(prev.map(i => i.id));
+              const newItems = (results || []).filter((i: any) => !existingIds.has(i.id));
+              return [...prev, ...newItems];
+            });
           }
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
@@ -187,12 +191,13 @@ export function Home() {
     setPage(1);
   };
 
-  const renderMovieCard = (item: any) => {
+  const renderMovieCard = (item: any, idx?: number) => {
     if (!item || !item.id) return null;
     const mediaType = item.type || (activeTab === 'series' ? 'series' : 'movie');
+    const cardKey = idx !== undefined ? `${item.id}_${mediaType}_${idx}` : `${item.id}_${mediaType}`;
     return (
       <div 
-        key={`${item.id}_${mediaType}`}
+        key={cardKey}
         onClick={(e) => {
           e.stopPropagation();
           (document.activeElement as HTMLElement)?.blur();
@@ -363,13 +368,16 @@ export function Home() {
             </div>
           )}
 
-          {/* MODE 1: Categorized Home Feed (12 cards per genre section with inter-section ads) */}
+          {/* MODE 1: Categorized Home Feed (12 cards per genre section in distinct framed containers) */}
           {isCategorizedMode ? (
-            <div className="space-y-5 w-full">
-              {homeSections.map((section: any, idx: number) => (
-                <div key={section.id} className="w-full">
-                  <div className="flex justify-between items-center mb-3 px-1">
-                    <h2 className="text-lg sm:text-xl font-bold tracking-tight">{section.name}</h2>
+            <div className="space-y-4 w-full">
+              {homeSections.map((section: any) => (
+                <div key={section.id} className="w-full bg-white/5 dark:bg-gray-800/40 border border-white/10 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm transition-all hover:border-white/20">
+                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-6 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-md"></span>
+                      <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">{section.name}</h2>
+                    </div>
                     {section.genreId && (
                       <button
                         onClick={() => {
@@ -377,31 +385,24 @@ export function Home() {
                           setPage(1);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="text-xs sm:text-sm font-bold text-[var(--button-color)] hover:opacity-80 transition-opacity flex items-center gap-1 bg-black/10 dark:bg-white/10 px-3 py-1.5 rounded-lg"
+                        className="text-xs sm:text-sm font-extrabold px-3.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
                       >
-                        {t('showMore') || 'Показать еще'} →
+                        {t('showMore') || 'Показать еще'} ➔
                       </button>
                     )}
                   </div>
 
-                  {/* 12-Card Grid (Grid cols 2 / 3 / 4 / 6 align perfectly with 12 cards) */}
+                  {/* 12-Card Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
-                    {section.items.map((item: any) => renderMovieCard(item))}
+                    {section.items.map((item: any, idx: number) => renderMovieCard(item, idx))}
                   </div>
-
-                  {/* Inter-Section Ad Banner (Render max 2 banners across home feed) */}
-                  {(idx === 1 || idx === 4) && (
-                    <div className="w-full my-6 flex justify-center">
-                      <ExoClickMainBanner />
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full animate-fade-in">
-              {items.map((item) => renderMovieCard(item))}
+              {items.map((item, idx) => renderMovieCard(item, idx))}
             </div>
           )}
           

@@ -5,7 +5,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
-import { shouldShowAd } from '../utils/adPlacement';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 
 // Get backend URL from environment or use default
@@ -758,7 +757,12 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                       </span>
                     </div>
                   </div>
-                  {shouldShowAd(idx) && <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />}
+                  {/* Exactly 1 Ad Banner embedded seamlessly at index 8 */}
+                  {idx === 8 && (
+                    <div className="col-span-3 md:col-span-4 lg:col-span-6 w-full flex justify-center my-2">
+                      <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />
+                    </div>
+                  )}
                 </React.Fragment>
               );
             })}
