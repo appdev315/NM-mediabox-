@@ -663,29 +663,50 @@ export function Movie() {
           </div>
         )}
 
-        {/* Cast Carousel / В главных ролях */}
-        {cast.length > 0 && (
-          <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
-            <h3 className="font-extrabold text-base">{t('topCast')}</h3>
-            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
-              {cast.map((actor: any) => (
-                <div
-                  key={actor.id}
-                  onClick={() => setSelectedPersonId(actor.id)}
-                  className="w-24 min-w-[96px] cursor-pointer group space-y-1 text-center"
+        {/* Recommendations / Рекомендуем также (Only on initial card before pressing Watch) */}
+        {!(isExtracting || streamUrl || iframeUrl) && recommendations.length > 0 && (
+          <div className="relative border-t border-white/10 pt-4 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-bold text-xl">{t('recommendations')}</h2>
+              {WebApp.platform === 'unknown' && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  </button>
+                  <button 
+                    onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-thin">
+              {recommendations.map((rec) => (
+                <div 
+                  key={rec.id} 
+                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
+                  onClick={() => {
+                    setStreamUrl(null);
+                    setIframeUrl(null);
+                    setSources([]);
+                    navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
+                  }}
                 >
-                  <img
-                    src={actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo'}
-                    alt={actor.name}
-                    className="w-24 aspect-[2/3] object-cover rounded-xl shadow group-hover:scale-105 transition-transform duration-200"
-                    loading="lazy"
-                  />
-                  <p className="text-xs font-bold truncate group-hover:text-blue-400 transition-colors">
-                    {actor.name}
-                  </p>
-                  <p className="text-[10px] opacity-60 truncate">
-                    {actor.character}
-                  </p>
+                  <div className="relative overflow-hidden rounded-xl w-full aspect-[2/3] shadow-sm bg-[var(--hint-color)]">
+                    <img 
+                      src={rec.poster} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform" 
+                      alt={rec.title}
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  </div>
+                  <p className="text-sm mt-2 font-semibold truncate px-1">{rec.title}</p>
                 </div>
               ))}
             </div>
@@ -807,56 +828,33 @@ export function Movie() {
           </div>
         )}
 
-
-        {recommendations.length > 0 && (
-          <>
-          <div className="relative">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-bold text-xl">{t('recommendations')}</h2>
-              {WebApp.platform === 'unknown' && (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
-                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                  </button>
-                  <button 
-                    onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
-                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                  </button>
-                </div>
-              )}
-            </div>
-            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-thin">
-              {recommendations.map((rec) => (
-                <div 
-                  key={rec.id} 
-                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
-                  onClick={() => {
-                    setStreamUrl(null);
-                    setIframeUrl(null);
-                    setSources([]);
-                    navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
-                  }}
+        {/* Cast Carousel / В главных ролях (Under player in Watch mode) */}
+        {(isExtracting || streamUrl || iframeUrl) && cast.length > 0 && (
+          <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
+            <h3 className="font-extrabold text-base">{t('topCast')}</h3>
+            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+              {cast.map((actor: any) => (
+                <div
+                  key={actor.id}
+                  onClick={() => setSelectedPersonId(actor.id)}
+                  className="w-24 min-w-[96px] cursor-pointer group space-y-1 text-center"
                 >
-                  <div className="relative overflow-hidden rounded-xl w-full aspect-[2/3] shadow-sm bg-[var(--hint-color)]">
-                    <img 
-                      src={rec.poster} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform" 
-                      alt={rec.title}
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  </div>
-                  <p className="text-sm mt-2 font-semibold truncate px-1">{rec.title}</p>
+                  <img
+                    src={actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo'}
+                    alt={actor.name}
+                    className="w-24 aspect-[2/3] object-cover rounded-xl shadow group-hover:scale-105 transition-transform duration-200"
+                    loading="lazy"
+                  />
+                  <p className="text-xs font-bold truncate group-hover:text-blue-400 transition-colors">
+                    {actor.name}
+                  </p>
+                  <p className="text-[10px] opacity-60 truncate">
+                    {actor.character}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
-          </>
         )}
 
         {/* Bottom Banner */}
