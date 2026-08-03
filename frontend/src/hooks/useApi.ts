@@ -97,6 +97,28 @@ export function useApi() {
     return data;
   }, [language]);
 
+  const extractCertification = (item: any) => {
+    if (item.release_dates?.results) {
+      const ruDate = item.release_dates.results.find((r: any) => r.iso_3166_1 === 'RU');
+      if (ruDate?.release_dates) {
+        const cert = ruDate.release_dates.find((d: any) => d.certification)?.certification;
+        if (cert) return cert.includes('+') ? cert : `${cert}+`;
+      }
+      const usDate = item.release_dates.results.find((r: any) => r.iso_3166_1 === 'US');
+      if (usDate?.release_dates) {
+        const cert = usDate.release_dates.find((d: any) => d.certification)?.certification;
+        if (cert) return cert;
+      }
+    }
+    if (item.content_ratings?.results) {
+      const ruRating = item.content_ratings.results.find((r: any) => r.iso_3166_1 === 'RU');
+      if (ruRating?.rating) return ruRating.rating;
+      const usRating = item.content_ratings.results.find((r: any) => r.iso_3166_1 === 'US');
+      if (usRating?.rating) return usRating.rating;
+    }
+    return '';
+  };
+
   const mapTMDB = (item: any, forceType?: 'movie' | 'series') => {
     const rawDate = item.release_date || item.first_air_date || '';
     const releaseTimestamp = rawDate ? new Date(rawDate).getTime() : 0;
@@ -106,16 +128,23 @@ export function useApi() {
       id: item.id,
       title: item.title || item.name || item.original_title || 'Без названия',
       poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
+      backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : '',
       description: item.overview || '',
+      tagline: item.tagline || '',
+      runtime: item.runtime || (item.episode_run_time ? item.episode_run_time[0] : 0),
+      certification: extractCertification(item),
       year: item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : ''),
       type: forceType || (item.media_type === 'tv' ? 'series' : 'movie') || (item.name ? 'series' : 'movie'),
       country: item.production_countries?.[0]?.name || '',
       origin_country: item.origin_country || item.production_countries?.map((c: any) => c.iso_3166_1) || [],
       genre: item.genres?.map((g: any) => g.name).join(', ') || '',
+      genres: item.genres || [],
       seasons: item.seasons || [],
       imdb_id: item.imdb_id || item.external_ids?.imdb_id || '',
       rating: item.vote_average || 0,
       release_date: rawDate,
+      credits: item.credits || null,
+      videos: item.videos || null,
       isUpcoming
     };
   };
@@ -136,14 +165,16 @@ export function useApi() {
     });
   }, [tmdbFetch, withLoading]);
 
-  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string) => {
+  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
-      const params: any = { page, sort_by: 'popularity.desc' };
-      if (genreId) params.with_genres = genreId;
-      if (countryCode) {
+      const params: any = { page, sort_by: sortBy };
+      if (sortBy === 'vote_average.desc') {
+        params['vote_count.gte'] = 300;
+      } else if (countryCode) {
         params.with_origin_country = countryCode;
         params['vote_count.gte'] = 3;
       }
+      if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/movie', params);
       return (data.results || [])
         .filter((item: TMDBMovie) => !!item.poster_path)
@@ -151,14 +182,16 @@ export function useApi() {
     });
   }, [tmdbFetch, withLoading]);
 
-  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string) => {
+  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
-      const params: any = { page, sort_by: 'popularity.desc' };
-      if (genreId) params.with_genres = genreId;
-      if (countryCode) {
+      const params: any = { page, sort_by: sortBy };
+      if (sortBy === 'vote_average.desc') {
+        params['vote_count.gte'] = 150;
+      } else if (countryCode) {
         params.with_origin_country = countryCode;
         params['vote_count.gte'] = 3;
       }
+      if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/tv', params);
       return (data.results || [])
         .filter((item: TMDBMovie) => !!item.poster_path)
@@ -178,8 +211,45 @@ export function useApi() {
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
     return withLoading(async () => {
-      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids' });
+      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings' });
+      
+      // Fallback for trailers: if no trailers in current language, fetch en-US videos
+      if (data && (!data.videos || !data.videos.results || data.videos.results.length === 0)) {
+        try {
+          const enVideos = await tmdbFetch(`/${type}/${id}/videos`, { language: 'en-US' });
+          if (enVideos && enVideos.results) {
+            data.videos = enVideos;
+          }
+        } catch(e) {}
+      }
+
       return mapTMDB(data, type === 'tv' ? 'series' : 'movie');
+    });
+  }, [tmdbFetch, withLoading]);
+
+  const fetchPersonDetails = useCallback(async (personId: string | number) => {
+    return withLoading(async () => {
+      const data = await tmdbFetch(`/person/${personId}`, { append_to_response: 'movie_credits,tv_credits,external_ids' });
+      
+      const movieCast = data.movie_credits?.cast || [];
+      const tvCast = data.tv_credits?.cast || [];
+      const sourceList = movieCast.length >= 3 ? movieCast : [...movieCast, ...tvCast];
+
+      const knownFor = sourceList
+        .filter((item: any) => !!item.poster_path)
+        .sort((a: any, b: any) => (b.vote_count || 0) - (a.vote_count || 0))
+        .slice(0, 15)
+        .map((item: any) => mapTMDB(item));
+
+      return {
+        id: data.id,
+        name: data.name || '',
+        biography: data.biography || '',
+        birthday: data.birthday || '',
+        place_of_birth: data.place_of_birth || '',
+        profile_path: data.profile_path ? `https://image.tmdb.org/t/p/w300${data.profile_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Photo',
+        knownFor
+      };
     });
   }, [tmdbFetch, withLoading]);
   
@@ -332,5 +402,5 @@ export function useApi() {
     return data;
   }, []);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, loading, error };
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, loading, error };
 }

@@ -11,21 +11,27 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER NOT NULL,
-    movie_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'movie',
+    title TEXT,
+    poster TEXT,
+    year TEXT,
+    data_json TEXT,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (telegram_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
-    UNIQUE(telegram_id, movie_id)
+    UNIQUE(telegram_id, item_id, type)
 );
 
 -- Таблица истории просмотров
 CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER NOT NULL,
-    movie_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'movie',
     timecode INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (telegram_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
-    UNIQUE(telegram_id, movie_id)
+    UNIQUE(telegram_id, item_id, type)
 );
 
 -- Индексы

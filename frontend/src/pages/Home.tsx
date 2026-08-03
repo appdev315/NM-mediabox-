@@ -37,12 +37,13 @@ export function Home() {
 
   const [genres, setGenres] = useState<Genre[]>([]);
   const [homeSections, setHomeSections] = useState<any[]>([]);
+  const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
 
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
-    if (searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && page === 1 && homeSections.length === 0) {
+    if (searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
       const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
@@ -60,33 +61,30 @@ export function Home() {
     }
   }, []);
 
+  // Fetch genres
   useEffect(() => {
-    const loadGenres = async () => {
-      if (activeTab === 'movie' || activeTab === 'series') {
-        const type = activeTab === 'movie' ? 'movie' : 'tv';
-        const data = await fetchGenres(type);
-        setGenres(data);
-      }
-    };
-    loadGenres();
+    if (activeTab === 'radio' || activeTab === 'tv') return;
+    fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
   }, [activeTab, fetchGenres]);
 
-  // Restore scroll position ONCE when returning to Home page
+  // Handle scroll position save and restore
   useEffect(() => {
-    if (!hasRestoredScrollRef.current && (items.length > 0 || homeSections.length > 0) && scrollY > 0) {
-      hasRestoredScrollRef.current = true;
-      const targetY = scrollY;
-      const timer = setTimeout(() => {
-        window.scrollTo(0, targetY);
-        setScrollY(0);
-      }, 100);
-      return () => clearTimeout(timer);
+    if (items.length > 0 || homeSections.length > 0) {
+      if (!hasRestoredScrollRef.current && scrollY > 0) {
+        window.scrollTo(0, scrollY);
+        hasRestoredScrollRef.current = true;
+      }
     }
-  }, [items.length, homeSections.length, scrollY, setScrollY]);
+  }, [items, homeSections, scrollY]);
 
-  // Save scroll position when unmounting
+  // Save scroll position on scroll
   useEffect(() => {
+    const handleScrollSave = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener('scroll', handleScrollSave, { passive: true });
     return () => {
+      window.removeEventListener('scroll', handleScrollSave);
       setScrollY(window.scrollY);
     };
   }, [setScrollY]);
@@ -106,11 +104,11 @@ export function Home() {
           setIsSearching(true);
           const results = await searchContent(searchQuery);
           setItems(results);
-        } else if (selectedGenre || selectedCountry || page > 1) {
+        } else if (selectedGenre || selectedCountry || sortBy === 'vote_average.desc' || page > 1) {
           setIsSearching(false);
           const results = activeTab === 'movie' 
-            ? await fetchMovies(page, selectedGenre, selectedCountry)
-            : await fetchSeries(page, selectedGenre, selectedCountry);
+            ? await fetchMovies(page, selectedGenre, selectedCountry, sortBy)
+            : await fetchSeries(page, selectedGenre, selectedCountry, sortBy);
             
           if (page === 1) {
             setItems(results || []);
@@ -140,13 +138,13 @@ export function Home() {
     };
 
     loadContent();
-  }, [activeTab, page, selectedGenre, selectedCountry, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
+  }, [activeTab, page, selectedGenre, selectedCountry, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
 
-  // Infinite scroll listener (only active when in single-genre, country, or search mode)
+  // Infinite scroll listener (active in single-genre, country, search, or Top IMDb mode for movies & series)
   useEffect(() => {
     let ticking = false;
     const handleScroll = () => {
-      if (loading || isSearching || (!selectedGenre && !selectedCountry && !searchQuery)) return;
+      if (loading || isSearching || (!selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !searchQuery)) return;
       
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -165,7 +163,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, page, selectedGenre, selectedCountry, searchQuery]);
+  }, [loading, isSearching, page, selectedGenre, selectedCountry, sortBy, searchQuery]);
 
 
 
@@ -248,7 +246,7 @@ export function Home() {
   );
 };
 
-  const isCategorizedMode = !selectedGenre && !selectedCountry && !isSearching && page === 1;
+  const isCategorizedMode = !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !isSearching && page === 1;
 
   return (
     <div 
@@ -311,34 +309,57 @@ export function Home() {
 
           {/* Filters (hidden when searching) */}
           {!isSearching && (
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              {/* Genre Dropdown */}
-              <select 
-                className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
-                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                value={selectedGenre}
-                onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
-              >
-                <option value="">{t('allGenres')}</option>
-                {genres.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-2 mb-4">
+              <div className="grid grid-cols-2 gap-2">
+                {/* Genre Dropdown */}
+                <select 
+                  className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
+                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                  value={selectedGenre}
+                  onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
+                >
+                  <option value="">{t('allGenres')}</option>
+                  {genres.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
 
-              {/* Country Dropdown (Placed directly below Genres) */}
-              <select 
-                className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
-                style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                value={selectedCountry}
-                onChange={(e) => { setSelectedCountry(e.target.value); setPage(1); }}
+                {/* Country Dropdown */}
+                <select 
+                  className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
+                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                  value={selectedCountry}
+                  onChange={(e) => { setSelectedCountry(e.target.value); setPage(1); }}
+                >
+                  <option value="">{t('allCountries')}</option>
+                  {countriesList.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.name[language] || c.name['en-US']}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Top IMDb Filter Button */}
+              <button
+                onClick={() => {
+                  const nextSort = sortBy === 'vote_average.desc' ? 'popularity.desc' : 'vote_average.desc';
+                  setSortBy(nextSort);
+                  setItems([]);
+                  setPage(1);
+                }}
+                className={`w-full py-2.5 px-4 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 ${
+                  sortBy === 'vote_average.desc' 
+                    ? 'bg-yellow-400 text-black border border-yellow-300 shadow-md scale-[1.01]' 
+                    : 'opacity-90'
+                }`}
+                style={{
+                  backgroundColor: sortBy === 'vote_average.desc' ? '#f59e0b' : 'var(--hint-color)',
+                  color: sortBy === 'vote_average.desc' ? '#000000' : 'var(--text-color)'
+                }}
               >
-                <option value="">{t('allCountries')}</option>
-                {countriesList.map(c => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.name[language] || c.name['en-US']}
-                  </option>
-                ))}
-              </select>
+                ⭐ Top IMDb
+              </button>
             </div>
           )}
 

@@ -56,7 +56,7 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequest("GET", targetUrl, nil)
+	req, err := http.NewRequestWithContext(r.Context(), "GET", targetUrl, nil)
 	if err != nil {
 		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
 		return

@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import { tgAuthMiddleware } from './middleware/auth';
 
@@ -15,17 +15,18 @@ type Variables = {
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 app.use('/api/*', cors({
-  origin: (origin) => {
+  origin: (origin: string) => {
     // Only allow web.telegram.org or your frontend
     const allowed = ['https://web.telegram.org', 'https://media-box.xyz', 'https://www.media-box.xyz'];
-    if (origin && (allowed.includes(origin) || origin.includes('localhost'))) {
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (origin && (allowed.includes(origin) || isLocalhost)) {
         return origin;
     }
     return 'https://web.telegram.org';
   },
 }));
 
-app.onError((err, c) => {
+app.onError((err: Error, c: Context) => {
   console.error('Unhandled Error:', err);
   return c.json({ error: 'Internal Server Error' }, 500);
 });
@@ -34,7 +35,7 @@ app.onError((err, c) => {
 
 app.use('/api/user/*', tgAuthMiddleware);
 
-app.post('/api/user/favorites', async (c) => {
+app.post('/api/user/favorites', async (c: Context) => {
   const user = c.get('tgUser') || { id: 1, first_name: 'Guest' };
   const body = await c.req.json();
   const itemId = String(body.id || body.movieId || body.item_id);
@@ -64,7 +65,7 @@ app.post('/api/user/favorites', async (c) => {
   return c.json({ success: true });
 });
 
-app.delete('/api/user/favorites', async (c) => {
+app.delete('/api/user/favorites', async (c: Context) => {
   const user = c.get('tgUser') || { id: 1 };
   const body = await c.req.json();
   const itemId = String(body.id || body.movieId || body.item_id);
@@ -83,7 +84,7 @@ app.delete('/api/user/favorites', async (c) => {
   return c.json({ success: true });
 });
 
-app.get('/api/user/favorites', async (c) => {
+app.get('/api/user/favorites', async (c: Context) => {
   const user = c.get('tgUser') || { id: 1 };
 
   if (c.env.DB) {
@@ -108,7 +109,7 @@ app.get('/api/user/favorites', async (c) => {
   return c.json({ favorites: [] });
 });
 
-app.post('/api/user/history', async (c) => {
+app.post('/api/user/history', async (c: Context) => {
   const user = c.get('tgUser') || { id: 1 };
   const { itemId, type = 'movie', timecode } = await c.req.json();
 

@@ -19,6 +19,9 @@ export default defineConfig({
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
             return 'vendor';
           }
+          if (id.includes('node_modules/react-player')) {
+            return 'player';
+          }
           if (id.includes('@capacitor')) {
             return 'capacitor';
           }

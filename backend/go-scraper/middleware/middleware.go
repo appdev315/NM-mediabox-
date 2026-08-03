@@ -271,6 +271,17 @@ func init() {
 			})
 		}
 	}()
+
+	// Background sweeper: clear uniqueIPStore every 24 hours to prevent memory leak
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		for range ticker.C {
+			uniqueIPStore.Range(func(key, value interface{}) bool {
+				uniqueIPStore.Delete(key)
+				return true
+			})
+		}
+	}()
 }
 
 func getClientIP(r *http.Request) string {

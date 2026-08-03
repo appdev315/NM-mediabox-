@@ -81,8 +81,9 @@ export const translations = {
   "scanQr": "Сканируйте QR или скопируйте адрес ниже",
   "copy": "Копировать",
   "addressCopied": "Адрес скопирован в буфер обмена!",
-  "close": "Закрыть", "downloadAndroid": "Скачать MediaBox на Android", "downloadIos": "Скачать MediaBox iOS", "mediaBoxTelegram": "MediaBox в Telegram", "cancelPrompt": "Если появится запрос \"Открыть ссылку\", нажмите \"Отмена\"."
-, "clearHistory": "Очистить всю историю", "confirmClearHistory": "Вы уверены, что хотите очистить всю историю?"},
+  "close": "Закрыть", "downloadAndroid": "Скачать MediaBox на Android", "downloadIos": "Скачать MediaBox iOS", "mediaBoxTelegram": "MediaBox в Telegram", "cancelPrompt": "Если появится запрос \"Открыть ссылку\", нажмите \"Отмена\".",
+  "clearHistory": "Очистить всю историю", "confirmClearHistory": "Вы уверены, что хотите очистить всю историю?",
+  "overview": "Обзор", "playTrailer": "Воспроизвести трейлер", "tmdbRating": "Зрительский рейтинг", "topImdb": "⭐ Top IMDb", "topCast": "В главных ролях", "director": "Режиссер", "writer": "Сценарист", "trailer": "Трейлер", "dateOfBirth": "Дата рождения", "placeOfBirth": "Место рождения", "actingMastery": "Исполнительное мастерство", "popularProfile": "Популярный профиль", "biography": "Биография", "knownFor": "Известность за", "infoMissing": "Информация отсутствует"},
   'en-US': {"bannerMainBot": "Free movies right in your telegram", "bannerTelegram": "Secret room in tg", "bannerAdult": "Secret 18+ Section", "secretRoomTab": "Secret Room 🍓", "secretRoomRulesTitle": "3 Rules of the Secret Room:", "secretRoomRule1": "1. The first rule of the secret room — do not tell anyone about the secret room.", "secretRoomRule2": "2. The second rule of the secret room — do not tell anyone about the first rule of the secret room.", "secretRoomRule3": "3. The third rule of the secret room — I promise to subscribe to the TG bot )", "secretRoomWarning": "By clicking 'I Confirm', you acknowledge that you are at least 18 years of age and take full legal responsibility for viewing adult content. You agree not to distribute this content to minors.", "secretRoomConfirm": "✅ I Confirm", "secretRoomLeave": "❌ Leave Page", 
   "movies": "Movies",
   "series": "TV Shows",
@@ -159,8 +160,9 @@ export const translations = {
   "scanQr": "Scan QR or copy the address below",
   "copy": "Copy",
   "addressCopied": "Address copied to clipboard!",
-  "close": "Close", "downloadAndroid": "Download MediaBox for Android", "downloadIos": "Download MediaBox iOS", "mediaBoxTelegram": "MediaBox in Telegram", "cancelPrompt": "If a prompt asks to \"Open Link\", press \"Cancel\" to continue."
-, "clearHistory": "Clear all history", "confirmClearHistory": "Are you sure you want to clear all history?"}
+  "close": "Close", "downloadAndroid": "Download MediaBox for Android", "downloadIos": "Download MediaBox iOS", "mediaBoxTelegram": "MediaBox in Telegram", "cancelPrompt": "If a prompt asks to \"Open Link\", press \"Cancel\" to continue.",
+  "clearHistory": "Clear all history", "confirmClearHistory": "Are you sure you want to clear all history?",
+  "overview": "Overview", "playTrailer": "Play Trailer", "tmdbRating": "Audience Rating", "topImdb": "⭐ Top IMDb", "topCast": "Top Cast", "director": "Director", "writer": "Writer", "trailer": "Trailer", "dateOfBirth": "Date of Birth", "placeOfBirth": "Place of Birth", "actingMastery": "Acting Mastery", "popularProfile": "Popular Profile", "biography": "Biography", "knownFor": "Known For", "infoMissing": "No information available"}
 };
 
 // Auto-fill missing translations with English for new languages

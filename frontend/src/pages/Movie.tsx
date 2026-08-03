@@ -9,12 +9,14 @@ import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useApi, EXPRESS_API_BASE } from '../hooks/useApi';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
+import { TrailerModal } from '../components/TrailerModal';
+import { PersonModal } from '../components/PersonModal';
 
 export function Movie() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { fetchMovieDetails, fetchRecommendations, loading } = useApi();
+  const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
   const { triggerMovieAd } = useAdManager();
   const { savedTimecode } = usePlaybackResilience({ mediaId: id });
@@ -31,6 +33,8 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+  const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -494,20 +498,36 @@ export function Movie() {
 
 
 
+  const formatRuntime = (minutes: number) => {
+    if (!minutes) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const trailerVideo = movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0];
+  const directors = movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [];
+  const writers = movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [];
+  const cast = movie?.credits?.cast?.slice(0, 15) || [];
+  const ratingPct = movie?.rating ? Math.round(movie.rating * 10) : 0;
+
   return (
     <div className="pb-20 animate-fade-in">
       <div className="relative">
         <img 
-          src={movie.poster} 
+          src={movie.backdrop || movie.poster} 
           alt={movie.title} 
-          className="w-full aspect-[2/3] max-h-[60vh] object-cover"
+          className="w-full aspect-[16/9] max-h-[50vh] object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/40 to-transparent"></div>
       </div>
 
-      <div className="-mt-16 relative z-10 p-4">
-        <div className="flex justify-between items-start mb-2">
-          <h1 className="text-3xl font-extrabold leading-tight shadow-sm drop-shadow-sm pr-2">{movie.title}</h1>
+      <div className="-mt-20 relative z-10 p-4">
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <h1 className="text-3xl font-black leading-tight drop-shadow-md">{movie.title}</h1>
+            <p className="text-sm opacity-70 font-semibold">{movie.year}</p>
+          </div>
           <div className="flex gap-2 relative z-50">
             <button 
               onClick={() => setShowShareMenu(!showShareMenu)}
@@ -557,24 +577,51 @@ export function Movie() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-sm font-bold opacity-100 mb-2 drop-shadow-sm items-center">
-          {movie.rating && movie.rating > 0 && <span className="flex items-center gap-1"><span className="text-yellow-400">⭐</span> {movie.rating.toFixed(1)}</span>}
-          {movie.rating && movie.rating > 0 && (movie.imdb_id || movie.id) && <span className="opacity-50">•</span>}
-          {(movie.imdb_id || movie.id) && <span className="bg-yellow-400 text-black px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">IMDb</span>}
+        {/* Row 2: Sub-header info (Age certification, Genres, Runtime) */}
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold opacity-90 mb-4">
+          {movie.certification && (
+            <span className="border border-white/30 bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-bold">
+              {movie.certification}
+            </span>
+          )}
+          {movie.release_date && <span>{movie.release_date}</span>}
+          {movie.genre && <span>• {movie.genre}</span>}
+          {movie.runtime > 0 && <span>• {formatRuntime(movie.runtime)}</span>}
         </div>
-        <div className="flex flex-wrap gap-2 text-sm opacity-100 mb-6 font-medium drop-shadow-sm">
-          {movie.year && <span>{movie.year}</span>}
-          {movie.year && movie.country && <span>•</span>}
-          {movie.country && <span>{movie.country}</span>}
-          {movie.country && movie.genre && <span>•</span>}
-          {movie.genre && <span>{movie.genre}</span>}
+
+        {/* Rating & Trailer Action Bar */}
+        <div className="flex items-center gap-4 mb-6">
+          {ratingPct > 0 && (
+            <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-3 py-1.5 rounded-full shadow-inner">
+              <div className="w-8 h-8 rounded-full border-2 border-green-400 flex items-center justify-center font-extrabold text-xs text-green-400">
+                {ratingPct}%
+              </div>
+              <span className="text-xs font-bold opacity-80">{t('tmdbRating')}</span>
+            </div>
+          )}
+
+          {trailerVideo && (
+            <button
+              onClick={() => setShowTrailerModal(true)}
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 rounded-full text-xs font-bold transition-all active:scale-95 shadow"
+            >
+              ▶ {t('playTrailer')}
+            </button>
+          )}
         </div>
+
+        {/* Tagline / Слоган */}
+        {movie.tagline && (
+          <p className="italic text-2xl sm:text-3xl font-black opacity-95 mb-6 font-serif leading-snug drop-shadow-md text-amber-200/90">
+            «{movie.tagline}»
+          </p>
+        )}
 
         {!(isExtracting || streamUrl || iframeUrl) && (
           <div className="flex flex-col gap-3 mb-6">
             <button
               onClick={() => handleWatch(false)}
-              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg animate-pulse-glow"
+              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
               style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
             >
               ▶ {t('watch')}
@@ -582,9 +629,68 @@ export function Movie() {
           </div>
         )}
 
-        <p className="text-[15px] opacity-100 mb-8 leading-relaxed font-medium">
-          {movie.description || t('descriptionMissing')}
-        </p>
+        {/* Overview / Обзор */}
+        <div className="mb-6 space-y-1">
+          <h3 className="font-extrabold text-base">{t('overview')}</h3>
+          <p className="text-[14px] opacity-90 leading-relaxed font-medium">
+            {movie.description || t('descriptionMissing')}
+          </p>
+        </div>
+
+        {/* Creators / Создатели */}
+        {(directors.length > 0 || writers.length > 0) && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 border-t border-white/10 pt-4 text-xs">
+            {directors.map((d: any) => (
+              <div
+                key={d.id}
+                onClick={() => setSelectedPersonId(d.id)}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <p className="font-extrabold text-sm">{d.name}</p>
+                <p className="opacity-60">{t('director')}</p>
+              </div>
+            ))}
+            {writers.map((w: any) => (
+              <div
+                key={w.id}
+                onClick={() => setSelectedPersonId(w.id)}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <p className="font-extrabold text-sm">{w.name}</p>
+                <p className="opacity-60">{t('writer')}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Cast Carousel / В главных ролях */}
+        {cast.length > 0 && (
+          <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
+            <h3 className="font-extrabold text-base">{t('topCast')}</h3>
+            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+              {cast.map((actor: any) => (
+                <div
+                  key={actor.id}
+                  onClick={() => setSelectedPersonId(actor.id)}
+                  className="w-24 min-w-[96px] cursor-pointer group space-y-1 text-center"
+                >
+                  <img
+                    src={actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo'}
+                    alt={actor.name}
+                    className="w-24 aspect-[2/3] object-cover rounded-xl shadow group-hover:scale-105 transition-transform duration-200"
+                    loading="lazy"
+                  />
+                  <p className="text-xs font-bold truncate group-hover:text-blue-400 transition-colors">
+                    {actor.name}
+                  </p>
+                  <p className="text-[10px] opacity-60 truncate">
+                    {actor.character}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div id="video-player-container" className="relative">
           {showTooltip && WebApp.platform !== 'unknown' && (
@@ -758,6 +864,24 @@ export function Movie() {
           <ExoClickMainBanner />
         </div>
       </div>
+
+      {/* Trailer Modal */}
+      {showTrailerModal && trailerVideo && (
+        <TrailerModal
+          videoKey={trailerVideo.key}
+          title={movie?.title || ''}
+          onClose={() => setShowTrailerModal(false)}
+        />
+      )}
+
+      {/* Person Details Modal */}
+      {selectedPersonId && (
+        <PersonModal
+          personId={selectedPersonId}
+          onClose={() => setSelectedPersonId(null)}
+          fetchPersonDetails={fetchPersonDetails}
+        />
+      )}
     </div>
   );
 }
