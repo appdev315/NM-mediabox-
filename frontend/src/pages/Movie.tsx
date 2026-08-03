@@ -114,12 +114,13 @@ export function Movie() {
       setMovie(null);
       userSelectedRef.current = false;
       try {
-        const details = await fetchMovieDetails(id, mediaType);
+        const [details, recs] = await Promise.all([
+          fetchMovieDetails(id, mediaType),
+          fetchRecommendations(id, mediaType)
+        ]);
         if (!isMounted) return;
         setMovie(details);
-        
-        const recs = await fetchRecommendations(id, mediaType);
-        if (isMounted) setRecommendations(recs);
+        setRecommendations(recs || []);
       } catch (err) {
         console.error("Failed to load movie data", err);
       }
