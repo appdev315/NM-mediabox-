@@ -6,6 +6,7 @@ import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
+import { clientCache } from '../utils/clientCache';
 
 // Get backend URL from environment or use default
 
@@ -89,19 +90,21 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     localStorage.setItem('tv_source', tvSource);
     localStorage.setItem('radio_source', radioSource);
 
-    // Attempt to load from cache first
-    const cachedRadio = localStorage.getItem(`cache_radio_${country}_src${radioSource}`);
-    const cachedTv = localStorage.getItem(`cache_tv_${country}_src${tvSource}`);
+    // Attempt to load from non-blocking clientCache first
+    const cachedRadio = clientCache.get<Station[]>(`cache_radio_${country}_src${radioSource}`);
+    const cachedTv = clientCache.get<Station[]>(`cache_tv_${country}_src${tvSource}`);
     let hasCache = false;
 
-    if (cachedRadio) {
-      try { setStations(JSON.parse(cachedRadio)); hasCache = true; } catch (e) { }
+    if (cachedRadio && Array.isArray(cachedRadio) && cachedRadio.length > 0) {
+      setStations(cachedRadio);
+      hasCache = true;
     } else {
       setStations([]);
     }
     
-    if (cachedTv) {
-      try { setTvChannels(JSON.parse(cachedTv)); hasCache = true; } catch (e) { }
+    if (cachedTv && Array.isArray(cachedTv) && cachedTv.length > 0) {
+      setTvChannels(cachedTv);
+      hasCache = true;
     } else {
       setTvChannels([]);
     }
@@ -159,7 +162,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       }
 
       setStations(parsed);
-      localStorage.setItem(`cache_radio_${country}_src${radioSource}`, JSON.stringify(parsed));
+      clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 172800);
     } catch (e) {
       console.error("Failed to fetch radio", e);
     }
@@ -281,7 +284,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       }
 
       setTvChannels(parsedTv);
-      localStorage.setItem(`cache_tv_${country}_src${tvSource}`, JSON.stringify(parsedTv));
+      clientCache.set(`cache_tv_${country}_src${tvSource}`, parsedTv, 172800);
     } catch (e) {
       console.error("Failed to fetch TV", e);
     } finally {

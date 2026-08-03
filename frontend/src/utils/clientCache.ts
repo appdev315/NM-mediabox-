@@ -104,6 +104,17 @@ async function idbRemove(fullKey: string): Promise<void> {
   } catch (e) {}
 }
 
+const MAX_MEMORY_ENTRIES = 500;
+
+function enforceMemoryLRU(): void {
+  if (memoryCache.size > MAX_MEMORY_ENTRIES) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey) {
+      memoryCache.delete(oldestKey);
+    }
+  }
+}
+
 export const clientCache = {
   get<T>(key: string): T | null {
     const fullKey = CACHE_PREFIX + key;
@@ -113,6 +124,9 @@ export const clientCache = {
     if (memoryCache.has(fullKey)) {
       const entry = memoryCache.get(fullKey)!;
       if (now < entry.expiry) {
+        // Re-insert to refresh LRU position
+        memoryCache.delete(fullKey);
+        memoryCache.set(fullKey, entry);
         return entry.data as T;
       }
       memoryCache.delete(fullKey);
@@ -122,13 +136,17 @@ export const clientCache = {
     return null;
   },
 
-  set<T>(key: string, data: T, ttlSeconds: number = 3600): void {
+  set<T>(key: string, data: T, ttlSeconds: number = 172800): void {
     const fullKey = CACHE_PREFIX + key;
     const expiry = Date.now() + ttlSeconds * 1000;
     const entry: CacheEntry<T> = { data, expiry };
 
-    // Update memory cache synchronously
+    // Update memory cache synchronously with LRU cap
+    if (memoryCache.has(fullKey)) {
+      memoryCache.delete(fullKey);
+    }
     memoryCache.set(fullKey, entry);
+    enforceMemoryLRU();
 
     // Save to IndexedDB asynchronously in non-blocking macro-task
     idbSet(fullKey, entry);

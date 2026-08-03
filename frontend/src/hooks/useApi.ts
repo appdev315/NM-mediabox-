@@ -210,6 +210,10 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
+    const cacheKey = `movie_details_v2_${type}_${id}_${language}`;
+    const cached = clientCache.get(cacheKey);
+    if (cached) return cached;
+
     return withLoading(async () => {
       const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings' });
       
@@ -223,11 +227,17 @@ export function useApi() {
         } catch(e) {}
       }
 
-      return mapTMDB(data, type === 'tv' ? 'series' : 'movie');
+      const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
+      clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
+      return result;
     });
-  }, [tmdbFetch, withLoading]);
+  }, [tmdbFetch, withLoading, language]);
 
   const fetchPersonDetails = useCallback(async (personId: string | number) => {
+    const cacheKey = `person_details_v2_${personId}_${language}`;
+    const cached = clientCache.get(cacheKey);
+    if (cached) return cached;
+
     return withLoading(async () => {
       const data = await tmdbFetch(`/person/${personId}`, { append_to_response: 'movie_credits,tv_credits,external_ids' });
       
@@ -241,7 +251,7 @@ export function useApi() {
         .slice(0, 15)
         .map((item: any) => mapTMDB(item));
 
-      return {
+      const result = {
         id: data.id,
         name: data.name || '',
         biography: data.biography || '',
@@ -250,8 +260,10 @@ export function useApi() {
         profile_path: data.profile_path ? `https://image.tmdb.org/t/p/w300${data.profile_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Photo',
         knownFor
       };
+      clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
+      return result;
     });
-  }, [tmdbFetch, withLoading]);
+  }, [tmdbFetch, withLoading, language]);
   
   const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number) => {
     try {
@@ -320,37 +332,31 @@ export function useApi() {
         { id: 37, name: language === 'ru-RU' ? 'Вестерны' : 'Western' },
       ];
 
-      // Fetch genre sections in controlled concurrency batches (max 4 parallel requests to prevent network stalling)
-      const CONCURRENCY_LIMIT = 4;
-      const genreResults: any[] = [];
-      for (let i = 0; i < genresToFetch.length; i += CONCURRENCY_LIMIT) {
-        const chunk = genresToFetch.slice(i, i + CONCURRENCY_LIMIT);
-        const chunkResults = await Promise.all(
-          chunk.map(async (g) => {
-            try {
-              const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', { with_genres: g.id, page: 1 });
-              const mapped = (data.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
-              return {
-                id: String(g.id),
-                name: g.name,
-                genreId: String(g.id),
-                items: mapped
-              };
-            } catch (e) {
-              return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
-            }
-          })
-        );
-        genreResults.push(...chunkResults);
-      }
+      // Fetch all genre sections in 100% parallel requests for maximum speed
+      const genreResults = await Promise.all(
+        genresToFetch.map(async (g) => {
+          try {
+            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', { with_genres: g.id, page: 1 });
+            const mapped = (data.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+            return {
+              id: String(g.id),
+              name: g.name,
+              genreId: String(g.id),
+              items: mapped
+            };
+          } catch (e) {
+            return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
+          }
+        })
+      );
 
       const sections = [
         { id: 'trending', name: language === 'ru-RU' ? 'Популярное' : 'Popular', genreId: '', items: trendingItems },
         ...genreResults.filter(s => s.items.length > 0)
       ];
 
-      // Cache categorized sections for 24 HOURS (86400s) as requested by user
-      clientCache.set(cacheKey, sections, 86400);
+      // Cache categorized sections for 48 HOURS (172800s) on device
+      clientCache.set(cacheKey, sections, 172800);
 
       return sections;
     };
