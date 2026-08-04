@@ -34,8 +34,9 @@ export function TopBanner() {
       </a>
       
       <a 
-        href="/mediabox.apk?v=2" 
-        download
+        href="https://drive.google.com/drive/folders/1WmyWGrQ26nFAWHdT6NeFolbwFypdmSbv?usp=share_link" 
+        target="_blank"
+        rel="noopener noreferrer"
         className="bg-green-500 hover:bg-green-600 text-white font-medium py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 text-xs"
       >
         <span className="text-sm">🤖</span>
