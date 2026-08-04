@@ -7,9 +7,10 @@ interface PlayerProps {
   mirrors?: string[];
   initialTimecode?: number;
   mediaId?: string | number;
+  onReady?: () => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wakeLockRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -120,6 +121,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode }: PlayerProps) {
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
+    onReady?.();
     if (provider !== 'generic') {
       try {
         const parsed = new URL(currentUrl);

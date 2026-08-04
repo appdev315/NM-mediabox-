@@ -41,6 +41,7 @@ export function Movie() {
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const autoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isPrimaryReady, setIsPrimaryReady] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -53,16 +54,22 @@ export function Movie() {
     };
   }, []);
 
+  // Reset ready state on source change
+  useEffect(() => {
+    setIsPrimaryReady(false);
+  }, [iframeUrl]);
+
   // 6-Second Automatic Fallback from Primary Player (Liftw) to Secondary (Anwap / Global)
+  // ONLY if primary player failed to report ready state within 6 seconds
   useEffect(() => {
     if (autoFallbackTimerRef.current) {
       clearTimeout(autoFallbackTimerRef.current);
       autoFallbackTimerRef.current = null;
     }
 
-    if (sources.length > 1 && iframeUrl === sources[0]?.url) {
+    if (sources.length > 1 && iframeUrl === sources[0]?.url && !isPrimaryReady) {
       autoFallbackTimerRef.current = setTimeout(() => {
-        console.log('[PlayerFallback] 6s timeout reached for primary player, auto switching to fallback player...');
+        console.log('[PlayerFallback] 6s timeout reached without ready signal, auto switching to fallback player...');
         if (sources[1]?.url) {
           setIframeUrl(sources[1].url);
         }
@@ -74,7 +81,7 @@ export function Movie() {
         clearTimeout(autoFallbackTimerRef.current);
       }
     };
-  }, [iframeUrl, sources]);
+  }, [iframeUrl, sources, isPrimaryReady]);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
@@ -736,7 +743,12 @@ export function Movie() {
             ) : iframeUrl ? (
               <div className="w-full h-full flex flex-col relative group">
                 <div className="flex-1 w-full h-full">
-                  <Player iframeUrl={iframeUrl} initialTimecode={savedTimecode || undefined} mediaId={id} />
+                  <Player 
+                    iframeUrl={iframeUrl} 
+                    initialTimecode={savedTimecode || undefined} 
+                    mediaId={id} 
+                    onReady={() => setIsPrimaryReady(true)}
+                  />
                 </div>
               </div>
             ) : streamUrl ? (
