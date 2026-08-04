@@ -40,14 +40,41 @@ export function Movie() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const autoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (autoFallbackTimerRef.current) {
+        clearTimeout(autoFallbackTimerRef.current);
+      }
     };
   }, []);
+
+  // 6-Second Automatic Fallback from Primary Player (Liftw) to Secondary (Anwap / Global)
+  useEffect(() => {
+    if (autoFallbackTimerRef.current) {
+      clearTimeout(autoFallbackTimerRef.current);
+      autoFallbackTimerRef.current = null;
+    }
+
+    if (sources.length > 1 && iframeUrl === sources[0]?.url) {
+      autoFallbackTimerRef.current = setTimeout(() => {
+        console.log('[PlayerFallback] 6s timeout reached for primary player, auto switching to fallback player...');
+        if (sources[1]?.url) {
+          setIframeUrl(sources[1].url);
+        }
+      }, 6000);
+    }
+
+    return () => {
+      if (autoFallbackTimerRef.current) {
+        clearTimeout(autoFallbackTimerRef.current);
+      }
+    };
+  }, [iframeUrl, sources]);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
@@ -441,33 +468,7 @@ export function Movie() {
     }
   };
 
-  const handlePlayerSwitch = (newUrl: string) => {
-    const currentSource = sources.find((s: any) => s.url === iframeUrl);
-    if (currentSource && currentSource.isLiftw && movie) {
-      console.log("User switched away from Liftw. Silently refreshing Liftw cache in background...");
-      const liftwQuery = new URLSearchParams({
-        title: (movie as any).title || (movie as any).name || '',
-        year: (movie as any).year || '',
-        type: mediaType,
-        tmdb: (movie as any).id?.toString() || '',
-        bypass_cache: 'true'
-      });
-      fetch(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`).catch(err => {
-        console.error("Silent Liftw refresh failed:", err);
-      });
-    }
 
-    let targetUrl = newUrl;
-    if (mediaType === 'tv' && targetUrl.includes('/embed/tv/') && activeSeason && activeEpisode) {
-      const parts = targetUrl.split('/embed/tv/')[1]?.split('/') || [];
-      const tmdbId = parts[0];
-      const base = targetUrl.split('/embed/tv/')[0];
-      targetUrl = `${base}/embed/tv/${tmdbId}/${activeSeason}/${activeEpisode}`;
-    }
-
-    setIframeUrl(targetUrl);
-    userSelectedRef.current = true;
-  };
 
   if (loading && !movie) {
     return (
@@ -761,24 +762,6 @@ export function Movie() {
           </div>
         )}
         </div>
-
-        {/* Source selection buttons below the player */}
-        {sources.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-8" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center' }}>
-            {sources.map((s: any, idx: number) => {
-              const labelKey = `player${idx + 1}`;
-              return (
-                <button 
-                  key={s.url} 
-                  onClick={() => handlePlayerSwitch(s.url)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border`} style={{ backgroundColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)', color: iframeUrl === s.url ? 'var(--button-text-color)' : 'var(--text-color)', borderColor: iframeUrl === s.url ? 'var(--button-color)' : 'var(--hint-color)' }}
-                >
-                  {t(labelKey as any)}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* TV Series Seasons and Episodes UI */}
         {mediaType === 'tv' && (
