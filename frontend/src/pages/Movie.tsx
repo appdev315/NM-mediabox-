@@ -771,8 +771,8 @@ export function Movie() {
         )}
         </div>
 
-        {/* TV Series Seasons and Episodes UI */}
-        {mediaType === 'tv' && (
+        {/* TV Series Seasons and Episodes UI (Only in Watch Mode) */}
+        {(isExtracting || streamUrl || iframeUrl) && mediaType === 'tv' && (
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
