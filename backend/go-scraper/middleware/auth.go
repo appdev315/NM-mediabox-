@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type AuthData struct {
@@ -33,6 +35,17 @@ func ValidateTelegramWebAppData(initDataStr string, botToken string) bool {
 	if hash == "" {
 		return false
 	}
+
+	authDateStr := values.Get("auth_date")
+	if authDateStr != "" {
+		if authDate, err := strconv.ParseInt(authDateStr, 10, 64); err == nil {
+			authTimestamp := time.Unix(authDate, 0)
+			if time.Since(authTimestamp) > 24*time.Hour {
+				return false
+			}
+		}
+	}
+
 	values.Del("hash")
 
 	keys := make([]string, 0, len(values))
@@ -47,12 +60,10 @@ func ValidateTelegramWebAppData(initDataStr string, botToken string) bool {
 	}
 	dataCheckString := strings.Join(checkPairs, "\n")
 
-	// secretKey = HMAC-SHA256("WebAppData", botToken)
 	macSecret := hmac.New(sha256.New, []byte("WebAppData"))
 	macSecret.Write([]byte(botToken))
 	secretKey := macSecret.Sum(nil)
 
-	// hmac = HMAC-SHA256(secretKey, dataCheckString)
 	mac := hmac.New(sha256.New, secretKey)
 	mac.Write([]byte(dataCheckString))
 	expectedHash := hex.EncodeToString(mac.Sum(nil))

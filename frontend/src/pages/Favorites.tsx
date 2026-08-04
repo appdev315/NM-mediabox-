@@ -67,6 +67,11 @@ export function Favorites() {
         localStorage.removeItem('history_series');
         localStorage.removeItem('history_radio');
         localStorage.removeItem('history_tv');
+        localStorage.removeItem('favorites_movies');
+        localStorage.removeItem('favorites_series');
+        localStorage.removeItem('favorites_radio');
+        localStorage.removeItem('favorites_tv');
+        localStorage.removeItem('history_adult');
         setHistoryMovies([]);
         setHistorySeries([]);
         setHistoryRadio([]);

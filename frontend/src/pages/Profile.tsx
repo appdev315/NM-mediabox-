@@ -148,13 +148,13 @@ export function Profile() {
 
         <div className="p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer hover:bg-black/10 transition-colors border border-blue-500/20"
              style={{ backgroundColor: 'var(--hint-color)' }}
-             onClick={() => {
-               if (WebApp.platform !== 'unknown') {
-                 WebApp.openTelegramLink('https://t.me/appdev315');
-               } else {
-                 window.open('https://t.me/appdev315', '_blank');
-               }
-             }}
+              onClick={() => {
+                if (WebApp.platform !== 'unknown') {
+                  WebApp.openTelegramLink('https://t.me/appdev315');
+                } else {
+                  window.open('https://t.me/appdev315', '_blank', 'noopener,noreferrer');
+                }
+              }}
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-500/20 text-blue-500">
@@ -185,7 +185,7 @@ export function Profile() {
               WebApp.openTelegramLink('https://t.me/M_Box_bot');
               WebApp.close();
             } else {
-              window.open('https://t.me/M_Box_bot', '_blank');
+              window.open('https://t.me/M_Box_bot', '_blank', 'noopener,noreferrer');
             }
           }}
           className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
@@ -211,7 +211,7 @@ export function Profile() {
               WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
               WebApp.close();
             } else {
-              window.open('https://t.me/mediaboxxxbot', '_blank');
+              window.open('https://t.me/mediaboxxxbot', '_blank', 'noopener,noreferrer');
             }
           }}
           className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"

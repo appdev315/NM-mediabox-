@@ -31,9 +31,6 @@ var (
 func getTMDBApiKey() string {
 	tmdbApiKeyOnce.Do(func() {
 		tmdbApiKey = os.Getenv("TMDB_API_KEY")
-		if tmdbApiKey == "" {
-			tmdbApiKey = "cd5b69242e715dc87d65957d7460eba2"
-		}
 	})
 	return tmdbApiKey
 }
@@ -179,5 +176,8 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ClearTMDBCache() {
-	tmdbCache = sync.Map{}
+	tmdbCache.Range(func(key, value interface{}) bool {
+		tmdbCache.Delete(key)
+		return true
+	})
 }

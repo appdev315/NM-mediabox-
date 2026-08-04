@@ -91,7 +91,8 @@ export function Movie() {
     if (currentSource?.isLiftw) {
       const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: parseInt(episode) }, '*');
+        const iframeOrigin = new URL(iframe.src).origin;
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: parseInt(episode) }, iframeOrigin);
       }
     } else {
       setIframeUrl(prev => {

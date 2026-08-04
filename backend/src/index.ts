@@ -36,7 +36,10 @@ app.onError((err: Error, c: Context) => {
 app.use('/api/user/*', tgAuthMiddleware);
 
 app.post('/api/user/favorites', async (c: Context) => {
-  const user = c.get('tgUser') || { id: 1, first_name: 'Guest' };
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
   const body = await c.req.json();
   const itemId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
@@ -45,88 +48,113 @@ app.post('/api/user/favorites', async (c: Context) => {
   const year = body.year || '';
   const dataJson = JSON.stringify(body);
 
-  if (c.env.DB && itemId) {
-    try {
-      await c.env.DB.prepare(
-        `INSERT OR IGNORE INTO users (telegram_id, first_name) VALUES (?, ?)`
-      ).bind(user.id, user.first_name || 'User').run();
-
-      await c.env.DB.prepare(`
-        INSERT INTO favorites (telegram_id, item_id, type, title, poster, year, data_json, added_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(telegram_id, item_id, type)
-        DO UPDATE SET title = excluded.title, poster = excluded.poster, data_json = excluded.data_json, added_at = CURRENT_TIMESTAMP
-      `).bind(user.id, itemId, type, title, poster, year, dataJson).run();
-    } catch (e) {
-      console.error('D1 error on save favorite:', e);
-    }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
   }
+  if (!itemId) {
+    return c.json({ error: 'Item ID is required' }, 400);
+  }
+  
+  try {
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO users (telegram_id, first_name) VALUES (?, ?)`
+    ).bind(user.id, user.first_name || 'User').run();
 
-  return c.json({ success: true });
+    await c.env.DB.prepare(`
+      INSERT INTO favorites (telegram_id, item_id, type, title, poster, year, data_json, added_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(telegram_id, item_id, type)
+      DO UPDATE SET title = excluded.title, poster = excluded.poster, data_json = excluded.data_json, added_at = CURRENT_TIMESTAMP
+    `).bind(user.id, itemId, type, title, poster, year, dataJson).run();
+    return c.json({ success: true });
+  } catch (e) {
+    console.error('D1 error on save favorite:', e);
+    return c.json({ error: 'Failed to save favorite' }, 500);
+  }
 });
 
 app.delete('/api/user/favorites', async (c: Context) => {
-  const user = c.get('tgUser') || { id: 1 };
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
   const body = await c.req.json();
   const itemId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
 
-  if (c.env.DB && itemId) {
-    try {
-      await c.env.DB.prepare(
-        `DELETE FROM favorites WHERE telegram_id = ? AND item_id = ? AND type = ?`
-      ).bind(user.id, itemId, type).run();
-    } catch (e) {
-      console.error('D1 error on delete favorite:', e);
-    }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  if (!itemId) {
+    return c.json({ error: 'Item ID is required' }, 400);
   }
 
-  return c.json({ success: true });
+  try {
+    await c.env.DB.prepare(
+      `DELETE FROM favorites WHERE telegram_id = ? AND item_id = ? AND type = ?`
+    ).bind(user.id, itemId, type).run();
+    return c.json({ success: true });
+  } catch (e) {
+    console.error('D1 error on delete favorite:', e);
+    return c.json({ error: 'Failed to delete favorite' }, 500);
+  }
 });
 
 app.get('/api/user/favorites', async (c: Context) => {
-  const user = c.get('tgUser') || { id: 1 };
-
-  if (c.env.DB) {
-    try {
-      const { results } = await c.env.DB.prepare(
-        `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC`
-      ).bind(user.id).all();
-
-      const items = (results || []).map((row: any) => {
-        if (row.data_json) {
-          try { return JSON.parse(row.data_json); } catch (_) {}
-        }
-        return row;
-      });
-
-      return c.json({ favorites: items });
-    } catch (e) {
-      console.error('D1 error on get favorites:', e);
-    }
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
   }
 
-  return c.json({ favorites: [] });
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC`
+    ).bind(user.id).all();
+
+    const items = (results || []).map((row: any) => {
+      if (row.data_json) {
+        try { return JSON.parse(row.data_json); } catch (_) {}
+      }
+      return row;
+    });
+
+    return c.json({ favorites: items });
+  } catch (e) {
+    console.error('D1 error on get favorites:', e);
+    return c.json({ error: 'Failed to get favorites' }, 500);
+  }
 });
 
 app.post('/api/user/history', async (c: Context) => {
-  const user = c.get('tgUser') || { id: 1 };
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
   const { itemId, type = 'movie', timecode } = await c.req.json();
 
-  if (c.env.DB && itemId) {
-    try {
-      await c.env.DB.prepare(`
-        INSERT INTO history (telegram_id, item_id, type, timecode, updated_at) 
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(telegram_id, item_id, type) 
-        DO UPDATE SET timecode = excluded.timecode, updated_at = CURRENT_TIMESTAMP
-      `).bind(user.id, String(itemId), type, timecode).run();
-    } catch (e) {
-      console.error('D1 error on history:', e);
-    }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  if (!itemId) {
+    return c.json({ error: 'Item ID is required' }, 400);
   }
 
-  return c.json({ success: true });
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO history (telegram_id, item_id, type, timecode, updated_at) 
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(telegram_id, item_id, type) 
+      DO UPDATE SET timecode = excluded.timecode, updated_at = CURRENT_TIMESTAMP
+    `).bind(user.id, String(itemId), type, timecode).run();
+    return c.json({ success: true });
+  } catch (e) {
+    console.error('D1 error on history:', e);
+    return c.json({ error: 'Failed to save history' }, 500);
+  }
 });
 
 export default app;
