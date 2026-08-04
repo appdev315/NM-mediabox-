@@ -301,22 +301,22 @@ export function Movie() {
         const combined: any[] = [];
         
         if (isRu) {
-          // 1. Liftw (Primary Main Player for RU)
+          // 1. Liftw is 100% Exclusive Default for RU content
           if (foundSources.liftw) {
             combined.push(foundSources.liftw);
-          }
-          // 2. Go microservice sources (for RU, cap fallback)
-          if (foundSources.go.length > 0) {
-            combined.push(foundSources.go[0]);
-          } else if (foundSources.goIframe) {
-            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
-          }
-          // 3. Global Embeds (Fallback for RU if Liftw missing)
-          foundSources.globalEmbeds.forEach(e => {
-            if (!combined.some(c => c.url === e.url)) {
-              combined.push(e);
+          } else if (isLiftwDone) {
+            // Anwap / Go / Global Embeds added ONLY if Liftw does not have the title
+            if (foundSources.go.length > 0) {
+              combined.push(foundSources.go[0]);
+            } else if (foundSources.goIframe) {
+              combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
             }
-          });
+            foundSources.globalEmbeds.forEach(e => {
+              if (!combined.some(c => c.url === e.url)) {
+                combined.push(e);
+              }
+            });
+          }
         } else {
           // 1. Global Embeds (Primary for non-RU / Indonesia: 2Embed, VidLink, SmashyStream)
           foundSources.globalEmbeds.forEach(e => {
