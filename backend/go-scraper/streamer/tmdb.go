@@ -175,6 +175,10 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	entry := val.(tmdbCacheEntry)
 	for k, vv := range entry.headers {
+		kLower := strings.ToLower(k)
+		if kLower == "content-encoding" || kLower == "content-length" || kLower == "transfer-encoding" || kLower == "connection" || kLower == "server" {
+			continue
+		}
 		for _, v := range vv {
 			w.Header().Add(k, v)
 		}
