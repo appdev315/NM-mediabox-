@@ -31,6 +31,9 @@ var (
 func getTMDBApiKey() string {
 	tmdbApiKeyOnce.Do(func() {
 		tmdbApiKey = os.Getenv("TMDB_API_KEY")
+		if tmdbApiKey == "" {
+			tmdbApiKey = "cd5b69242e715dc87d65957d7460eba2"
+		}
 	})
 	return tmdbApiKey
 }
@@ -109,7 +112,7 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		client := defaultClient
-		var res *http.Response
+		var lastRes *http.Response
 		var attemptErr error
 
 		for attempt := 1; attempt <= 3; attempt++ {
@@ -121,39 +124,44 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MediaBoxBackend/1.0")
 			req.Header.Set("Accept", "application/json")
 
-			res, attemptErr = client.Do(req)
-			if attemptErr == nil && res.StatusCode == 200 {
+			res, err := client.Do(req)
+			if err != nil {
+				attemptErr = err
+				log.Printf("[TMDB] Fetch attempt %d failed for %s: %v", attempt, path, err)
+				if attempt < 3 {
+					time.Sleep(time.Duration(attempt) * 1 * time.Second)
+				}
+				continue
+			}
+
+			lastRes = res
+			attemptErr = nil
+			if res.StatusCode == 200 {
 				break
 			}
 
-			if res != nil {
-				res.Body.Close()
-			}
-
-			log.Printf("[TMDB] Fetch attempt %d failed for %s: %v", attempt, path, attemptErr)
-			if attempt < 3 {
-				time.Sleep(time.Duration(attempt) * 1 * time.Second)
-			}
+			log.Printf("[TMDB] Endpoint %s returned status %d", path, res.StatusCode)
+			break
 		}
 
-		if attemptErr != nil || res == nil {
+		if attemptErr != nil || lastRes == nil {
 			return nil, fmt.Errorf("TMDB fetch failed: %v", attemptErr)
 		}
-		defer res.Body.Close()
+		defer lastRes.Body.Close()
 
-		bodyBytes, err := io.ReadAll(res.Body)
+		bodyBytes, err := io.ReadAll(lastRes.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read response: %v", err)
 		}
 
 		entry := tmdbCacheEntry{
 			data:       bodyBytes,
-			statusCode: res.StatusCode,
-			headers:    res.Header.Clone(),
+			statusCode: lastRes.StatusCode,
+			headers:    lastRes.Header.Clone(),
 			expiry:     time.Now().Add(ttl),
 		}
 
-		if res.StatusCode == 200 {
+		if lastRes.StatusCode == 200 {
 			tmdbCache.Store(cacheKey, entry)
 		}
 		return entry, nil
