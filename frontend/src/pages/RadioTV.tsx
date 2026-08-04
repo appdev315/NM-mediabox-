@@ -639,6 +639,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
           setSearch(e.target.value);
           setVisibleCount(50);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        onBlur={() => {
+          requestAnimationFrame(() => {
+            window.scrollTo(0, window.scrollY);
+            try { WebApp.expand(); } catch (_) {}
+          });
+        }}
         className="w-full p-3 rounded-xl mb-4 border focus:outline-none focus:ring-2 focus:ring-blue-500"
         style={{
           backgroundColor: 'var(--bg-color)',

@@ -307,6 +307,12 @@ export function Home() {
                   (e.target as HTMLInputElement).blur();
                 }
               }}
+              onBlur={() => {
+                requestAnimationFrame(() => {
+                  window.scrollTo(0, window.scrollY);
+                  try { WebApp.expand(); } catch (_) {}
+                });
+              }}
               className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
               style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
             />

@@ -211,16 +211,29 @@ export default function App() {
       try {
         WebApp.expand();
       } catch (_) {}
-      window.dispatchEvent(new Event('resize'));
+      requestAnimationFrame(() => {
+        window.scrollTo(0, window.scrollY);
+        window.dispatchEvent(new Event('resize'));
+      });
     };
 
     // When virtual keyboard closes on inputs, recalculate layout without jumping to top
     const handleFocusOut = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
-        setTimeout(() => {
-          handleViewportChange();
-        }, 50);
+        requestAnimationFrame(() => {
+          // Only trigger if focus actually moved outside inputs (not switching between inputs)
+          const activeTag = document.activeElement?.tagName;
+          if (!activeTag || !['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) {
+            handleViewportChange();
+          }
+        });
+      }
+    };
+
+    const handleVisualViewportResize = () => {
+      if (window.visualViewport && window.visualViewport.height >= window.innerHeight - 50) {
+        handleViewportChange();
       }
     };
 
@@ -230,6 +243,9 @@ export default function App() {
       }
     } catch (_) {}
 
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportResize);
+    }
     document.addEventListener('focusout', handleFocusOut);
 
     return () => {
@@ -238,6 +254,9 @@ export default function App() {
           WebApp.offEvent('viewportChanged', handleViewportChange);
         }
       } catch (_) {}
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportResize);
+      }
       document.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
