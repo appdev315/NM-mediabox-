@@ -17,12 +17,19 @@ export function ExoClickBanner18() {
 
     const loadAd = () => {
       if (containerRef.current) {
-        let html = '<div class="flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap">';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex justify-center items-center gap-4 sm:gap-6 w-full flex-wrap';
         for (let i = 0; i < count; i++) {
-          html += '<ins class="eas6a97888e2 rounded-lg overflow-hidden" data-zoneid="5965656" data-ex_av="name" style="display:inline-block;width:300px;height:250px;"></ins>';
+          const ins = document.createElement('ins');
+          ins.className = 'eas6a97888e2 rounded-lg overflow-hidden';
+          ins.setAttribute('data-zoneid', '5965656');
+          ins.setAttribute('data-ex_av', 'name');
+          ins.style.display = 'inline-block';
+          ins.style.width = '300px';
+          ins.style.height = '250px';
+          wrapper.appendChild(ins);
         }
-        html += '</div>';
-        containerRef.current.innerHTML = html;
+        containerRef.current.appendChild(wrapper);
       }
 
       try {

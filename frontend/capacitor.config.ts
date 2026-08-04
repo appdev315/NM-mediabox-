@@ -18,8 +18,7 @@ const config: CapacitorConfig = {
     }
   },
   server: {
-    cleartext: true,
-    allowNavigation: ['*']
+    androidScheme: 'https'
   }
 };
 

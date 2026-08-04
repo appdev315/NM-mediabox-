@@ -1,4 +1,6 @@
 .aider*
 .DS_Store
 .idea/
-mediabox_temp.apk
+*.apk
+.env
+.env.*

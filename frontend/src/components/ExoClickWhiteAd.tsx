@@ -1,8 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 
+const VALID_ZONE_IDS = ['5964976', '5965656', '5964558', '5965876'] as const;
+type ValidZoneId = typeof VALID_ZONE_IDS[number];
+
 interface ExoClickWhiteAdProps {
-  className?: string; // Expecting 'exo-banner-movie-card' or 'exo-banner-tv-card'
-  zoneId?: string;
+  className?: string;
+  zoneId?: ValidZoneId;
+}
+
+function isValidZoneId(id: string): id is ValidZoneId {
+  return VALID_ZONE_IDS.includes(id as ValidZoneId);
 }
 
 export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-movie-card', zoneId = '5964976' }: ExoClickWhiteAdProps) {
@@ -14,8 +21,14 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
     initialized.current = true;
 
     const loadAd = () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = `<ins class="eas6a97888e20" data-zoneid="${zoneId}" style="display:inline-block;width:100%;min-height:inherit;"></ins>`;
+      if (containerRef.current && isValidZoneId(zoneId)) {
+        const ins = document.createElement('ins');
+        ins.className = 'eas6a97888e20';
+        ins.setAttribute('data-zoneid', zoneId);
+        ins.style.display = 'inline-block';
+        ins.style.width = '100%';
+        ins.style.minHeight = 'inherit';
+        containerRef.current.appendChild(ins);
       }
 
       try {
@@ -31,7 +44,7 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
     return () => {
       clearTimeout(timer);
     };
-  }, []);
+  }, [zoneId]);
 
   return (
     <div ref={containerRef} className={className + " min-h-[50px] flex justify-center items-center overflow-hidden"}>

@@ -1,10 +1,23 @@
 import { Context, Next } from 'hono';
 
+const MAX_AUTH_AGE_MS = 24 * 60 * 60 * 1000;
+
 async function validateTelegramWebAppData(telegramInitData: string, botToken: string): Promise<boolean> {
   const initData = new URLSearchParams(telegramInitData);
   const hash = initData.get('hash');
   
   if (!hash) return false;
+
+  const authDateStr = initData.get('auth_date');
+  if (authDateStr) {
+    const authDate = parseInt(authDateStr, 10);
+    if (!isNaN(authDate)) {
+      const authTimestamp = authDate * 1000;
+      if (Date.now() - authTimestamp > MAX_AUTH_AGE_MS) {
+        return false;
+      }
+    }
+  }
   
   initData.delete('hash');
   
@@ -39,8 +52,16 @@ async function validateTelegramWebAppData(telegramInitData: string, botToken: st
   const hexSignature = Array.from(new Uint8Array(signature))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-    
-  return hexSignature === hash;
+
+  const expectedHash = hash;
+  if (hexSignature.length !== expectedHash.length) {
+    return false;
+  }
+  let result = 0;
+  for (let i = 0; i < hexSignature.length; i++) {
+    result |= hexSignature.charCodeAt(i) ^ expectedHash.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 export const tgAuthMiddleware = async (c: Context, next: Next) => {
@@ -66,7 +87,11 @@ export const tgAuthMiddleware = async (c: Context, next: Next) => {
   const userString = urlParams.get('user');
   
   if (userString) {
-    c.set('tgUser', JSON.parse(decodeURIComponent(userString)));
+    try {
+      c.set('tgUser', JSON.parse(decodeURIComponent(userString)));
+    } catch (e) {
+      console.error('Failed to parse user data:', e);
+    }
   }
   
   await next();

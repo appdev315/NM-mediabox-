@@ -25,30 +25,32 @@ func StreamApiHandler(w http.ResponseWriter, r *http.Request) {
 	tmdb := r.URL.Query().Get("tmdb")
 	imdbId := r.URL.Query().Get("imdb")
 
-	if imdbId == "" && tmdb != "" {
-		if cached, ok := imdbCache.Load(tmdb); ok {
-			imdbId = cached.(string)
-		} else {
-			tmdbEndpoint := "movie"
-			if vType == "tv" || vType == "series" {
-				tmdbEndpoint = "tv"
-			}
-			
-			client := &http.Client{Timeout: 4 * time.Second}
-			url := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s/external_ids?api_key=%s", tmdbEndpoint, tmdb, getTMDBApiKey())
-			res, err := client.Get(url)
-			if err == nil && res.StatusCode == 200 {
-				var data map[string]interface{}
-				if err := json.NewDecoder(res.Body).Decode(&data); err == nil {
-					if id, ok := data["imdb_id"].(string); ok && id != "" {
-						imdbId = id
-						imdbCache.Store(tmdb, id)
+		if imdbId == "" && tmdb != "" {
+			if cached, ok := imdbCache.Load(tmdb); ok {
+				imdbId = cached.(string)
+			} else {
+				tmdbEndpoint := "movie"
+				if vType == "tv" || vType == "series" {
+					tmdbEndpoint = "tv"
+				}
+				
+				client := &http.Client{Timeout: 4 * time.Second}
+				url := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s/external_ids?api_key=%s", tmdbEndpoint, tmdb, getTMDBApiKey())
+				res, err := client.Get(url)
+				if err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 200 {
+						var data map[string]interface{}
+						if err := json.NewDecoder(res.Body).Decode(&data); err == nil {
+							if id, ok := data["imdb_id"].(string); ok && id != "" {
+								imdbId = id
+								imdbCache.Store(tmdb, id)
+							}
+						}
 					}
 				}
-				res.Body.Close()
 			}
 		}
-	}
 
 	if imdbId != "" {
 		isTv := vType == "tv" || vType == "series"

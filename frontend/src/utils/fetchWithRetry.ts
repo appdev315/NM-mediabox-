@@ -8,6 +8,7 @@ export interface FetchWithRetryOptions extends RequestInit {
   baseDelayMs?: number;
   maxDelayMs?: number;
   retryOnStatus?: number[];
+  signal?: AbortSignal;
 }
 
 const DEFAULT_RETRY_STATUSES = [408, 429, 500, 502, 503, 504];
@@ -38,6 +39,7 @@ export async function fetchWithRetry(
     baseDelayMs = 500,
     maxDelayMs = 8000,
     retryOnStatus = DEFAULT_RETRY_STATUSES,
+    signal,
     ...fetchOptions
   } = options;
 
@@ -45,7 +47,7 @@ export async function fetchWithRetry(
 
   while (true) {
     try {
-      const response = await fetch(url, fetchOptions);
+      const response = await fetch(url, { ...fetchOptions, signal });
 
       if (response.ok || attempt >= maxRetries || !isRetryableError(null, response.status, retryOnStatus)) {
         return response;
