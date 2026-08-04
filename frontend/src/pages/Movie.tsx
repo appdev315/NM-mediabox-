@@ -513,7 +513,7 @@ export function Movie() {
   const ratingPct = movie?.rating ? Math.round(movie.rating * 10) : 0;
 
   return (
-    <div className="pb-20 animate-fade-in">
+    <div className="pb-32 sm:pb-36 animate-fade-in">
       <div className="relative">
         <img 
           src={movie.backdrop || movie.poster} 
@@ -686,7 +686,7 @@ export function Movie() {
                 </div>
               )}
             </div>
-            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x scrollbar-thin">
+            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pt-1 pb-6 snap-x scrollbar-thin">
               {recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
@@ -707,7 +707,7 @@ export function Movie() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                   </div>
-                  <p className="text-sm mt-2 font-semibold truncate px-1">{rec.title}</p>
+                  <p className="text-xs sm:text-sm mt-2 font-semibold truncate px-1 pb-1">{rec.title}</p>
                 </div>
               ))}
             </div>
@@ -833,7 +833,7 @@ export function Movie() {
         {(isExtracting || streamUrl || iframeUrl) && cast.length > 0 && (
           <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
             <h3 className="font-extrabold text-base">{t('topCast')}</h3>
-            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+            <div className="flex overflow-x-auto gap-3 pt-1 pb-6 scrollbar-thin">
               {cast.map((actor: any) => (
                 <div
                   key={actor.id}
@@ -846,10 +846,10 @@ export function Movie() {
                     className="w-24 aspect-[2/3] object-cover rounded-xl shadow group-hover:scale-105 transition-transform duration-200"
                     loading="lazy"
                   />
-                  <p className="text-xs font-bold truncate group-hover:text-blue-400 transition-colors">
+                  <p className="text-xs font-bold truncate group-hover:text-blue-400 transition-colors pb-0.5">
                     {actor.name}
                   </p>
-                  <p className="text-[10px] opacity-60 truncate">
+                  <p className="text-[10px] opacity-60 truncate pb-0.5">
                     {actor.character}
                   </p>
                 </div>
