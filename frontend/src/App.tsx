@@ -215,6 +215,14 @@ export default function App() {
         window.scrollTo(0, window.scrollY);
         window.dispatchEvent(new Event('resize'));
       });
+
+      // Stepped cascade to ensure full expansion after keyboard closing animation (300-600ms)
+      [100, 300, 600].forEach(delay => {
+        setTimeout(() => {
+          try { WebApp.expand(); } catch (_) {}
+          window.dispatchEvent(new Event('resize'));
+        }, delay);
+      });
     };
 
     // When virtual keyboard closes on inputs, recalculate layout without jumping to top

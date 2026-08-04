@@ -134,6 +134,31 @@ export function Movie() {
     };
   }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
 
+  // Force Telegram WebApp viewport to full size after keyboard closes
+  // (navigating from search while keyboard is open leaves viewport compressed)
+  useEffect(() => {
+    const expandViewport = () => {
+      try {
+        WebApp.expand();
+        window.dispatchEvent(new Event('resize'));
+      } catch (_) {}
+    };
+
+    expandViewport();
+    const timers = [100, 300, 700].map(delay => setTimeout(expandViewport, delay));
+    const onVisualResize = () => {
+      if (window.visualViewport && window.visualViewport.height >= window.innerHeight - 50) {
+        expandViewport();
+      }
+    };
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', onVisualResize);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', onVisualResize);
+    };
+  }, [id]);
+
   // Trigger ad when navigating to movie
   useEffect(() => {
     triggerMovieAd();
