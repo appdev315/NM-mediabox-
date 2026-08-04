@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 're
 import { App as CapacitorApp } from '@capacitor/app';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
+import { triggerViewportExpand } from './hooks/useViewportExpand';
 
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
@@ -206,22 +207,25 @@ export default function App() {
       if (WebApp.setHeaderColor) WebApp.setHeaderColor('#17212b');
     } catch (_) {}
 
+    let appViewportTimers: ReturnType<typeof setTimeout>[] = [];
+
     // Clean viewport realignment using official Telegram WebApp viewportChanged event
     const handleViewportChange = () => {
-      try {
-        WebApp.expand();
-      } catch (_) {}
-      requestAnimationFrame(() => {
-        window.scrollTo(0, window.scrollY);
-        window.dispatchEvent(new Event('resize'));
-      });
+      triggerViewportExpand();
+      
+      // Clear previous pending timers
+      appViewportTimers.forEach(clearTimeout);
+      appViewportTimers = [];
 
       // Stepped cascade to ensure full expansion after keyboard closing animation (300-600ms)
       [100, 300, 600].forEach(delay => {
-        setTimeout(() => {
-          try { WebApp.expand(); } catch (_) {}
-          window.dispatchEvent(new Event('resize'));
+        const timer = setTimeout(() => {
+          triggerViewportExpand();
+          if (window.visualViewport && window.visualViewport.height >= window.innerHeight - 10) {
+            appViewportTimers.forEach(clearTimeout);
+          }
         }, delay);
+        appViewportTimers.push(timer);
       });
     };
 
@@ -257,6 +261,7 @@ export default function App() {
     document.addEventListener('focusout', handleFocusOut);
 
     return () => {
+      appViewportTimers.forEach(clearTimeout);
       try {
         if (WebApp.offEvent) {
           WebApp.offEvent('viewportChanged', handleViewportChange);

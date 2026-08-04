@@ -11,9 +11,11 @@ import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
+import { useViewportExpand } from '../hooks/useViewportExpand';
 
 export function Movie() {
   const { id } = useParams();
+  useViewportExpand([id]);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
@@ -133,31 +135,6 @@ export function Movie() {
       isMounted = false;
     };
   }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
-
-  // Force Telegram WebApp viewport to full size after keyboard closes
-  // (navigating from search while keyboard is open leaves viewport compressed)
-  useEffect(() => {
-    const expandViewport = () => {
-      try {
-        WebApp.expand();
-        window.dispatchEvent(new Event('resize'));
-      } catch (_) {}
-    };
-
-    expandViewport();
-    const timers = [100, 300, 700].map(delay => setTimeout(expandViewport, delay));
-    const onVisualResize = () => {
-      if (window.visualViewport && window.visualViewport.height >= window.innerHeight - 50) {
-        expandViewport();
-      }
-    };
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', onVisualResize);
-
-    return () => {
-      timers.forEach(clearTimeout);
-      if (window.visualViewport) window.visualViewport.removeEventListener('resize', onVisualResize);
-    };
-  }, [id]);
 
   // Trigger ad when navigating to movie
   useEffect(() => {
