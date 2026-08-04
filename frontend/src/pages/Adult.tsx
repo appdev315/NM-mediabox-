@@ -228,6 +228,7 @@ export function Adult() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    (document.activeElement as HTMLElement)?.blur();
     if (hasAccess) {
       setPage(0);
       loadVideos(query || country || category, 0, false);
@@ -343,9 +344,16 @@ export function Adult() {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
           onBlur={() => {
-            window.scrollTo(0, window.scrollY);
-            try { WebApp.expand(); } catch (_) {}
+            requestAnimationFrame(() => {
+              window.scrollTo(0, window.scrollY);
+              try { WebApp.expand(); } catch (_) {}
+            });
           }}
           placeholder={t('search')}
           className="w-full p-3 rounded-xl outline-none font-medium text-sm"

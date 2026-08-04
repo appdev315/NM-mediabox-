@@ -11,6 +11,10 @@ const config: CapacitorConfig = {
     },
     SplashScreen: {
       launchShowDuration: 0,
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true
     }
   },
   server: {
