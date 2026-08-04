@@ -235,11 +235,12 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any, globalEmbeds: any[] } = { 
+      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any, goStream: any, globalEmbeds: any[] } = { 
         vidsrc: null, 
         liftw: null, 
         go: [], 
         goIframe: null,
+        goStream: null,
         globalEmbeds: []
       };
 
@@ -339,25 +340,19 @@ export function Movie() {
         if (mapped.length > 0) {
           if (isRu) {
             if (foundSources.liftw) {
-              if (!userSelectedRef.current) {
-                setIframeUrl(foundSources.liftw.url);
-              }
+              setStreamUrl(null); // Ensure direct stream is cleared so Liftw iframe has 100% priority
+              setIframeUrl(foundSources.liftw.url);
             } else if (isLiftwDone) {
+              if (foundSources.goStream) {
+                setStreamUrl(foundSources.goStream);
+              }
               const preferredUrl = mapped[0].url;
-              setIframeUrl(prev => {
-                if (!prev) return preferredUrl;
-                if (userSelectedRef.current) return prev;
-                return preferredUrl;
-              });
+              setIframeUrl(prev => prev || preferredUrl);
             }
           } else {
             // Non-RU: instant preferred selection (0ms)
             const preferredUrl = mapped[0].url;
-            setIframeUrl(prev => {
-              if (!prev) return preferredUrl;
-              if (userSelectedRef.current) return prev;
-              return preferredUrl;
-            });
+            setIframeUrl(prev => prev || preferredUrl);
           }
         }
       };
@@ -433,7 +428,7 @@ export function Movie() {
           }
 
           if (data.url) {
-            setStreamUrl(prev => prev || data.url);
+            foundSources.goStream = data.url;
           } 
           if (data.iframe && language === 'ru-RU') {
             foundSources.goIframe = data.iframe;
