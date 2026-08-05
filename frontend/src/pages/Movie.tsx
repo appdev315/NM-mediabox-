@@ -176,6 +176,12 @@ export function Movie() {
     triggerMovieAd();
   }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
+  const countryParam = (searchParams.get('country') || '').toUpperCase();
+  const originCountries: string[] = movie?.origin_country || [];
+  const isRuContent = language === 'ru-RU' || countryParam === 'RU' || countryParam === 'SU' || 
+                      originCountries.includes('RU') || originCountries.includes('SU') || 
+                      (movie?.country && /россия|ссср|russia/i.test(movie.country));
+
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
     
@@ -300,12 +306,26 @@ export function Movie() {
       const updateUI = () => {
         const combined: any[] = [];
         
-        if (isRu) {
-          // 1. Liftw is 100% Exclusive Default for RU content
-          if (foundSources.liftw) {
-            combined.push(foundSources.liftw);
-          } else if (isLiftwDone) {
-            // Anwap / Go / Global Embeds added ONLY if Liftw does not have the title
+        if (foundSources.liftw) {
+          let liftwObj = { ...foundSources.liftw };
+          if (!isRu) {
+            const langCode = (language || 'en').split('-')[0] || 'en';
+            if (!liftwObj.url.includes('lang=')) {
+              liftwObj.url += (liftwObj.url.includes('?') ? '&' : '?') + `lang=${langCode}&audio=${langCode}&sound=${langCode}`;
+            }
+          }
+          combined.push(liftwObj);
+
+          if (!isRu) {
+            // For non-RU languages, add Global Embeds as Player 2 / Player 3 alternatives
+            foundSources.globalEmbeds.forEach(e => {
+              if (!combined.some(c => c.url === e.url)) {
+                combined.push(e);
+              }
+            });
+          }
+        } else if (isLiftwDone) {
+          if (isRu) {
             if (foundSources.go.length > 0) {
               combined.push(foundSources.go[0]);
             } else if (foundSources.goIframe) {
@@ -316,24 +336,19 @@ export function Movie() {
                 combined.push(e);
               }
             });
-          }
-        } else {
-          // 1. Global Embeds (Primary for non-RU / Indonesia: 2Embed, VidLink, SmashyStream)
-          foundSources.globalEmbeds.forEach(e => {
-            if (!combined.some(c => c.url === e.url)) {
-              combined.push(e);
-            }
-          });
-          // 2. Liftw / Go as fallbacks for non-RU
-          if (foundSources.liftw && !combined.some(c => c.url === foundSources.liftw.url)) {
-            combined.push(foundSources.liftw);
-          }
-          if (foundSources.go.length > 0) {
-            foundSources.go.forEach(g => {
-              if (!combined.some(c => c.url === g.url)) {
-                combined.push(g);
+          } else {
+            foundSources.globalEmbeds.forEach(e => {
+              if (!combined.some(c => c.url === e.url)) {
+                combined.push(e);
               }
             });
+            if (foundSources.go.length > 0) {
+              foundSources.go.forEach(g => {
+                if (!combined.some(c => c.url === g.url)) {
+                  combined.push(g);
+                }
+              });
+            }
           }
         }
 
@@ -346,22 +361,8 @@ export function Movie() {
         setSources(mapped);
 
         if (mapped.length > 0) {
-          if (isRu) {
-            if (foundSources.liftw) {
-              setStreamUrl(null); // Ensure direct stream is cleared so Liftw iframe has 100% priority
-              setIframeUrl(foundSources.liftw.url);
-            } else if (isLiftwDone) {
-              if (foundSources.goStream) {
-                setStreamUrl(foundSources.goStream);
-              }
-              const preferredUrl = mapped[0].url;
-              setIframeUrl(prev => prev || preferredUrl);
-            }
-          } else {
-            // Non-RU: instant preferred selection (0ms)
-            const preferredUrl = mapped[0].url;
-            setIframeUrl(prev => prev || preferredUrl);
-          }
+          const preferredUrl = mapped[0].url;
+          setIframeUrl(prev => prev || preferredUrl);
         }
       };
 
@@ -723,6 +724,26 @@ export function Movie() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 {t('cancelPrompt')}
               </span>
+            </div>
+          )}
+          {!isRuContent && sources.length > 1 && !isExtracting && (iframeUrl || streamUrl) && (
+            <div className="flex justify-center items-center gap-2 mb-3">
+              {sources.map((src, idx) => (
+                <button
+                  key={src.url}
+                  onClick={() => {
+                    setStreamUrl(null);
+                    setIframeUrl(src.url);
+                  }}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-sm cursor-pointer ${
+                    iframeUrl === src.url 
+                      ? 'bg-[var(--button-color)] text-white shadow-md scale-105 ring-2 ring-blue-400/30' 
+                      : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {idx === 0 ? 'Плеер 1 (Основной)' : `Плеер ${idx + 1}`}
+                </button>
+              ))}
             </div>
           )}
           {(isExtracting || streamUrl || iframeUrl) && (
