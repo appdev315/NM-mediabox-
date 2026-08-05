@@ -741,7 +741,7 @@ export function Movie() {
                       : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {idx === 0 ? 'Плеер 1 (Основной)' : `Плеер ${idx + 1}`}
+                  Плеер {idx + 1}
                 </button>
               ))}
             </div>
