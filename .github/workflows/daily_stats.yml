@@ -98,7 +98,7 @@ jobs:
       - name: Send Telegram Notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TG_CHAT_ID || secrets.ADMIN_CHAT_ID || secrets.TG_ADMIN_ID || secrets.TELEGRAM_CHAT_ID }}
+          CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           MESSAGE="${ERROR_MSG:-$STATS_MSG}"
           TARGET_CHAT="${CHAT_ID:-484803732}"
