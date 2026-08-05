@@ -371,16 +371,6 @@ export function Movie() {
         setIsExtracting(false);
       }
 
-      // 1.5s Safety Timeout for RU (If Liftw doesn't return in 1.5s, fallback to Global Embed)
-      const ruTimeoutTimer = setTimeout(() => {
-        if (isRu && !foundSources.liftw) {
-          console.log('[Perf] RU Liftw 1.5s timeout reached, activating global embed fallback');
-          isLiftwDone = true;
-          updateUI();
-          setIsExtracting(false);
-        }
-      }, 1500);
-
       // 2. Fetch liftw asynchronously
       const fetchLiftw = async () => {
         const start = performance.now();
@@ -407,7 +397,6 @@ export function Movie() {
         } catch (e) {
           console.error("Liftw fetch failed", e);
         } finally {
-          clearTimeout(ruTimeoutTimer);
           const end = performance.now();
           console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           isLiftwDone = true;
@@ -453,8 +442,15 @@ export function Movie() {
         }
       };
 
-      // Execute fetches concurrently
-      await Promise.allSettled([fetchLiftw(), fetchGo()]);
+      // For RU content: strictly fetch Liftw FIRST. Only fallback to Go if Liftw does not have the title.
+      if (isRu) {
+        await fetchLiftw();
+        if (!foundSources.liftw) {
+          await fetchGo();
+        }
+      } else {
+        await Promise.allSettled([fetchLiftw(), fetchGo()]);
+      }
 
       const hasAnySource = foundSources.vidsrc || foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
       if (!hasAnySource) {
