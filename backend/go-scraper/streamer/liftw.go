@@ -192,15 +192,17 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 		success := false
 
 		for attempt := 0; attempt < 3; attempt++ {
-			client := getHttpClient(4 * time.Second)
+			client := getHttpClient(10 * time.Second)
 			res, err = client.Get(searchUrl)
 			if err != nil {
 				*lastErr = err.Error()
+				time.Sleep(300 * time.Millisecond)
 				continue
 			}
 			if res.StatusCode != 200 {
 				*lastErr = fmt.Sprintf("status code %d", res.StatusCode)
 				res.Body.Close()
+				time.Sleep(300 * time.Millisecond)
 				continue
 			}
 			decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
@@ -249,8 +251,8 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			}
 
 			if matched {
-				// High confidence match: exact or +/- 2 years allowance
-				if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
+				// High confidence match: exact or +/- 3 years allowance for index mismatches
+				if targetYear == 0 || (item.Year >= targetYear-3 && item.Year <= targetYear+3) {
 					return &item
 				}
 				if fallbackItem == nil {
