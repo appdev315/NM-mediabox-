@@ -330,7 +330,8 @@ export function Movie() {
       const fetchAnwap = async () => {
         const start = performance.now();
         try {
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(queryParams.title)}`);
+          const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(ruTitle)}`);
           if (res.ok) {
             const data = await res.json();
             if (data && data.url && /^https?:\/\//i.test(data.url)) {
