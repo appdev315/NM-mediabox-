@@ -176,12 +176,6 @@ export function Movie() {
     triggerMovieAd();
   }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
-  const countryParam = (searchParams.get('country') || '').toUpperCase();
-  const originCountries: string[] = movie?.origin_country || [];
-  const isRuContent = language === 'ru-RU' || countryParam === 'RU' || countryParam === 'SU' || 
-                      originCountries.includes('RU') || originCountries.includes('SU') || 
-                      (movie?.country && /россия|ссср|russia/i.test(movie.country));
-
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
     
@@ -249,13 +243,11 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { vidsrc: any, liftw: any, go: any[], goIframe: any, goStream: any, globalEmbeds: any[] } = { 
-        vidsrc: null, 
+      const foundSources: { liftw: any, go: any[], goIframe: any, goStream: any } = { 
         liftw: null, 
         go: [], 
         goIframe: null,
-        goStream: null,
-        globalEmbeds: []
+        goStream: null
       };
 
       let isLiftwDone = false;
@@ -267,39 +259,10 @@ export function Movie() {
                          originCountries.includes('RU') || originCountries.includes('SU') || 
                          (movie?.country && /россия|ссср|russia/i.test(movie.country));
 
-      // YouTube-Grade Instant Client-Side Embed Construction (0ms latency, 0 server load)
-      if (queryParams.tmdb) {
-        const tmdbId = queryParams.tmdb;
-        const sNum = activeSeason || '1';
-        const eNum = activeEpisode || '1';
-        foundSources.globalEmbeds = mediaType === 'tv' ? [
-          { name: '2Embed', url: `https://www.2embed.cc/embedtv/${tmdbId}&s=${sNum}&e=${eNum}`, isLiftw: false },
-          { name: 'VidLink', url: `https://vidlink.pro/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false },
-          { name: 'SmashyStream', url: `https://embed.smashystream.com/playere.php?tmdb=${tmdbId}&season=${sNum}&episode=${eNum}`, isLiftw: false },
-          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${sNum}/${eNum}`, isLiftw: false }
-        ] : [
-          { name: '2Embed', url: `https://www.2embed.cc/embed/${tmdbId}`, isLiftw: false },
-          { name: 'VidLink', url: `https://vidlink.pro/movie/${tmdbId}`, isLiftw: false },
-          { name: 'SmashyStream', url: `https://embed.smashystream.com/playere.php?tmdb=${tmdbId}`, isLiftw: false },
-          { name: 'VidSrc Global', url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`, isLiftw: false }
-        ];
-      }
-
       const evaluateUIUnblock = () => {
-        if (!isRu && foundSources.globalEmbeds.length > 0) {
+        if (!isLiftwDone) return;
+        if (foundSources.liftw || isGoDone) {
           setIsExtracting(false);
-          return;
-        }
-        
-        if (isRu) {
-          if (!isLiftwDone) return;
-          if (foundSources.liftw || isGoDone) {
-            setIsExtracting(false);
-          }
-        } else {
-          if (isLiftwDone && isGoDone) {
-            setIsExtracting(false);
-          }
         }
       };
 
@@ -316,45 +279,22 @@ export function Movie() {
           }
           combined.push(liftwObj);
 
-          if (!isRu) {
-            // For non-RU languages, add Global Embeds as Player 2 / Player 3 alternatives
-            foundSources.globalEmbeds.forEach(e => {
-              if (!combined.some(c => c.url === e.url)) {
-                combined.push(e);
-              }
-            });
+          if (foundSources.go.length > 0) {
+            combined.push(foundSources.go[0]);
+          } else if (foundSources.goIframe) {
+            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
           }
         } else if (isLiftwDone) {
-          if (isRu) {
-            if (foundSources.go.length > 0) {
-              combined.push(foundSources.go[0]);
-            } else if (foundSources.goIframe) {
-              combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
-            }
-            foundSources.globalEmbeds.forEach(e => {
-              if (!combined.some(c => c.url === e.url)) {
-                combined.push(e);
-              }
-            });
-          } else {
-            foundSources.globalEmbeds.forEach(e => {
-              if (!combined.some(c => c.url === e.url)) {
-                combined.push(e);
-              }
-            });
-            if (foundSources.go.length > 0) {
-              foundSources.go.forEach(g => {
-                if (!combined.some(c => c.url === g.url)) {
-                  combined.push(g);
-                }
-              });
-            }
+          if (foundSources.go.length > 0) {
+            combined.push(foundSources.go[0]);
+          } else if (foundSources.goIframe) {
+            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
           }
         }
 
-        // Cap to max 3 players globally
-        if (combined.length > 3) {
-          combined.length = 3;
+        // Cap to max 2 clean players (Player 1: Liftw, Player 2: Go/Anwap)
+        if (combined.length > 2) {
+          combined.length = 2;
         }
 
         const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
@@ -365,12 +305,6 @@ export function Movie() {
           setIframeUrl(prev => prev || preferredUrl);
         }
       };
-
-      // Non-RU languages: Unblock UI INSTANTLY in 0ms with Global Embeds
-      if (!isRu && foundSources.globalEmbeds.length > 0) {
-        updateUI();
-        setIsExtracting(false);
-      }
 
       // 2. Fetch liftw asynchronously
       const fetchLiftw = async () => {
@@ -453,7 +387,7 @@ export function Movie() {
         await Promise.allSettled([fetchLiftw(), fetchGo()]);
       }
 
-      const hasAnySource = foundSources.vidsrc || foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
+      const hasAnySource = foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
       if (!hasAnySource) {
          // No sources found at all
       }
@@ -726,7 +660,7 @@ export function Movie() {
               </span>
             </div>
           )}
-          {!isRuContent && sources.length > 1 && !isExtracting && (iframeUrl || streamUrl) && (
+          {sources.length > 1 && !isExtracting && (iframeUrl || streamUrl) && (
             <div className="flex justify-center items-center gap-2 mb-3">
               {sources.map((src, idx) => (
                 <button
