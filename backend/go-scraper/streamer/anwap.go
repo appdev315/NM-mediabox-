@@ -110,7 +110,7 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	if len(streamMatches) >= 2 {
 		streamCandidate := mirror + streamMatches[1]
 
-		// Verify stream candidate content-type (must be video/* or application/*, not text/html)
+		// Verify stream candidate content-type and resolve final CDN redirect URL
 		verifyReq, err := http.NewRequestWithContext(ctx, "GET", streamCandidate, nil)
 		if err == nil {
 			verifyReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -118,14 +118,21 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 			verifyResp, err := client.Do(verifyReq)
 			if err == nil {
 				defer verifyResp.Body.Close()
+				finalURL := verifyResp.Request.URL.String()
 				cType := strings.ToLower(verifyResp.Header.Get("Content-Type"))
-				if strings.Contains(cType, "text/html") {
-					return "", fmt.Errorf("stream candidate returned html instead of video")
+
+				// Reject if redirected back to an HTML page
+				if strings.Contains(cType, "text/html") || (strings.Contains(finalURL, "/films/") && !strings.Contains(finalURL, "/films/load/")) {
+					return "", fmt.Errorf("stream candidate redirected to html page: %s", finalURL)
 				}
-				return streamCandidate, nil
+				// Return resolved direct CDN or media stream URL
+				if strings.HasPrefix(cType, "video/") || strings.Contains(cType, "application/") || strings.Contains(finalURL, ".anwap.") || strings.Contains(finalURL, "/films/load/") {
+					return finalURL, nil
+				}
+				return "", fmt.Errorf("invalid content-type: %s", cType)
 			}
 		}
-		return streamCandidate, nil
+		return "", fmt.Errorf("failed to verify stream candidate")
 	}
 
 	return "", fmt.Errorf("no direct stream link found on detail page")
@@ -139,7 +146,7 @@ func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 	cacheKey := strings.ToLower(strings.TrimSpace(title))
 	if cached, ok := anwapCache.Load(cacheKey); ok {
 		if entry, okEntry := cached.(cacheAnwapEntry); okEntry {
-			if time.Now().Before(entry.exp) {
+			if time.Now().Before(entry.exp) && (strings.HasPrefix(entry.res.URL, "http") && (!strings.Contains(entry.res.URL, "/films/") || strings.Contains(entry.res.URL, "/films/load/"))) {
 				return entry.res, nil
 			}
 			anwapCache.Delete(cacheKey)
