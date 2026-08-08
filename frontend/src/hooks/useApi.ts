@@ -45,11 +45,11 @@ export function useApi() {
 
   const request = useCallback(async (endpoint: string, options: RequestInit = {}) => {
     return withLoading(async () => {
-      const initData = WebApp.initData;
-      const headers = {
+      const initData = WebApp?.initData || '';
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${initData}`,
-        ...options.headers,
+        ...(initData ? { 'Authorization': `Bearer ${initData}` } : {}),
+        ...(options.headers as Record<string, string>),
       };
       // request always goes to CF API BASE for user data
       const response = await fetch(`${CF_API_BASE}${endpoint}`, { ...options, headers });
