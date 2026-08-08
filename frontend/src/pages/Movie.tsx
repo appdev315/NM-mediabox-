@@ -340,37 +340,22 @@ export function Movie() {
         }
       };
 
-      // 3. Fetch Go stream asynchronously
+      // 3. Fetch Anwap stream asynchronously (Player 2)
       const fetchGo = async () => {
         const start = performance.now();
-        let data: any = {};
-        let attempts = 0;
-        const maxAttempts = 2;
-        
         try {
-          while (attempts < maxAttempts) {
-            try {
-              query.set('_t', Date.now().toString());
-              const res = await fetchWithRetry(`${EXPRESS_API_BASE}/stream?${query.toString()}`);
-              data = await res.json();
-              if (data.url || data.iframe || (data.sources && data.sources.length > 0)) break;
-            } catch(e) {}
-            attempts++;
-            if (attempts < maxAttempts) await new Promise(r => setTimeout(r, 1000));
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(queryParams.title)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.url) {
+              foundSources.go = [{ name: 'anwap', url: data.url, isLiftw: false }];
+            }
           }
-
-          if (data.url) {
-            foundSources.goStream = data.url;
-          } 
-          if (data.iframe && language === 'ru-RU') {
-            foundSources.goIframe = data.iframe;
-          }
-          if (data.sources && data.sources.length > 0) {
-            foundSources.go = data.sources;
-          }
+        } catch (e) {
+          console.log("Anwap fetch failed or not found");
         } finally {
           const end = performance.now();
-          console.log(`[Perf] Go fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
+          console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           isGoDone = true;
           updateUI();
           evaluateUIUnblock();
