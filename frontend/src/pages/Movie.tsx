@@ -225,14 +225,8 @@ export function Movie() {
         tmdb: (movie as any).id?.toString() || '',
         imdb: (movie as any).imdb_id || ''
       };
-      
-      const query = new URLSearchParams(queryParams);
-      query.append('_t', Date.now().toString());
-      if (forceRefresh) {
-        query.append('bypass_cache', 'true');
-      }
 
-      // Parallel fetch: existing Go stream + liftw.ws
+      // Parallel fetch: Liftw + Anwap
       const liftwQuery = new URLSearchParams({
         title: queryParams.title,
         year: queryParams.year,
@@ -243,15 +237,13 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { liftw: any, go: any[], goIframe: any, goStream: any } = { 
+      const foundSources: { liftw: any, anwap: any[] } = { 
         liftw: null, 
-        go: [], 
-        goIframe: null,
-        goStream: null
+        anwap: []
       };
 
       let isLiftwDone = false;
-      let isGoDone = false;
+      let anwapDone = false;
 
       const countryParam = (searchParams.get('country') || '').toUpperCase();
       const originCountries: string[] = movie?.origin_country || [];
@@ -261,7 +253,7 @@ export function Movie() {
 
       const evaluateUIUnblock = () => {
         if (!isLiftwDone) return;
-        if (foundSources.liftw || isGoDone) {
+        if (foundSources.liftw || anwapDone) {
           setIsExtracting(false);
         }
       };
@@ -279,20 +271,16 @@ export function Movie() {
           }
           combined.push(liftwObj);
 
-          if (foundSources.go.length > 0) {
-            combined.push(foundSources.go[0]);
-          } else if (foundSources.goIframe) {
-            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
+          if (foundSources.anwap.length > 0) {
+            combined.push(foundSources.anwap[0]);
           }
         } else if (isLiftwDone) {
-          if (foundSources.go.length > 0) {
-            combined.push(foundSources.go[0]);
-          } else if (foundSources.goIframe) {
-            combined.push({ name: 'go', url: foundSources.goIframe, isLiftw: false });
+          if (foundSources.anwap.length > 0) {
+            combined.push(foundSources.anwap[0]);
           }
         }
 
-        // Cap to max 2 clean players (Player 1: Liftw, Player 2: Go/Anwap)
+        // Cap to max 2 clean players (Player 1: Liftw, Player 2: Anwap)
         if (combined.length > 2) {
           combined.length = 2;
         }
@@ -341,34 +329,29 @@ export function Movie() {
       };
 
       // 3. Fetch Anwap stream asynchronously (Player 2)
-      const fetchGo = async () => {
+      const fetchAnwap = async () => {
         const start = performance.now();
         try {
           const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(queryParams.title)}`);
           if (res.ok) {
             const data = await res.json();
-            if (data && data.url) {
-              foundSources.go = [{ name: 'anwap', url: data.url, isLiftw: false }];
+            if (data && data.url && /^https?:\/\//i.test(data.url)) {
+              foundSources.anwap = [{ name: 'anwap', url: data.url, isLiftw: false }];
             }
           }
         } catch (e) {
-          console.log("Anwap fetch failed or not found");
+          console.error("Anwap fetch failed", e);
         } finally {
           const end = performance.now();
           console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
-          isGoDone = true;
+          anwapDone = true;
           updateUI();
           evaluateUIUnblock();
         }
       };
 
       // Fetch both Player 1 (Liftw) and Player 2 (Anwap) concurrently
-      await Promise.allSettled([fetchLiftw(), fetchGo()]);
-
-      const hasAnySource = foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
-      if (!hasAnySource) {
-         // No sources found at all
-      }
+      await Promise.allSettled([fetchLiftw(), fetchAnwap()]);
     } catch (err) {
       console.error("Failed to extract stream", err);
       alert("Failed to load stream");

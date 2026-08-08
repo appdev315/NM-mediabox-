@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,15 +23,37 @@ var (
 	anwapCache sync.Map
 )
 
+type cacheAnwapEntry struct {
+	res *AnwapResult
+	exp time.Time
+}
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		for range ticker.C {
+			now := time.Now()
+			anwapCache.Range(func(key, value interface{}) bool {
+				if entry, ok := value.(cacheAnwapEntry); ok {
+					if now.After(entry.exp) {
+						anwapCache.Delete(key)
+					}
+				}
+				return true
+			})
+		}
+	}()
+}
+
 type AnwapResult struct {
 	URL   string `json:"url"`
 	Name  string `json:"name"`
 	Error string `json:"error,omitempty"`
 }
 
-func fetchFromMirror(mirror string, client *http.Client, title string) (string, error) {
+func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, title string) (string, error) {
 	searchUrl := fmt.Sprintf("%s/search?q=%s", mirror, url.QueryEscape(title))
-	req, err := http.NewRequest("GET", searchUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", searchUrl, nil)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +69,7 @@ func fetchFromMirror(mirror string, client *http.Client, title string) (string, 
 		return "", fmt.Errorf("mirror status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +90,10 @@ func fetchFromMirror(mirror string, client *http.Client, title string) (string, 
 	}
 
 	// Fetch detail page
-	reqDetail, _ := http.NewRequest("GET", filmUrl, nil)
+	reqDetail, err := http.NewRequestWithContext(ctx, "GET", filmUrl, nil)
+	if err != nil {
+		return "", err
+	}
 	reqDetail.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	respDetail, err := client.Do(reqDetail)
 	if err != nil {
@@ -75,7 +101,7 @@ func fetchFromMirror(mirror string, client *http.Client, title string) (string, 
 	}
 	defer respDetail.Body.Close()
 
-	detailBody, err := io.ReadAll(respDetail.Body)
+	detailBody, err := io.ReadAll(io.LimitReader(respDetail.Body, 5<<20))
 	if err != nil {
 		return "", err
 	}
@@ -96,17 +122,24 @@ func fetchFromMirror(mirror string, client *http.Client, title string) (string, 
 	return filmUrl, nil
 }
 
-func ResolveAnwap(title string) (*AnwapResult, error) {
+func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 	if title == "" {
 		return nil, fmt.Errorf("title required")
 	}
 
 	cacheKey := strings.ToLower(strings.TrimSpace(title))
 	if cached, ok := anwapCache.Load(cacheKey); ok {
-		if res, isRes := cached.(*AnwapResult); isRes {
-			return res, nil
+		if entry, okEntry := cached.(cacheAnwapEntry); okEntry {
+			if time.Now().Before(entry.exp) {
+				return entry.res, nil
+			}
+			anwapCache.Delete(cacheKey)
 		}
 	}
+
+	// Bounded context timeout for mirror fetches
+	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
 
 	client := &http.Client{Timeout: 3 * time.Second}
 
@@ -119,7 +152,7 @@ func ResolveAnwap(title string) (*AnwapResult, error) {
 
 	for _, mirror := range anwapMirrors {
 		go func(m string) {
-			u, err := fetchFromMirror(m, client, title)
+			u, err := fetchFromMirror(reqCtx, m, client, title)
 			ch <- resChanStruct{url: u, err: err}
 		}(mirror)
 	}
@@ -129,6 +162,7 @@ func ResolveAnwap(title string) (*AnwapResult, error) {
 		res := <-ch
 		if res.err == nil && res.url != "" {
 			foundUrl = res.url
+			cancel() // Cancel pending mirror requests once a valid stream is found
 			break
 		}
 	}
@@ -141,7 +175,7 @@ func ResolveAnwap(title string) (*AnwapResult, error) {
 		URL:  foundUrl,
 		Name: "anwap",
 	}
-	anwapCache.Store(cacheKey, res)
+	anwapCache.Store(cacheKey, cacheAnwapEntry{res: res, exp: time.Now().Add(1 * time.Hour)})
 
 	return res, nil
 }
@@ -152,13 +186,15 @@ func AnwapApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	title := r.URL.Query().Get("title")
 	if title == "" {
-		http.Error(w, `{"error":"Title parameter is required"}`, http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Title parameter is required"})
 		return
 	}
 
-	res, err := ResolveAnwap(title)
+	res, err := ResolveAnwap(r.Context(), title)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
