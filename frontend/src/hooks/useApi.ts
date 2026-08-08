@@ -67,9 +67,11 @@ export function useApi() {
 
   const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600) => {
     const searchParams = new URLSearchParams();
-    searchParams.append('language', language);
+    const targetLanguage = (params.language as string) || language;
+    searchParams.append('language', targetLanguage);
+
     Object.entries(params).forEach(([key, val]) => {
-      if (val !== undefined && val !== '') {
+      if (key !== 'language' && val !== undefined && val !== '') {
         searchParams.append(key, String(val));
       }
     });
