@@ -15,10 +15,10 @@ import (
 
 var (
 	anwapMirrors = []string{
+		"https://my.anwap.love",
+		"https://anwap.film",
 		"https://mm.anwap.media",
-		"https://mj.anwap.today",
-		"https://anwap.tube",
-		"https://anwap.vip",
+		"https://anwap.org",
 	}
 	anwapCache sync.Map
 )
@@ -52,7 +52,7 @@ type AnwapResult struct {
 }
 
 func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, title string) (string, error) {
-	searchUrl := fmt.Sprintf("%s/search?q=%s", mirror, url.QueryEscape(title))
+	searchUrl := fmt.Sprintf("%s/films/search/?slv=%s&vid=1", mirror, url.QueryEscape(title))
 	req, err := http.NewRequestWithContext(ctx, "GET", searchUrl, nil)
 	if err != nil {
 		return "", err
@@ -76,49 +76,42 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 
 	html := string(body)
 
-	// Regexp to match film/series page links
-	reLink := regexp.MustCompile(`href="(/film/[^"]+|/serials/[^"]+|/movie/[^"]+)"`)
+	// Regexp to match film detail page links
+	reLink := regexp.MustCompile(`href="(/films/\d+)"`)
 	matches := reLink.FindStringSubmatch(html)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("no movie link found")
 	}
 
-	filmPath := matches[1]
-	filmUrl := mirror + filmPath
-	if strings.HasPrefix(filmPath, "http") {
-		filmUrl = filmPath
-	}
+	filmUrl := mirror + matches[1]
 
 	// Fetch detail page
 	reqDetail, err := http.NewRequestWithContext(ctx, "GET", filmUrl, nil)
 	if err != nil {
-		return "", err
+		return filmUrl, nil
 	}
 	reqDetail.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
 	respDetail, err := client.Do(reqDetail)
 	if err != nil {
-		return "", err
+		return filmUrl, nil
 	}
 	defer respDetail.Body.Close()
 
 	detailBody, err := io.ReadAll(io.LimitReader(respDetail.Body, 5<<20))
 	if err != nil {
-		return "", err
+		return filmUrl, nil
 	}
 	detailHtml := string(detailBody)
 
-	// Regexp to extract iframe or mp4 video stream URL
-	reStream := regexp.MustCompile(`(?i)(src|href)="([^"]+\.(mp4|m3u8)[^"]*|/embed/[^"]+|https?://[^"]*player[^"]*)"`)
+	// Regexp to extract direct video stream download URL
+	reStream := regexp.MustCompile(`href="(/films/load/\d+/\d+/\d+)"`)
 	streamMatches := reStream.FindStringSubmatch(detailHtml)
-	if len(streamMatches) >= 3 {
-		streamUrl := streamMatches[2]
-		if strings.HasPrefix(streamUrl, "/") {
-			streamUrl = mirror + streamUrl
-		}
-		return streamUrl, nil
+	if len(streamMatches) >= 2 {
+		return mirror + streamMatches[1], nil
 	}
 
-	// Return filmUrl as player fallback if direct stream link is obfuscated
+	// Return filmUrl as player fallback
 	return filmUrl, nil
 }
 
@@ -137,13 +130,12 @@ func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 		}
 	}
 
-	// Bounded context timeout for mirror fetches
 	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
 	client := &http.Client{Timeout: 3 * time.Second}
 
-	// Backend Mirror Carousel: Query all mirrors concurrently
+	// Backend Mirror Carousel: Query live mirrors concurrently
 	type resChanStruct struct {
 		url string
 		err error
