@@ -104,15 +104,14 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	}
 	detailHtml := string(detailBody)
 
-	// Regexp to extract direct video stream download URL
-	reStream := regexp.MustCompile(`href="(/films/load/\d+/\d+/\d+)"`)
+	// Regexp to extract direct video stream download URL (hex token)
+	reStream := regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
 	streamMatches := reStream.FindStringSubmatch(detailHtml)
 	if len(streamMatches) >= 2 {
 		return mirror + streamMatches[1], nil
 	}
 
-	// Return filmUrl as player fallback
-	return filmUrl, nil
+	return "", fmt.Errorf("no direct stream link found on detail page")
 }
 
 func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
