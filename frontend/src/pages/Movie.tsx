@@ -741,7 +741,7 @@ export function Movie() {
                       : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  Плеер {idx + 1}
+                  {(t('player' as any) || 'Player')} {idx + 1}
                 </button>
               ))}
             </div>
@@ -829,7 +829,7 @@ export function Movie() {
                     : Array.from({ length: 24 }, (_, i) => String(i + 1))
                   ).map((ep: string) => (
                     <option key={ep} value={ep}>
-                      {ep} Серия
+                      {(t('episode' as any) || 'Episode')} {ep}
                     </option>
                   ))}
                 </select>
