@@ -323,8 +323,6 @@ export function Movie() {
           const end = performance.now();
           console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           isLiftwDone = true;
-          updateUI();
-          evaluateUIUnblock();
         }
       };
 
@@ -345,13 +343,15 @@ export function Movie() {
           const end = performance.now();
           console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
           anwapDone = true;
-          updateUI();
-          evaluateUIUnblock();
         }
       };
 
       // Fetch both Player 1 (Liftw) and Player 2 (Anwap) concurrently
       await Promise.allSettled([fetchLiftw(), fetchAnwap()]);
+
+      // Atomic single-pass UI update & unblock
+      updateUI();
+      evaluateUIUnblock();
     } catch (err) {
       console.error("Failed to extract stream", err);
       alert("Failed to load stream");
