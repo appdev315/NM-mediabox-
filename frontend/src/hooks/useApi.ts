@@ -3,8 +3,8 @@ import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
 
-export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api'; 
-export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api'; 
+export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api';
+export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
 
 export interface TMDBMovie {
   id: number;
@@ -45,7 +45,7 @@ export function useApi() {
 
   const request = useCallback(async (endpoint: string, options: RequestInit = {}) => {
     return withLoading(async () => {
-      const initData = WebApp.initData; 
+      const initData = WebApp.initData;
       const headers = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${initData}`,
@@ -58,7 +58,7 @@ export function useApi() {
         try {
           const errBody = await response.json();
           if (errBody.error) msg += ` - ${errBody.error}`;
-        } catch(e) {}
+        } catch (e) { }
         throw new Error(msg);
       }
       return await response.json();
@@ -89,7 +89,7 @@ export function useApi() {
       try {
         const errBody = await response.json();
         if (errBody.error) msg += ` - ${errBody.error}`;
-      } catch(e) {}
+      } catch (e) { }
       throw new Error(msg);
     }
     const data = await response.json();
@@ -218,7 +218,7 @@ export function useApi() {
 
     return withLoading(async () => {
       const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings' });
-      
+
       // Fallback for trailers: if no trailers in current language, fetch en-US videos
       if (data && (!data.videos || !data.videos.results || data.videos.results.length === 0)) {
         try {
@@ -226,7 +226,7 @@ export function useApi() {
           if (enVideos && enVideos.results) {
             data.videos = enVideos;
           }
-        } catch(e) {}
+        } catch (e) { }
       }
 
       const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
@@ -242,7 +242,7 @@ export function useApi() {
 
     return withLoading(async () => {
       const data = await tmdbFetch(`/person/${personId}`, { append_to_response: 'movie_credits,tv_credits,external_ids' });
-      
+
       const movieCast = data.movie_credits?.cast || [];
       const tvCast = data.tv_credits?.cast || [];
       const sourceList = movieCast.length >= 3 ? movieCast : [...movieCast, ...tvCast];
@@ -266,7 +266,7 @@ export function useApi() {
       return result;
     });
   }, [tmdbFetch, withLoading, language]);
-  
+
   const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number) => {
     try {
       const data = await tmdbFetch(`/tv/${id}/season/${seasonNumber}`);

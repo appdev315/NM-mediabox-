@@ -146,6 +146,7 @@ func main() {
 	mux.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
 	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
+	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)
 
 	// Start background cache warmer for trends
 	streamer.StartCacheWarmer()
