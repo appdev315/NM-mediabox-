@@ -88,19 +88,19 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	// Fetch detail page
 	reqDetail, err := http.NewRequestWithContext(ctx, "GET", filmUrl, nil)
 	if err != nil {
-		return filmUrl, nil
+		return "", fmt.Errorf("failed to create detail request: %w", err)
 	}
 	reqDetail.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	respDetail, err := client.Do(reqDetail)
 	if err != nil {
-		return filmUrl, nil
+		return "", fmt.Errorf("failed to fetch detail page: %w", err)
 	}
 	defer respDetail.Body.Close()
 
 	detailBody, err := io.ReadAll(io.LimitReader(respDetail.Body, 5<<20))
 	if err != nil {
-		return filmUrl, nil
+		return "", fmt.Errorf("failed to read detail page: %w", err)
 	}
 	detailHtml := string(detailBody)
 
