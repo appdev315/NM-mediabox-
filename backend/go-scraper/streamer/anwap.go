@@ -103,8 +103,13 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 		return "", fmt.Errorf("failed to read detail page: %w", err)
 	}
 	detailHtml := string(detailBody)
+	// Priority 1: stable Ortified embed iframe (works in Player.tsx, no X-Frame-Options)
+	reOrtified := regexp.MustCompile(`(?i)(https?://api\.ortified\.ws/embed/[^"'\s>]+)`)
+	if m := reOrtified.FindStringSubmatch(detailHtml); len(m) >= 2 {
+		return strings.TrimSpace(m[1]), nil
+	}
 
-	// Regexp to extract direct video stream download URL (hex token)
+	// Priority 2: fallback to direct video stream download URL (hex token)
 	reStream := regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
 	streamMatches := reStream.FindStringSubmatch(detailHtml)
 	if len(streamMatches) >= 2 {
@@ -127,7 +132,7 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 					return "", fmt.Errorf("stream candidate redirected to html page: %s", finalURL)
 				}
 				// Return resolved direct CDN or media stream URL
-				if strings.HasPrefix(cType, "video/") || strings.Contains(cType, "application/") || strings.Contains(finalURL, ".anwap.") || strings.Contains(finalURL, "/films/load/") {
+				if strings.HasPrefix(cType, "video/") || strings.Contains(cType, "application/") || strings.Contains(finalURL, "/films/load/") {
 					return finalURL, nil
 				}
 				return "", fmt.Errorf("invalid content-type: %s", cType)
