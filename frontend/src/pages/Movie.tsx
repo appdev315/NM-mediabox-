@@ -362,15 +362,8 @@ export function Movie() {
         }
       };
 
-      // For RU content: strictly fetch Liftw FIRST. Only fallback to Go if Liftw does not have the title.
-      if (isRu) {
-        await fetchLiftw();
-        if (!foundSources.liftw) {
-          await fetchGo();
-        }
-      } else {
-        await Promise.allSettled([fetchLiftw(), fetchGo()]);
-      }
+      // Fetch both Player 1 (Liftw) and Player 2 (Anwap) concurrently
+      await Promise.allSettled([fetchLiftw(), fetchGo()]);
 
       const hasAnySource = foundSources.liftw || foundSources.go.length > 0 || foundSources.goIframe || streamUrl;
       if (!hasAnySource) {
