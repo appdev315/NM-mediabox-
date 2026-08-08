@@ -108,7 +108,24 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	reStream := regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
 	streamMatches := reStream.FindStringSubmatch(detailHtml)
 	if len(streamMatches) >= 2 {
-		return mirror + streamMatches[1], nil
+		streamCandidate := mirror + streamMatches[1]
+
+		// Verify stream candidate content-type (must be video/* or application/*, not text/html)
+		verifyReq, err := http.NewRequestWithContext(ctx, "GET", streamCandidate, nil)
+		if err == nil {
+			verifyReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+			verifyReq.Header.Set("Range", "bytes=0-1024")
+			verifyResp, err := client.Do(verifyReq)
+			if err == nil {
+				defer verifyResp.Body.Close()
+				cType := strings.ToLower(verifyResp.Header.Get("Content-Type"))
+				if strings.Contains(cType, "text/html") {
+					return "", fmt.Errorf("stream candidate returned html instead of video")
+				}
+				return streamCandidate, nil
+			}
+		}
+		return streamCandidate, nil
 	}
 
 	return "", fmt.Errorf("no direct stream link found on detail page")
