@@ -114,6 +114,7 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 		verifyReq, err := http.NewRequestWithContext(ctx, "GET", streamCandidate, nil)
 		if err == nil {
 			verifyReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+			verifyReq.Header.Set("Referer", filmUrl)
 			verifyReq.Header.Set("Range", "bytes=0-1024")
 			verifyResp, err := client.Do(verifyReq)
 			if err == nil {

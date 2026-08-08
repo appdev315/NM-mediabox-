@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -400,6 +401,9 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	title := r.URL.Query().Get("title")
 	yearStr := r.URL.Query().Get("year")
 	vType := r.URL.Query().Get("type")
@@ -411,16 +415,30 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseBytes, err := ResolveLiftw(title, yearStr, vType, tmdb, bypassCache)
-	if err != nil {
-		status := http.StatusBadGateway
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "not found") {
-			status = http.StatusNotFound
-		}
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, errMsg), status)
-		return
+	type liftwRes struct {
+		data []byte
+		err  error
 	}
+	ch := make(chan liftwRes, 1)
+	go func() {
+		data, err := ResolveLiftw(title, yearStr, vType, tmdb, bypassCache)
+		ch <- liftwRes{data: data, err: err}
+	}()
 
-	w.Write(responseBytes)
+	select {
+	case <-ctx.Done():
+		http.Error(w, `{"error":"Liftw request timeout"}`, http.StatusGatewayTimeout)
+		return
+	case res := <-ch:
+		if res.err != nil {
+			status := http.StatusBadGateway
+			errMsg := res.err.Error()
+			if strings.Contains(errMsg, "not found") {
+				status = http.StatusNotFound
+			}
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, errMsg), status)
+			return
+		}
+		w.Write(res.data)
+	}
 }
