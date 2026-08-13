@@ -59,8 +59,8 @@ export function Movie() {
     setIsPrimaryReady(false);
   }, [iframeUrl]);
 
-  // 6-Second Automatic Fallback from Primary Player (Liftw) to Secondary (Anwap / Global)
-  // ONLY if primary player failed to report ready state within 6 seconds
+  // 15-Second Automatic Fallback from Primary Player (Liftw) to Secondary (Anwap / Global)
+  // ONLY if primary player failed to report ready state within 15 seconds
   useEffect(() => {
     if (autoFallbackTimerRef.current) {
       clearTimeout(autoFallbackTimerRef.current);
@@ -69,11 +69,11 @@ export function Movie() {
 
     if (sources.length > 1 && iframeUrl === sources[0]?.url && !isPrimaryReady) {
       autoFallbackTimerRef.current = setTimeout(() => {
-        console.log('[PlayerFallback] 6s timeout reached without ready signal, auto switching to fallback player...');
+        console.log('[PlayerFallback] 15s timeout reached without ready signal, auto switching to fallback player...');
         if (sources[1]?.url) {
           setIframeUrl(sources[1].url);
         }
-      }, 6000);
+      }, 15000);
     }
 
     return () => {

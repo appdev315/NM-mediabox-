@@ -179,6 +179,22 @@ func sortCandidates(cands []string) []string {
 	return cands
 }
 
+func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", targetUrl, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Referer", "https://liftw.ws/")
+	req.Header.Set("Origin", "https://liftw.ws")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	return client.Do(req)
+}
+
 func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
 	searchLimit := 3
 	if len(candidates) < 3 {
@@ -194,7 +210,7 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 
 		for attempt := 0; attempt < 3; attempt++ {
 			client := getHttpClient(10 * time.Second)
-			res, err = client.Get(searchUrl)
+			res, err = doLiftwGetRequest(client, searchUrl)
 			if err != nil {
 				*lastErr = err.Error()
 				time.Sleep(300 * time.Millisecond)
@@ -362,7 +378,7 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 
 	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
 	infoClient := getHttpClient(8 * time.Second)
-	infoRes, err := infoClient.Get(infoUrl)
+	infoRes, err := doLiftwGetRequest(infoClient, infoUrl)
 	if err != nil || infoRes.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to get info")
 	}
@@ -401,7 +417,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 
 	title := r.URL.Query().Get("title")
