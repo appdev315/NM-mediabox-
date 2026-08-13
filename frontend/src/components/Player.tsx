@@ -94,6 +94,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
     const fallbackTimer = setTimeout(() => {
       setIframeLoaded(true);
+      onReady?.();
     }, 6000);
 
     // Auto-Fallback Sentinel for Adult multi-mirrors
