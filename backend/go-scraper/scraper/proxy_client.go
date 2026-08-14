@@ -61,3 +61,7 @@ func GetHTTPClient(timeout time.Duration) *http.Client {
 		Transport: transport,
 	}
 }
+
+func GetDirectHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}

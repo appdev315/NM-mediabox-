@@ -6,20 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-)
 
-var (
-	proxyUrls []string
-	proxyOnce sync.Once
-	proxyIdx  uint64
+	"scraper/scraper"
 )
 
 var liftwCache sync.Map
@@ -44,49 +38,6 @@ func init() {
 			})
 		}
 	}()
-}
-
-func getHttpClient(timeout time.Duration) *http.Client {
-	proxyOnce.Do(func() {
-		if p := os.Getenv("PROXY_URL"); p != "" {
-			parts := strings.Split(p, ",")
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part != "" {
-					proxyUrls = append(proxyUrls, part)
-				}
-			}
-		}
-		if len(proxyUrls) == 0 {
-			proxyUrls = []string{
-				"http://ezyxagjl:vkx1ms0rbzk7@31.59.20.176:6754",
-				"http://ezyxagjl:vkx1ms0rbzk7@31.56.127.193:7684",
-				"http://ezyxagjl:vkx1ms0rbzk7@45.38.107.97:6014",
-				"http://ezyxagjl:vkx1ms0rbzk7@198.105.121.200:6462",
-				"http://ezyxagjl:vkx1ms0rbzk7@64.137.96.74:6641",
-				"http://ezyxagjl:vkx1ms0rbzk7@198.23.243.226:6361",
-				"http://ezyxagjl:vkx1ms0rbzk7@38.154.185.97:6370",
-				"http://ezyxagjl:vkx1ms0rbzk7@84.247.60.125:6095",
-				"http://ezyxagjl:vkx1ms0rbzk7@142.111.67.146:5611",
-				"http://ezyxagjl:vkx1ms0rbzk7@191.96.254.138:6185",
-			}
-		}
-	})
-
-	client := &http.Client{Timeout: timeout}
-	if len(proxyUrls) > 0 {
-		idx := atomic.AddUint64(&proxyIdx, 1)
-		proxyStr := proxyUrls[idx%uint64(len(proxyUrls))]
-		if !strings.Contains(proxyStr, "://") {
-			proxyStr = "http://" + proxyStr
-		}
-		if proxyUrl, err := url.Parse(proxyStr); err == nil {
-			client.Transport = &http.Transport{
-				Proxy: http.ProxyURL(proxyUrl),
-			}
-		}
-	}
-	return client
 }
 
 type TMDBAltTitles struct {
@@ -215,7 +166,7 @@ func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, e
 
 func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*http.Response, string) {
 	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 4s timeout
-	proxyClient := getHttpClient(4 * time.Second)
+	proxyClient := scraper.GetHTTPClient(4 * time.Second)
 	res, err := doLiftwGetRequest(proxyClient, targetUrl)
 	if err == nil && res.StatusCode == 200 {
 		return res, "proxy"
@@ -230,7 +181,7 @@ func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*
 	}
 
 	// Stage 2: Immediate direct fallback without proxy
-	directClient := getDirectHttpClient(timeout)
+	directClient := scraper.GetDirectHTTPClient(timeout)
 	directRes, directErr := doLiftwGetRequest(directClient, targetUrl)
 	if directErr != nil {
 		*lastErr = fmt.Sprintf("proxy failed (%s); direct failed: %v", proxyFailReason, directErr)
@@ -365,7 +316,7 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 			tmdbType = "tv"
 		}
 		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
-		client := getHttpClient(4 * time.Second)
+		client := scraper.GetHTTPClient(4 * time.Second)
 		res, err := client.Get(tmdbUrl)
 		if err == nil && res.StatusCode == 200 {
 			var tData TMDBResponse
