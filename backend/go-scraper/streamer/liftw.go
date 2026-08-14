@@ -179,6 +179,10 @@ func sortCandidates(cands []string) []string {
 	return cands
 }
 
+func getDirectHttpClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
+
 func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", targetUrl, nil)
 	if err != nil {
@@ -195,6 +199,38 @@ func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, e
 	return client.Do(req)
 }
 
+func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*http.Response, string) {
+	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 4s timeout
+	proxyClient := getHttpClient(4 * time.Second)
+	res, err := doLiftwGetRequest(proxyClient, targetUrl)
+	if err == nil && res.StatusCode == 200 {
+		return res, "proxy"
+	}
+
+	proxyFailReason := ""
+	if err != nil {
+		proxyFailReason = err.Error()
+	} else if res != nil {
+		proxyFailReason = fmt.Sprintf("status code %d", res.StatusCode)
+		res.Body.Close()
+	}
+
+	// Stage 2: Immediate direct fallback without proxy
+	directClient := getDirectHttpClient(timeout)
+	directRes, directErr := doLiftwGetRequest(directClient, targetUrl)
+	if directErr != nil {
+		*lastErr = fmt.Sprintf("proxy failed (%s); direct failed: %v", proxyFailReason, directErr)
+		return nil, ""
+	}
+	if directRes.StatusCode != 200 {
+		*lastErr = fmt.Sprintf("proxy failed (%s); direct status code %d", proxyFailReason, directRes.StatusCode)
+		directRes.Body.Close()
+		return nil, ""
+	}
+
+	return directRes, "direct"
+}
+
 func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
 	searchLimit := 3
 	if len(candidates) < 3 {
@@ -203,35 +239,17 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 
 	for _, cand := range candidates[:searchLimit] {
 		searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
-		var res *http.Response
-		var err error
 		var sRes LiftwSearchResponse
-		success := false
 
-		for attempt := 0; attempt < 3; attempt++ {
-			client := getHttpClient(10 * time.Second)
-			res, err = doLiftwGetRequest(client, searchUrl)
-			if err != nil {
-				*lastErr = err.Error()
-				time.Sleep(300 * time.Millisecond)
-				continue
-			}
-			if res.StatusCode != 200 {
-				*lastErr = fmt.Sprintf("status code %d", res.StatusCode)
-				res.Body.Close()
-				time.Sleep(300 * time.Millisecond)
-				continue
-			}
-			decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
-			res.Body.Close()
-			if decodeErr == nil {
-				success = true
-				break
-			}
-			*lastErr = fmt.Sprintf("decode error: %v", decodeErr)
+		res, via := fetchLiftwData(searchUrl, 6*time.Second, lastErr)
+		if res == nil {
+			continue
 		}
 
-		if !success {
+		decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
+		res.Body.Close()
+		if decodeErr != nil {
+			*lastErr = fmt.Sprintf("via %s decode error: %v", via, decodeErr)
 			continue
 		}
 
@@ -377,16 +395,15 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 	}
 
 	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
-	infoClient := getHttpClient(8 * time.Second)
-	infoRes, err := doLiftwGetRequest(infoClient, infoUrl)
-	if err != nil || infoRes.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to get info")
+	infoRes, infoVia := fetchLiftwData(infoUrl, 8*time.Second, &lastErr)
+	if infoRes == nil {
+		return nil, fmt.Errorf("failed to get info (%s)", lastErr)
 	}
 	defer infoRes.Body.Close()
 
 	var info LiftwInfoResponse
 	if err := json.NewDecoder(infoRes.Body).Decode(&info); err != nil {
-		return nil, fmt.Errorf("failed to decode info")
+		return nil, fmt.Errorf("failed to decode info via %s", infoVia)
 	}
 
 	response := map[string]interface{}{
@@ -417,7 +434,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
 	title := r.URL.Query().Get("title")
