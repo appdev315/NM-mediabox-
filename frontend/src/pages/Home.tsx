@@ -38,8 +38,13 @@ export function Home() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [homeSections, setHomeSections] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
+  const [searchInput, setSearchInput] = useState<string>(searchQuery);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
+
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
 
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
@@ -186,8 +191,10 @@ export function Home() {
     triggerAd();
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = searchInput.trim();
+    setSearchQuery(trimmed);
     setPage(1);
   };
 
@@ -296,14 +303,25 @@ export function Home() {
         <RadioTVContent activeTab={activeTab} />
       ) : (
         <>
-          <div className="mb-4">
+          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 items-center">
             <input 
               type="text" 
               placeholder={t('searchPlaceholder')} 
-              value={searchQuery}
-              onChange={handleSearchChange}
+              value={searchInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchInput(val);
+                if (val === '') {
+                  setSearchQuery('');
+                  setPage(1);
+                }
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === 'Escape') {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                  handleSearchSubmit();
+                } else if (e.key === 'Escape') {
                   (e.target as HTMLInputElement).blur();
                 }
               }}
@@ -313,10 +331,17 @@ export function Home() {
                   try { WebApp.expand(); } catch (_) {}
                 });
               }}
-              className="w-full p-3 rounded-xl outline-none font-medium border-none shadow-sm"
+              className="flex-1 p-3 rounded-xl outline-none font-medium border-none shadow-sm text-sm min-w-0"
               style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
             />
-          </div>
+            <button
+              type="submit"
+              className="px-3.5 py-3 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0 active:scale-95 cursor-pointer whitespace-nowrap"
+              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+            >
+              🔍 {t('searchBtn')}
+            </button>
+          </form>
 
           {/* Filters (hidden when searching) */}
           {!isSearching && (
