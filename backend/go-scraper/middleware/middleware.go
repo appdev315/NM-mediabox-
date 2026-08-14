@@ -179,8 +179,26 @@ func RecordRecentError(path string, status int, msg string) {
 	}
 }
 
+func isAppRoute(path string) bool {
+	if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/discover/") {
+		if strings.HasPrefix(path, "/api/predict") || strings.HasPrefix(path, "/api/v1/") {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Filter out bot scan traffic (e.g. /.env, /.streamlit, /openapi.json)
+		if !isAppRoute(path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		atomic.AddUint64(&GlobalMetrics.TotalRequests, 1)
 
 		// Unique IP tracking
@@ -190,10 +208,10 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Category tracking
-		path := r.URL.Path
-		if strings.Contains(path, "/discover/movie") || strings.Contains(path, "/api/movie") {
+		queryType := r.URL.Query().Get("type")
+		if strings.Contains(path, "/discover/movie") || strings.Contains(path, "/api/movie") || strings.Contains(path, "/api/tmdb/movie") || (strings.Contains(path, "/api/liftw") && queryType != "tv" && queryType != "series") {
 			atomic.AddUint64(&GlobalMetrics.Categories.Movies, 1)
-		} else if strings.Contains(path, "/discover/tv") || strings.Contains(path, "/api/series") {
+		} else if strings.Contains(path, "/discover/tv") || strings.Contains(path, "/api/series") || strings.Contains(path, "/api/tmdb/tv") || (strings.Contains(path, "/api/liftw") && (queryType == "tv" || queryType == "series")) {
 			atomic.AddUint64(&GlobalMetrics.Categories.Series, 1)
 		} else if strings.Contains(path, "/api/radio") {
 			atomic.AddUint64(&GlobalMetrics.Categories.Radio, 1)
