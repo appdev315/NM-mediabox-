@@ -18,7 +18,14 @@ import (
 var xvideosRegex = regexp.MustCompile(`/video\.?([a-zA-Z0-9_-]+)`)
 
 func SearchXvideos(query string, page int) []types.Video {
-	client := GetHTTPClient(8 * time.Second)
+	// 1. High-speed primary provider: RedTube Public API
+	rtVideos := searchRedtube(query, page)
+	if len(rtVideos) > 0 {
+		return rtVideos
+	}
+
+	// 2. Secondary provider: XVideos scraper
+	client := GetHTTPClient(5 * time.Second)
 	domains := []string{"www.xvideos.com", "www.xvideos2.com", "www.xvideos3.com", "www.xv-ru.com", "www.xvideos.es"}
 
 	cleanQ := strings.TrimSpace(strings.ToLower(query))
@@ -108,34 +115,32 @@ func SearchXvideos(query string, page int) []types.Video {
 		}
 	}
 
-	// High-availability fallback to Eporner API
-	epVideos := searchEporner(query, page)
-	if len(epVideos) > 0 {
-		return epVideos
-	}
-
 	return []types.Video{}
 }
 
-type epornerSearchResponse struct {
+type redtubeSearchResponse struct {
 	Videos []struct {
-		ID           string `json:"id"`
-		Title        string `json:"title"`
-		LengthMin    string `json:"length_min"`
-		DefaultThumb struct {
-			SRC string `json:"src"`
-		} `json:"default_thumb"`
-		URL string `json:"url"`
+		Video struct {
+			Duration     string `json:"duration"`
+			Views        int    `json:"views"`
+			VideoID      string `json:"video_id"`
+			Rating       string `json:"rating"`
+			Title        string `json:"title"`
+			URL          string `json:"url"`
+			EmbedURL     string `json:"embed_url"`
+			DefaultThumb string `json:"default_thumb"`
+			Thumb        string `json:"thumb"`
+		} `json:"video"`
 	} `json:"videos"`
 }
 
-func searchEporner(query string, page int) []types.Video {
-	q := query
+func searchRedtube(query string, page int) []types.Video {
+	q := strings.TrimSpace(query)
 	if q == "" {
-		q = "trending"
+		q = "popular"
 	}
-	apiUrl := fmt.Sprintf("https://www.eporner.com/api/v2/web/search/?query=%s&per_page=30&page=%d", url.QueryEscape(q), page+1)
-	client := GetHTTPClient(6 * time.Second)
+	apiUrl := fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
+	client := &http.Client{Timeout: 6 * time.Second}
 	req, _ := http.NewRequest("GET", apiUrl, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
@@ -148,19 +153,24 @@ func searchEporner(query string, page int) []types.Video {
 	}
 	defer res.Body.Close()
 
-	var data epornerSearchResponse
+	var data redtubeSearchResponse
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
 		return nil
 	}
 
 	var results []types.Video
-	for _, v := range data.Videos {
-		if v.ID != "" && v.Title != "" {
+	for _, item := range data.Videos {
+		v := item.Video
+		if v.VideoID != "" && v.Title != "" {
+			thumb := v.DefaultThumb
+			if thumb == "" {
+				thumb = v.Thumb
+			}
 			results = append(results, types.Video{
-				ID:       "ep_" + v.ID,
+				ID:       "rt_" + v.VideoID,
 				Title:    v.Title,
-				Poster:   v.DefaultThumb.SRC,
-				Duration: v.LengthMin + " min",
+				Poster:   thumb,
+				Duration: v.Duration,
 				Type:     "adult",
 				Href:     v.URL,
 			})
@@ -170,6 +180,16 @@ func searchEporner(query string, page int) []types.Video {
 }
 
 func XvideosDetails(id string) *types.VideoDetails {
+	if strings.HasPrefix(id, "rt_") {
+		rtID := strings.TrimPrefix(id, "rt_")
+		embedUrl := fmt.Sprintf("https://embed.redtube.com/?id=%s", rtID)
+		return &types.VideoDetails{
+			Iframe:  embedUrl,
+			Mp4:     nil,
+			Mirrors: []string{embedUrl},
+		}
+	}
+
 	if strings.HasPrefix(id, "ep_") {
 		epID := strings.TrimPrefix(id, "ep_")
 		embedUrl := fmt.Sprintf("https://www.eporner.com/embed/%s/", epID)

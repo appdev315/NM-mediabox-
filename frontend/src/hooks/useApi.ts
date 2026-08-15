@@ -386,7 +386,7 @@ export function useApi() {
     const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(query)}&page=${pageNum}`, { headers });
     if (!res.ok) return [];
     const data = await res.json();
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       clientCache.set(cacheKey, data, 3600);
     }
     return data;
