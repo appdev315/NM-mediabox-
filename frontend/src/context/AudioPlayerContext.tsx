@@ -70,6 +70,52 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []); // No deps — reads from refs
 
+  const reconnectAttemptRef = useRef(0);
+  const isReconnectingRef = useRef(false);
+
+  const attemptReconnect = useCallback((reason: string) => {
+    const track = currentTrackRef.current;
+    const audio = audioRef.current;
+    if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current) return;
+    if (isReconnectingRef.current) return;
+
+    isReconnectingRef.current = true;
+    reconnectAttemptRef.current++;
+    console.warn(`[Radio] ${reason} — reconnect attempt #${reconnectAttemptRef.current}`);
+    setIsBuffering(true);
+
+    const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+    const baseUrl = track.url;
+    const url = (!isHls) 
+      ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`
+      : baseUrl;
+
+    if (isHls && hlsRef.current) {
+      hlsRef.current.loadSource(url);
+      audio.play().then(() => {
+        isReconnectingRef.current = false;
+      }).catch((err) => {
+        isReconnectingRef.current = false;
+        console.error('[Radio] Hls reconnect play failed:', err);
+        if (err.name !== 'NotAllowedError') {
+          setIsBuffering(false);
+        }
+      });
+    } else {
+      audio.src = url;
+      audio.load();
+      audio.play().then(() => {
+        isReconnectingRef.current = false;
+      }).catch((err) => {
+        isReconnectingRef.current = false;
+        console.error('[Radio] Sync reconnect failed:', err);
+        if (err.name !== 'NotAllowedError') {
+          setIsBuffering(false);
+        }
+      });
+    }
+  }, []);
+
   const playTrack = useCallback((track: Track) => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -82,6 +128,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // New track
     isUserPausedRef.current = false;
+    reconnectAttemptRef.current = 0;
     setCurrentTrack(track);
     setIsBuffering(true);
 
@@ -99,7 +146,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native Apple Hardware HLS (Safari / macOS / iOS) — ~0% CPU, hardware DSP audio decoding
+        // Native Apple Hardware HLS (Safari / macOS / iOS)
         audio.src = url;
       } else if (Hls.isSupported()) {
         const hls = new Hls({
@@ -120,33 +167,34 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('[HLS] Network error encountered, attempting automatic recovery...');
-                hls.startLoad();
+                console.warn('[HLS] Network error encountered, delegating to attemptReconnect...');
+                attemptReconnect('hls network error');
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn('[HLS] Media error encountered, attempting automatic recovery...');
+                console.warn('[HLS] Media error encountered, recovering media...');
                 hls.recoverMediaError();
                 break;
               default:
-                console.error('[HLS] Fatal unrecoverable error, destroying instance');
-                stop();
+                console.error('[HLS] Fatal error, delegating to attemptReconnect...');
+                attemptReconnect('hls fatal error');
                 break;
             }
           }
         });
       } else {
         audio.src = url;
+        audio.load();
       }
     } else {
       audio.src = url;
+      audio.load();
     }
 
-    audio.load();
     audio.play().catch(() => setIsBuffering(false));
     setIsPlaying(true);
-  }, [togglePlayPause, stop]); // togglePlayPause is stable (no deps)
+  }, [attemptReconnect, togglePlayPause]);
 
-  // MediaSession — separate effect so handlers always use latest refs
+  // MediaSession — separate effect with explicit user-pause tracking
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack) return;
 
@@ -157,83 +205,50 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     });
 
     navigator.mediaSession.setActionHandler('play', () => {
+      isUserPausedRef.current = false;
       audioRef.current?.play().catch(() => { });
       setIsPlaying(true);
     });
     navigator.mediaSession.setActionHandler('pause', () => {
+      isUserPausedRef.current = true;
       audioRef.current?.pause();
       setIsPlaying(false);
     });
     navigator.mediaSession.setActionHandler('stop', () => stop());
   }, [currentTrack, stop]);
 
-  // Handle native audio events, reconnect logic, heartbeat
+  // Handle native audio events, reconnect logic, and frozen stream watchdog
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    // --- Reconnect state ---
-    let reconnectAttempt = 0;
-    const MAX_RECONNECT = 5; // Increased max retries for background stability
-
-    const attemptReconnect = (reason: string) => {
-      const track = currentTrackRef.current;
-      if (!track || track.type !== 'radio') return;
-      if (reconnectAttempt >= MAX_RECONNECT) {
-        console.error(`[Radio] Max reconnect reached (${reason}), giving up`);
-        setIsPlaying(false);
-        setIsBuffering(false);
-        return;
-      }
-
-      reconnectAttempt++;
-      console.warn(`[Radio] ${reason} — reconnect ${reconnectAttempt}/${MAX_RECONNECT} (Synchronous)`);
-      setIsBuffering(true);
-
-      // SYNCHRONOUS RECONNECT: 
-      // Do NOT use setTimeout here. If the screen is off, the OS will suspend JS 
-      // when the audio stops. By reconnecting synchronously, we keep the audio session alive.
-      const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-      const baseUrl = track.url;
-      const url = (!isHls) 
-        ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`
-        : baseUrl;
-
-      if (isHls && hlsRef.current) {
-        hlsRef.current.loadSource(url);
-        audio.play().catch((err) => {
-          console.error('[Radio] Hls reconnect play failed:', err);
-          if (err.name !== 'NotAllowedError') {
-            setIsBuffering(false);
-            setIsPlaying(false);
-          }
-        });
-      } else {
-        audio.src = url;
-        audio.load();
-        audio.play().catch((err) => {
-          console.error('[Radio] Sync reconnect failed:', err);
-          if (err.name !== 'NotAllowedError') {
-            setIsBuffering(false);
-            setIsPlaying(false);
-          }
-        });
-      }
-    };
+    let lastProgressTime = Date.now();
 
     // --- Event handlers ---
-    const onPlay = () => setIsPlaying(true);
+    const onPlay = () => {
+      setIsPlaying(true);
+      lastProgressTime = Date.now();
+    };
+
     const onPlaying = () => {
       setIsPlaying(true);
       setIsBuffering(false);
-      reconnectAttempt = 0; // Reset on successful playback
+      reconnectAttemptRef.current = 0; // Reset backoff on successful stream playback
+      lastProgressTime = Date.now();
     };
-    const onWaiting = () => setIsBuffering(true);
+
+    const onTimeUpdate = () => {
+      lastProgressTime = Date.now();
+    };
+
+    const onWaiting = () => {
+      setIsBuffering(true);
+      lastProgressTime = Date.now(); // Do not trigger freeze during buffering
+    };
+
     const onPause = () => {
-      // If the user didn't explicitly pause, but the audio paused (e.g. system interruption, screen lock)
-      // we try to force it back to playing immediately to prevent background suspension.
       if (!isUserPausedRef.current && currentTrackRef.current?.type === 'radio') {
-        console.warn('[Radio] System paused audio, forcing resume...');
+        console.warn('[Radio] System paused audio, resuming...');
         audio.play().catch(() => setIsPlaying(false));
       } else {
         setIsPlaying(false);
@@ -242,7 +257,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     const onError = () => {
       console.error('[Audio] Playback error');
-      // For radio: try reconnect with exponential backoff
       if (currentTrackRef.current?.type === 'radio') {
         attemptReconnect('playback error');
       } else {
@@ -252,16 +266,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onStalled = () => {
-      // Browsers often fire 'stalled' even when playback is fine or can recover seamlessly.
-      // Forcefully reconnecting here causes immediate audio interruptions for the user.
-      // We rely on the 15-second heartbeat to detect actual dead streams instead.
-      console.warn('[Audio] Stream stalled but allowing browser to recover natively.');
+      console.warn('[Audio] Stream stalled, allowing native buffer fill.');
     };
 
     // --- Online/Offline handlers ---
     const onOffline = () => {
       console.warn('[Network] Went offline');
-      // Don't stop — just mark buffering. Will auto-resume when online.
       if (currentTrackRef.current?.type === 'radio') {
         setIsBuffering(true);
       }
@@ -270,22 +280,31 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onOnline = () => {
       console.log('[Network] Back online, refreshing live radio stream...');
       const track = currentTrackRef.current;
-      if (track?.type === 'radio' && isPlayingRef.current) {
-        reconnectAttempt = 0;
-        const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-        const freshUrl = !isHls 
-          ? `${track.url}${track.url.includes('?') ? '&' : '?'}cb=${Date.now()}`
-          : track.url;
-        audio.pause();
-        audio.src = freshUrl;
-        audio.load();
-        audio.play().catch(() => { });
+      if (track?.type === 'radio' && isPlayingRef.current && !isUserPausedRef.current) {
+        reconnectAttemptRef.current = 0;
+        attemptReconnect('network back online');
       }
     };
+
+    // --- Watchdog: detect truly frozen streams without false positives ---
+    const watchdogInterval = setInterval(() => {
+      if (document.hidden) return; // Ignore when tab/app is in background power saving
+      if (!currentTrackRef.current || currentTrackRef.current.type !== 'radio') return;
+      if (!isPlayingRef.current || audio.paused || isUserPausedRef.current) return;
+
+      // If playing but no timeupdate/progress for over 25 seconds and not buffering
+      const elapsed = Date.now() - lastProgressTime;
+      if (elapsed > 25000) {
+        console.warn('[Radio] Watchdog: stream frozen for >25s, reconnecting...');
+        lastProgressTime = Date.now();
+        attemptReconnect('watchdog: stream frozen');
+      }
+    }, 5000);
 
     // --- Register listeners ---
     audio.addEventListener('play', onPlay);
     audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('error', onError);
@@ -294,8 +313,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', onOnline);
 
     return () => {
+      clearInterval(watchdogInterval);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);

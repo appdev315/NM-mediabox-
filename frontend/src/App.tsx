@@ -6,7 +6,7 @@ import { useLanguage } from './context/LanguageContext';
 import { triggerViewportExpand } from './hooks/useViewportExpand';
 
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
-import { AudioPlayerProvider } from './context/AudioPlayerContext';
+import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
 import { Home } from './pages/Home';
 
 // Lazy-loaded routes for code-splitting and bundle size reduction
@@ -57,11 +57,29 @@ function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
   return null;
 }
 
-function BottomNav() {
+function NavigationAudioStopper() {
+  const location = useLocation();
+  const { stop } = useAudioPlayer();
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/movie/') || location.pathname.startsWith('/adult/')) {
+      stop();
+    }
+  }, [location.pathname, stop]);
+
+  return null;
+}
+
+function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
   const location = useLocation();
   const { t } = useLanguage();
   
-  if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) return null;
+  if (location.pathname.includes('/movie/') || location.pathname.startsWith('/adult/')) return null;
+
+  const isFav = isAdultApp ? location.pathname === '/adult/favorites' : location.pathname === '/favorites';
+  const toUrl = isAdultApp 
+    ? (isFav ? '/adult' : '/adult/favorites') 
+    : (isFav ? '/' : '/favorites');
 
   return (
     <div 
@@ -69,11 +87,11 @@ function BottomNav() {
       style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
     >
       <Link 
-        to={location.pathname === '/favorites' ? '/' : '/favorites'} 
-        className={`font-bold transition-opacity opacity-100 flex items-center justify-center w-full`}
-        style={{ color: location.pathname === '/favorites' ? 'var(--button-color)' : 'var(--text-color)' }}
+        to={toUrl} 
+        className="font-bold transition-opacity opacity-100 flex items-center justify-center w-full"
+        style={{ color: isFav ? 'var(--button-color)' : 'var(--text-color)' }}
       >
-        {location.pathname === '/favorites' ? t('home') : t('myFavorites')}
+        {isFav ? t('home') : t('myFavorites')}
       </Link>
     </div>
   );
@@ -88,63 +106,54 @@ function HardwareBackButtonHandler() {
     try {
       if (WebApp && WebApp.BackButton) {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
-        if (!isRoot) {
+        if (isRoot) {
+          WebApp.BackButton.hide();
+        } else {
           WebApp.BackButton.show();
-          const handleTgBack = () => {
+          const handleBack = () => {
             if (window.history.length > 1) {
               navigate(-1);
             } else {
-              navigate('/', { replace: true });
+              navigate(location.pathname.startsWith('/adult') ? '/adult' : '/');
             }
           };
-          WebApp.BackButton.onClick(handleTgBack);
+          WebApp.BackButton.onClick(handleBack);
           return () => {
-            WebApp.BackButton.offClick(handleTgBack);
+            WebApp.BackButton.offClick(handleBack);
           };
-        } else {
-          WebApp.BackButton.hide();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[BackButton] WebApp BackButton error:', e);
+    }
   }, [location.pathname, navigate]);
 
-  // Native Android Capacitor Hardware Back Button handler
+  // Capacitor Android hardware back button
   useEffect(() => {
-    let backListener: any = null;
-
-    const registerBackHandler = async () => {
-      try {
-        backListener = await CapacitorApp.addListener('backButton', (data) => {
-          const currentPath = window.location.pathname;
-          const isRoot = currentPath === '/' || currentPath === '/movies' || currentPath === '/adult';
-
-          if (!isRoot) {
-            if (data?.canGoBack || window.history.length > 1) {
-              navigate(-1);
-            } else {
-              navigate('/', { replace: true });
-            }
-          } else {
-            CapacitorApp.exitApp();
-          }
-        });
-      } catch (e) {
-        console.error('Capacitor backButton setup error:', e);
-      }
-    };
-
-    registerBackHandler();
+    let listenerHandle: any = null;
+    try {
+      CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+        const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
+        if (isRoot) {
+          CapacitorApp.exitApp();
+        } else if (canGoBack) {
+          navigate(-1);
+        } else {
+          navigate(location.pathname.startsWith('/adult') ? '/adult' : '/');
+        }
+      }).then(handle => {
+        listenerHandle = handle;
+      });
+    } catch (e) {
+      console.warn('[BackButton] Capacitor listener setup error:', e);
+    }
 
     return () => {
-      if (backListener) {
-        if (typeof backListener.remove === 'function') {
-          backListener.remove();
-        } else if (backListener.then) {
-          backListener.then((h: any) => h?.remove?.()).catch(() => {});
-        }
+      if (listenerHandle && listenerHandle.remove) {
+        listenerHandle.remove();
       }
     };
-  }, [navigate]);
+  }, [location.pathname, navigate]);
 
   return null;
 }
@@ -153,6 +162,7 @@ function MainApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
+      <NavigationAudioStopper />
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
@@ -170,7 +180,7 @@ function MainApp() {
           </Routes>
         </Suspense>
       </div>
-      <BottomNav />
+      <BottomNav isAdultApp={false} />
       <FloatingTitle />
       <GlobalAudioPlayer />
     </BrowserRouter>
@@ -181,6 +191,7 @@ function AdultApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
+      <NavigationAudioStopper />
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative">
@@ -189,12 +200,13 @@ function AdultApp() {
             <Route path="/" element={<Adult />} />
             <Route path="/adult" element={<Adult />} />
             <Route path="/adult/:id" element={<AdultVideo />} />
+            <Route path="/adult/favorites" element={<AdultFavorites />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/favorites" element={<AdultFavorites />} />
           </Routes>
         </Suspense>
       </div>
-      <BottomNav />
+      <BottomNav isAdultApp={true} />
       <FloatingTitle />
     </BrowserRouter>
   );
@@ -208,7 +220,9 @@ export default function App() {
     try {
       if (WebApp.setBackgroundColor) WebApp.setBackgroundColor('#17212b');
       if (WebApp.setHeaderColor) WebApp.setHeaderColor('#17212b');
-    } catch (_) {}
+    } catch (e) {
+      console.debug('[WebApp] Color config skipped:', e);
+    }
 
     let appViewportTimers: ReturnType<typeof setTimeout>[] = [];
 
@@ -256,7 +270,9 @@ export default function App() {
       if (WebApp.onEvent) {
         WebApp.onEvent('viewportChanged', handleViewportChange);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.debug('[WebApp] viewportChanged listener skipped:', e);
+    }
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleVisualViewportResize);
@@ -269,7 +285,9 @@ export default function App() {
         if (WebApp.offEvent) {
           WebApp.offEvent('viewportChanged', handleViewportChange);
         }
-      } catch (_) {}
+      } catch (e) {
+        console.debug('[WebApp] offEvent skipped:', e);
+      }
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleVisualViewportResize);
       }

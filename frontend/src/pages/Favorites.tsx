@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Hls from 'hls.js';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import React from 'react';
@@ -24,6 +26,8 @@ export function Favorites() {
   const [activeTvChannel, setActiveTvChannel] = useState<any | null>(null);
   const [tvError, setTvError] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const loadHistory = () => {
     setHistoryMovies(favoritesManager.getHistory('movie'));
@@ -35,9 +39,81 @@ export function Favorites() {
   useEffect(() => {
     // Instant 0ms load from LocalStorage (history_movies, history_series, etc.)
     loadHistory();
-    // Cloud favorites sync disabled — this page renders local watch history
-    // (history_movies/history_series), not cloud-synced favorites (favorites_movies).
   }, []);
+
+  // Hls.js stream lifecycle for TV channels
+  useEffect(() => {
+    if (!activeTvChannel) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    setTvError(false);
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const streamUrl = activeTvChannel.url;
+    const isHls = streamUrl.includes('.m3u8') || streamUrl.includes('/playlist') || streamUrl.includes('/proxy');
+
+    if (isHls && !video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        manifestLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 15000,
+      });
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              setTvError(true);
+              hls.destroy();
+              hlsRef.current = null;
+              break;
+          }
+        }
+      });
+    } else {
+      video.src = streamUrl;
+      video.load();
+      video.play().catch(() => {});
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+    };
+  }, [activeTvChannel]);
 
   const removeHistoryItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();
@@ -52,6 +128,7 @@ export function Favorites() {
     const confirmMsg = t('confirmClearHistory') || 'Вы уверены, что хотите очистить всю историю?';
     if (window.confirm(confirmMsg)) {
       try {
+        stop(); // Stop active radio playback
         localStorage.removeItem('history_movies');
         localStorage.removeItem('history_series');
         localStorage.removeItem('history_radio');
@@ -74,11 +151,15 @@ export function Favorites() {
 
   const handlePlayRadio = (station: any) => {
     setActiveTvChannel(null);
+    const finalUrl = station.url?.startsWith('http://')
+      ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(station.url)}`
+      : station.url;
+
     playTrack({
       id: station.id,
       title: station.name,
       artist: station.group || 'Live Radio',
-      url: station.url,
+      url: finalUrl,
       coverUrl: station.logo,
       type: 'radio'
     });
@@ -159,7 +240,7 @@ export function Favorites() {
                 </div>
               ) : (
                 <video 
-                  src={activeTvChannel.url}
+                  ref={videoRef}
                   autoPlay
                   controls 
                   playsInline

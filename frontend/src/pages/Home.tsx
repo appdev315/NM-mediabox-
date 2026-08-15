@@ -83,10 +83,17 @@ export function Home() {
     }
   }, [items, homeSections, scrollY]);
 
-  // Save scroll position on scroll
+  // Save scroll position on scroll with RAF throttling for 60/120fps UI performance
   useEffect(() => {
+    let ticking = false;
     const handleScrollSave = () => {
-      setScrollY(window.scrollY);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrollY(window.scrollY);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     window.addEventListener('scroll', handleScrollSave, { passive: true });
     return () => {
