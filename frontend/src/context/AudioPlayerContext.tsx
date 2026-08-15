@@ -283,25 +283,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // --- Heartbeat: detect frozen radio streams ---
-    let lastCurrentTime = 0;
-    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-
-    if (currentTrackRef.current?.type === 'radio') {
-      heartbeatInterval = setInterval(() => {
-        if (document.hidden) return; // Allow macOS Safari App Nap power savings
-        if (!currentTrackRef.current || currentTrackRef.current.type !== 'radio') return;
-        if (!isPlayingRef.current || audio.paused) return;
-
-        // If currentTime hasn't advanced in 20 seconds, stream is frozen
-        if (audio.currentTime > 0 && audio.currentTime === lastCurrentTime) {
-          console.warn('[Radio] Heartbeat: stream frozen, reconnecting...');
-          attemptReconnect('heartbeat: frozen stream');
-        }
-        lastCurrentTime = audio.currentTime;
-      }, 20000);
-    }
-
     // --- Register listeners ---
     audio.addEventListener('play', onPlay);
     audio.addEventListener('playing', onPlaying);
@@ -321,9 +302,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('stalled', onStalled);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
-  }, [currentTrack]); // Re-attach when track changes to reset heartbeat & reconnect state
+  }, [currentTrack]); // Re-attach when track changes to reset reconnect state
 
   return (
     <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, playTrack, togglePlayPause, stop, audioRef }}>
