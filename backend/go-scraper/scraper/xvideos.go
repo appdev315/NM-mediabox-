@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -107,10 +108,78 @@ func SearchXvideos(query string, page int) []types.Video {
 		}
 	}
 
+	// High-availability fallback to Eporner API
+	epVideos := searchEporner(query, page)
+	if len(epVideos) > 0 {
+		return epVideos
+	}
+
 	return []types.Video{}
 }
 
+type epornerSearchResponse struct {
+	Videos []struct {
+		ID           string `json:"id"`
+		Title        string `json:"title"`
+		LengthMin    string `json:"length_min"`
+		DefaultThumb struct {
+			SRC string `json:"src"`
+		} `json:"default_thumb"`
+		URL string `json:"url"`
+	} `json:"videos"`
+}
+
+func searchEporner(query string, page int) []types.Video {
+	q := query
+	if q == "" {
+		q = "trending"
+	}
+	apiUrl := fmt.Sprintf("https://www.eporner.com/api/v2/web/search/?query=%s&per_page=30&page=%d", url.QueryEscape(q), page+1)
+	client := GetHTTPClient(6 * time.Second)
+	req, _ := http.NewRequest("GET", apiUrl, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	res, err := client.Do(req)
+	if err != nil || res == nil || res.StatusCode != 200 {
+		if res != nil {
+			res.Body.Close()
+		}
+		return nil
+	}
+	defer res.Body.Close()
+
+	var data epornerSearchResponse
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		return nil
+	}
+
+	var results []types.Video
+	for _, v := range data.Videos {
+		if v.ID != "" && v.Title != "" {
+			results = append(results, types.Video{
+				ID:       "ep_" + v.ID,
+				Title:    v.Title,
+				Poster:   v.DefaultThumb.SRC,
+				Duration: v.LengthMin + " min",
+				Type:     "adult",
+				Href:     v.URL,
+			})
+		}
+	}
+	return results
+}
+
 func XvideosDetails(id string) *types.VideoDetails {
+	if strings.HasPrefix(id, "ep_") {
+		epID := strings.TrimPrefix(id, "ep_")
+		embedUrl := fmt.Sprintf("https://www.eporner.com/embed/%s/", epID)
+		return &types.VideoDetails{
+			Iframe:  embedUrl,
+			Mp4:     nil,
+			Mirrors: []string{embedUrl},
+		}
+	}
+
 	realID := id
 	if strings.HasPrefix(id, "video.") {
 		parts := strings.Split(id, ".")

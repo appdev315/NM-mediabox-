@@ -162,6 +162,9 @@ function MainApp() {
             <Route path="/" element={<Home />} />
             <Route path="/movies" element={<Home />} />
             <Route path="/movie/:id" element={<Movie />} />
+            <Route path="/adult" element={<Adult />} />
+            <Route path="/adult/:id" element={<AdultVideo />} />
+            <Route path="/adult/favorites" element={<AdultFavorites />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/favorites" element={<Favorites />} />
           </Routes>
