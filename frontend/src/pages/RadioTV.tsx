@@ -139,8 +139,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         // Radiopotok JSON
         const res = await fetch('/radiopotok.json');
         const data = await res.json();
-        parsed = data.map((d: any) => ({
-          id: Math.random().toString(36).substring(7),
+        parsed = data.map((d: any, idx: number) => ({
+          id: d.id || `rp_${idx}_${d.name ? d.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ]/g, '') : idx}`,
           name: d.name,
           url: d.stream,
           logo: d.logo || '',

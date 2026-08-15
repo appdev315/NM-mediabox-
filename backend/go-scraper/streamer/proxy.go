@@ -18,6 +18,21 @@ var defaultClient = &http.Client{
 	},
 }
 
+// streamClient has Timeout: 0 (no overall duration deadline) for infinite live Radio & TV streams
+var streamClient = &http.Client{
+	Timeout: 0,
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        1000,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	},
+}
+
 func IsAllowedProxyUrl(urlStr string) bool {
 	parsed, err := url.Parse(urlStr)
 	if err != nil {
@@ -64,7 +79,7 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	req.Header.Set("Accept", "*/*")
 
-	res, err := defaultClient.Do(req)
+	res, err := streamClient.Do(req)
 	if err != nil {
 		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
 		return
