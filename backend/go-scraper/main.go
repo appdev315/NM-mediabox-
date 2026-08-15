@@ -147,6 +147,7 @@ func main() {
 	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
 	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)
+	mux.HandleFunc("/api/report-missing", streamer.ReportMissingHandler)
 
 	// Start background cache warmer for trends
 	streamer.StartCacheWarmer()
