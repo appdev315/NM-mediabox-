@@ -8,6 +8,7 @@ import { BannerAd } from '../components/BannerAd';
 import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
+import { triggerViewportExpand } from '../hooks/useViewportExpand';
 
 
 
@@ -351,8 +352,8 @@ export function Adult() {
           }}
           onBlur={() => {
             requestAnimationFrame(() => {
-              window.scrollTo(0, window.scrollY);
-              try { WebApp.expand(); } catch (_) {}
+              window.scrollTo(0, 0);
+              triggerViewportExpand();
             });
           }}
           placeholder={t('search')}
