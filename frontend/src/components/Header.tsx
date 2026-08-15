@@ -6,20 +6,14 @@ export function Header() {
   const location = useLocation();
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  const isAdultQuery = window.location.href.includes('app=adult');
-  const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || isAdultQuery;
-
   useEffect(() => {
-    if (location.pathname !== '/radio-tv' && !isAdultApp) {
-      setShowScrollTop(false);
-      return;
-    }
     let ticking = false;
     let lastState = false;
+
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const shouldShow = window.scrollY > 300;
+          const shouldShow = window.scrollY > 300 && location.pathname !== '/profile';
           if (shouldShow !== lastState) {
             lastState = shouldShow;
             setShowScrollTop(shouldShow);
@@ -29,9 +23,10 @@ export function Header() {
         ticking = true;
       }
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [location.pathname, isAdultApp]);
+  }, [location.pathname]);
 
   return (
     <button 

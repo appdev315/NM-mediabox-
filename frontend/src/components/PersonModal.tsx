@@ -16,7 +16,6 @@ export const PersonModal: React.FC<PersonModalProps> = ({ personId, onClose, fet
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
     fetchPersonDetails(personId)
       .then((data) => {
         if (isMounted) {

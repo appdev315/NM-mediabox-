@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import ReactPlayer from 'react-player';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
@@ -21,9 +20,8 @@ export function Movie() {
   const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
   const { triggerMovieAd } = useAdManager();
-  const { savedTimecode } = usePlaybackResilience({ mediaId: id });
+  const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: id });
   
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [sources, setSources] = useState<{name: string, url: string, isLiftw?: boolean}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -133,6 +131,14 @@ export function Movie() {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!data) return;
 
+        // Timecode tracking for playback position resilience
+        if (data.event === 'timeupdate' || data.type === 'timeupdate' || data.event === 'time' || data.type === 'time') {
+          const time = data.time || data.currentTime || data.position;
+          if (typeof time === 'number' && time > 0 && id) {
+            saveTimecode(id, time);
+          }
+        }
+
         const isErrorEvent = 
           data.event === 'error' || 
           data.type === 'error' || 
@@ -153,14 +159,14 @@ export function Movie() {
             setContentUnavailable(true);
           }
         }
-      } catch (_) {
+      } catch (e) {
         // Ignore non-JSON postMessage payloads
       }
     };
 
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [iframeUrl, sources]);
+  }, [id, iframeUrl, saveTimecode, sources]);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
@@ -223,7 +229,6 @@ export function Movie() {
     let isMounted = true;
     
     const loadData = async () => {
-      setStreamUrl(null);
       setIframeUrl(null);
       setSources([]);
       setIsExtracting(false);
@@ -287,7 +292,6 @@ export function Movie() {
     abortControllerRef.current = controller;
 
     setIsExtracting(true);
-    setStreamUrl(null);
     setIframeUrl(null);
     setSources([]);
     setContentUnavailable(false);
@@ -603,7 +607,7 @@ export function Movie() {
           </p>
         )}
 
-        {contentUnavailable && !isExtracting && !iframeUrl && !streamUrl && (
+        {contentUnavailable && !isExtracting && !iframeUrl && (
           <div className="mb-6 p-6 rounded-2xl text-center space-y-4" style={{ backgroundColor: 'var(--hint-color)' }}>
             <div className="text-4xl">🎬</div>
             <p className="font-bold text-lg" style={{ color: 'var(--text-color)' }}>
@@ -641,7 +645,7 @@ export function Movie() {
           </div>
         )}
 
-        {!(isExtracting || streamUrl || iframeUrl) && !contentUnavailable && (
+        {!isExtracting && !iframeUrl && !contentUnavailable && (
           <div className="flex flex-col gap-3 mb-6">
             <button
               onClick={() => handleWatch(false)}
@@ -688,7 +692,7 @@ export function Movie() {
         )}
 
         {/* Recommendations / Рекомендуем также (Only on initial card before pressing Watch) */}
-        {!(isExtracting || streamUrl || iframeUrl) && recommendations.length > 0 && (
+        {!isExtracting && !iframeUrl && recommendations.length > 0 && (
           <div className="relative border-t border-white/10 pt-4 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold text-xl">{t('recommendations')}</h2>
@@ -715,7 +719,6 @@ export function Movie() {
                   key={rec.id} 
                   className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
                   onClick={() => {
-                    setStreamUrl(null);
                     setIframeUrl(null);
                     setSources([]);
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
@@ -746,13 +749,12 @@ export function Movie() {
               </span>
             </div>
           )}
-          {sources.length > 1 && !isExtracting && (iframeUrl || streamUrl) && (
+          {sources.length > 1 && !isExtracting && iframeUrl && (
             <div className="flex justify-center items-center gap-2 mb-3">
               {sources.map((src, idx) => (
                 <button
                   key={src.url}
                   onClick={() => {
-                    setStreamUrl(null);
                     setIframeUrl(src.url);
                   }}
                   className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-sm cursor-pointer ${
@@ -766,7 +768,7 @@ export function Movie() {
               ))}
             </div>
           )}
-          {(isExtracting || streamUrl || iframeUrl) && (
+          {(isExtracting || iframeUrl) && (
             <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-2 shadow-xl mb-8 flex items-center justify-center">
             {isExtracting ? (
               <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
@@ -789,27 +791,13 @@ export function Movie() {
                   />
                 </div>
               </div>
-            ) : streamUrl ? (
-              <ReactPlayer
-                url={streamUrl}
-                width="100%"
-                height="100%"
-                controls
-                playsinline
-                onError={() => {
-                  console.log("ReactPlayer loading error, force-refreshing streams...");
-                  handleWatch(true);
-                }}
-                // @ts-ignore
-                config={{ file: { forceVideo: true, forceHLS: false, attributes: { playsInline: true, preload: 'metadata' } } }}
-              />
             ) : null}
           </div>
         )}
         </div>
 
         {/* TV Series Seasons and Episodes UI (Only in Watch Mode) */}
-        {(isExtracting || streamUrl || iframeUrl) && mediaType === 'tv' && (
+        {(isExtracting || iframeUrl) && mediaType === 'tv' && (
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -825,9 +813,9 @@ export function Movie() {
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {(liftwEpisodes ? Object.keys(liftwEpisodes).sort((a, b) => parseInt(a) - parseInt(b)) : (movie?.seasons ? movie.seasons.filter((s: any) => s.season_number > 0).map((s: any) => String(s.season_number)) : ['1', '2', '3', '4', '5'])).map((season: string) => (
-                    <option key={season} value={season}>
-                      {season} {t('season') || 'Сезон'}
+                  {Object.keys(liftwEpisodes || { '1': ['1'] }).map((season) => (
+                    <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
+                      {t('season')} {season}
                     </option>
                   ))}
                 </select>
@@ -837,19 +825,13 @@ export function Movie() {
               <div className="flex-1 relative">
                 <select
                   value={activeEpisode || '1'}
-                  onChange={(e) => {
-                    const ep = e.target.value;
-                    handleSeasonEpisodeChange(activeSeason || '1', ep);
-                  }}
+                  onChange={(e) => handleSeasonEpisodeChange(activeSeason || '1', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {(liftwEpisodes && activeSeason && liftwEpisodes[activeSeason] 
-                    ? [...liftwEpisodes[activeSeason]].sort((a: string, b: string) => parseInt(a) - parseInt(b)) 
-                    : Array.from({ length: 24 }, (_, i) => String(i + 1))
-                  ).map((ep: string) => (
-                    <option key={ep} value={ep}>
-                      {(t('episode' as any) || 'Episode')} {ep}
+                  {(liftwEpisodes && liftwEpisodes[activeSeason || '1'] ? liftwEpisodes[activeSeason || '1'] : ['1']).map((episode: string) => (
+                    <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
+                      {t('episode')} {episode}
                     </option>
                   ))}
                 </select>
@@ -860,7 +842,7 @@ export function Movie() {
         )}
 
         {/* Cast Carousel / В главных ролях (Under player in Watch mode) */}
-        {(isExtracting || streamUrl || iframeUrl) && cast.length > 0 && (
+        {(isExtracting || iframeUrl) && cast.length > 0 && (
           <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
             <h3 className="font-extrabold text-base">{t('topCast')}</h3>
             <div className="flex overflow-x-auto gap-3 pt-1 pb-6 scrollbar-thin">
