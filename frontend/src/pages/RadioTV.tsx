@@ -7,6 +7,7 @@ import { fetchWithRetry } from '../utils/fetchWithRetry';
 import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
+import { triggerViewportExpand } from '../hooks/useViewportExpand';
 
 // Get backend URL from environment or use default
 
@@ -646,8 +647,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }}
         onBlur={() => {
           requestAnimationFrame(() => {
-            window.scrollTo(0, window.scrollY);
-            try { WebApp.expand(); } catch (_) {}
+            window.scrollTo(0, 0);
+            triggerViewportExpand();
           });
         }}
         className="w-full p-3 rounded-xl mb-4 border focus:outline-none focus:ring-2 focus:ring-blue-500"

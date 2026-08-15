@@ -84,6 +84,42 @@ export function Movie() {
     };
   }, [iframeUrl, sources, isPrimaryReady]);
 
+  // Instant postMessage error listener for 0ms fallback on explicit player error events
+  useEffect(() => {
+    const handlePlayerMessage = (event: MessageEvent) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!data) return;
+
+        const isErrorEvent = 
+          data.event === 'error' || 
+          data.type === 'error' || 
+          data.status === 'error' || 
+          data.error === 'not_found' ||
+          data.event === 'not_found' ||
+          data.event === 'player_error';
+
+        if (isErrorEvent && iframeUrl === sources[0]?.url) {
+          console.log('[PlayerFallback] Instant error signal received via postMessage, switching immediately...');
+          if (autoFallbackTimerRef.current) {
+            clearTimeout(autoFallbackTimerRef.current);
+            autoFallbackTimerRef.current = null;
+          }
+          if (sources.length > 1 && sources[1]?.url) {
+            setIframeUrl(sources[1].url);
+          } else {
+            setContentUnavailable(true);
+          }
+        }
+      } catch (_) {
+        // Ignore non-JSON postMessage payloads
+      }
+    };
+
+    window.addEventListener('message', handlePlayerMessage);
+    return () => window.removeEventListener('message', handlePlayerMessage);
+  }, [iframeUrl, sources]);
+
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
     setActiveEpisode(episode);
