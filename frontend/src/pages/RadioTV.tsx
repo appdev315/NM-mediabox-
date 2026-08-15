@@ -559,7 +559,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         video.addEventListener('playing', clearPlaybackTimeout, { once: true });
         video.addEventListener('loadedmetadata', () => {
           video.play().catch(e => console.log('Autoplay prevented', e));
-        });
+        }, { once: true });
       }
     }
 
@@ -568,6 +568,12 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
+      }
+      const vid = videoRef.current;
+      if (vid) {
+        vid.pause();
+        vid.removeAttribute('src');
+        vid.load();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -745,7 +751,14 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                       {item.logo ? (
-                        <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                        <img 
+                          src={item.logo} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover" 
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => (e.currentTarget.style.display = 'none')} 
+                        />
                       ) : (
                         <span className="text-2xl sm:text-3xl">{activeTab === 'radio' ? '📻' : '📺'}</span>
                       )}

@@ -29,6 +29,32 @@ var (
 	adultDetailsCache sync.Map
 )
 
+func init() {
+	// Background sweeper to evict expired adult search and details cache entries
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		for range ticker.C {
+			now := time.Now()
+			adultSearchCache.Range(func(key, value interface{}) bool {
+				if entry, ok := value.(adultCacheEntry); ok {
+					if now.After(entry.exp) {
+						adultSearchCache.Delete(key)
+					}
+				}
+				return true
+			})
+			adultDetailsCache.Range(func(key, value interface{}) bool {
+				if entry, ok := value.(adultCacheEntry); ok {
+					if now.After(entry.exp) {
+						adultDetailsCache.Delete(key)
+					}
+				}
+				return true
+			})
+		}
+	}()
+}
+
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
