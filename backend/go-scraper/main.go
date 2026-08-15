@@ -64,11 +64,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store in cache with 30 min TTL
-	adultSearchCache.Store(cacheKey, adultCacheEntry{
-		data: string(dataBytes),
-		exp:  time.Now().Add(30 * time.Minute),
-	})
+	// Store in cache with 30 min TTL only if results found
+	if len(xvideosRes) > 0 {
+		adultSearchCache.Store(cacheKey, adultCacheEntry{
+			data: string(dataBytes),
+			exp:  time.Now().Add(30 * time.Minute),
+		})
+	}
 
 	w.Write(dataBytes)
 }
