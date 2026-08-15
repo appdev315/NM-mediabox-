@@ -26,33 +26,22 @@ export function Favorites() {
   const playerRef = useRef<HTMLDivElement>(null);
 
   const loadHistory = () => {
-    setHistoryMovies(favoritesManager.getLocal('movie'));
-    setHistorySeries(favoritesManager.getLocal('series'));
-    setHistoryRadio(favoritesManager.getLocal('radio'));
-    setHistoryTv(favoritesManager.getLocal('tv'));
+    setHistoryMovies(favoritesManager.getHistory('movie'));
+    setHistorySeries(favoritesManager.getHistory('series'));
+    setHistoryRadio(favoritesManager.getHistory('radio'));
+    setHistoryTv(favoritesManager.getHistory('tv'));
   };
 
   useEffect(() => {
-    // 1. Instant 0ms load from LocalStorage
+    // Instant 0ms load from LocalStorage (history_movies, history_series, etc.)
     loadHistory();
-
-    // 2. Non-blocking Background Cloud Backup Sync
-    const syncCloudData = async () => {
-      const types = ['movie', 'series', 'radio', 'tv'];
-      for (const type of types) {
-        const merged = await favoritesManager.hydrateFromCloud(type);
-        if (type === 'movie') setHistoryMovies(merged);
-        else if (type === 'series') setHistorySeries(merged);
-        else if (type === 'radio') setHistoryRadio(merged);
-        else if (type === 'tv') setHistoryTv(merged);
-      }
-    };
-    syncCloudData();
+    // Cloud favorites sync disabled — this page renders local watch history
+    // (history_movies/history_series), not cloud-synced favorites (favorites_movies).
   }, []);
 
   const removeHistoryItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();
-    const updated = favoritesManager.remove(type, id);
+    const updated = favoritesManager.removeHistory(type, id);
     if (type === 'movie') setHistoryMovies(updated);
     else if (type === 'series') setHistorySeries(updated);
     else if (type === 'radio') setHistoryRadio(updated);

@@ -9,6 +9,13 @@ const STORAGE_KEYS: Record<string, string> = {
   adult: 'adult_favorites',
 };
 
+const HISTORY_KEYS: Record<string, string> = {
+  movie: 'history_movies',
+  series: 'history_series',
+  radio: 'history_radio',
+  tv: 'history_tv',
+};
+
 export const favoritesManager = {
   // 1. Instant 0ms Read from Local Storage
   getLocal(type: string): any[] {
@@ -20,6 +27,30 @@ export const favoritesManager = {
       console.error('[FavoritesManager] Local read error:', e);
       return [];
     }
+  },
+
+  // 1b. Read from History Storage (history_movies, history_series, etc.)
+  getHistory(type: string): any[] {
+    const key = HISTORY_KEYS[type] || `history_${type}`;
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('[FavoritesManager] History read error:', e);
+      return [];
+    }
+  },
+
+  // 1c. Remove item from History Storage
+  removeHistory(type: string, itemId: string | number): any[] {
+    const key = HISTORY_KEYS[type] || `history_${type}`;
+    const list = this.getHistory(type);
+    const targetId = String(itemId);
+    const updated = list.filter((i: any) => String(i.id) !== targetId);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {}
+    return updated;
   },
 
   // 2. Local Save + Background Cloud Sync

@@ -9,6 +9,7 @@ import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { RadioTVContent } from './RadioTV';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
+import { triggerViewportExpand } from '../hooks/useViewportExpand';
 
 export function Home() {
   const navigate = useNavigate();
@@ -327,8 +328,8 @@ export function Home() {
               }}
               onBlur={() => {
                 requestAnimationFrame(() => {
-                  window.scrollTo(0, window.scrollY);
-                  try { WebApp.expand(); } catch (_) {}
+                  window.scrollTo(0, 0);
+                  triggerViewportExpand();
                 });
               }}
               className="flex-1 p-3 rounded-xl outline-none font-medium border-none shadow-sm text-sm min-w-0"

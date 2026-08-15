@@ -42,6 +42,7 @@ export function Movie() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const autoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPrimaryReady, setIsPrimaryReady] = useState(false);
+  const [contentUnavailable, setContentUnavailable] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -148,6 +149,7 @@ export function Movie() {
       setIframeUrl(null);
       setSources([]);
       setIsExtracting(false);
+      setContentUnavailable(false);
       setMovie(null);
       userSelectedRef.current = false;
       try {
@@ -210,6 +212,7 @@ export function Movie() {
     setStreamUrl(null);
     setIframeUrl(null);
     setSources([]);
+    setContentUnavailable(false);
     userSelectedRef.current = false;
     
     // Scroll to player placeholder immediately
@@ -353,6 +356,11 @@ export function Movie() {
       // Atomic single-pass UI update & unblock
       updateUI();
       evaluateUIUnblock();
+
+      // Detect total source failure — both donors returned 404 / no valid URL
+      if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+        setContentUnavailable(true);
+      }
     } catch (err) {
       console.error("Failed to extract stream", err);
       alert("Failed to load stream");
@@ -517,7 +525,26 @@ export function Movie() {
           </p>
         )}
 
-        {!(isExtracting || streamUrl || iframeUrl) && (
+        {contentUnavailable && !isExtracting && !iframeUrl && !streamUrl && (
+          <div className="mb-6 p-6 rounded-2xl text-center space-y-3" style={{ backgroundColor: 'var(--hint-color)' }}>
+            <div className="text-4xl">🎬</div>
+            <p className="font-bold text-lg" style={{ color: 'var(--text-color)' }}>
+              {t('contentUnavailable') || 'Контент временно недоступен'}
+            </p>
+            <p className="text-sm opacity-70" style={{ color: 'var(--text-color)' }}>
+              {t('contentUnavailableDesc') || 'Фильм не найден на доступных источниках. Попробуйте позже или выберите другой фильм.'}
+            </p>
+            <button
+              onClick={() => { setContentUnavailable(false); handleWatch(true); }}
+              className="px-6 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 shadow"
+              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+            >
+              🔄 {t('retry') || 'Повторить'}
+            </button>
+          </div>
+        )}
+
+        {!(isExtracting || streamUrl || iframeUrl) && !contentUnavailable && (
           <div className="flex flex-col gap-3 mb-6">
             <button
               onClick={() => handleWatch(false)}
