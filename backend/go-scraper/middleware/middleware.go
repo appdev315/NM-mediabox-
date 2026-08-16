@@ -321,6 +321,12 @@ func getClientIP(r *http.Request) string {
 func RateLimiterMiddleware(window time.Duration, maxRequests int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Bypass live streams and proxy chunks from rate limiting to prevent playback cuts
+			if strings.HasPrefix(r.URL.Path, "/api/proxy") || strings.HasPrefix(r.URL.Path, "/api/stream") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			ip := getClientIP(r)
 			now := time.Now()
 

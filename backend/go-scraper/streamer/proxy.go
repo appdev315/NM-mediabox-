@@ -1,7 +1,7 @@
 package streamer
 
 import (
-	"io"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -61,6 +61,16 @@ func IsAllowedProxyUrl(urlStr string) bool {
 }
 
 func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range, Icy-MetaData")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Type")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	targetUrl := r.URL.Query().Get("url")
 	if targetUrl == "" {
 		http.Error(w, `{"error":"URL is required"}`, http.StatusBadRequest)
@@ -71,36 +81,61 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), "GET", targetUrl, nil)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, targetUrl, nil)
 	if err != nil {
 		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Icy-MetaData", "0")
+
+	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
 
 	res, err := streamClient.Do(req)
 	if err != nil {
-		http.Error(w, `{"error":"Proxy failed"}`, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"Proxy failed: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 	defer res.Body.Close()
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
-	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range")
+	for k, vv := range res.Header {
+		lowerK := strings.ToLower(k)
+		if hopByHopHeaders[lowerK] {
+			continue
+		}
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
 
-	if ct := res.Header.Get("Content-Type"); ct != "" {
-		w.Header().Set("Content-Type", ct)
-	}
-	if cl := res.Header.Get("Content-Length"); cl != "" {
-		w.Header().Set("Content-Length", cl)
-	}
-	if cr := res.Header.Get("Content-Range"); cr != "" {
-		w.Header().Set("Content-Range", cr)
+	contentType := res.Header.Get("Content-Type")
+	isLiveStream := strings.HasPrefix(strings.ToLower(contentType), "audio/") || 
+		strings.HasPrefix(strings.ToLower(contentType), "video/") ||
+		res.ContentLength <= 0
+
+	if isLiveStream {
+		w.Header().Del("Content-Length")
 	}
 
 	w.WriteHeader(res.StatusCode)
-	io.Copy(w, res.Body)
+
+	flusher, isFlusher := w.(http.Flusher)
+	buf := make([]byte, 16*1024)
+	for {
+		n, rerr := res.Body.Read(buf)
+		if n > 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				break
+			}
+			if isFlusher {
+				flusher.Flush()
+			}
+		}
+		if rerr != nil {
+			break
+		}
+	}
 }

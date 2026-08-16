@@ -247,6 +247,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onPause = () => {
+      if (isReconnectingRef.current) return;
       if (!isUserPausedRef.current && currentTrackRef.current?.type === 'radio') {
         console.warn('[Radio] System paused audio, resuming...');
         audio.play().catch(() => setIsPlaying(false));
@@ -258,7 +259,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onError = () => {
       console.error('[Audio] Playback error');
       if (currentTrackRef.current?.type === 'radio') {
-        attemptReconnect('playback error');
+        if (!isReconnectingRef.current) {
+          attemptReconnect('playback error');
+        }
       } else {
         setIsPlaying(false);
         setIsBuffering(false);
