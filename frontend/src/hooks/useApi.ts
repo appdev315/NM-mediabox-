@@ -83,7 +83,12 @@ export function useApi() {
     }
 
     const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'X-App-Client': 'mediabox-app',
+        'X-Client-Time': String(Date.now()),
+      }
+    });
     if (!response.ok) {
       let msg = `Ошибка сервера: ${response.status}`;
       try {
@@ -382,7 +387,11 @@ export function useApi() {
     }
 
     const initData = WebApp?.initData || '';
-    const headers = { 'Authorization': `tma ${initData}` };
+    const headers = { 
+      'Authorization': `tma ${initData}`,
+      'X-App-Client': 'mediabox-app',
+      'X-Client-Time': String(Date.now()),
+    };
     const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(query)}&page=${pageNum}`, { headers });
     if (!res.ok) return [];
     const data = await res.json();
@@ -400,7 +409,11 @@ export function useApi() {
     }
 
     const initData = WebApp?.initData || '';
-    const headers = { 'Authorization': `tma ${initData}` };
+    const headers = { 
+      'Authorization': `tma ${initData}`,
+      'X-App-Client': 'mediabox-app',
+      'X-Client-Time': String(Date.now()),
+    };
     const res = await fetch(`${EXPRESS_API_BASE}/adult/details?id=${encodeURIComponent(id)}`, { headers });
     if (!res.ok) return null;
     const data = await res.json();

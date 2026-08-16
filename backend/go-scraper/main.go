@@ -185,9 +185,9 @@ func main() {
 	// Start background cache warmer for trends
 	streamer.StartCacheWarmer()
 
-	// Apply global middleware chain: Gzip -> RateLimiter -> Metrics -> CORS -> Mux
+	// Apply global middleware chain: Gzip -> RateLimiter -> BotGuard -> Metrics -> CORS -> Mux
 	rateLimiter := middleware.RateLimiterMiddleware(10*time.Minute, 150)
-	handler := middleware.CORSMiddleware(middleware.MetricsMiddleware(middleware.GzipMiddleware(rateLimiter(mux))))
+	handler := middleware.CORSMiddleware(middleware.BotGuardMiddleware(middleware.MetricsMiddleware(middleware.GzipMiddleware(rateLimiter(mux)))))
 
 	port := os.Getenv("PORT")
 	if port == "" {
