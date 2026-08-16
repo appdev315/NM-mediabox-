@@ -123,7 +123,7 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(res.StatusCode)
 
 	flusher, isFlusher := w.(http.Flusher)
-	buf := make([]byte, 16*1024)
+	buf := make([]byte, 8*1024)
 	for {
 		n, rerr := res.Body.Read(buf)
 		if n > 0 {

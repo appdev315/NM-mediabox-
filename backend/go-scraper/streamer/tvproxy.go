@@ -174,7 +174,7 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Stream audio/video chunks in real-time with immediate flushing to prevent buffer underruns
 	flusher, isFlusher := w.(http.Flusher)
-	buf := make([]byte, 16*1024)
+	buf := make([]byte, 8*1024)
 	for {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {

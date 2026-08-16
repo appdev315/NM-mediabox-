@@ -354,6 +354,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       title: station.name,
       artist: station.group || 'Live Radio',
       url: finalUrl,
+      originalUrl: station.url,
       coverUrl: station.logo,
       type: 'radio'
     });
