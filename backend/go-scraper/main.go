@@ -175,6 +175,7 @@ func main() {
 	mux.HandleFunc("/api/adult/stream", middleware.CheckAdultAccess(detailsHandler))
 
 	// Stream and proxy handlers
+	mux.HandleFunc("/api/radio/stations", streamer.RadioStationsHandler)
 	mux.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
 	mux.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
 	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
@@ -182,8 +183,9 @@ func main() {
 	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)
 	mux.HandleFunc("/api/report-missing", streamer.ReportMissingHandler)
 
-	// Start background cache warmer for trends
+	// Start background cache warmers (trends and weekly smooth radio catalog updater)
 	streamer.StartCacheWarmer()
+	streamer.StartRadioCacheWarmer()
 
 	// Apply global middleware chain: Gzip -> RateLimiter -> BotGuard -> Metrics -> CORS -> Mux
 	rateLimiter := middleware.RateLimiterMiddleware(10*time.Minute, 150)

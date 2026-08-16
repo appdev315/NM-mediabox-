@@ -135,62 +135,72 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     try {
       let parsed: Station[] = [];
       
-      if (country === 'ru' && radioSource === '1') {
-        // Radiopotok JSON
-        try {
-          const res = await fetch('/radiopotok.json');
-          if (res.ok) {
-            const data = await res.json();
-            parsed = data.map((d: any, idx: number) => ({
-              id: d.id || `rp_${idx}_${d.name ? d.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ]/g, '') : idx}`,
-              name: d.name,
-              url: d.stream,
-              logo: d.logo || '',
-              group: 'Radiopotok',
-              type: 'radio'
-            })).filter((s: Station) => s.url);
+      // 1. Fetch from our Go Server's permanent in-memory cache
+      try {
+        const res = await fetchWithRetry(`${EXPRESS_API_BASE}/radio/stations?country=${encodeURIComponent(country)}&source=${encodeURIComponent(radioSource)}`, { maxRetries: 1 });
+        if (res && res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            parsed = data;
           }
-        } catch (e) {
-          console.warn('[Radio] Local radiopotok.json failed, falling back to radio-browser...', e);
         }
+      } catch (e) {
+        console.warn('[Radio] Go backend cache fetch failed, attempting client fallback...', e);
       }
 
+      // 2. Direct client fallback if Go server is unreachable (offline mode)
       if (parsed.length === 0) {
-        const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
-        const RADIO_MIRRORS = [
-          'de1.api.radio-browser.info',
-          'nl1.api.radio-browser.info',
-          'at1.api.radio-browser.info'
-        ];
-
-        let data: any[] | null = null;
-        for (const mirror of RADIO_MIRRORS) {
+        if (country === 'ru' && radioSource === '1') {
           try {
-            const res = await fetchWithRetry(`https://${mirror}/json/stations/search?limit=500&country=${encodeURIComponent(selectedCountry)}&hidebroken=true&order=votes&reverse=true`, { maxRetries: 1 });
-            if (res && res.ok) {
-              data = await res.json();
-              if (Array.isArray(data) && data.length > 0) break;
+            const res = await fetch('/radiopotok.json');
+            if (res.ok) {
+              const data = await res.json();
+              parsed = data.map((d: any, idx: number) => ({
+                id: d.id || `rp_${idx}_${d.name ? d.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ]/g, '') : idx}`,
+                name: d.name,
+                url: d.stream,
+                logo: d.logo || '',
+                group: 'Radiopotok',
+                type: 'radio' as const
+              })).filter((s: Station) => s.url);
             }
-          } catch (err) {
-            console.warn(`[Radio] Mirror ${mirror} failed, trying next...`);
-          }
+          } catch (e) { }
         }
 
-        if (Array.isArray(data)) {
-          parsed = data.map((d: any) => ({
-            id: d.stationuuid,
-            name: d.name,
-            url: d.url_resolved,
-            logo: d.favicon || '',
-            group: d.tags,
-            type: 'radio' as const
-          })).filter((s: Station) => s.url);
+        if (parsed.length === 0) {
+          const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
+          const RADIO_MIRRORS = [
+            'de1.api.radio-browser.info',
+            'nl1.api.radio-browser.info',
+            'at1.api.radio-browser.info'
+          ];
+
+          for (const mirror of RADIO_MIRRORS) {
+            try {
+              const res = await fetchWithRetry(`https://${mirror}/json/stations/search?limit=500&country=${encodeURIComponent(selectedCountry)}&hidebroken=true&order=votes&reverse=true`, { maxRetries: 1 });
+              if (res && res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                  parsed = data.map((d: any) => ({
+                    id: d.stationuuid,
+                    name: d.name,
+                    url: d.url_resolved,
+                    logo: d.favicon || '',
+                    group: d.tags,
+                    type: 'radio' as const
+                  })).filter((s: Station) => s.url);
+                  break;
+                }
+              }
+            } catch (err) { }
+          }
         }
       }
 
       if (parsed.length > 0) {
         setStations(parsed);
-        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 172800);
+        // Cache on device for 7 days (604800 seconds)
+        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 604800);
       }
     } catch (e) {
       console.error("Failed to fetch radio", e);
