@@ -230,7 +230,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(lrw, r)
 
 		code := lrw.statusCode
-		if code == 200 || code == 304 || code == 206 {
+		if code >= 200 && code < 400 {
 			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
 		} else {
 			atomic.AddUint64(&GlobalMetrics.Errors.Total, 1)
@@ -261,6 +261,97 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+var (
+	bannedBots = []string{
+		"python-requests",
+		"python-urllib",
+		"aiohttp",
+		"curl/",
+		"wget/",
+		"go-http-client",
+		"scrapy",
+		"postmanruntime",
+		"httpie",
+		"libwww-perl",
+		"headlesschrome",
+		"phantomjs",
+		"httpx",
+	}
+
+	scannerPaths = []string{
+		"/.env",
+		"/.git",
+		"/wp-login",
+		"/wp-admin",
+		"/xmlrpc.php",
+		"/phpmyadmin",
+		"/actuator",
+		"/swagger",
+		"/.aws",
+		"/config.json",
+	}
+
+	ipJail sync.Map
+)
+
+// BotGuardMiddleware inspects incoming requests and blocks automated scrapers and scanner bots
+func BotGuardMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := getClientIP(r)
+		now := time.Now()
+
+		// 1. Check if IP is jailed
+		if expiryVal, ok := ipJail.Load(ip); ok {
+			if expiry, ok := expiryVal.(time.Time); ok && now.Before(expiry) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"error":"Access temporarily blocked due to automated scraping activity"}`))
+				return
+			}
+			ipJail.Delete(ip)
+		}
+
+		path := strings.ToLower(r.URL.Path)
+
+		// 2. Check for vulnerability scanner paths -> Jail IP for 1 hour
+		for _, sp := range scannerPaths {
+			if strings.HasPrefix(path, sp) {
+				ipJail.Store(ip, now.Add(1*time.Hour))
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"error":"Prohibited path access"}`))
+				return
+			}
+		}
+
+		// Allow CORS preflights, root status, health and webhooks without UA inspection
+		if r.Method == "OPTIONS" || path == "/" || path == "/api/health" || strings.HasPrefix(path, "/api/telegram/webhook") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// 3. User-Agent Scraper Check
+		ua := strings.ToLower(r.Header.Get("User-Agent"))
+		if ua == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error":"User-Agent header required"}`))
+			return
+		}
+
+		for _, bot := range bannedBots {
+			if strings.Contains(ua, bot) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"error":"Automated scraper detected. Access denied."}`))
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // IP-based Rate Limiter
 type rateLimitEntry struct {
 	mu        sync.Mutex
@@ -273,6 +364,22 @@ var (
 )
 
 func init() {
+	// Background sweeper: evict expired ipJail entries every 30 minutes
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		for range ticker.C {
+			now := time.Now()
+			ipJail.Range(func(key, value interface{}) bool {
+				if expiry, ok := value.(time.Time); ok {
+					if now.After(expiry) {
+						ipJail.Delete(key)
+					}
+				}
+				return true
+			})
+		}
+	}()
+
 	// Background sweeper: evict expired rate limiter entries every 10 minutes to prevent memory leak
 	go func() {
 		ticker := time.NewTicker(10 * time.Minute)
@@ -364,7 +471,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Stats Handler
+// Stats Handler (Protected with Bot Token or Secret Key)
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -374,7 +481,10 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		expectedToken = os.Getenv("BOT_TOKEN")
 	}
 
-	if authHeader != "Bearer "+expectedToken {
+	queryKey := r.URL.Query().Get("key")
+	isAuth := (expectedToken != "" && (authHeader == "Bearer "+expectedToken || queryKey == expectedToken))
+
+	if !isAuth {
 		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
