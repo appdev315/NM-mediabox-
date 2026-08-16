@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -137,33 +137,61 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       
       if (country === 'ru' && radioSource === '1') {
         // Radiopotok JSON
-        const res = await fetch('/radiopotok.json');
-        const data = await res.json();
-        parsed = data.map((d: any, idx: number) => ({
-          id: d.id || `rp_${idx}_${d.name ? d.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ]/g, '') : idx}`,
-          name: d.name,
-          url: d.stream,
-          logo: d.logo || '',
-          group: 'Radiopotok',
-          type: 'radio'
-        })).filter((s: Station) => s.url);
-      } else {
-        const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
-        const res = await fetchWithRetry(`https://de1.api.radio-browser.info/json/stations/search?limit=500&country=${selectedCountry}&hidebroken=true&order=votes&reverse=true`);
-        const data = await res.json();
-
-        parsed = data.map((d: any) => ({
-          id: d.stationuuid,
-          name: d.name,
-          url: d.url_resolved,
-          logo: d.favicon || '',
-          group: d.tags,
-          type: 'radio'
-        })).filter((s: Station) => s.url);
+        try {
+          const res = await fetch('/radiopotok.json');
+          if (res.ok) {
+            const data = await res.json();
+            parsed = data.map((d: any, idx: number) => ({
+              id: d.id || `rp_${idx}_${d.name ? d.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ]/g, '') : idx}`,
+              name: d.name,
+              url: d.stream,
+              logo: d.logo || '',
+              group: 'Radiopotok',
+              type: 'radio'
+            })).filter((s: Station) => s.url);
+          }
+        } catch (e) {
+          console.warn('[Radio] Local radiopotok.json failed, falling back to radio-browser...', e);
+        }
       }
 
-      setStations(parsed);
-      clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 172800);
+      if (parsed.length === 0) {
+        const selectedCountry = COUNTRIES.find(c => c.code === country)?.radioName || 'Russia';
+        const RADIO_MIRRORS = [
+          'de1.api.radio-browser.info',
+          'nl1.api.radio-browser.info',
+          'at1.api.radio-browser.info'
+        ];
+
+        let data: any[] | null = null;
+        for (const mirror of RADIO_MIRRORS) {
+          try {
+            const res = await fetchWithRetry(`https://${mirror}/json/stations/search?limit=500&country=${encodeURIComponent(selectedCountry)}&hidebroken=true&order=votes&reverse=true`, { maxRetries: 1 });
+            if (res && res.ok) {
+              data = await res.json();
+              if (Array.isArray(data) && data.length > 0) break;
+            }
+          } catch (err) {
+            console.warn(`[Radio] Mirror ${mirror} failed, trying next...`);
+          }
+        }
+
+        if (Array.isArray(data)) {
+          parsed = data.map((d: any) => ({
+            id: d.stationuuid,
+            name: d.name,
+            url: d.url_resolved,
+            logo: d.favicon || '',
+            group: d.tags,
+            type: 'radio' as const
+          })).filter((s: Station) => s.url);
+        }
+      }
+
+      if (parsed.length > 0) {
+        setStations(parsed);
+        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 172800);
+      }
     } catch (e) {
       console.error("Failed to fetch radio", e);
     }
@@ -171,20 +199,27 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
   const fetchTV = async () => {
     try {
-      // 1. Fetch remote config
-      let config;
+      const countryCode = FREE_TV_MAP[country] || COUNTRIES.find(c => c.code === country)?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || country;
+
+      // 1. Fetch remote config or use local defaults
+      let config: any;
       try {
         const confRes = await fetch('/tv-config.json?t=' + Date.now());
-        config = await confRes.json();
-      } catch (e) {
-        // Default config if fetch fails
+        if (confRes.ok) {
+          config = await confRes.json();
+        }
+      } catch (e) { }
+
+      const defaultCountryPlaylists = [
+        `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
+        `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
+        `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${countryCode}.m3u8`
+      ];
+
+      if (!config || !config.tvPlaylists) {
         config = {
           tvPlaylists: {
-            [country]: [
-              `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
-              `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
-              `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${FREE_TV_MAP[country] || country}.m3u8`
-            ]
+            [country]: defaultCountryPlaylists
           },
           fastPlaylists: {
             pluto: "https://i.mjh.nz/PlutoTV/us.m3u8",
@@ -195,33 +230,41 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         };
       }
 
-      let url = '';
-      let needsProxy = false;
-      const sourceIndex = parseInt(tvSource) - 1;
-      
-      const defaultCountryPlaylists = [
-        `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
-        `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
-        `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${FREE_TV_MAP[country] || country}.m3u8`
-      ];
-
-      const countryList = config.tvPlaylists?.[country] || defaultCountryPlaylists;
-      
-      url = countryList[sourceIndex] || countryList[0];
-
-      if (!url) throw new Error("URL not found in config");
-
-      const fetchUrl = needsProxy ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(url)}` : url;
-      const res = await fetchWithRetry(fetchUrl);
-      
       let resText = '';
-      if (!res.ok && tvSource === '3' && !needsProxy) {
-        // Fallback if country playlist doesn't exist in Free-TV
-        const fbRes = await fetch(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`);
-        resText = await fbRes.text();
-      } else {
-        resText = await res.text();
+      let successfulUrl = '';
+      const sourceIndex = Math.max(0, parseInt(tvSource) - 1);
+      const countryList: string[] = config.tvPlaylists?.[country] || defaultCountryPlaylists;
+
+      // Try primary playlist candidate, then fallback through list if primary fails
+      for (let i = 0; i < countryList.length; i++) {
+        const candidateUrl = countryList[(sourceIndex + i) % countryList.length];
+        try {
+          const res = await fetchWithRetry(candidateUrl, { maxRetries: 1 });
+          if (res && res.ok) {
+            const text = await res.text();
+            if (text && text.includes('#EXTINF')) {
+              resText = text;
+              successfulUrl = candidateUrl;
+              break;
+            }
+          }
+        } catch (err) {
+          console.warn(`[TV] Playlist ${candidateUrl} failed, trying next...`);
+        }
       }
+
+      // Final fallback to global Free-TV playlist if country-specific lists fail
+      if (!resText) {
+        try {
+          const fbRes = await fetchWithRetry(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`, { maxRetries: 1 });
+          if (fbRes && fbRes.ok) {
+            resText = await fbRes.text();
+            successfulUrl = `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`;
+          }
+        } catch (e) { }
+      }
+
+      if (!resText) throw new Error("No TV playlists reachable");
 
       const parseM3u = (text: string, sourceUrl: string) => {
         const lines = text.split('\n');
@@ -252,12 +295,9 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
               }
 
               if (streamUrl.startsWith('https://')) {
-                // HTTPS goes directly
                 channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
               } else {
-                // HTTP goes through Go backend proxy to avoid Mixed Content on Android
                 const WORKER_URL = `${EXPRESS_API_BASE}/proxy`;
-                
                 channels.push({ 
                   ...current, 
                   url: `${WORKER_URL}?url=${encodeURIComponent(streamUrl)}`, 
@@ -272,20 +312,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         return channels;
       };
 
-      const parsedTv = parseM3u(resText, url);
+      const parsedTv = parseM3u(resText, successfulUrl);
       
-      // Load backup playlists for fallback logic
       if (!['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
-         const countryList = config.tvPlaylists[country] || [];
-         if (countryList.length > 1) {
-            // We can fetch backups in the background, but for now we'll just save the config
-            (window as any)._tvConfig = config;
-            (window as any)._tvCountry = country;
-         }
+         (window as any)._tvConfig = config;
+         (window as any)._tvCountry = country;
       }
 
-      setTvChannels(parsedTv);
-      clientCache.set(`cache_tv_${country}_src${tvSource}`, parsedTv, 172800);
+      if (parsedTv.length > 0) {
+        setTvChannels(parsedTv);
+        clientCache.set(`cache_tv_${country}_src${tvSource}`, parsedTv, 172800);
+      }
     } catch (e) {
       console.error("Failed to fetch TV", e);
     } finally {
@@ -579,9 +616,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTvChannel, activeTab]);
 
-  const listToRender = activeTab === 'radio' ? stations : tvChannels;
-  const filteredList = listToRender.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
-  const displayedList = filteredList.slice(0, visibleCount);
+  const listToRender = useMemo(() => activeTab === 'radio' ? stations : tvChannels, [activeTab, stations, tvChannels]);
+  const filteredList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return listToRender;
+    return listToRender.filter(s => s.name.toLowerCase().includes(q) || (s.group && s.group.toLowerCase().includes(q)));
+  }, [listToRender, search]);
+  const displayedList = useMemo(() => filteredList.slice(0, visibleCount), [filteredList, visibleCount]);
 
   return (
     <div className="flex flex-col h-full">
