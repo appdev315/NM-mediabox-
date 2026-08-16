@@ -18,6 +18,8 @@ const config: CapacitorConfig = {
     }
   },
   server: {
+    url: 'https://media-box.xyz',
+    cleartext: true,
     androidScheme: 'https'
   }
 };
