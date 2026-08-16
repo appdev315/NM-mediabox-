@@ -152,12 +152,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          maxBufferLength: 30,
-          maxBufferSize: 30 * 1024 * 1024,
-          backBufferLength: 30,
-          manifestLoadingMaxRetry: 5,
-          levelLoadingMaxRetry: 5,
-          fragLoadingMaxRetry: 6,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          maxBufferSize: 60 * 1024 * 1024,
+          liveSyncDuration: 3,
+          liveMaxLatencyDuration: 10,
+          manifestLoadingMaxRetry: 10,
+          levelLoadingMaxRetry: 10,
+          fragLoadingMaxRetry: 10,
         });
         hls.loadSource(url);
         hls.attachMedia(audio);
@@ -167,8 +169,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('[HLS] Network error encountered, delegating to attemptReconnect...');
-                attemptReconnect('hls network error');
+                console.warn('[HLS] Network error encountered, attempting recovery...');
+                hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.warn('[HLS] Media error encountered, recovering media...');
@@ -217,41 +219,32 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     navigator.mediaSession.setActionHandler('stop', () => stop());
   }, [currentTrack, stop]);
 
-  // Handle native audio events, reconnect logic, and frozen stream watchdog
+  // Handle native audio events, reconnect logic
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    let lastProgressTime = Date.now();
-
     // --- Event handlers ---
     const onPlay = () => {
       setIsPlaying(true);
-      lastProgressTime = Date.now();
     };
 
     const onPlaying = () => {
       setIsPlaying(true);
       setIsBuffering(false);
       reconnectAttemptRef.current = 0; // Reset backoff on successful stream playback
-      lastProgressTime = Date.now();
     };
 
-    const onTimeUpdate = () => {
-      lastProgressTime = Date.now();
+    const onCanPlay = () => {
+      setIsBuffering(false);
     };
 
     const onWaiting = () => {
       setIsBuffering(true);
-      lastProgressTime = Date.now(); // Do not trigger freeze during buffering
     };
 
     const onPause = () => {
-      if (isReconnectingRef.current) return;
-      if (!isUserPausedRef.current && currentTrackRef.current?.type === 'radio') {
-        console.warn('[Radio] System paused audio, resuming...');
-        audio.play().catch(() => setIsPlaying(false));
-      } else {
+      if (isUserPausedRef.current) {
         setIsPlaying(false);
       }
     };
@@ -259,7 +252,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onError = () => {
       console.error('[Audio] Playback error');
       if (currentTrackRef.current?.type === 'radio') {
-        if (!isReconnectingRef.current) {
+        if (!isReconnectingRef.current && !isUserPausedRef.current) {
           attemptReconnect('playback error');
         }
       } else {
@@ -289,25 +282,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // --- Watchdog: detect truly frozen streams without false positives ---
-    const watchdogInterval = setInterval(() => {
-      if (document.hidden) return; // Ignore when tab/app is in background power saving
-      if (!currentTrackRef.current || currentTrackRef.current.type !== 'radio') return;
-      if (!isPlayingRef.current || audio.paused || isUserPausedRef.current) return;
-
-      // If playing but no timeupdate/progress for over 25 seconds and not buffering
-      const elapsed = Date.now() - lastProgressTime;
-      if (elapsed > 25000) {
-        console.warn('[Radio] Watchdog: stream frozen for >25s, reconnecting...');
-        lastProgressTime = Date.now();
-        attemptReconnect('watchdog: stream frozen');
-      }
-    }, 5000);
-
     // --- Register listeners ---
     audio.addEventListener('play', onPlay);
     audio.addEventListener('playing', onPlaying);
-    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('error', onError);
@@ -316,10 +294,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', onOnline);
 
     return () => {
-      clearInterval(watchdogInterval);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('playing', onPlaying);
-      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);
@@ -327,12 +304,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
     };
-  }, [currentTrack]); // Re-attach when track changes to reset reconnect state
+  }, [currentTrack, attemptReconnect]); // Re-attach when track changes to reset reconnect state
 
   return (
     <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, playTrack, togglePlayPause, stop, audioRef }}>
       {children}
-      <audio ref={audioRef} preload="none" playsInline />
+      <audio ref={audioRef} preload="auto" playsInline />
     </AudioPlayerContext.Provider>
   );
 }
