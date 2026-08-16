@@ -263,6 +263,16 @@ export function Movie() {
 
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
+    const isUnreleased = Boolean(
+      movie?.isUpcoming || 
+      (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
+    );
+    if (isUnreleased) {
+      if (trailerVideo) {
+        setShowTrailerModal(true);
+      }
+      return;
+    }
     
     // Add to history
     try {
@@ -500,6 +510,10 @@ export function Movie() {
   const writers = movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [];
   const cast = movie?.credits?.cast?.slice(0, 15) || [];
   const ratingPct = movie?.rating ? Math.round(movie.rating * 10) : 0;
+  const isUnreleased = Boolean(
+    movie?.isUpcoming || 
+    (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
+  );
 
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">
@@ -647,13 +661,42 @@ export function Movie() {
 
         {!isExtracting && !iframeUrl && !contentUnavailable && (
           <div className="flex flex-col gap-3 mb-6">
-            <button
-              onClick={() => handleWatch(false)}
-              className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
-              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-            >
-              ▶ {t('watch')}
-            </button>
+            {isUnreleased ? (
+              <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 flex flex-col gap-3">
+                <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
+                  <span className="text-xl">🗓️</span>
+                  <div>
+                    <p>{t('unreleasedMovie') || 'Фильм ещё не вышел в кинотеатрах'}</p>
+                    {movie.release_date && (
+                      <p className="text-xs font-medium opacity-80 mt-0.5">
+                        {t('premiereDate') || 'Премьера'}: {movie.release_date}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {trailerVideo ? (
+                  <button
+                    onClick={() => setShowTrailerModal(true)}
+                    className="w-full py-3.5 rounded-xl font-bold text-base transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg bg-amber-500 text-black hover:bg-amber-400"
+                  >
+                    ▶ {t('watchTrailerOfficial') || 'Смотреть трейлер'}
+                  </button>
+                ) : (
+                  <p className="text-xs opacity-70 italic text-center py-1">
+                    {t('inProductionDesc') || 'Фильм находится на стадии производства. Официальный трейлер появится позже.'}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => handleWatch(false)}
+                className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+              >
+                ▶ {t('watch')}
+              </button>
+            )}
           </div>
         )}
 

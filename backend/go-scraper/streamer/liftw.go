@@ -251,12 +251,16 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			}
 
 			if matched {
-				// High confidence match: exact or +/- 3 years allowance for index mismatches
-				if targetYear == 0 || (item.Year >= targetYear-3 && item.Year <= targetYear+3) {
+				// High confidence match: exact or +/- 1 year allowance for release differences
+				if targetYear == 0 || (item.Year >= targetYear-1 && item.Year <= targetYear+1) {
 					return &item
 				}
-				if fallbackItem == nil {
-					fallbackItem = &item
+				// Allow fallback ONLY if targetYear was not in the future and within +/- 2 years
+				currentYear := time.Now().Year()
+				if targetYear > 0 && targetYear <= currentYear && (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
+					if fallbackItem == nil {
+						fallbackItem = &item
+					}
 				}
 			}
 		}

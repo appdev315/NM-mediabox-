@@ -76,14 +76,35 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 
 	html := string(body)
 
-	// Regexp to match film detail page links
-	reLink := regexp.MustCompile(`href="(/films/\d+)"`)
-	matches := reLink.FindStringSubmatch(html)
-	if len(matches) < 2 {
+	// Regexp to match film detail page links and their titles
+	reLink := regexp.MustCompile(`(?i)<a[^>]+href="(/films/\d+)"[^>]*>([\s\S]*?)</a>`)
+	allMatches := reLink.FindAllStringSubmatch(html, 15)
+	if len(allMatches) == 0 {
 		return "", fmt.Errorf("no movie link found")
 	}
 
-	filmUrl := mirror + matches[1]
+	normQuery := normString(title)
+	var chosenPath string
+
+	for _, m := range allMatches {
+		linkPath := m[1]
+		linkText := normString(m[2])
+		if linkText != "" && (strings.Contains(linkText, normQuery) || strings.Contains(normQuery, linkText) || linkText == normQuery) {
+			chosenPath = linkPath
+			break
+		}
+	}
+
+	// If query has subtitle or multiple words, do not pick an unrelated first result
+	if chosenPath == "" {
+		if len(allMatches) == 1 {
+			chosenPath = allMatches[0][1]
+		} else {
+			return "", fmt.Errorf("no accurate title match found for %s", title)
+		}
+	}
+
+	filmUrl := mirror + chosenPath
 
 	// Fetch detail page
 	reqDetail, err := http.NewRequestWithContext(ctx, "GET", filmUrl, nil)
