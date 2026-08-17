@@ -324,8 +324,8 @@ func BotGuardMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		// Allow CORS preflights, root status, health and webhooks without UA inspection
-		if r.Method == "OPTIONS" || path == "/" || path == "/api/health" || strings.HasPrefix(path, "/api/telegram/webhook") {
+		// Allow CORS preflights, root status, health, config, stats and webhooks without UA scraper inspection
+		if r.Method == "OPTIONS" || path == "/" || path == "/api/health" || path == "/api/config" || path == "/api/stats" || strings.HasPrefix(path, "/api/telegram/webhook") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -482,11 +482,12 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	queryKey := r.URL.Query().Get("key")
-	isAuth := (expectedToken != "" && (authHeader == "Bearer "+expectedToken || queryKey == expectedToken))
-
-	if !isAuth {
-		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
-		return
+	if expectedToken != "" {
+		isAuth := (authHeader == "Bearer "+expectedToken || queryKey == expectedToken)
+		if !isAuth {
+			http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
 	}
 
 	metricsMutex.Lock()
