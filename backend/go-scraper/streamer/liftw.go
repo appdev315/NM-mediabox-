@@ -228,7 +228,6 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 
 			nameLower := normString(item.Name)
 			origLower := normString(item.OriginName)
-
 			matched := false
 			for _, c := range candidates {
 				cn := normString(c)
@@ -240,10 +239,13 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 					matched = true
 					break
 				}
-				// 2. Prefix or substring match for candidates with at least 3 characters
-				if len([]rune(cn)) >= 3 {
-					if strings.HasPrefix(nameLower, cn) || strings.HasPrefix(origLower, cn) ||
-						strings.Contains(nameLower, cn) || strings.Contains(origLower, cn) {
+				// 2. High-confidence prefix match (at least 6 chars and covers >= 75% of target name)
+				if len([]rune(cn)) >= 6 {
+					if strings.HasPrefix(nameLower, cn) && float64(len(cn))/float64(len(nameLower)) >= 0.75 {
+						matched = true
+						break
+					}
+					if strings.HasPrefix(origLower, cn) && float64(len(cn))/float64(len(origLower)) >= 0.75 {
 						matched = true
 						break
 					}
@@ -254,13 +256,6 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 				// High confidence match: exact or +/- 1 year allowance for release differences
 				if targetYear == 0 || (item.Year >= targetYear-1 && item.Year <= targetYear+1) {
 					return &item
-				}
-				// Allow fallback ONLY if targetYear was not in the future and within +/- 2 years
-				currentYear := time.Now().Year()
-				if targetYear > 0 && targetYear <= currentYear && (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
-					if fallbackItem == nil {
-						fallbackItem = &item
-					}
 				}
 			}
 		}
