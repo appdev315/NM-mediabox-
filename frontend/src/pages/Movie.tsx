@@ -328,12 +328,17 @@ export function Movie() {
         imdb: (movie as any).imdb_id || ''
       };
 
+      const originalTitle = (movie as any)?.original_title || (movie as any)?.original_name || '';
+      const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
+
       // Parallel fetch: Liftw + Anwap
       const liftwQuery = new URLSearchParams({
         title: queryParams.title,
         year: queryParams.year,
         type: queryParams.type,
-        tmdb: queryParams.tmdb
+        tmdb: queryParams.tmdb,
+        title_ru: ruTitle,
+        original_title: originalTitle
       });
       if (forceRefresh) {
         liftwQuery.append('bypass_cache', 'true');
@@ -500,7 +505,8 @@ export function Movie() {
           const tgQuery = new URLSearchParams({
             title: queryParams.title,
             year: queryParams.year,
-            original_title: originalTitle
+            original_title: originalTitle,
+            title_ru: ruTitle
           });
           const res = await fetchWithRetry(`${EXPRESS_API_BASE}/telegram/drakor?${tgQuery.toString()}`);
           if (res.ok) {

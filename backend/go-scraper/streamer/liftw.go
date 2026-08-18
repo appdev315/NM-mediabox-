@@ -274,8 +274,8 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 
 // ResolveLiftw resolves a streaming path for a movie/series and caches it.
 // If bypassCache is true, it ignores the cache and forces a fresh query.
-func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte, error) {
-	cacheKey := fmt.Sprintf("%s|%s|%s|%s", title, yearStr, vType, tmdb)
+func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, bypassCache bool) ([]byte, error) {
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s|%s|%s", title, yearStr, vType, tmdb, titleRu, originalTitle)
 	
 	if !bypassCache {
 		if val, ok := liftwCache.Load(cacheKey); ok {
@@ -289,6 +289,13 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 
 	isSeries := (vType == "tv" || vType == "series")
 	candidates := []string{strings.TrimSpace(title)}
+	if titleRu != "" {
+		candidates = append(candidates, strings.TrimSpace(titleRu))
+	}
+	if originalTitle != "" && originalTitle != title {
+		candidates = append(candidates, strings.TrimSpace(originalTitle))
+	}
+	candidates = uniqueStrings(candidates)
 
 	validTypesMap := make(map[int]bool)
 	if isSeries {
@@ -350,9 +357,9 @@ func ResolveLiftw(title, yearStr, vType, tmdb string, bypassCache bool) ([]byte,
 		candidates = uniqueStrings(candidates)
 		candidates = sortCandidates(candidates)
 		
-		// Search the rest of candidates
-		if len(candidates) > 1 {
-			bestMatch = searchLiftwCandidates(candidates[1:], targetYear, validTypesMap, &lastErr)
+		// Search all candidates with Cyrillic prioritized
+		if len(candidates) > 0 {
+			bestMatch = searchLiftwCandidates(candidates, targetYear, validTypesMap, &lastErr)
 		}
 	}
 
@@ -417,13 +424,16 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	titleRu := r.URL.Query().Get("title_ru")
+	originalTitle := r.URL.Query().Get("original_title")
+
 	type liftwRes struct {
 		data []byte
 		err  error
 	}
 	ch := make(chan liftwRes, 1)
 	go func() {
-		data, err := ResolveLiftw(title, yearStr, vType, tmdb, bypassCache)
+		data, err := ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle, bypassCache)
 		ch <- liftwRes{data: data, err: err}
 	}()
 
