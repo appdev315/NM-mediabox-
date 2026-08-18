@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -136,7 +137,12 @@ func ReportMissingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer resp.Body.Close()
-		log.Printf("[Reporter] Telegram missing report sent successfully (status: %d)", resp.StatusCode)
+		respBytes, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[Reporter] Warning: Telegram API returned HTTP %d: %s", resp.StatusCode, string(respBytes))
+		} else {
+			log.Printf("[Reporter] Telegram missing report sent successfully to chat %s", targetChat)
+		}
 	}(botToken, chatID, textMsg)
 
 	w.WriteHeader(http.StatusOK)

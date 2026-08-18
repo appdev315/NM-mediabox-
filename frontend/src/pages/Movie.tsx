@@ -23,7 +23,7 @@ export function Movie() {
   const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: id });
   
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [sources, setSources] = useState<{name: string, url: string, isLiftw?: boolean}[]>([]);
+  const [sources, setSources] = useState<{name: string, url: string, isLiftw?: boolean, isTelegram?: boolean}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
@@ -33,6 +33,8 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+  const [telegramEpisodes, setTelegramEpisodes] = useState<Record<string, string[]> | null>(null);
+  const [telegramEpisodeUrls, setTelegramEpisodeUrls] = useState<Record<string, Record<string, string>> | null>(null);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -173,7 +175,12 @@ export function Movie() {
     setActiveEpisode(episode);
 
     const currentSource = sources.find((s: any) => s.url === iframeUrl);
-    if (currentSource?.isLiftw) {
+    if (currentSource?.isTelegram || telegramEpisodeUrls?.[season]?.[episode]) {
+      const epUrl = telegramEpisodeUrls?.[season]?.[episode];
+      if (epUrl) {
+        setIframeUrl(epUrl);
+      }
+    } else if (currentSource?.isLiftw) {
       const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
         const iframeOrigin = new URL(iframe.src).origin;
@@ -332,9 +339,10 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { liftw: any, anwap: any[] } = { 
+      const foundSources: { liftw: any, anwap: any[], telegram: any } = { 
         liftw: null, 
-        anwap: []
+        anwap: [],
+        telegram: null
       };
 
       let isLiftwDone = false;
@@ -348,7 +356,7 @@ export function Movie() {
 
       const evaluateUIUnblock = () => {
         if (!isLiftwDone) return;
-        if (foundSources.liftw || anwapDone) {
+        if (foundSources.liftw || anwapDone || foundSources.telegram) {
           setIsExtracting(false);
         }
       };
@@ -369,15 +377,21 @@ export function Movie() {
           if (foundSources.anwap.length > 0) {
             combined.push(foundSources.anwap[0]);
           }
+          if (foundSources.telegram) {
+            combined.push(foundSources.telegram);
+          }
         } else if (isLiftwDone) {
           if (foundSources.anwap.length > 0) {
             combined.push(foundSources.anwap[0]);
           }
+          if (foundSources.telegram) {
+            combined.push(foundSources.telegram);
+          }
         }
 
-        // Cap to max 2 clean players (Player 1: Liftw, Player 2: Anwap)
-        if (combined.length > 2) {
-          combined.length = 2;
+        // Cap to max 3 clean players (Player 1: Liftw, Player 2: Anwap, Player 3: Telegram)
+        if (combined.length > 3) {
+          combined.length = 3;
         }
 
         const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
@@ -442,15 +456,53 @@ export function Movie() {
         }
       };
 
-      // Fetch both Player 1 (Liftw) and Player 2 (Anwap) concurrently
-      await Promise.allSettled([fetchLiftw(), fetchAnwap()]);
+      // 4. Fetch Telegram Drakor / KDrama stream asynchronously (Player 3 / Fallback)
+      const fetchTelegramDrakor = async () => {
+        try {
+          const originalTitle = (movie as any)?.original_title || (movie as any)?.original_name || '';
+          const tgQuery = new URLSearchParams({
+            title: queryParams.title,
+            year: queryParams.year,
+            original_title: originalTitle
+          });
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/telegram/drakor?${tgQuery.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.iframe) {
+              foundSources.telegram = {
+                name: 'telegram',
+                url: data.iframe,
+                isTelegram: true,
+                episodes: data.episodes
+              };
+
+              if (data.episodes && Object.keys(data.episodes).length > 0) {
+                const epMap: Record<string, string[]> = {};
+                for (const s of Object.keys(data.episodes)) {
+                  epMap[s] = Object.keys(data.episodes[s]).sort((a, b) => parseInt(a) - parseInt(b));
+                }
+                setTelegramEpisodes(epMap);
+                setTelegramEpisodeUrls(data.episodes);
+
+                setActiveSeason(prev => prev || Object.keys(epMap)[0] || '1');
+                setActiveEpisode(prev => prev || epMap[Object.keys(epMap)[0] || '1']?.[0] || '1');
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Telegram Drakor fetch failed", e);
+        }
+      };
+
+      // Fetch all Player sources concurrently
+      await Promise.allSettled([fetchLiftw(), fetchAnwap(), fetchTelegramDrakor()]);
 
       // Atomic single-pass UI update & unblock
       updateUI();
       evaluateUIUnblock();
 
-      // Detect total source failure — both donors returned 404 / no valid URL
-      if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+      // Detect total source failure — all donors returned 404 / no valid URL
+      if (foundSources.liftw === null && foundSources.anwap.length === 0 && foundSources.telegram === null) {
         setContentUnavailable(true);
       }
     } catch (err) {
@@ -849,14 +901,15 @@ export function Movie() {
                   value={activeSeason || '1'}
                   onChange={(e) => {
                     const season = e.target.value;
-                    const availableEpisodes = liftwEpisodes && liftwEpisodes[season] ? liftwEpisodes[season] : ['1'];
+                    const epsSrc = liftwEpisodes || telegramEpisodes;
+                    const availableEpisodes = epsSrc && epsSrc[season] ? epsSrc[season] : ['1'];
                     const defaultEpisode = availableEpisodes[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                   }}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {Object.keys(liftwEpisodes || { '1': ['1'] }).map((season) => (
+                  {Object.keys(liftwEpisodes || telegramEpisodes || { '1': ['1'] }).map((season) => (
                     <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('season')} {season}
                     </option>
@@ -872,7 +925,7 @@ export function Movie() {
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {(liftwEpisodes && liftwEpisodes[activeSeason || '1'] ? liftwEpisodes[activeSeason || '1'] : ['1']).map((episode: string) => (
+                  {((liftwEpisodes || telegramEpisodes)?.[activeSeason || '1'] || ['1']).map((episode: string) => (
                     <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('episode')} {episode}
                     </option>
