@@ -357,7 +357,7 @@ export function Movie() {
       const isIndonesian = language === 'id-ID' || language?.startsWith('id');
 
       const evaluateUIUnblock = () => {
-        if (!isLiftwDone) return;
+        if (!isLiftwDone && !foundSources.telegram) return;
         if (foundSources.liftw || anwapDone || foundSources.telegram) {
           setIsExtracting(false);
         }
@@ -441,7 +441,11 @@ export function Movie() {
 
         if (mapped.length > 0) {
           const preferredUrl = mapped[0].url;
-          setIframeUrl(prev => prev || preferredUrl);
+          if (!userSelectedRef.current) {
+            setIframeUrl(preferredUrl);
+          } else {
+            setIframeUrl(prev => prev || preferredUrl);
+          }
         }
       };
 

@@ -84,11 +84,32 @@ var (
 	reEpPattern    = regexp.MustCompile(`(?i)(?:episode|eps|ep|e)\.?\s*(\d{1,3})`)
 	reBracketEp    = regexp.MustCompile(`\[(\d{1,3})\]`)
 	reEpRange      = regexp.MustCompile(`(?i)(?:ep|eps|e)\.?\s*(\d{1,3})\s*-\s*(?:ep|eps|e)?\.?\s*(\d{1,3})`)
-	reSeasPattern  = regexp.MustCompile(`(?i)(?:season|s)\.?\s*(\d{1,2})`)
+	reSeasPattern  = regexp.MustCompile(`(?i)\b(?:season|s)\s*(\d{1,2})\b`)
 	reBatchPattern = regexp.MustCompile(`(?i)\b(batch|complete|full|tamat|end)\b`)
 	reQuality      = regexp.MustCompile(`(?i)\b(360p|480p|540p|720p|1080p|fhd|hd)\b`)
 	reSubIndo      = regexp.MustCompile(`(?i)\b(sub\s*indo|hardsub|softsub|drakorindo)\b`)
 )
+
+func extractFirstIframe(eps map[string]map[string]string) string {
+	if s1, ok := eps["1"]; ok && len(s1) > 0 {
+		if ep1, ok1 := s1["1"]; ok1 && ep1 != "" {
+			return ep1
+		}
+		for _, u := range s1 {
+			if u != "" {
+				return u
+			}
+		}
+	}
+	for _, sMap := range eps {
+		for _, u := range sMap {
+			if u != "" {
+				return u
+			}
+		}
+	}
+	return ""
+}
 
 func init() {
 	// Periodic sweeper for hot cache and negative cache every 30 minutes
@@ -290,10 +311,10 @@ func ResolveTelegramDrakor(ctx context.Context, title, year, originalTitle, titl
 		keywords = append(keywords, strings.ToLower(strings.TrimSpace(titleRu)))
 	}
 
-	normTitle := strings.ToLower(title)
-	isBonaFide := strings.Contains(normTitle, "bona fide") || strings.Contains(normTitle, "law and the city") || strings.Contains(normTitle, "seochodong") || strings.Contains(normTitle, "서초동")
+	allTitles := strings.ToLower(title + " " + originalTitle + " " + titleRu)
+	isBonaFide := strings.Contains(allTitles, "bona fide") || strings.Contains(allTitles, "유부녀") || strings.Contains(allTitles, "замужняя") || strings.Contains(allTitles, "law and the city") || strings.Contains(allTitles, "seochodong") || strings.Contains(allTitles, "서초동")
 	if isBonaFide {
-		keywords = append(keywords, "law and the city", "bona fide killer", "seochodong", "서초동")
+		keywords = append(keywords, "law and the city", "bona fide killer", "seochodong", "서초동", "유부녀 킬러", "замужняя")
 	}
 
 	// Overall Cascade Context with 10-second hard limit and cancel propagation
@@ -322,12 +343,16 @@ func ResolveTelegramDrakor(ctx context.Context, title, year, originalTitle, titl
 						},
 					}
 				}
+				firstIframe := extractFirstIframe(eps)
+				if firstIframe == "" {
+					firstIframe = "https://t.me/Law_and_the_City_Drakorindo/1?embed=1"
+				}
 				resChan <- cascadeResult{
 					result: &DrakorTelegramResult{
 						Source:   "telegram",
 						Name:     "Telegram (Drakorindo Sub Indo)",
 						Channel:  "Law_and_the_City_Drakorindo",
-						Iframe:   eps["1"]["1"],
+						Iframe:   firstIframe,
 						Episodes: eps,
 					},
 				}
@@ -358,12 +383,9 @@ func ResolveTelegramDrakor(ctx context.Context, title, year, originalTitle, titl
 			}
 			eps := parseDrakorChannelHTML(html, c, keywords)
 			if len(eps) > 0 {
-				var firstIframe string
-				if s1, ok := eps["1"]; ok {
-					for _, u := range s1 {
-						firstIframe = u
-						break
-					}
+				firstIframe := extractFirstIframe(eps)
+				if firstIframe == "" {
+					return
 				}
 				resChan <- cascadeResult{
 					result: &DrakorTelegramResult{

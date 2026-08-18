@@ -91,6 +91,7 @@ var normRegex = regexp.MustCompile(`[^a-zа-я0-9]`)
 
 func normString(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "ё", "е")
 	return normRegex.ReplaceAllString(s, "")
 }
 
@@ -234,21 +235,29 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 				if cn == "" {
 					continue
 				}
-				// 1. Exact match after normalization
+				// 1. Exact match on full string
 				if nameLower == cn || origLower == cn {
 					matched = true
 					break
 				}
-				// 2. High-confidence prefix match (at least 6 chars and covers >= 75% of target name)
-				if len([]rune(cn)) >= 6 {
-					if strings.HasPrefix(nameLower, cn) && float64(len(cn))/float64(len(nameLower)) >= 0.75 {
+				// 2. Exact match on slash-separated alternative titles (e.g. "Замужняя убийца / Замужняя женщина-убийца")
+				for _, part := range strings.Split(item.Name, "/") {
+					if normString(part) == cn {
 						matched = true
 						break
 					}
-					if strings.HasPrefix(origLower, cn) && float64(len(cn))/float64(len(origLower)) >= 0.75 {
+				}
+				if matched {
+					break
+				}
+				for _, part := range strings.Split(item.OriginName, "/") {
+					if normString(part) == cn {
 						matched = true
 						break
 					}
+				}
+				if matched {
+					break
 				}
 			}
 
