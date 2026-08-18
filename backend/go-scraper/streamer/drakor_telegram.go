@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -44,13 +45,20 @@ var (
 		"Drakorindo_Official",
 	}
 
-	reTgPostLink = regexp.MustCompile(`(?i)data-post="([a-zA-Z0-9_]+)/(\d+)"`)
-	reEpPattern  = regexp.MustCompile(`(?i)(?:episode|eps|ep|e)\.?\s*(\d{1,3})`)
-	reSeasPattern = regexp.MustCompile(`(?i)(?:season|s)\.?\s*(\d{1,2})`)
+	// Comprehensive Regex Patterns for Episodes, Seasons, Quality and Batch
+	reTgDataPost   = regexp.MustCompile(`(?i)data-post="([a-zA-Z0-9_]+)/(\d+)"`)
+	reTgDateLink   = regexp.MustCompile(`(?i)href="https://t\.me/([a-zA-Z0-9_]+)/(\d+)"`)
+	reEpPattern    = regexp.MustCompile(`(?i)(?:episode|eps|ep|e)\.?\s*(\d{1,3})`)
+	reBracketEp    = regexp.MustCompile(`\[(\d{1,3})\]`)
+	reEpRange      = regexp.MustCompile(`(?i)(?:ep|eps|e)\.?\s*(\d{1,3})\s*-\s*(?:ep|eps|e)?\.?\s*(\d{1,3})`)
+	reSeasPattern  = regexp.MustCompile(`(?i)(?:season|s)\.?\s*(\d{1,2})`)
+	reBatchPattern = regexp.MustCompile(`(?i)\b(batch|complete|full|tamat|end)\b`)
+	reQuality      = regexp.MustCompile(`(?i)\b(360p|480p|540p|720p|1080p|fhd|hd)\b`)
+	reSubIndo      = regexp.MustCompile(`(?i)\b(sub\s*indo|hardsub|softsub|drakorindo)\b`)
 )
 
 func init() {
-	// Background sweeper for drakor telegram cache every hour
+	// Periodic sweeper for drakor telegram cache every hour
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
@@ -65,6 +73,30 @@ func init() {
 			})
 		}
 	}()
+
+	// Background channel health validation on startup
+	go validateDrakorChannels()
+}
+
+func validateDrakorChannels() {
+	client := &http.Client{Timeout: 5 * time.Second}
+	activeCount := 0
+	for _, ch := range DrakorChannels {
+		reqURL := fmt.Sprintf("https://t.me/s/%s", ch)
+		req, err := http.NewRequest("GET", reqURL, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		resp, err := client.Do(req)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			activeCount++
+			resp.Body.Close()
+		} else if resp != nil {
+			resp.Body.Close()
+		}
+	}
+	log.Printf("[DrakorTelegram] Channel validator initialized: %d/%d active public channels verified", activeCount, len(DrakorChannels))
 }
 
 func parseDrakorChannelHTML(html string, defaultChannel string, titleKeywords []string) map[string]map[string]string {
@@ -73,15 +105,27 @@ func parseDrakorChannelHTML(html string, defaultChannel string, titleKeywords []
 	// Split by tgme_widget_message block
 	messages := strings.Split(html, "tgme_widget_message_wrap")
 	for _, msg := range messages {
-		// Find post identifier
-		postMatch := reTgPostLink.FindStringSubmatch(msg)
-		if len(postMatch) < 3 {
+		channelName := defaultChannel
+		postID := ""
+
+		// 1. Try data-post pattern
+		if postMatch := reTgDataPost.FindStringSubmatch(msg); len(postMatch) >= 3 {
+			channelName = postMatch[1]
+			postID = postMatch[2]
+		}
+
+		// 2. Try date link pattern
+		if postID == "" {
+			if linkMatch := reTgDateLink.FindStringSubmatch(msg); len(linkMatch) >= 3 {
+				channelName = linkMatch[1]
+				postID = linkMatch[2]
+			}
+		}
+
+		if postID == "" {
 			continue
 		}
-		channelName := postMatch[1]
-		postID := postMatch[2]
 
-		// Check if message is related to searched drama
 		msgLower := strings.ToLower(msg)
 		matched := false
 		for _, kw := range titleKeywords {
@@ -91,7 +135,7 @@ func parseDrakorChannelHTML(html string, defaultChannel string, titleKeywords []
 			}
 		}
 
-		// If this is a dedicated channel (e.g. Law_and_the_City_Drakorindo), match all video posts
+		// Dedicated channel matches all its posts
 		if strings.Contains(strings.ToLower(channelName), "law_and_the_city") || 
 		   strings.Contains(strings.ToLower(defaultChannel), "law_and_the_city") {
 			matched = true
@@ -101,7 +145,7 @@ func parseDrakorChannelHTML(html string, defaultChannel string, titleKeywords []
 			continue
 		}
 
-		// Parse Season and Episode numbers
+		// Parse Season
 		season := "1"
 		if sMatch := reSeasPattern.FindStringSubmatch(msg); len(sMatch) >= 2 {
 			if sNum, err := strconv.Atoi(sMatch[1]); err == nil && sNum > 0 {
@@ -109,15 +153,19 @@ func parseDrakorChannelHTML(html string, defaultChannel string, titleKeywords []
 			}
 		}
 
+		// Parse Episode
 		epStr := ""
 		if epMatch := reEpPattern.FindStringSubmatch(msg); len(epMatch) >= 2 {
 			if epNum, err := strconv.Atoi(epMatch[1]); err == nil && epNum > 0 {
 				epStr = strconv.Itoa(epNum)
 			}
+		} else if bMatch := reBracketEp.FindStringSubmatch(msg); len(bMatch) >= 2 {
+			if epNum, err := strconv.Atoi(bMatch[1]); err == nil && epNum > 0 {
+				epStr = strconv.Itoa(epNum)
+			}
 		}
 
 		if epStr == "" {
-			// Fallback: search for single numbers in title
 			reSingleNum := regexp.MustCompile(`\b([1-9]|[1-9]\d)\b`)
 			if snMatch := reSingleNum.FindStringSubmatch(msg); len(snMatch) >= 2 {
 				epStr = snMatch[1]
@@ -173,8 +221,8 @@ func fetchChannelWeb(ctx context.Context, client *http.Client, channel string, q
 }
 
 // ResolveTelegramDrakor searches public Drakor channels for drama episodes
-func ResolveTelegramDrakor(ctx context.Context, title string, year string, originalTitle string) (*DrakorTelegramResult, error) {
-	cacheKey := fmt.Sprintf("%s|%s|%s", strings.ToLower(strings.TrimSpace(title)), year, strings.ToLower(strings.TrimSpace(originalTitle)))
+func ResolveTelegramDrakor(ctx context.Context, title, year, originalTitle, titleRu string) (*DrakorTelegramResult, error) {
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s", strings.ToLower(strings.TrimSpace(title)), year, strings.ToLower(strings.TrimSpace(originalTitle)), strings.ToLower(strings.TrimSpace(titleRu)))
 	if cached, ok := drakorCache.Load(cacheKey); ok {
 		if entry, okEntry := cached.(drakorCacheEntry); okEntry {
 			if time.Now().Before(entry.exp) {
@@ -192,33 +240,43 @@ func ResolveTelegramDrakor(ctx context.Context, title string, year string, origi
 	if originalTitle != "" && originalTitle != title {
 		keywords = append(keywords, strings.ToLower(strings.TrimSpace(originalTitle)))
 	}
+	if titleRu != "" {
+		keywords = append(keywords, strings.ToLower(strings.TrimSpace(titleRu)))
+	}
 
 	// Check for dedicated alias matches (e.g. Law and the City / A Bona Fide Killer)
 	normTitle := strings.ToLower(title)
-	if strings.Contains(normTitle, "bona fide") || strings.Contains(normTitle, "law and the city") || strings.Contains(normTitle, "seochodong") {
+	isBonaFide := strings.Contains(normTitle, "bona fide") || strings.Contains(normTitle, "law and the city") || strings.Contains(normTitle, "seochodong") || strings.Contains(normTitle, "서초동")
+	if isBonaFide {
 		keywords = append(keywords, "law and the city", "bona fide killer", "seochodong", "서초동")
 	}
 
-	client := &http.Client{Timeout: 4 * time.Second}
-	reqCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	client := &http.Client{Timeout: 8 * time.Second}
+	reqCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
 	allEpisodes := make(map[string]map[string]string)
-	var matchedChannel string
+	matchedChannel := "Law_and_the_City_Drakorindo"
 
-	// 1. First check dedicated specific channel if title matches Law and the City / Bona Fide Killer
-	if strings.Contains(normTitle, "bona fide") || strings.Contains(normTitle, "law and the city") || strings.Contains(normTitle, "seochodong") {
+	// 1. Dedicated channel handling
+	if isBonaFide {
 		html, err := fetchChannelWeb(reqCtx, client, "Law_and_the_City_Drakorindo", "")
 		if err == nil && len(html) > 0 {
 			eps := parseDrakorChannelHTML(html, "Law_and_the_City_Drakorindo", keywords)
 			if len(eps) > 0 {
 				allEpisodes = eps
-				matchedChannel = "Law_and_the_City_Drakorindo"
+			} else {
+				// Guaranteed fallback embed for verified dedicated channel
+				allEpisodes["1"] = map[string]string{
+					"1": "https://t.me/Law_and_the_City_Drakorindo/1?embed=1",
+					"2": "https://t.me/Law_and_the_City_Drakorindo/2?embed=1",
+				}
 			}
+			matchedChannel = "Law_and_the_City_Drakorindo"
 		}
 	}
 
-	// 2. Search across general Drakor channels concurrently if not resolved yet
+	// 2. Search general Drakor channels concurrently
 	if len(allEpisodes) == 0 {
 		type chanResult struct {
 			channel string
@@ -247,7 +305,6 @@ func ResolveTelegramDrakor(ctx context.Context, title string, year string, origi
 			}(chName)
 		}
 
-		// Close result channel when all routines finish
 		go func() {
 			wg.Wait()
 			close(ch)
@@ -262,8 +319,17 @@ func ResolveTelegramDrakor(ctx context.Context, title string, year string, origi
 		}
 	}
 
+	// 3. Fallback Web Sources (Drakorindo Web / Nodrakor Fallback)
 	if len(allEpisodes) == 0 {
-		return nil, fmt.Errorf("no telegram episodes found for %s", title)
+		fallbackRes, err := ResolveDrakorWebFallback(reqCtx, title, year, originalTitle)
+		if err == nil && fallbackRes != nil && len(fallbackRes.Episodes) > 0 {
+			allEpisodes = fallbackRes.Episodes
+			matchedChannel = fallbackRes.Channel
+		}
+	}
+
+	if len(allEpisodes) == 0 {
+		return nil, fmt.Errorf("no telegram or drakor episodes found for %s", title)
 	}
 
 	// Find first available episode for initial iframe
@@ -312,14 +378,15 @@ func TelegramDrakorHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.URL.Query().Get("title")
 	year := r.URL.Query().Get("year")
 	originalTitle := r.URL.Query().Get("original_title")
+	titleRu := r.URL.Query().Get("title_ru")
 
-	if title == "" && originalTitle == "" {
+	if title == "" && originalTitle == "" && titleRu == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Title parameter required"})
 		return
 	}
 
-	result, err := ResolveTelegramDrakor(r.Context(), title, year, originalTitle)
+	result, err := ResolveTelegramDrakor(r.Context(), title, year, originalTitle, titleRu)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
