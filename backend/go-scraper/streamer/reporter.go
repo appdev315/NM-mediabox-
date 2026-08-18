@@ -39,13 +39,19 @@ func ReportMissingHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve Bot Token and Admin Chat ID
+	// Resolve Bot Token and Admin Chat ID from environment
 	botToken := os.Getenv("BOT_TOKEN_MAIN")
 	if botToken == "" {
 		botToken = os.Getenv("BOT_TOKEN")
 	}
 	if botToken == "" {
-		botToken = "***BOT_TOKEN_REDACTED***"
+		log.Println("[Reporter] Warning: Telegram bot token not configured in environment (BOT_TOKEN_MAIN)")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":      true,
+			"message": "Report received",
+		})
+		return
 	}
 
 	chatID := os.Getenv("ADMIN_CHAT_ID")
