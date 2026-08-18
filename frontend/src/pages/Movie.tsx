@@ -23,7 +23,7 @@ export function Movie() {
   const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: id });
   
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [sources, setSources] = useState<{name: string, url: string, isLiftw?: boolean, isTelegram?: boolean}[]>([]);
+  const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, isTelegram?: boolean, episodes?: any}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
@@ -348,11 +348,8 @@ export function Movie() {
       let isLiftwDone = false;
       let anwapDone = false;
 
-      const countryParam = (searchParams.get('country') || '').toUpperCase();
-      const originCountries: string[] = movie?.origin_country || [];
-      const isRu = language === 'ru-RU' || countryParam === 'RU' || countryParam === 'SU' || 
-                         originCountries.includes('RU') || originCountries.includes('SU') || 
-                         (movie?.country && /россия|ссср|russia/i.test(movie.country));
+      const isEnOrId = language === 'en-US' || language === 'id-ID' || language?.startsWith('en') || language?.startsWith('id');
+      const isIndonesian = language === 'id-ID' || language?.startsWith('id');
 
       const evaluateUIUnblock = () => {
         if (!isLiftwDone) return;
@@ -364,37 +361,77 @@ export function Movie() {
       const updateUI = () => {
         const combined: any[] = [];
         
-        if (foundSources.liftw) {
-          let liftwObj = { ...foundSources.liftw };
-          if (!isRu) {
-            const langCode = (language || 'en').split('-')[0] || 'en';
-            if (!liftwObj.url.includes('lang=')) {
-              liftwObj.url += (liftwObj.url.includes('?') ? '&' : '?') + `lang=${langCode}&audio=${langCode}&sound=${langCode}`;
+        if (isEnOrId) {
+          // English & Indonesian: Full localized multi-player experience
+          if (isIndonesian) {
+            // Indonesian: Prioritize Telegram Drakor Sub Indo
+            if (foundSources.telegram) {
+              combined.push({
+                name: 'player1',
+                label: '🇮🇩 Telegram (Drakor Sub Indo)',
+                url: foundSources.telegram.url,
+                isTelegram: true,
+                episodes: foundSources.telegram.episodes
+              });
+            }
+            if (foundSources.liftw) {
+              combined.push({
+                name: combined.length === 0 ? 'player1' : 'player2',
+                label: '🌐 Server Global',
+                url: foundSources.liftw.url,
+                isLiftw: true
+              });
+            }
+            if (foundSources.anwap.length > 0) {
+              combined.push({
+                name: `player${combined.length + 1}`,
+                label: '📱 Server Cadangan (MP4)',
+                url: foundSources.anwap[0].url,
+                isLiftw: false
+              });
+            }
+          } else {
+            // English: Global Server -> Telegram Sub Indo -> Direct MP4
+            if (foundSources.liftw) {
+              let liftwObj = { ...foundSources.liftw, label: '🌐 Server 1 (Global)' };
+              const langCode = (language || 'en').split('-')[0] || 'en';
+              if (!liftwObj.url.includes('lang=')) {
+                liftwObj.url += (liftwObj.url.includes('?') ? '&' : '?') + `lang=${langCode}&audio=${langCode}&sound=${langCode}`;
+              }
+              combined.push(liftwObj);
+            }
+            if (foundSources.telegram) {
+              combined.push({
+                name: `player${combined.length + 1}`,
+                label: '🇮🇩 Server 2 (Telegram Sub Indo)',
+                url: foundSources.telegram.url,
+                isTelegram: true,
+                episodes: foundSources.telegram.episodes
+              });
+            }
+            if (foundSources.anwap.length > 0) {
+              combined.push({
+                name: `player${combined.length + 1}`,
+                label: '📱 Server 3 (Direct MP4)',
+                url: foundSources.anwap[0].url,
+                isLiftw: false
+              });
             }
           }
-          combined.push(liftwObj);
-
-          if (foundSources.anwap.length > 0) {
-            combined.push(foundSources.anwap[0]);
-          }
-          if (foundSources.telegram) {
-            combined.push(foundSources.telegram);
-          }
-        } else if (isLiftwDone) {
-          if (foundSources.anwap.length > 0) {
-            combined.push(foundSources.anwap[0]);
-          }
-          if (foundSources.telegram) {
-            combined.push(foundSources.telegram);
+        } else {
+          // Russian & other languages: Clean streamlined single-player experience
+          if (foundSources.liftw) {
+            combined.push({ ...foundSources.liftw, label: 'Плеер 1' });
+          } else if (foundSources.anwap.length > 0) {
+            combined.push({ ...foundSources.anwap[0], label: 'Плеер 1' });
           }
         }
 
-        // Cap to max 3 clean players (Player 1: Liftw, Player 2: Anwap, Player 3: Telegram)
-        if (combined.length > 3) {
-          combined.length = 3;
-        }
-
-        const mapped = combined.map((s, i) => ({ ...s, name: `player${i + 1}` }));
+        const mapped = combined.map((s, i) => ({ 
+          ...s, 
+          name: s.name || `player${i + 1}`,
+          label: s.label || `Player ${i + 1}`
+        }));
         setSources(mapped);
 
         if (mapped.length > 0) {
@@ -494,8 +531,12 @@ export function Movie() {
         }
       };
 
-      // Fetch all Player sources concurrently
-      await Promise.allSettled([fetchLiftw(), fetchAnwap(), fetchTelegramDrakor()]);
+      // Fetch Player sources conditionally based on language
+      const fetchPromises: Promise<any>[] = [fetchLiftw(), fetchAnwap()];
+      if (isEnOrId) {
+        fetchPromises.push(fetchTelegramDrakor());
+      }
+      await Promise.allSettled(fetchPromises);
 
       // Atomic single-pass UI update & unblock
       updateUI();
@@ -844,21 +885,22 @@ export function Movie() {
               </span>
             </div>
           )}
-          {sources.length > 1 && !isExtracting && iframeUrl && (
-            <div className="flex justify-center items-center gap-2 mb-3">
+          {(language === 'en-US' || language === 'id-ID' || language?.startsWith('en') || language?.startsWith('id')) && sources.length > 1 && !isExtracting && iframeUrl && (
+            <div className="flex flex-wrap justify-center items-center gap-2 mb-3">
               {sources.map((src, idx) => (
                 <button
                   key={src.url}
                   onClick={() => {
+                    userSelectedRef.current = true;
                     setIframeUrl(src.url);
                   }}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-sm cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-sm cursor-pointer flex items-center gap-1.5 ${
                     iframeUrl === src.url 
                       ? 'bg-[var(--button-color)] text-white shadow-md scale-105 ring-2 ring-blue-400/30' 
                       : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {(t('player' as any) || 'Player')} {idx + 1}
+                  {src.label || `Player ${idx + 1}`}
                 </button>
               ))}
             </div>
