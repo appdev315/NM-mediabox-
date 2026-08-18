@@ -33,8 +33,6 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
-  const [telegramEpisodes, setTelegramEpisodes] = useState<Record<string, string[]> | null>(null);
-  const [telegramEpisodeUrls, setTelegramEpisodeUrls] = useState<Record<string, Record<string, string>> | null>(null);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -174,29 +172,12 @@ export function Movie() {
     setActiveSeason(season);
     setActiveEpisode(episode);
 
-    const currentSource = sources.find((s: any) => s.url === iframeUrl);
-    if (currentSource?.isTelegram || telegramEpisodeUrls?.[season]?.[episode]) {
-      const epUrl = telegramEpisodeUrls?.[season]?.[episode];
-      if (epUrl) {
-        setIframeUrl(epUrl);
-      }
-    } else if (currentSource?.isLiftw) {
-      const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
-      if (iframe && iframe.contentWindow) {
+    const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      try {
         const iframeOrigin = new URL(iframe.src).origin;
         iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: parseInt(episode) }, iframeOrigin);
-      }
-    } else {
-      setIframeUrl(prev => {
-        if (!prev) return prev;
-        if (prev.includes('/embed/tv/')) {
-          const parts = prev.split('/embed/tv/')[1]?.split('/') || [];
-          const tmdbId = parts[0];
-          const base = prev.split('/embed/tv/')[0];
-          return `${base}/embed/tv/${tmdbId}/${season}/${episode}`;
-        }
-        return prev;
-      });
+      } catch (_) {}
     }
   };
 
@@ -344,21 +325,16 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { liftw: any, anwap: any[], telegram: any } = { 
+      const foundSources: { liftw: any, anwap: any[] } = { 
         liftw: null, 
-        anwap: [],
-        telegram: null
+        anwap: []
       };
 
       let isLiftwDone = false;
       let anwapDone = false;
 
-      const isEnOrId = language === 'en-US' || language === 'id-ID' || language?.startsWith('en') || language?.startsWith('id');
-      const isIndonesian = language === 'id-ID' || language?.startsWith('id');
-
       const evaluateUIUnblock = () => {
-        if (!isLiftwDone && !foundSources.telegram) return;
-        if (foundSources.liftw || anwapDone || foundSources.telegram) {
+        if (foundSources.liftw || isLiftwDone || anwapDone) {
           setIsExtracting(false);
         }
       };
@@ -366,81 +342,30 @@ export function Movie() {
       const updateUI = () => {
         const combined: any[] = [];
         
-        if (isEnOrId) {
-          // English & Indonesian: Full localized multi-player experience
-          if (isIndonesian) {
-            // Indonesian: Prioritize Telegram Drakor Sub Indo
-            if (foundSources.telegram) {
-              combined.push({
-                name: 'player1',
-                label: '🇮🇩 Telegram (Drakor Sub Indo)',
-                url: foundSources.telegram.url,
-                isTelegram: true,
-                episodes: foundSources.telegram.episodes
-              });
-            }
-            if (foundSources.liftw) {
-              combined.push({
-                name: combined.length === 0 ? 'player1' : 'player2',
-                label: '🌐 Server Global',
-                url: foundSources.liftw.url,
-                isLiftw: true
-              });
-            }
-            if (foundSources.anwap.length > 0) {
-              combined.push({
-                name: `player${combined.length + 1}`,
-                label: '📱 Server Cadangan (MP4)',
-                url: foundSources.anwap[0].url,
-                isLiftw: false
-              });
-            }
-          } else {
-            // English: Global Server -> Telegram Sub Indo -> Direct MP4
-            if (foundSources.liftw) {
-              let liftwObj = { ...foundSources.liftw, label: '🌐 Server 1 (Global)' };
-              const langCode = (language || 'en').split('-')[0] || 'en';
-              if (!liftwObj.url.includes('lang=')) {
-                liftwObj.url += (liftwObj.url.includes('?') ? '&' : '?') + `lang=${langCode}&audio=${langCode}&sound=${langCode}`;
-              }
-              combined.push(liftwObj);
-            }
-            if (foundSources.telegram) {
-              combined.push({
-                name: `player${combined.length + 1}`,
-                label: '🇮🇩 Server 2 (Telegram Sub Indo)',
-                url: foundSources.telegram.url,
-                isTelegram: true,
-                episodes: foundSources.telegram.episodes
-              });
-            }
-            if (foundSources.anwap.length > 0) {
-              combined.push({
-                name: `player${combined.length + 1}`,
-                label: '📱 Server 3 (Direct MP4)',
-                url: foundSources.anwap[0].url,
-                isLiftw: false
-              });
-            }
-          }
-        } else {
-          // Russian & other languages: Clean streamlined single-player experience
-          if (foundSources.liftw) {
-            combined.push({ ...foundSources.liftw, label: 'Плеер 1' });
-          } else if (foundSources.anwap.length > 0) {
-            combined.push({ ...foundSources.anwap[0], label: 'Плеер 1' });
-          }
+        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher)
+        if (foundSources.liftw) {
+          combined.push({
+            name: 'player1',
+            label: t('player1') || 'Плеер 1',
+            url: foundSources.liftw.url,
+            isLiftw: true
+          });
+        }
+        
+        // Player 2: Anwap (Direct MP4 backup stream)
+        if (foundSources.anwap.length > 0) {
+          combined.push({
+            name: 'player2',
+            label: t('player2') || 'Плеер 2',
+            url: foundSources.anwap[0].url,
+            isLiftw: false
+          });
         }
 
-        const mapped = combined.map((s, i) => ({ 
-          ...s, 
-          name: s.name || `player${i + 1}`,
-          label: s.label || `Player ${i + 1}`
-        }));
-        setSources(mapped);
+        setSources(combined);
 
-        if (mapped.length > 0) {
-          const preferredUrl = mapped[0].url;
+        if (combined.length > 0) {
+          const preferredUrl = combined[0].url;
           if (!userSelectedRef.current) {
             setIframeUrl(preferredUrl);
           } else {
@@ -449,7 +374,7 @@ export function Movie() {
         }
       };
 
-      // 2. Fetch liftw asynchronously
+      // 2. Fetch liftw asynchronously (Primary Player)
       const fetchLiftw = async () => {
         const start = performance.now();
         try {
@@ -502,58 +427,15 @@ export function Movie() {
         }
       };
 
-      // 4. Fetch Telegram Drakor / KDrama stream asynchronously (Player 3 / Fallback)
-      const fetchTelegramDrakor = async () => {
-        try {
-          const originalTitle = (movie as any)?.original_title || (movie as any)?.original_name || '';
-          const tgQuery = new URLSearchParams({
-            title: queryParams.title,
-            year: queryParams.year,
-            original_title: originalTitle,
-            title_ru: ruTitle
-          });
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/telegram/drakor?${tgQuery.toString()}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.iframe) {
-              foundSources.telegram = {
-                name: 'telegram',
-                url: data.iframe,
-                isTelegram: true,
-                episodes: data.episodes
-              };
-
-              if (data.episodes && Object.keys(data.episodes).length > 0) {
-                const epMap: Record<string, string[]> = {};
-                for (const s of Object.keys(data.episodes)) {
-                  epMap[s] = Object.keys(data.episodes[s]).sort((a, b) => parseInt(a) - parseInt(b));
-                }
-                setTelegramEpisodes(epMap);
-                setTelegramEpisodeUrls(data.episodes);
-
-                setActiveSeason(prev => prev || Object.keys(epMap)[0] || '1');
-                setActiveEpisode(prev => prev || epMap[Object.keys(epMap)[0] || '1']?.[0] || '1');
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Telegram Drakor fetch failed", e);
-        }
-      };
-
-      // Fetch Player sources conditionally based on language
-      const fetchPromises: Promise<any>[] = [fetchLiftw(), fetchAnwap()];
-      if (isEnOrId) {
-        fetchPromises.push(fetchTelegramDrakor());
-      }
-      await Promise.allSettled(fetchPromises);
+      // Fetch primary and secondary player sources in parallel
+      await Promise.allSettled([fetchLiftw(), fetchAnwap()]);
 
       // Atomic single-pass UI update & unblock
       updateUI();
       evaluateUIUnblock();
 
       // Detect total source failure — all donors returned 404 / no valid URL
-      if (foundSources.liftw === null && foundSources.anwap.length === 0 && foundSources.telegram === null) {
+      if (foundSources.liftw === null && foundSources.anwap.length === 0) {
         setContentUnavailable(true);
       }
     } catch (err) {
@@ -895,7 +777,7 @@ export function Movie() {
               </span>
             </div>
           )}
-          {(language === 'en-US' || language === 'id-ID' || language?.startsWith('en') || language?.startsWith('id')) && sources.length > 1 && !isExtracting && iframeUrl && (
+          {language !== 'ru-RU' && sources.length > 1 && !isExtracting && iframeUrl && (
             <div className="flex flex-wrap justify-center items-center gap-2 mb-3">
               {sources.map((src, idx) => (
                 <button
@@ -910,7 +792,7 @@ export function Movie() {
                       : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {src.label || `Player ${idx + 1}`}
+                  {idx === 0 ? (t('player1') || 'Плеер 1') : (t('player2') || 'Плеер 2')}
                 </button>
               ))}
             </div>
@@ -953,15 +835,14 @@ export function Movie() {
                   value={activeSeason || '1'}
                   onChange={(e) => {
                     const season = e.target.value;
-                    const epsSrc = liftwEpisodes || telegramEpisodes;
-                    const availableEpisodes = epsSrc && epsSrc[season] ? epsSrc[season] : ['1'];
+                    const availableEpisodes = liftwEpisodes && liftwEpisodes[season] ? liftwEpisodes[season] : ['1'];
                     const defaultEpisode = availableEpisodes[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                   }}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {Object.keys(liftwEpisodes || telegramEpisodes || { '1': ['1'] }).map((season) => (
+                  {Object.keys(liftwEpisodes || { '1': ['1'] }).map((season) => (
                     <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('season')} {season}
                     </option>
@@ -977,7 +858,7 @@ export function Movie() {
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {((liftwEpisodes || telegramEpisodes)?.[activeSeason || '1'] || ['1']).map((episode: string) => (
+                  {(liftwEpisodes?.[activeSeason || '1'] || ['1']).map((episode: string) => (
                     <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('episode')} {episode}
                     </option>
