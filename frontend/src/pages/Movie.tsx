@@ -172,6 +172,21 @@ export function Movie() {
     setActiveSeason(season);
     setActiveEpisode(episode);
 
+    setIframeUrl(prev => {
+      if (!prev) return prev;
+      try {
+        const urlObj = new URL(prev);
+        urlObj.searchParams.set('season', season);
+        urlObj.searchParams.set('episode', episode);
+        return urlObj.toString();
+      } catch (_) {
+        if (prev.includes('season=')) {
+          return prev.replace(/season=\d+/, `season=${season}`).replace(/episode=\d+/, `episode=${episode}`);
+        }
+        return `${prev}${prev.includes('?') ? '&' : '?'}season=${season}&episode=${episode}`;
+      }
+    });
+
     const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
     if (iframe && iframe.contentWindow) {
       try {
@@ -382,7 +397,7 @@ export function Movie() {
           if (!res.ok) return;
           const liftwData = await res.json();
           if (liftwData && liftwData.iframe) {
-            foundSources.liftw = { name: 'liftw', url: liftwData.iframe, isLiftw: true };
+            foundSources.liftw = { name: 'player1', url: liftwData.iframe, isLiftw: true };
             
             if (liftwData.episodes) {
               setLiftwEpisodes(liftwData.episodes);
@@ -396,13 +411,16 @@ export function Movie() {
                 return (firstSeason && liftwData.episodes[firstSeason]?.[0]) || '1';
               });
             }
+
+            // Fast UI Unblock: Display player immediately as soon as primary source arrives (~1.2s)
+            updateUI();
+            setIsExtracting(false);
           }
         } catch (e) {
           console.error("Liftw fetch failed", e);
         } finally {
           const end = performance.now();
           console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
-          isLiftwDone = true;
         }
       };
 
@@ -423,33 +441,37 @@ export function Movie() {
         } finally {
           const end = performance.now();
           console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
-          anwapDone = true;
         }
       };
 
-      // Fetch primary and secondary player sources in parallel
-      await Promise.allSettled([fetchLiftw(), fetchAnwap()]);
+      // Fetch primary and secondary player sources in parallel without blocking UI
+      fetchLiftw().then(() => {
+        updateUI();
+        evaluateUIUnblock();
+      }).finally(() => {
+        isLiftwDone = true;
+        if (isLiftwDone && anwapDone && foundSources.liftw === null && foundSources.anwap.length === 0) {
+          setContentUnavailable(true);
+        }
+      });
 
-      // Atomic single-pass UI update & unblock
-      updateUI();
-      evaluateUIUnblock();
-
-      // Detect total source failure — all donors returned 404 / no valid URL
-      if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-        setContentUnavailable(true);
-      }
+      fetchAnwap().then(() => {
+        updateUI();
+      }).finally(() => {
+        anwapDone = true;
+        if (isLiftwDone && anwapDone && foundSources.liftw === null && foundSources.anwap.length === 0) {
+          setContentUnavailable(true);
+        }
+      });
     } catch (err) {
       console.error("Failed to extract stream", err);
       alert("Failed to load stream");
     } finally {
-      setIsExtracting(false);
       setTimeout(() => {
         document.getElementById('video-player-container')?.scrollIntoView({ behavior: 'smooth' });
       }, 300);
     }
   };
-
-
 
   if (loading && !movie) {
     return (
