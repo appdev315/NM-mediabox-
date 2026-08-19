@@ -135,8 +135,8 @@ export function Header() {
               onClick={handleOpenProfile}
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
             >
-              <span className="text-base sm:text-lg">👤</span>
-              <span>{t('profile') || 'Профиль / Настройки'}</span>
+              <span className="text-base sm:text-lg">⚙️</span>
+              <span>{t('settings') || 'Настройки'}</span>
             </button>
 
             {showScrollTop && (
