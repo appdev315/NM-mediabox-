@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"scraper/scraper"
 )
@@ -93,6 +94,55 @@ func normString(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.ReplaceAll(s, "ё", "е")
 	return normRegex.ReplaceAllString(s, "")
+}
+
+func cleanWords(s string) []string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "ё", "е")
+	s = strings.ReplaceAll(s, "Ё", "е")
+	var words []string
+	for _, w := range strings.FieldsFunc(s, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) {
+		if w != "" {
+			words = append(words, w)
+		}
+	}
+	return words
+}
+
+func matchesWords(itemWords, candWords []string) bool {
+	if len(candWords) == 0 || len(itemWords) == 0 {
+		return false
+	}
+	// If candidate is a single word, require >= 4 runes to prevent trivial collisions
+	if len(candWords) == 1 {
+		cw := candWords[0]
+		if len([]rune(cw)) < 4 {
+			return false
+		}
+		for _, iw := range itemWords {
+			if iw == cw {
+				return true
+			}
+		}
+		return false
+	}
+
+	// For multi-word candidates, check sub-sequence
+	for i := 0; i <= len(itemWords)-len(candWords); i++ {
+		match := true
+		for j := 0; j < len(candWords); j++ {
+			if itemWords[i+j] != candWords[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }
 
 func hasCyrillic(s string) bool {
@@ -198,8 +248,8 @@ func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*
 }
 
 func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
-	searchLimit := 3
-	if len(candidates) < 3 {
+	searchLimit := 10
+	if len(candidates) < 10 {
 		searchLimit = len(candidates)
 	}
 
@@ -218,8 +268,6 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			*lastErr = fmt.Sprintf("via %s decode error: %v", via, decodeErr)
 			continue
 		}
-
-		var fallbackItem *LiftwSearchItem
 
 		for i := range sRes.Items {
 			item := sRes.Items[i]
@@ -259,6 +307,17 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 				if matched {
 					break
 				}
+
+				// 3. Word-level match: if candidate matches whole word in item (e.g. "Ричер" in "Джек Ричер")
+				cWords := cleanWords(c)
+				if len(cWords) > 0 {
+					nameWords := cleanWords(item.Name)
+					origWords := cleanWords(item.OriginName)
+					if matchesWords(nameWords, cWords) || matchesWords(origWords, cWords) {
+						matched = true
+						break
+					}
+				}
 			}
 
 			if matched {
@@ -267,10 +326,6 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 					return &item
 				}
 			}
-		}
-
-		if fallbackItem != nil {
-			return fallbackItem
 		}
 	}
 	return nil
