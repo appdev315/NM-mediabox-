@@ -65,7 +65,7 @@ export function Header() {
 
   const handleOpenIos = () => {
     setIsOpen(false);
-    alert('Чтобы установить MediaBox на iPhone, нажмите кнопку «Поделиться» (квадрат со стрелочкой вверх внизу экрана) и выберите «На экран Домой» (Add to Home Screen).');
+    alert(t('iosInstallPrompt') || 'To install MediaBox on iPhone/iPad: tap the Share button and select Add to Home Screen.');
   };
 
   const handleOpenProfile = () => {
