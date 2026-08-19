@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
+import { IosInstallModal } from './IosInstallModal';
 
 export function Header() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ export function Header() {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showIosModal, setShowIosModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export function Header() {
 
   const handleOpenIos = () => {
     setIsOpen(false);
-    alert(t('iosInstallPrompt') || 'To install MediaBox on iPhone/iPad: tap the Share button and select Add to Home Screen.');
+    setShowIosModal(true);
   };
 
   const handleOpenProfile = () => {
@@ -74,82 +76,87 @@ export function Header() {
   };
 
   return (
-    <div 
-      ref={menuRef}
-      className="fixed right-3 sm:right-4 z-50 flex flex-col items-end"
-      style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
-    >
-      {/* Floating circular button ("Бублик") */}
-      <button 
-        onClick={() => {
-          if (WebApp.HapticFeedback) {
-            WebApp.HapticFeedback.impactOccurred('light');
-          }
-          setIsOpen(prev => !prev);
-        }}
-        className="w-10 h-10 sm:w-11 sm:h-11 rounded-full shadow-xl border border-white/10 flex items-center justify-center transition-transform active:scale-95 bg-gray-800 text-white hover:bg-gray-700"
-        aria-label="Меню"
+    <>
+      <div 
+        ref={menuRef}
+        className="fixed right-3 sm:right-4 z-50 flex flex-col items-end"
+        style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          {isOpen ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          )}
-        </svg>
-      </button>
+        {/* Floating circular button ("Бублик") */}
+        <button 
+          onClick={() => {
+            if (WebApp.HapticFeedback) {
+              WebApp.HapticFeedback.impactOccurred('light');
+            }
+            setIsOpen(prev => !prev);
+          }}
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full shadow-xl border border-white/10 flex items-center justify-center transition-transform active:scale-95 bg-gray-800 text-white hover:bg-gray-700"
+          aria-label="Меню"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {isOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
 
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div className="mt-2 w-56 sm:w-64 bg-gray-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 p-2 flex flex-col gap-1 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2 duration-150">
-          <button
-            onClick={handleOpenTelegram}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
-          >
-            <span className="text-base sm:text-lg">✈️</span>
-            <span>{(t as any)('mediaBoxTelegram') || 'MediaBox в Telegram'}</span>
-          </button>
-
-          <button
-            onClick={handleOpenAndroid}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
-          >
-            <span className="text-base sm:text-lg">🤖</span>
-            <span>{(t as any)('downloadAndroid') || 'Скачать на Android'}</span>
-          </button>
-
-          <button
-            onClick={handleOpenIos}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
-          >
-            <span className="text-base sm:text-lg">🍏</span>
-            <span>{(t as any)('downloadIos') || 'Добавить на iPhone'}</span>
-          </button>
-
-          <div className="my-1 border-t border-white/10" />
-
-          <button
-            onClick={handleOpenProfile}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
-          >
-            <span className="text-base sm:text-lg">👤</span>
-            <span>{t('profile') || 'Профиль / Настройки'}</span>
-          </button>
-
-          {showScrollTop && (
+        {/* Dropdown Menu */}
+        {isOpen && (
+          <div className="mt-2 w-56 sm:w-64 bg-gray-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 p-2 flex flex-col gap-1 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2 duration-150">
             <button
-              onClick={() => {
-                setIsOpen(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-blue-400 font-medium"
+              onClick={handleOpenTelegram}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
             >
-              <span className="text-base sm:text-lg">⬆️</span>
-              <span>Наверх</span>
+              <span className="text-base sm:text-lg">✈️</span>
+              <span>{(t as any)('mediaBoxTelegram') || 'MediaBox в Telegram'}</span>
             </button>
-          )}
-        </div>
-      )}
-    </div>
+
+            <button
+              onClick={handleOpenAndroid}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
+            >
+              <span className="text-base sm:text-lg">🤖</span>
+              <span>{(t as any)('downloadAndroid') || 'Скачать на Android'}</span>
+            </button>
+
+            <button
+              onClick={handleOpenIos}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
+            >
+              <span className="text-base sm:text-lg">🍏</span>
+              <span>{(t as any)('downloadIos') || 'Добавить на iPhone'}</span>
+            </button>
+
+            <div className="my-1 border-t border-white/10" />
+
+            <button
+              onClick={handleOpenProfile}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
+            >
+              <span className="text-base sm:text-lg">👤</span>
+              <span>{t('profile') || 'Профиль / Настройки'}</span>
+            </button>
+
+            {showScrollTop && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-blue-400 font-medium"
+              >
+                <span className="text-base sm:text-lg">⬆️</span>
+                <span>Наверх</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <IosInstallModal isOpen={showIosModal} onClose={() => setShowIosModal(false)} />
+    </>
   );
 }
+
