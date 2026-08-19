@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { Capacitor } from '@capacitor/core';
 import { useLanguage } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { useEffect, useCallback, useRef } from 'react';
@@ -10,7 +9,6 @@ export function FloatingTitle() {
   const location = useLocation();
   const { t } = useLanguage();
   const { triggerPostAd } = useAdManager();
-  const isWeb = (!WebApp.platform || WebApp.platform === 'unknown') && !Capacitor.isNativePlatform();
 
   const hostname = window.location.hostname;
   const isAdultDomain = window.location.hostname === 'moviemaniak5555.xyz' || (hostname === 'localhost' && window.location.port === '3001');
@@ -67,7 +65,7 @@ export function FloatingTitle() {
 
     return (
       <div 
-        className="fixed left-4 z-50 cursor-pointer px-5 py-2.5 rounded-xl shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
+        className="fixed left-3 sm:left-4 z-40 cursor-pointer px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-xl shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
         style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
         onClick={() => {
           if (WebApp.HapticFeedback) {
@@ -76,7 +74,7 @@ export function FloatingTitle() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       >
-        <span className={`${isWeb ? 'text-3xl' : 'text-lg'} font-black tracking-wider drop-shadow-md`}>
+        <span className="text-sm sm:text-lg font-black tracking-wider drop-shadow-md">
           {isAdultApp ? t('secretRoomTab') : 'MEDIABOX'}
         </span>
       </div>
