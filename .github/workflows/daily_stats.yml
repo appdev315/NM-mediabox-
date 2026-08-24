@@ -1,9 +1,9 @@
-name: 8-Hour Server Stats & Diagnostics
+name: 3-Hour Server Stats & Diagnostics
 
 on:
   schedule:
-    # Run every 8 hours (00:00, 08:00, 16:00 UTC) -> 3 times per 24 hours
-    - cron: '0 */8 * * *'
+    # Run every 3 hours (00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00 UTC) -> 8 times per 24 hours
+    - cron: '0 */3 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
               LOG_BLOCK=$'\n\n📝 <b>Ошибки в логах (для передачи ИИ):</b>\n<code>\n'"${RECENT_ERRORS_RAW}"$'\n</code>'
             fi
             
-            STATS_MSG="📊 <b>Сводка Media-Box (За 8 часов)</b>
+            STATS_MSG="📊 <b>Сводка Media-Box (За 3 часа)</b>
 
           ⏳ <b>Аптайм:</b> ${HOURS}ч ${MINUTES}м
           👥 <b>Уникальных IP:</b> <b>${UNIQUE_IPS}</b>

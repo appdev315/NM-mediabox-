@@ -230,7 +230,10 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(lrw, r)
 
 		code := lrw.statusCode
-		if code >= 200 && code < 400 {
+		if code == http.StatusNotFound {
+			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
+			atomic.AddUint64(&GlobalMetrics.Errors.NotFounds, 1)
+		} else if code >= 200 && code < 400 {
 			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
 		} else {
 			atomic.AddUint64(&GlobalMetrics.Errors.Total, 1)
@@ -244,8 +247,6 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			switch code {
 			case 429:
 				atomic.AddUint64(&GlobalMetrics.Errors.RateLimits, 1)
-			case 404:
-				atomic.AddUint64(&GlobalMetrics.Errors.NotFounds, 1)
 			case 403:
 				atomic.AddUint64(&GlobalMetrics.Errors.DonorBans, 1)
 			default:
@@ -254,9 +255,8 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 				}
 			}
 
-			if code >= 400 {
-				RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
-			}
+			// Only log actionable infrastructure failures (500s, bans, rate-limits) for AI analysis
+			RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 		}
 	})
 }
