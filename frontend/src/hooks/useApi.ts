@@ -222,17 +222,7 @@ export function useApi() {
     if (cached) return cached;
 
     return withLoading(async () => {
-      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings' });
-
-      // Fallback for trailers: if no trailers in current language, fetch en-US videos
-      if (data && (!data.videos || !data.videos.results || data.videos.results.length === 0)) {
-        try {
-          const enVideos = await tmdbFetch(`/${type}/${id}/videos`, { language: 'en-US' });
-          if (enVideos && enVideos.results) {
-            data.videos = enVideos;
-          }
-        } catch (e) { }
-      }
+      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
 
       const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
       clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
