@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -6,34 +6,10 @@ import { IosInstallModal } from './IosInstallModal';
 
 export function Header() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [showIosModal, setShowIosModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let ticking = false;
-    let lastState = false;
-
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const shouldShow = window.scrollY > 300 && location.pathname !== '/profile';
-          if (shouldShow !== lastState) {
-            lastState = shouldShow;
-            setShowScrollTop(shouldShow);
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [location.pathname]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -138,19 +114,6 @@ export function Header() {
               <span className="text-base sm:text-lg">⚙️</span>
               <span>{t('settings') || 'Настройки'}</span>
             </button>
-
-            {showScrollTop && (
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-blue-400 font-medium"
-              >
-                <span className="text-base sm:text-lg">⬆️</span>
-                <span>Наверх</span>
-              </button>
-            )}
           </div>
         )}
       </div>
