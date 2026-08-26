@@ -16,8 +16,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [mirrorIndex, setMirrorIndex] = useState(0);
-  const [reloadCounter, setReloadCounter] = useState(0);
-  const hiddenAtRef = useRef<number>(0);
   const { t } = useLanguage();
 
   // Determine provider type
@@ -114,7 +112,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       clearTimeout(fallbackTimer);
       if (sentinelTimer) clearTimeout(sentinelTimer);
     };
-  }, [currentUrl, mirrorIndex, activeMirrors, reloadCounter]);
+  }, [currentUrl, mirrorIndex, activeMirrors]);
 
   // Loading progress bar animation
   useEffect(() => {
@@ -202,25 +200,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     };
   }, [iframeLoaded]);
 
-  // Auto-reload iframe after prolonged tab hide (screen lock / app switch)
-  useEffect(() => {
-    const handleVisibilityForReload = () => {
-      if (document.visibilityState === 'hidden') {
-        hiddenAtRef.current = Date.now();
-      } else if (document.visibilityState === 'visible' && hiddenAtRef.current > 0) {
-        const elapsed = Date.now() - hiddenAtRef.current;
-        hiddenAtRef.current = 0;
-        if (elapsed > 30_000) {
-          console.log(`[Player] Tab hidden for ${(elapsed / 1000).toFixed(0)}s — reloading iframe`);
-          setIframeLoaded(false);
-          setReloadCounter(c => c + 1);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityForReload);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityForReload);
-  }, []);
 
   useEffect(() => {
     WebApp.expand();
@@ -255,7 +234,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
       <iframe 
         id="video-iframe"
-        key={`${sourceKey}_${reloadCounter}`}
+        key={sourceKey}
         src={currentUrl}
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
