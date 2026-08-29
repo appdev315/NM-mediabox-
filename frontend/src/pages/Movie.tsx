@@ -24,7 +24,7 @@ export function Movie() {
   const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: id });
   
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, isTelegram?: boolean, episodes?: any}[]>([]);
+  const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, episodes?: any}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
