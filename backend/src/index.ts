@@ -5,12 +5,27 @@ import { tgAuthMiddleware } from './middleware/auth';
 type Bindings = {
   DB: D1Database;
   TELEGRAM_BOT_TOKEN: string;
+  BOT_TOKEN_MAIN?: string;
+  BOT_TOKEN?: string;
   ALLOWED_ORIGIN?: string;
 };
 
 type Variables = {
   tgUser: { id: number; first_name: string; username?: string };
+  country: string;
+  sessionId: string;
 };
+
+interface AnalyticsEvent {
+  event_type: string;
+  country?: string;
+  user_id?: number | null;
+  session_id?: string;
+  item_type?: string;
+  item_title?: string;
+  item_id?: string;
+  meta?: string;
+}
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -33,7 +48,116 @@ app.onError((err: Error, c: Context) => {
 
 // --- БАЗА ДАННЫХ D1 ---
 
+app.use('/api/*', async (c: Context, next) => {
+  c.set('country', c.req.header('CF-IPCountry') || c.req.header('X-Country-Code') || 'XX');
+  let sessionId = c.req.header('X-Session-Id') || '';
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+  }
+  c.set('sessionId', sessionId);
+  await next();
+});
+
 app.use('/api/user/*', tgAuthMiddleware);
+
+app.post('/api/analytics/track', async (c: Context) => {
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  const body = await c.req.json().catch(() => ({}));
+  const events: AnalyticsEvent[] = Array.isArray(body?.events) ? body.events : body?.events ? [body.events] : [];
+  if (events.length === 0) {
+    return c.json({ ok: true, count: 0 });
+  }
+
+  const country = c.get('country');
+  const sessionId = body.session_id || c.get('sessionId') || '';
+  const tgUser = c.get('tgUser');
+  const bodyUserId = body.user_id != null ? Number(body.user_id) : undefined;
+
+  try {
+    const stmt = c.env.DB.prepare(
+      `INSERT INTO analytics_events (event_type, country, user_id, session_id, item_type, item_title, item_id, meta, ts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+    );
+    const batch = events.map((e) =>
+      stmt.bind(
+        e.event_type,
+        e.country || country,
+        e.user_id != null ? e.user_id : (bodyUserId ?? tgUser?.id ?? null),
+        e.session_id || sessionId,
+        e.item_type || null,
+        e.item_title || null,
+        e.item_id || null,
+        e.meta ? JSON.stringify(e.meta) : null
+      )
+    );
+    await c.env.DB.batch(batch);
+    return c.json({ ok: true, count: batch.length });
+  } catch (e) {
+    console.error('D1 error on analytics track:', e);
+    return c.json({ ok: false, count: 0 }, 500);
+  }
+});
+
+app.get('/api/analytics/stats', async (c: Context) => {
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+
+  const expectedToken = c.env.BOT_TOKEN_MAIN || c.env.BOT_TOKEN || '';
+  const authHeader = c.req.header('Authorization');
+  if (expectedToken && authHeader !== 'Bearer ' + expectedToken) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  const since = c.req.query('windowHours') ? Number(c.req.query('windowHours')) : 3;
+
+  try {
+    const windowSec = since * 3600;
+    const activeUsers = await c.env.DB.prepare(
+      `SELECT COUNT(DISTINCT user_id) as users, COUNT(DISTINCT session_id) as sessions, COUNT(*) as events
+       FROM analytics_events WHERE ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first();
+
+    const newUsers = await c.env.DB.prepare(
+      `SELECT COUNT(*) as cnt FROM users WHERE created_at >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first();
+
+    const byCountry = await c.env.DB.prepare(
+      `SELECT country, COUNT(DISTINCT session_id) as users FROM analytics_events
+       WHERE event_type = 'visit' AND ts >= datetime('now', ?)
+       GROUP BY country ORDER BY users DESC LIMIT 8`
+    ).bind(`-${since} hours`).all();
+
+    const topContent = await c.env.DB.prepare(
+      `SELECT item_title, item_type, COUNT(*) as opens FROM analytics_events
+       WHERE event_type = 'open' AND item_title IS NOT NULL AND item_title != '' AND ts >= datetime('now', ?)
+       GROUP BY item_title, item_type ORDER BY opens DESC LIMIT 8`
+    ).bind(`-${since} hours`).all();
+
+    const byType = await c.env.DB.prepare(
+      `SELECT item_type, COUNT(*) as cnt FROM analytics_events
+       WHERE event_type = 'open' AND ts >= datetime('now', ?)
+       GROUP BY item_type ORDER BY cnt DESC`
+    ).bind(`-${since} hours`).all();
+
+    return c.json({
+      windowHours: since,
+      active: {
+        users: activeUsers?.users || 0,
+        sessions: activeUsers?.sessions || 0,
+        events: activeUsers?.events || 0
+      },
+      newUsers: newUsers?.cnt || 0,
+      byCountry: (byCountry.results || []).map((r: any) => ({ country: r.country, users: r.users })),
+      topContent: (topContent.results || []).map((r: any) => ({ title: r.item_title, type: r.item_type, opens: r.opens })),
+      byType: (byType.results || []).map((r: any) => ({ type: r.item_type, count: r.cnt }))
+    });
+  } catch (e) {
+    console.error('D1 error on analytics stats:', e);
+    return c.json({ error: 'Failed to get analytics stats' }, 500);
+  }
+});
 
 app.post('/api/user/favorites', async (c: Context) => {
   const user = c.get('tgUser');

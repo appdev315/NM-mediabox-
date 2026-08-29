@@ -6,7 +6,7 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_id": "YOUR_D1_DATABASE_ID",
+			"database_id": "de9a3ec7-792c-4400-b755-8c4a985f75a1",
 			"database_name": "mediabox"
 		}
 	],

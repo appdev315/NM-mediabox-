@@ -7,6 +7,7 @@ import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
+import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
   const { id } = useParams();
@@ -29,6 +30,7 @@ export function AdultVideo() {
         const data = await fetchAdultStream(id);
         if (data) {
           setDetails(data);
+          trackOpen('adult', data.title || 'Video', String(data.id || id));
 
           // Save to adult history
           try {

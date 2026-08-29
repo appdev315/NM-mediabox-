@@ -37,3 +37,20 @@ CREATE TABLE IF NOT EXISTS history (
 -- Индексы
 CREATE INDEX IF NOT EXISTS idx_favorites_telegram_id ON favorites(telegram_id);
 CREATE INDEX IF NOT EXISTS idx_history_telegram_id ON history(telegram_id);
+
+-- Аналитика событий (visit / open) для трёхчасового отчёта
+CREATE TABLE IF NOT EXISTS analytics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    country TEXT,
+    user_id INTEGER,
+    session_id TEXT,
+    item_type TEXT,
+    item_title TEXT,
+    item_id TEXT,
+    meta TEXT,
+    ts DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_ts ON analytics_events(ts);
+CREATE INDEX IF NOT EXISTS idx_analytics_country ON analytics_events(country);
+CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type);

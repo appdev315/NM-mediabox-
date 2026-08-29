@@ -23,6 +23,7 @@ import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
 import { TopBanner } from './components/TopBanner';
+import { trackVisit } from './utils/analytics';
 
 function NetworkBanner() {
   const { isOnline } = useNetworkStatus();
@@ -216,6 +217,7 @@ export default function App() {
   useEffect(() => {
     WebApp.ready();
     WebApp.expand();
+    trackVisit();
 
     try {
       if (WebApp.setBackgroundColor) WebApp.setBackgroundColor('#17212b');

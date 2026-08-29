@@ -8,6 +8,7 @@ import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
+import { trackOpen } from '../utils/analytics';
 
 // Get backend URL from environment or use default
 
@@ -359,6 +360,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       type: 'radio'
     });
 
+    trackOpen('radio', station.name, station.id);
+
     // Add to history
     try {
       let hist = JSON.parse(localStorage.getItem('history_radio') || '[]');
@@ -386,6 +389,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
 
     setActiveTvChannel(channel);
+
+    trackOpen('tv', channel.name, channel.id);
 
     // Add to history
     try {

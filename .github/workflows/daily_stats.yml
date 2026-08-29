@@ -95,12 +95,59 @@ jobs:
             echo "EOF" >> $GITHUB_ENV
           fi
 
+      - name: Fetch Analytics Stats (Cloudflare D1)
+        id: fetch_analytics
+        env:
+          STATS_KEY: ${{ secrets.BOT_TOKEN }}
+        run: |
+          ANALYTICS_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${STATS_KEY}" "https://backend.app-dev315.workers.dev/api/analytics/stats?windowHours=3")
+          ANA_HTTP=$(echo "$ANALYTICS_RESP" | tail -n1)
+          ANA_BODY=$(echo "$ANALYTICS_RESP" | sed '$d')
+
+          if [ "$ANA_HTTP" -ne 200 ]; then
+            echo "ANALYTICS_BLOCK=" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          ACTIVE=$(echo "$ANA_BODY" | jq -r '.active.users // 0')
+          SESSIONS=$(echo "$ANA_BODY" | jq -r '.active.sessions // 0')
+          NEW_USERS=$(echo "$ANA_BODY" | jq -r '.newUsers // 0')
+
+          # Top countries
+          COUNTRIES_BLOCK=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            CODE=$(echo "$line" | jq -r '.country' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            CNT=$(echo "$line" | jq -r '.users')
+            COUNTRIES_BLOCK="${COUNTRIES_BLOCK}\n  ${CODE}: ${CNT}"
+          done < <(echo "$ANA_BODY" | jq -c '.byCountry[]?' | head -5)
+          [ -z "$COUNTRIES_BLOCK" ] && COUNTRIES_BLOCK="\n  Нет данных"
+
+          # Top content (HTML-escaped titles to prevent Telegram 400 errors)
+          CONTENT_BLOCK=""
+          IDX=1
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            TITLE=$(echo "$line" | jq -r '.title' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            TYPE=$(echo "$line" | jq -r '.type')
+            OPENS=$(echo "$line" | jq -r '.opens')
+            CONTENT_BLOCK="${CONTENT_BLOCK}\n  ${IDX}. ${TITLE} (${TYPE}) — ${OPENS}"
+            IDX=$((IDX+1))
+          done < <(echo "$ANA_BODY" | jq -c '.topContent[]?' | head -6)
+          [ -z "$CONTENT_BLOCK" ] && CONTENT_BLOCK="\n  Нет данных"
+
+          ANALYTICS_BLOCK="\n\n📈 <b>Аналитика (3 часа):</b>\n👥 Активных: ${ACTIVE} | 📱 Сессий: ${SESSIONS} | 🆕 Новых: ${NEW_USERS}\n\n🌍 <b>Страны входа:</b>${COUNTRIES_BLOCK}\n\n🎬 <b>Топ контента:</b>${CONTENT_BLOCK}"
+
+          echo "ANALYTICS_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$ANALYTICS_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
       - name: Send Telegram Notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          MESSAGE="${ERROR_MSG:-$STATS_MSG}"
+          MESSAGE="${ERROR_MSG:-$STATS_MSG}${ANALYTICS_BLOCK}"
           TARGET_CHAT="${CHAT_ID:-484803732}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \

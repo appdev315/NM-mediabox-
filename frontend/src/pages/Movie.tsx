@@ -11,6 +11,7 @@ import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
 import { useViewportExpand } from '../hooks/useViewportExpand';
+import { trackOpen } from '../utils/analytics';
 
 export function Movie() {
   const { id } = useParams();
@@ -245,6 +246,8 @@ export function Movie() {
         ]);
         if (!isMounted) return;
         setMovie(details);
+        const d = details as any;
+        trackOpen(mediaType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
         setRecommendations(recs || []);
       } catch (err) {
         console.error("Failed to load movie data", err);
