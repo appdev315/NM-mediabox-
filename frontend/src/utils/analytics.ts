@@ -8,7 +8,7 @@ interface AnalyticsPayload {
   item_id?: string;
 }
 
-const FLUSH_INTERVAL_MS = 90 * 1000;
+const FLUSH_INTERVAL_MS = 3 * 1000;
 const MAX_BATCH = 20;
 
 let queue: AnalyticsPayload[] = [];
