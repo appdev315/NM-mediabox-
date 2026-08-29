@@ -1,0 +1,31 @@
+name: Diag - Verify STATS Token Match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare token acceptance on HF vs CF
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          echo "#### GitHub secret BOT_TOKEN -> HF Go service (/api/stats)"
+          HF_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" "https://evro90-nm6.hf.space/api/stats")
+          echo "HF /api/stats HTTP: ${HF_CODE}   (200 = token accepted)"
+
+          echo ""
+          echo "#### GitHub secret BOT_TOKEN -> CF Worker (/api/analytics/stats)"
+          CF_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" "https://backend.app-dev315.workers.dev/api/analytics/stats?windowHours=3")
+          echo "CF /api/analytics/stats HTTP: ${CF_CODE}   (200 = token accepted, 401 = token rejected)"
+
+          echo ""
+          if [ "$HF_CODE" = "200" ] && [ "$CF_CODE" = "200" ]; then
+            echo "RESULT=MATCH_OK : GitHub BOT_TOKEN accepted by BOTH services -> analytics block will appear in the report."
+          elif [ "$HF_CODE" = "200" ] && [ "$CF_CODE" != "200" ]; then
+            echo "RESULT=MISMATCH : GitHub BOT_TOKEN works for HF, but NOT for CF. CF token (BOT_TOKEN_MAIN) differs. Need to align."
+          else
+            echo "RESULT=CHECK : HF rejected or unexpected codes (HF=${HF_CODE}, CF=${CF_CODE}). Review above."
+          fi
+          echo "RESULT=${RESULT:-UNKNOWN}" >> $GITHUB_ENV

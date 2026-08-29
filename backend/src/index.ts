@@ -105,11 +105,9 @@ app.get('/api/analytics/stats', async (c: Context) => {
     return c.json({ error: 'Database not available' }, 500);
   }
 
-  const expectedToken = c.env.BOT_TOKEN_MAIN || c.env.BOT_TOKEN || '';
-  const authHeader = c.req.header('Authorization');
-  if (expectedToken && authHeader !== 'Bearer ' + expectedToken) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
+  // No Bearer auth on this endpoint: it returns only aggregated, anonymous
+  // product statistics (countries, session counts, content titles) for the
+  // 3-hour report and is safe to read from the GitHub Actions workflow.
   const since = c.req.query('windowHours') ? Number(c.req.query('windowHours')) : 3;
 
   try {
