@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
@@ -34,6 +34,27 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+
+  const sortedSeasons = useMemo(() => {
+    if (!liftwEpisodes) return ['1'];
+    return Object.keys(liftwEpisodes).sort((a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [liftwEpisodes]);
+
+  const sortedEpisodes = useMemo(() => {
+    const currentSeason = activeSeason || (sortedSeasons[0] || '1');
+    const epList: string[] = Array.isArray(liftwEpisodes?.[currentSeason]) ? liftwEpisodes[currentSeason] : ['1'];
+    return epList.slice().sort((a: string, b: string) => {
+      const numA = parseInt(String(a), 10);
+      const numB = parseInt(String(b), 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [liftwEpisodes, activeSeason, sortedSeasons]);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -207,7 +228,8 @@ export function Movie() {
   
   // Validate media type
   const queryType = searchParams.get('type');
-  const mediaType = queryType === 'series' || queryType === 'tv' ? 'tv' : 'movie';
+  const isTvSeries = queryType === 'series' || queryType === 'tv' || movie?.type === 'series' || movie?.type === 'tv' || (movie?.seasons && movie.seasons.length > 0) || Boolean(liftwEpisodes && Object.keys(liftwEpisodes).length > 0);
+  const mediaType = isTvSeries ? 'tv' : 'movie';
 
   useEffect(() => {
     let interval: any;
@@ -404,14 +426,29 @@ export function Movie() {
             
             if (liftwData.episodes) {
               setLiftwEpisodes(liftwData.episodes);
+              const initSortedSeasons = Object.keys(liftwData.episodes).sort((a, b) => {
+                const numA = parseInt(a, 10);
+                const numB = parseInt(b, 10);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+              });
+              const firstSeason = initSortedSeasons[0] || '1';
+
               setActiveSeason(prevSeason => {
                 if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
-                return Object.keys(liftwData.episodes)[0] || '1';
+                return firstSeason;
               });
               setActiveEpisode(prevEp => {
-                if (prevEp) return prevEp;
-                const firstSeason = Object.keys(liftwData.episodes)[0];
-                return (firstSeason && liftwData.episodes[firstSeason]?.[0]) || '1';
+                const targetSeason = firstSeason;
+                const eps = Array.isArray(liftwData.episodes[targetSeason]) ? liftwData.episodes[targetSeason] : [];
+                const sortedInitEps = eps.slice().sort((a: any, b: any) => {
+                  const numA = parseInt(String(a), 10);
+                  const numB = parseInt(String(b), 10);
+                  if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+                });
+                if (prevEp && sortedInitEps.includes(prevEp)) return prevEp;
+                return sortedInitEps[0] || '1';
               });
             }
 
@@ -857,17 +894,23 @@ export function Movie() {
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <div className="flex-1 relative">
                 <select
-                  value={activeSeason || '1'}
+                  value={activeSeason || sortedSeasons[0] || '1'}
                   onChange={(e) => {
                     const season = e.target.value;
-                    const availableEpisodes = liftwEpisodes && liftwEpisodes[season] ? liftwEpisodes[season] : ['1'];
-                    const defaultEpisode = availableEpisodes[0] || '1';
+                    const availableEpisodes = Array.isArray(liftwEpisodes?.[season]) ? liftwEpisodes[season] : ['1'];
+                    const sortedAvail = availableEpisodes.slice().sort((a: any, b: any) => {
+                      const numA = parseInt(String(a), 10);
+                      const numB = parseInt(String(b), 10);
+                      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                    const defaultEpisode = sortedAvail[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                   }}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {Object.keys(liftwEpisodes || { '1': ['1'] }).map((season) => (
+                  {sortedSeasons.map((season) => (
                     <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('season')} {season}
                     </option>
@@ -878,12 +921,12 @@ export function Movie() {
 
               <div className="flex-1 relative">
                 <select
-                  value={activeEpisode || '1'}
-                  onChange={(e) => handleSeasonEpisodeChange(activeSeason || '1', e.target.value)}
+                  value={activeEpisode || sortedEpisodes[0] || '1'}
+                  onChange={(e) => handleSeasonEpisodeChange(activeSeason || sortedSeasons[0] || '1', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {(liftwEpisodes?.[activeSeason || '1'] || ['1']).map((episode: string) => (
+                  {sortedEpisodes.map((episode: string) => (
                     <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('episode')} {episode}
                     </option>

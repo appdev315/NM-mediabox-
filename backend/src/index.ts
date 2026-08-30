@@ -31,14 +31,16 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 app.use('/api/*', cors({
   origin: (origin: string) => {
-    // Only allow web.telegram.org or your frontend
-    const allowed = ['https://web.telegram.org', 'https://media-box.xyz', 'https://www.media-box.xyz'];
+    if (!origin) return '*';
+    const allowed = ['https://web.telegram.org', 'https://media-box.xyz', 'https://www.media-box.xyz', 'https://moviemaniak5555.xyz'];
     const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    if (origin && (allowed.includes(origin) || isLocalhost)) {
-        return origin;
+    if (allowed.includes(origin) || isLocalhost) {
+      return origin;
     }
-    return 'https://web.telegram.org';
+    return origin;
   },
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'Origin', 'Accept'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
 }));
 
 app.onError((err: Error, c: Context) => {
@@ -139,6 +141,54 @@ app.get('/api/analytics/stats', async (c: Context) => {
        GROUP BY item_type ORDER BY cnt DESC`
     ).bind(`-${since} hours`).all();
 
+const COUNTRY_NAMES: Record<string, string> = {
+  RU: '🇷🇺 Россия',
+  KZ: '🇰🇿 Казахстан',
+  BY: '🇧🇾 Беларусь',
+  UA: '🇺🇦 Украина',
+  UZ: '🇺🇿 Узбекистан',
+  ID: '🇮🇩 Индонезия',
+  DE: '🇩🇪 Германия',
+  US: '🇺🇸 США',
+  TR: '🇹🇷 Турция',
+  TH: '🇹🇭 Таиланд',
+  VN: '🇻🇳 Вьетнам',
+  GE: '🇬🇪 Грузия',
+  AM: '🇦🇲 Армения',
+  AZ: '🇦🇿 Азербайджан',
+  KG: '🇰🇬 Кыргызстан',
+  TJ: '🇹🇯 Таджикистан',
+  MD: '🇲🇩 Молдова',
+  IL: '🇮🇱 Израиль',
+  PL: '🇵🇱 Польша',
+  FR: '🇫🇷 Франция',
+  GB: '🇬🇧 Великобритания',
+  ES: '🇪🇸 Испания',
+  IT: '🇮🇹 Италия',
+  NL: '🇳🇱 Нидерланды',
+  AE: '🇦🇪 ОАЭ',
+  CY: '🇨🇾 Кипр',
+  RS: '🇷🇸 Сербия',
+  ME: '🇲🇪 Черногория',
+  BG: '🇧🇬 Болгария',
+  FI: '🇫🇮 Финляндия',
+  SE: '🇸🇪 Швеция',
+  LV: '🇱🇻 Латвия',
+  LT: '🇱🇹 Литва',
+  EE: '🇪🇪 Эстония',
+};
+
+function formatCountry(code?: string): string {
+  if (!code || code === 'XX' || code === 'T1') return '🌐 Не определена';
+  const upper = code.toUpperCase();
+  if (COUNTRY_NAMES[upper]) return COUNTRY_NAMES[upper];
+  if (upper.length === 2 && /^[A-Z]{2}$/.test(upper)) {
+    const flag = String.fromCodePoint(...upper.split('').map(c => 127397 + c.charCodeAt(0)));
+    return `${flag} ${upper}`;
+  }
+  return upper;
+}
+
     return c.json({
       windowHours: since,
       active: {
@@ -147,7 +197,11 @@ app.get('/api/analytics/stats', async (c: Context) => {
         events: activeUsers?.events || 0
       },
       newUsers: newUsers?.cnt || 0,
-      byCountry: (byCountry.results || []).map((r: any) => ({ country: r.country, users: r.users })),
+      byCountry: (byCountry.results || []).map((r: any) => ({
+        country: r.country,
+        countryName: formatCountry(r.country),
+        users: r.users
+      })),
       topContent: (topContent.results || []).map((r: any) => ({ title: r.item_title, type: r.item_type, opens: r.opens })),
       byType: (byType.results || []).map((r: any) => ({ type: r.item_type, count: r.cnt }))
     });

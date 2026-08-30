@@ -8,8 +8,8 @@ interface AnalyticsPayload {
   item_id?: string;
 }
 
-const FLUSH_INTERVAL_MS = 3 * 1000;
-const MAX_BATCH = 20;
+const FLUSH_INTERVAL_MS = 2 * 1000;
+const MAX_BATCH = 15;
 
 let queue: AnalyticsPayload[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -40,6 +40,32 @@ function getUserId(): number | undefined {
   }
 }
 
+async function sendEvents(eventsToSend: AnalyticsPayload[]) {
+  if (!eventsToSend.length) return;
+  const currentSessionId = getSessionId();
+  const body = JSON.stringify({
+    session_id: currentSessionId,
+    user_id: getUserId(),
+    events: eventsToSend,
+  });
+
+  try {
+    await fetch(`${CF_API_BASE}/analytics/track`, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-Id': currentSessionId,
+      },
+      body,
+      keepalive: true,
+    });
+  } catch (e) {
+    /* analytics must never break the app */
+  }
+}
+
 function flush() {
   if (flushTimer) {
     clearTimeout(flushTimer);
@@ -49,29 +75,7 @@ function flush() {
 
   const events = queue;
   queue = [];
-
-  const body = JSON.stringify({
-    session_id: getSessionId(),
-    user_id: getUserId(),
-    events,
-  });
-  try {
-    if (typeof navigator.sendBeacon === 'function') {
-      const ok = navigator.sendBeacon(`${CF_API_BASE}/analytics/track`, new Blob([body], { type: 'application/json' }));
-      if (ok) return;
-    }
-    void fetch(`${CF_API_BASE}/analytics/track`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Session-Id': getSessionId(),
-      },
-      body,
-      keepalive: true,
-    }).catch(() => {});
-  } catch (e) {
-    /* analytics must never break the app */
-  }
+  void sendEvents(events);
 }
 
 function scheduleFlush() {
@@ -80,13 +84,9 @@ function scheduleFlush() {
   }
 }
 
-function scheduleBeaconFlush() {
-  flush();
-}
-
-export function track(event_type: string, payload: Partial<AnalyticsPayload> = {}) {
+export function track(event_type: string, payload: Partial<AnalyticsPayload> = {}, immediate = false) {
   queue.push({ event_type, ...payload });
-  if (queue.length >= MAX_BATCH) {
+  if (immediate || queue.length >= MAX_BATCH) {
     flush();
   } else {
     scheduleFlush();
@@ -94,19 +94,19 @@ export function track(event_type: string, payload: Partial<AnalyticsPayload> = {
 }
 
 export function trackVisit() {
-  track('visit');
+  track('visit', {}, true);
 }
 
 export function trackOpen(item_type: string, item_title: string, item_id?: string) {
-  track('open', { item_type, item_title, item_id });
+  track('open', { item_type, item_title, item_id }, true);
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', () => scheduleBeaconFlush());
-  window.addEventListener('beforeunload', () => scheduleBeaconFlush());
+  window.addEventListener('pagehide', () => flush());
+  window.addEventListener('beforeunload', () => flush());
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      scheduleBeaconFlush();
+      flush();
     }
   });
 }

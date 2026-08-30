@@ -117,9 +117,9 @@ jobs:
           COUNTRIES_BLOCK=""
           while IFS= read -r line; do
             [ -z "$line" ] && continue
-            CODE=$(echo "$line" | jq -r '.country' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            CNAME=$(echo "$line" | jq -r '.countryName // .country' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
             CNT=$(echo "$line" | jq -r '.users')
-            COUNTRIES_BLOCK="${COUNTRIES_BLOCK}\n  ${CODE}: ${CNT}"
+            COUNTRIES_BLOCK="${COUNTRIES_BLOCK}\n  ${CNAME}: ${CNT}"
           done < <(echo "$ANA_BODY" | jq -c '.byCountry[]?' | head -5)
           [ -z "$COUNTRIES_BLOCK" ] && COUNTRIES_BLOCK="\n  Нет данных"
 
