@@ -161,7 +161,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                 name: d.name,
                 url: d.stream,
                 logo: d.logo || '',
-                group: 'Radiopotok',
+                group: '',
                 type: 'radio' as const
               })).filter((s: Station) => s.url);
             }
@@ -353,7 +353,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     playTrack({
       id: station.id,
       title: station.name,
-      artist: station.group || 'Live Radio',
+      artist: (station.group && station.group !== 'Radiopotok') ? station.group : 'Live Radio',
       url: finalUrl,
       originalUrl: station.url,
       coverUrl: station.logo,
@@ -825,7 +825,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                       <div className="font-bold truncate text-[10px] sm:text-xs" style={{ color: 'var(--text-color)' }}>
                         {item.name}
                       </div>
-                      {item.group && (
+                      {activeTab === 'tv' && item.group && (
                         <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>
                           {item.group}
                         </div>

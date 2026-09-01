@@ -158,7 +158,7 @@ export function Favorites() {
     playTrack({
       id: station.id,
       title: station.name,
-      artist: station.group || 'Live Radio',
+      artist: (station.group && station.group !== 'Radiopotok') ? station.group : 'Live Radio',
       url: finalUrl,
       coverUrl: station.logo,
       type: 'radio'
@@ -283,7 +283,7 @@ export function Favorites() {
                 </div>
                 <div className="w-full flex-1 min-w-0 mt-1">
                   <div className="font-bold truncate text-[10px] sm:text-xs px-1" style={{ color: 'var(--text-color)' }}>{item.name}</div>
-                  {item.group && <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>{item.group}</div>}
+                  {type === 'tv' && item.group && <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>{item.group}</div>}
                 </div>
                 <div className="flex w-full justify-end items-center px-1 mt-auto">
                   <span style={{ color: 'var(--text-color)' }} className="text-xs p-1">{isActive ? (type === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}</span>

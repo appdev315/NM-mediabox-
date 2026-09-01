@@ -92,7 +92,7 @@ func init() {
 					Name:     it.Name,
 					URL:      it.Stream,
 					Logo:     it.Logo,
-					Group:    "Radiopotok",
+					Group:    "",
 					Category: it.Category,
 					Type:     "radio",
 				})
