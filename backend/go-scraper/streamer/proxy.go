@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,14 @@ var defaultClient = &http.Client{
 		MaxIdleConns:        1000,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
+// StreamBufferPool allocates and reuses 64KB byte slices to achieve zero-allocation streaming
+var StreamBufferPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 64*1024)
+		return &b
 	},
 }
 
@@ -129,7 +138,10 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(res.StatusCode)
 
 	flusher, isFlusher := w.(http.Flusher)
-	buf := make([]byte, 64*1024) // 64KB buffer for high-throughput zero-latency streaming
+	bufPtr := StreamBufferPool.Get().(*[]byte)
+	defer StreamBufferPool.Put(bufPtr)
+	buf := *bufPtr
+
 	for {
 		n, rerr := res.Body.Read(buf)
 		if n > 0 {

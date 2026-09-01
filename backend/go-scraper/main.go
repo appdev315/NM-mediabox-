@@ -200,8 +200,11 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    port,
-		Handler: handler,
+		Addr:              port,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
