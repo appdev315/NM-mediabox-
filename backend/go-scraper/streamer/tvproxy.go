@@ -155,6 +155,9 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 		proxyBase := "/api/proxy" // Frontend expects this path
 		rewritten := rewriteM3u8(string(bodyBytes), targetUrl, proxyBase)
 
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Connection", "keep-alive")
 		w.Header().Del("Content-Length")
 		w.WriteHeader(resp.StatusCode)
 		w.Write([]byte(rewritten))
@@ -166,6 +169,12 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 		strings.HasPrefix(strings.ToLower(contentType), "video/") ||
 		resp.ContentLength <= 0
 
+	// Anti-buffering headers for Cloudflare / Nginx streaming resilience
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Accept-Ranges", "bytes")
+
 	if isLiveStream {
 		w.Header().Del("Content-Length")
 	}
@@ -174,7 +183,7 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Stream audio/video chunks in real-time with immediate flushing to prevent buffer underruns
 	flusher, isFlusher := w.(http.Flusher)
-	buf := make([]byte, 8*1024)
+	buf := make([]byte, 64*1024) // 64KB buffer for high-throughput zero-latency streaming
 	for {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {

@@ -238,7 +238,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
         src={currentUrl}
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
-        allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+        loading="eager"
+        allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />

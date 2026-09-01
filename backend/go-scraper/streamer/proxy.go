@@ -116,6 +116,12 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 		strings.HasPrefix(strings.ToLower(contentType), "video/") ||
 		res.ContentLength <= 0
 
+	// Anti-buffering headers for Cloudflare / Nginx streaming resilience
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Accept-Ranges", "bytes")
+
 	if isLiveStream {
 		w.Header().Del("Content-Length")
 	}
@@ -123,7 +129,7 @@ func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(res.StatusCode)
 
 	flusher, isFlusher := w.(http.Flusher)
-	buf := make([]byte, 8*1024)
+	buf := make([]byte, 64*1024) // 64KB buffer for high-throughput zero-latency streaming
 	for {
 		n, rerr := res.Body.Read(buf)
 		if n > 0 {

@@ -476,7 +476,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   useEffect(() => {
     let playbackTimeout: ReturnType<typeof setTimeout> | null = null;
     let networkRetries = 0;
-    const MAX_NETWORK_RETRIES = 2;
+    const MAX_NETWORK_RETRIES = 5;
 
     if (activeTvChannel && activeTab === 'tv' && videoRef.current) {
       const video = videoRef.current;
@@ -487,8 +487,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         hlsRef.current = null;
       }
 
-      // Timeout: if nothing plays within 25s, show error
-      // (12s was too short, many free streams take 15-20s to load)
+      // Timeout: if nothing plays within 30s, show error
       playbackTimeout = setTimeout(() => {
         if (hlsRef.current) {
           hlsRef.current.destroy();
@@ -496,7 +495,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }
         setTvError(true);
         setTvLoading(false);
-      }, 25000);
+      }, 30000);
 
       const clearPlaybackTimeout = () => {
         if (playbackTimeout) {
@@ -507,15 +506,20 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
       if (Hls.isSupported()) {
         const hls = new Hls({
-          maxBufferLength: 30,           // Smaller for faster start
-          maxMaxBufferLength: 60,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 180,
+          backBufferLength: 15,
+          maxBufferHole: 0.5,
+          startFragPrefetch: true,
           enableWorker: true,
-          lowLatencyMode: false,         // Disabled: breaks many standard free streams
-          manifestLoadingTimeOut: 20000,  // More time for slow sources
-          levelLoadingTimeOut: 20000,
-          fragLoadingTimeOut: 20000,
+          lowLatencyMode: false,
+          manifestLoadingTimeOut: 30000,
+          levelLoadingTimeOut: 30000,
+          fragLoadingTimeOut: 30000,
+          maxFragLookUpTolerance: 0.25,
           xhrSetup: (xhr: XMLHttpRequest) => {
-            xhr.withCredentials = false;  // For CORS
+            xhr.withCredentials = false;
+            xhr.timeout = 30000;
           }
         });
         hlsRef.current = hls;
