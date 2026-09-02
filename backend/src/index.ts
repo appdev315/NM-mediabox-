@@ -4,6 +4,7 @@ import { tgAuthMiddleware } from './middleware/auth';
 
 type Bindings = {
   DB: D1Database;
+  CACHE?: KVNamespace;
   TELEGRAM_BOT_TOKEN: string;
   BOT_TOKEN_MAIN?: string;
   BOT_TOKEN?: string;
@@ -330,6 +331,131 @@ app.post('/api/user/history', async (c: Context) => {
   } catch (e) {
     console.error('D1 error on history:', e);
     return c.json({ error: 'Failed to save history' }, 500);
+  }
+});
+
+// --- RESILIENT LIFTW VIDEO STREAM PROXY ---
+function normString(s: string): string {
+  return s.toLowerCase().trim().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/g, '');
+}
+
+const LIFTW_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Referer': 'https://liftw.ws/',
+  'Origin': 'https://liftw.ws',
+};
+
+app.get('/api/liftw', async (c: Context) => {
+  const title = c.req.query('title') || '';
+  const yearStr = c.req.query('year') || '';
+  const vType = c.req.query('type') || 'movie';
+  const tmdb = c.req.query('tmdb') || '';
+  const titleRu = c.req.query('title_ru') || '';
+  const originalTitle = c.req.query('original_title') || '';
+  const bypassCache = c.req.query('bypass_cache') === 'true';
+
+  if (!title) {
+    return c.json({ error: 'Title is required' }, 400);
+  }
+
+  const cacheKey = `liftw_v2_${normString(title)}_${yearStr}_${vType}_${tmdb}_${normString(titleRu)}`;
+  if (!bypassCache && c.env.CACHE) {
+    try {
+      const cached = await c.env.CACHE.get(cacheKey, 'json');
+      if (cached) {
+        return c.json(cached);
+      }
+    } catch (_) {}
+  }
+
+  const isSeries = vType === 'tv' || vType === 'series';
+  const validTypes = isSeries ? [3, 4, 5, 7] : [1, 2, 6];
+  const targetYear = parseInt(yearStr, 10) || 0;
+
+  const rawCandidates = [title, titleRu, originalTitle].map(s => s.trim()).filter(Boolean);
+  const candidates = Array.from(new Set(rawCandidates));
+
+  let matchedItem: { id: number; name: string; origin_name: string; year: number } | null = null;
+
+  for (const cand of candidates.slice(0, 5)) {
+    try {
+      const searchRes = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
+        headers: LIFTW_HEADERS,
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!searchRes.ok) continue;
+      const searchData = await searchRes.json() as { items?: any[] };
+      const items = searchData.items || [];
+
+      for (const item of items) {
+        if (!validTypes.includes(item.type)) continue;
+
+        const nameLower = normString(item.name || '');
+        const origLower = normString(item.origin_name || '');
+        let isMatch = false;
+
+        for (const c of candidates) {
+          const cn = normString(c);
+          if (!cn) continue;
+          if (nameLower === cn || origLower === cn) {
+            isMatch = true;
+            break;
+          }
+          for (const part of (item.name || '').split('/')) {
+            if (normString(part) === cn) {
+              isMatch = true;
+              break;
+            }
+          }
+          if (isMatch) break;
+        }
+
+        if (isMatch) {
+          if (targetYear === 0 || (item.year >= targetYear - 1 && item.year <= targetYear + 1)) {
+            matchedItem = item;
+            break;
+          }
+        }
+      }
+      if (matchedItem) break;
+    } catch (_) {}
+  }
+
+  if (!matchedItem) {
+    return c.json({ error: 'exact match not found on liftw' }, 404);
+  }
+
+  try {
+    const infoRes = await fetch(`https://api.liftw.ws/info/${matchedItem.id}`, {
+      headers: LIFTW_HEADERS,
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!infoRes.ok) {
+      return c.json({ error: 'failed to fetch liftw stream info' }, 502);
+    }
+    const info = await infoRes.json() as { id: number; type: number; name: string; iframe_uri: string; episodes?: any };
+    
+    const result: Record<string, any> = {
+      liftwId: info.id,
+      liftwType: info.type,
+      name: info.name,
+      iframe: info.iframe_uri,
+    };
+    if (info.episodes) {
+      result.episodes = info.episodes;
+    }
+
+    if (c.env.CACHE) {
+      try {
+        await c.env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 10800 }); // 3 hours
+      } catch (_) {}
+    }
+
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'failed to resolve stream' }, 500);
   }
 });
 

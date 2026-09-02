@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-import { useApi, EXPRESS_API_BASE } from '../hooks/useApi';
+import { useApi, EXPRESS_API_BASE, CF_API_BASE } from '../hooks/useApi';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
@@ -382,7 +382,7 @@ export function Movie() {
       const updateUI = () => {
         const combined: any[] = [];
         
-        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher)
+        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
         if (foundSources.liftw) {
           combined.push({
             name: 'player1',
@@ -411,24 +411,45 @@ export function Movie() {
           } else {
             setIframeUrl(prev => prev || preferredUrl);
           }
+          // Immediately unblock UI when any player source is ready
+          setIsExtracting(false);
         }
       };
 
-      // 2. Fetch liftw asynchronously (Primary Player)
+      // 2. Fetch liftw asynchronously (Primary Player — Priority #1)
       const fetchLiftw = async () => {
         const start = performance.now();
-        const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8000);
+        const queryStr = liftwQuery.toString();
+
+        const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
+          const timeoutCtrl = new AbortController();
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+          try {
+            const res = await fetchWithRetry(`${baseUrl}/liftw?${queryStr}`, {
+              maxRetries: 1,
+              baseDelayMs: 200,
+              maxDelayMs: 600,
+              signal: timeoutCtrl.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) return null;
+            return await res.json();
+          } catch (_) {
+            clearTimeout(timeoutId);
+            return null;
+          }
+        };
+
         try {
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`, {
-            maxRetries: 1,
-            baseDelayMs: 300,
-            maxDelayMs: 1000,
-            signal: timeoutCtrl.signal,
-          });
-          clearTimeout(timeoutId);
-          if (!res.ok) return;
-          const liftwData = await res.json();
+          // Priority 1: Try HuggingFace microservice with 3.5s timeout
+          let liftwData = await tryFetchLiftw(EXPRESS_API_BASE, 3500);
+
+          // Priority 2: If HF microservice is down/blocked, immediately fallback to Cloudflare Worker edge (100% uptime, direct to api.liftw.ws)
+          if (!liftwData || !liftwData.iframe) {
+            console.warn('[Liftw] HF microservice unavailable, falling back to Cloudflare Worker edge...');
+            liftwData = await tryFetchLiftw(CF_API_BASE, 7000);
+          }
+
           if (liftwData && liftwData.iframe) {
             foundSources.liftw = { name: 'player1', url: liftwData.iframe, isLiftw: true };
             
@@ -460,12 +481,11 @@ export function Movie() {
               });
             }
 
-            // Fast UI Unblock: Display player immediately as soon as primary source arrives (~1.2s)
+            // Liftw source is Priority #1: Immediately render Player 1 and unblock UI
             updateUI();
             setIsExtracting(false);
           }
         } catch (e) {
-          clearTimeout(timeoutId);
           console.error("Liftw fetch failed", e);
         } finally {
           const end = performance.now();
@@ -473,11 +493,11 @@ export function Movie() {
         }
       };
 
-      // 3. Fetch Anwap stream asynchronously (Player 2)
+      // 3. Fetch Anwap stream asynchronously (Player 2 — Backup)
       const fetchAnwap = async () => {
         const start = performance.now();
         const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8000);
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 6000);
         try {
           const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
           const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(ruTitle)}`, {
@@ -491,6 +511,8 @@ export function Movie() {
             const data = await res.json();
             if (data && data.url && /^https?:\/\//i.test(data.url)) {
               foundSources.anwap = [{ name: 'anwap', url: data.url, isLiftw: false }];
+              updateUI();
+              setIsExtracting(false);
             }
           }
         } catch (e) {
@@ -518,8 +540,8 @@ export function Movie() {
         isLiftwDone = true;
         if (isLiftwDone && anwapDone) {
           clearTimeout(uiDeadline);
+          setIsExtracting(false);
           if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-            setIsExtracting(false);
             setContentUnavailable(true);
           }
         }
@@ -527,12 +549,13 @@ export function Movie() {
 
       fetchAnwap().then(() => {
         updateUI();
+        evaluateUIUnblock();
       }).finally(() => {
         anwapDone = true;
         if (isLiftwDone && anwapDone) {
           clearTimeout(uiDeadline);
+          setIsExtracting(false);
           if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-            setIsExtracting(false);
             setContentUnavailable(true);
           }
         }
