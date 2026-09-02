@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
@@ -65,6 +65,9 @@ export function useApi() {
     });
   }, [withLoading]);
 
+  // Circuit breaker: skip proxy entirely for 60s after a failure
+  const proxyCircuitBreaker = useRef({ failedAt: 0 });
+
   const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600) => {
     const searchParams = new URLSearchParams();
     const targetLanguage = (params.language as string) || language;
@@ -82,32 +85,19 @@ export function useApi() {
       return cached;
     }
 
-    const fetchViaProxy = async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      try {
-        const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'X-App-Client': 'mediabox-app',
-            'X-Client-Time': String(Date.now()),
-          }
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) {
-          let msg = `Ошибка сервера: ${response.status}`;
-          try {
-            const errBody = await response.json();
-            if (errBody.error) msg += ` - ${errBody.error}`;
-          } catch (e) { }
-          throw new Error(msg);
+    const fetchViaProxy = async (signal?: AbortSignal) => {
+      const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
+      const response = await fetch(url, {
+        signal,
+        headers: {
+          'X-App-Client': 'mediabox-app',
+          'X-Client-Time': String(Date.now()),
         }
-        return await response.json();
-      } catch (err) {
-        clearTimeout(timeoutId);
-        throw err;
+      });
+      if (!response.ok) {
+        throw new Error(`Proxy error: ${response.status}`);
       }
+      return await response.json();
     };
 
     const fetchDirectTMDB = async () => {
@@ -117,22 +107,40 @@ export function useApi() {
       const directUrl = `https://api.themoviedb.org/3${endpoint}?${directSearchParams.toString()}`;
       const res = await fetch(directUrl);
       if (!res.ok) {
-        let msg = `TMDB Direct Error: ${res.status}`;
-        try {
-          const errBody = await res.json();
-          if (errBody.status_message) msg += ` - ${errBody.status_message}`;
-        } catch (e) { }
-        throw new Error(msg);
+        throw new Error(`TMDB Direct Error: ${res.status}`);
       }
       return await res.json();
     };
 
     let data;
-    try {
-      data = await fetchViaProxy();
-    } catch (proxyErr) {
-      console.warn('[TMDB] Proxy fetch failed/timed out, falling back to direct TMDB API...', proxyErr);
+    const proxyDown = Date.now() - proxyCircuitBreaker.current.failedAt < 60000;
+
+    if (proxyDown) {
+      // Circuit open: proxy failed recently, go direct immediately
       data = await fetchDirectTMDB();
+    } else {
+      // Race: proxy (with 1.5s timeout) vs direct TMDB — first response wins
+      const proxyController = new AbortController();
+      const directController = new AbortController();
+
+      try {
+        data = await Promise.any([
+          fetchViaProxy(proxyController.signal).then(res => {
+            directController.abort();
+            return res;
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('proxy_timeout')), 1500))
+            .catch(() => {
+              proxyController.abort();
+              proxyCircuitBreaker.current.failedAt = Date.now();
+              return fetchDirectTMDB();
+            })
+        ]);
+      } catch (raceErr) {
+        // Both failed — try direct as last resort
+        proxyCircuitBreaker.current.failedAt = Date.now();
+        data = await fetchDirectTMDB();
+      }
     }
 
     if (data) {
