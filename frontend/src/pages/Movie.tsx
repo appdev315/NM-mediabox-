@@ -417,8 +417,16 @@ export function Movie() {
       // 2. Fetch liftw asynchronously (Primary Player)
       const fetchLiftw = async () => {
         const start = performance.now();
+        const timeoutCtrl = new AbortController();
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8000);
         try {
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`);
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${liftwQuery.toString()}`, {
+            maxRetries: 1,
+            baseDelayMs: 300,
+            maxDelayMs: 1000,
+            signal: timeoutCtrl.signal,
+          });
+          clearTimeout(timeoutId);
           if (!res.ok) return;
           const liftwData = await res.json();
           if (liftwData && liftwData.iframe) {
@@ -457,6 +465,7 @@ export function Movie() {
             setIsExtracting(false);
           }
         } catch (e) {
+          clearTimeout(timeoutId);
           console.error("Liftw fetch failed", e);
         } finally {
           const end = performance.now();
@@ -467,9 +476,17 @@ export function Movie() {
       // 3. Fetch Anwap stream asynchronously (Player 2)
       const fetchAnwap = async () => {
         const start = performance.now();
+        const timeoutCtrl = new AbortController();
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 8000);
         try {
           const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(ruTitle)}`);
+          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(ruTitle)}`, {
+            maxRetries: 1,
+            baseDelayMs: 300,
+            maxDelayMs: 1000,
+            signal: timeoutCtrl.signal,
+          });
+          clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
             if (data && data.url && /^https?:\/\//i.test(data.url)) {
@@ -477,6 +494,7 @@ export function Movie() {
             }
           }
         } catch (e) {
+          clearTimeout(timeoutId);
           console.error("Anwap fetch failed", e);
         } finally {
           const end = performance.now();
@@ -484,14 +502,26 @@ export function Movie() {
         }
       };
 
+      // 10s UI deadline: if neither source responds, stop spinner and show unavailable
+      const uiDeadline = setTimeout(() => {
+        if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+          setIsExtracting(false);
+          setContentUnavailable(true);
+        }
+      }, 10000);
+
       // Fetch primary and secondary player sources in parallel without blocking UI
       fetchLiftw().then(() => {
         updateUI();
         evaluateUIUnblock();
       }).finally(() => {
         isLiftwDone = true;
-        if (isLiftwDone && anwapDone && foundSources.liftw === null && foundSources.anwap.length === 0) {
-          setContentUnavailable(true);
+        if (isLiftwDone && anwapDone) {
+          clearTimeout(uiDeadline);
+          if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+            setIsExtracting(false);
+            setContentUnavailable(true);
+          }
         }
       });
 
@@ -499,8 +529,12 @@ export function Movie() {
         updateUI();
       }).finally(() => {
         anwapDone = true;
-        if (isLiftwDone && anwapDone && foundSources.liftw === null && foundSources.anwap.length === 0) {
-          setContentUnavailable(true);
+        if (isLiftwDone && anwapDone) {
+          clearTimeout(uiDeadline);
+          if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+            setIsExtracting(false);
+            setContentUnavailable(true);
+          }
         }
       });
     } catch (err) {
