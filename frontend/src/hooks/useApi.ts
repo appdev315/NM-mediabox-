@@ -82,22 +82,59 @@ export function useApi() {
       return cached;
     }
 
-    const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
-    const response = await fetch(url, {
-      headers: {
-        'X-App-Client': 'mediabox-app',
-        'X-Client-Time': String(Date.now()),
-      }
-    });
-    if (!response.ok) {
-      let msg = `Ошибка сервера: ${response.status}`;
+    const fetchViaProxy = async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       try {
-        const errBody = await response.json();
-        if (errBody.error) msg += ` - ${errBody.error}`;
-      } catch (e) { }
-      throw new Error(msg);
+        const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'X-App-Client': 'mediabox-app',
+            'X-Client-Time': String(Date.now()),
+          }
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          let msg = `Ошибка сервера: ${response.status}`;
+          try {
+            const errBody = await response.json();
+            if (errBody.error) msg += ` - ${errBody.error}`;
+          } catch (e) { }
+          throw new Error(msg);
+        }
+        return await response.json();
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    };
+
+    const fetchDirectTMDB = async () => {
+      const apiKey = 'cd5b69242e715dc87d65957d7460eba2';
+      const directSearchParams = new URLSearchParams(searchParams);
+      directSearchParams.set('api_key', apiKey);
+      const directUrl = `https://api.themoviedb.org/3${endpoint}?${directSearchParams.toString()}`;
+      const res = await fetch(directUrl);
+      if (!res.ok) {
+        let msg = `TMDB Direct Error: ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (errBody.status_message) msg += ` - ${errBody.status_message}`;
+        } catch (e) { }
+        throw new Error(msg);
+      }
+      return await res.json();
+    };
+
+    let data;
+    try {
+      data = await fetchViaProxy();
+    } catch (proxyErr) {
+      console.warn('[TMDB] Proxy fetch failed/timed out, falling back to direct TMDB API...', proxyErr);
+      data = await fetchDirectTMDB();
     }
-    const data = await response.json();
+
     if (data) {
       clientCache.set(cacheKey, data, ttlSeconds);
     }
@@ -222,11 +259,25 @@ export function useApi() {
     if (cached) return cached;
 
     return withLoading(async () => {
-      const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
+      try {
+        const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
 
-      const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
-      clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
-      return result;
+        const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
+        clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
+        return result;
+      } catch (err: any) {
+        // Fallback: If 404 with movie type, try tv (series) type, and vice versa
+        const altType = type === 'movie' ? 'tv' : 'movie';
+        try {
+          const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
+          const altResult = mapTMDB(altData, altType === 'tv' ? 'series' : 'movie');
+          const altCacheKey = `movie_details_v2_${altType}_${id}_${language}`;
+          clientCache.set(altCacheKey, altResult, 86400);
+          return altResult;
+        } catch (_) {
+          throw err;
+        }
+      }
     });
   }, [tmdbFetch, withLoading, language]);
 

@@ -182,7 +182,7 @@ export function Favorites() {
         {list.map((item: any, idx) => (
           <React.Fragment key={`${item.id}-${idx}`}>
             <div 
-              onClick={() => navigate(`/movie/${item.id}?type=${type}`)}
+              onClick={() => navigate(`/movie/${item.id}?type=${item.type || type}`)}
               className="flex flex-col gap-2 cursor-pointer group relative"
             >
               <div className="relative overflow-hidden rounded-xl shadow-lg transition-transform duration-300 group-hover:shadow-2xl aspect-[2/3] bg-[var(--hint-color)]">
