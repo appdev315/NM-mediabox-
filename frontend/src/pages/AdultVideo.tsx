@@ -5,6 +5,7 @@ import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 import { trackOpen } from '../utils/analytics';
 
@@ -13,6 +14,7 @@ export function AdultVideo() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
+  const { stop: stopAudio } = useAudioPlayer();
   const { fetchAdultStream, fetchAdultSearch } = useApi();
   
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,7 @@ export function AdultVideo() {
         // Fetch Video Details using cached API helper
         const data = await fetchAdultStream(id);
         if (data) {
+          stopAudio();
           setDetails(data);
           trackOpen('adult', data.title || 'Video', String(data.id || id));
 

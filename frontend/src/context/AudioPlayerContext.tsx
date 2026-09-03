@@ -51,6 +51,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const reconnectAttemptRef = useRef(0);
   const isReconnectingRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
 
@@ -60,13 +61,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
 
-  // Mobile Keep-Alive: Inaudible 20Hz Web Audio oscillator prevents OS suspension
+  // Mobile Keep-Alive: Inaudible 20Hz Web Audio oscillator prevents OS suspension during active playback
   const ensureAudioContextKeepAlive = useCallback(() => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
 
-      if (!audioContextRef.current) {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         const ctx = new AudioCtx();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -75,6 +76,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
+        oscillatorRef.current = osc;
         audioContextRef.current = ctx;
       } else if (audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume().catch(() => {});
@@ -102,6 +104,30 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.removeAttribute('src');
       audio.load();
     }
+
+    // Clean up Web Audio keep-alive oscillator to immediately release soundcard & remove browser tab speaker icon
+    if (oscillatorRef.current) {
+      try {
+        oscillatorRef.current.stop();
+        oscillatorRef.current.disconnect();
+      } catch (_) {}
+      oscillatorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close().catch(() => {});
+      } catch (_) {}
+      audioContextRef.current = null;
+    }
+
+    // Release system MediaSession lock
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'none';
+        navigator.mediaSession.metadata = null;
+      } catch (_) {}
+    }
+
     setIsPlaying(false);
     setIsBuffering(false);
     setCurrentTrack(null);
@@ -116,6 +142,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       isUserPausedRef.current = true;
       isPausedByDeviceRef.current = false;
       audio.pause();
+      // Suspend Web Audio keep-alive when paused so speaker icon turns off
+      if (audioContextRef.current && audioContextRef.current.state === 'running') {
+        audioContextRef.current.suspend().catch(() => {});
+      }
       setIsPlaying(false);
       setIsBuffering(false);
     } else {

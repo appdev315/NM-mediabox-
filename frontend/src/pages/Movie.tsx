@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
+import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
@@ -20,6 +21,7 @@ export function Movie() {
   const navigate = useNavigate();
   const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
+  const { stop: stopAudio } = useAudioPlayer();
   const { triggerMovieAd } = useAdManager();
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, episodes?: any}[]>([]);
@@ -270,11 +272,15 @@ export function Movie() {
     );
     if (isUnreleased) {
       if (trailerVideo) {
+        stopAudio();
         setShowTrailerModal(true);
       }
       return;
     }
     
+    // Stop background music/radio strictly when the user initiates video playback
+    stopAudio();
+
     // Add to history
     try {
       const historyKey = mediaType === 'tv' ? 'history_series' : 'history_movies';
@@ -704,7 +710,10 @@ export function Movie() {
 
           {trailerVideo && (
             <button
-              onClick={() => setShowTrailerModal(true)}
+              onClick={() => {
+                stopAudio();
+                setShowTrailerModal(true);
+              }}
               className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 rounded-full text-xs font-bold transition-all active:scale-95 shadow"
             >
               ▶ {t('playTrailer')}
@@ -775,7 +784,10 @@ export function Movie() {
                 
                 {trailerVideo ? (
                   <button
-                    onClick={() => setShowTrailerModal(true)}
+                    onClick={() => {
+                      stopAudio();
+                      setShowTrailerModal(true);
+                    }}
                     className="w-full py-3.5 rounded-xl font-bold text-base transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg bg-amber-500 text-black hover:bg-amber-400"
                   >
                     ▶ {t('watchTrailerOfficial') || 'Смотреть трейлер'}

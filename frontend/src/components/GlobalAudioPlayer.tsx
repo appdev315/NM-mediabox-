@@ -1,15 +1,10 @@
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { useLocation } from 'react-router-dom';
 
 export function GlobalAudioPlayer() {
   const { currentTrack, isPlaying, isBuffering, togglePlayPause, stop } = useAudioPlayer();
-  const location = useLocation();
 
 
   if (!currentTrack) return null;
-
-  // Hide on movie/video player pages
-  if (location.pathname.includes('/movie/') || location.pathname.includes('/adult/')) return null;
 
   return (
     <div

@@ -6,7 +6,7 @@ import { useLanguage } from './context/LanguageContext';
 import { triggerViewportExpand } from './hooks/useViewportExpand';
 
 import { GlobalAudioPlayer } from './components/GlobalAudioPlayer';
-import { AudioPlayerProvider, useAudioPlayer } from './context/AudioPlayerContext';
+import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import { Home } from './pages/Home';
 
 // Lazy-loaded routes for code-splitting and bundle size reduction
@@ -54,19 +54,6 @@ function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
       }
     }
   }, [navigate, isAdultApp]);
-
-  return null;
-}
-
-function NavigationAudioStopper() {
-  const location = useLocation();
-  const { stop } = useAudioPlayer();
-
-  useEffect(() => {
-    if (location.pathname.startsWith('/movie/') || location.pathname.startsWith('/adult/')) {
-      stop();
-    }
-  }, [location.pathname, stop]);
 
   return null;
 }
@@ -163,7 +150,6 @@ function MainApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={false} />
-      <NavigationAudioStopper />
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
@@ -192,7 +178,6 @@ function AdultApp() {
   return (
     <BrowserRouter>
       <DeepLinkHandler isAdultApp={true} />
-      <NavigationAudioStopper />
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative">
