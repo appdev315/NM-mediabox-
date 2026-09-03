@@ -60,8 +60,6 @@ export function Movie() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const autoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isPrimaryReady, setIsPrimaryReady] = useState(false);
   const [contentUnavailable, setContentUnavailable] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
   const [isReported, setIsReported] = useState(false);
@@ -111,42 +109,10 @@ export function Movie() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      if (autoFallbackTimerRef.current) {
-        clearTimeout(autoFallbackTimerRef.current);
-      }
     };
   }, []);
 
-  // Reset ready state on source change
-  useEffect(() => {
-    setIsPrimaryReady(false);
-  }, [iframeUrl]);
-
-  // 15-Second Automatic Fallback from Primary Player (Liftw) to Secondary (Anwap / Global)
-  // ONLY if primary player failed to report ready state within 15 seconds
-  useEffect(() => {
-    if (autoFallbackTimerRef.current) {
-      clearTimeout(autoFallbackTimerRef.current);
-      autoFallbackTimerRef.current = null;
-    }
-
-    if (sources.length > 1 && iframeUrl === sources[0]?.url && !isPrimaryReady) {
-      autoFallbackTimerRef.current = setTimeout(() => {
-        console.log('[PlayerFallback] 15s timeout reached without ready signal, auto switching to fallback player...');
-        if (sources[1]?.url) {
-          setIframeUrl(sources[1].url);
-        }
-      }, 15000);
-    }
-
-    return () => {
-      if (autoFallbackTimerRef.current) {
-        clearTimeout(autoFallbackTimerRef.current);
-      }
-    };
-  }, [iframeUrl, sources, isPrimaryReady]);
-
-  // Instant postMessage error listener for 0ms fallback on explicit player error events
+  // PostMessage event listener for timecode tracking and explicit 404/not_found stream fallback
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
@@ -161,20 +127,16 @@ export function Movie() {
           }
         }
 
-        const isErrorEvent = 
-          data.event === 'error' || 
-          data.type === 'error' || 
-          data.status === 'error' || 
+        // Only trigger fallback if the stream is genuinely non-existent (404/not_found),
+        // NEVER on transient HLS buffer stalls, bitrate switching, or ad-block warnings
+        const isFatalNotFound = 
           data.error === 'not_found' ||
           data.event === 'not_found' ||
-          data.event === 'player_error';
+          data.status === 404 ||
+          (typeof data.error === 'string' && data.error.toLowerCase().includes('not found'));
 
-        if (isErrorEvent && iframeUrl === sources[0]?.url) {
-          console.log('[PlayerFallback] Instant error signal received via postMessage, switching immediately...');
-          if (autoFallbackTimerRef.current) {
-            clearTimeout(autoFallbackTimerRef.current);
-            autoFallbackTimerRef.current = null;
-          }
+        if (isFatalNotFound && iframeUrl === sources[0]?.url) {
+          console.log('[PlayerFallback] Fatal stream not-found signal received, switching to backup...');
           if (sources.length > 1 && sources[1]?.url) {
             setIframeUrl(sources[1].url);
           } else {
@@ -407,18 +369,29 @@ export function Movie() {
         setSources(combined);
 
         if (combined.length > 0) {
-          const preferredUrl = combined[0].url;
-          if (!userSelectedRef.current) {
-            setIframeUrl(preferredUrl);
-          } else {
-            setIframeUrl(prev => prev || preferredUrl);
+          // Priority 1: If Liftw (1080p) is found, it is ALWAYS the preferred player.
+          // Never preemptively mount backup player (Anwap) while Liftw is still resolving!
+          if (foundSources.liftw) {
+            const preferredUrl = foundSources.liftw.url;
+            if (!userSelectedRef.current) {
+              setIframeUrl(preferredUrl);
+            } else {
+              setIframeUrl(prev => prev || preferredUrl);
+            }
+            setIsExtracting(false);
+          } else if (isLiftwDone && foundSources.anwap.length > 0) {
+            const preferredUrl = foundSources.anwap[0].url;
+            if (!userSelectedRef.current) {
+              setIframeUrl(preferredUrl);
+            } else {
+              setIframeUrl(prev => prev || preferredUrl);
+            }
+            setIsExtracting(false);
           }
-          // Immediately unblock UI when any player source is ready
-          setIsExtracting(false);
         }
       };
 
-      // 2. Fetch liftw asynchronously (Primary Player — Priority #1)
+      // 2. Fetch liftw asynchronously (Primary Player — Priority #1, 1080p)
       const fetchLiftw = async () => {
         const start = performance.now();
         const queryStr = liftwQuery.toString();
@@ -443,14 +416,20 @@ export function Movie() {
         };
 
         try {
-          // Priority 1: Try HuggingFace microservice with 3.5s timeout
-          let liftwData = await tryFetchLiftw(EXPRESS_API_BASE, 3500);
+          // Race: Query HF microservice, and if no response in 1.2s, launch Cloudflare Edge in parallel
+          const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 4000);
+          const cfPromise = new Promise<any>((resolve) => {
+            setTimeout(() => {
+              tryFetchLiftw(CF_API_BASE, 6000).then(resolve);
+            }, 1200);
+          });
 
-          // Priority 2: If HF microservice is down/blocked, immediately fallback to Cloudflare Worker edge (100% uptime, direct to api.liftw.ws)
-          if (!liftwData || !liftwData.iframe) {
-            console.warn('[Liftw] HF microservice unavailable, falling back to Cloudflare Worker edge...');
-            liftwData = await tryFetchLiftw(CF_API_BASE, 7000);
-          }
+          let liftwData = await Promise.any([
+            hfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
+            cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
+          ]).catch(async () => {
+            return (await hfPromise) || (await tryFetchLiftw(CF_API_BASE, 6000));
+          });
 
           if (liftwData && liftwData.iframe) {
             foundSources.liftw = { name: 'player1', url: liftwData.iframe, isLiftw: true };
@@ -514,7 +493,6 @@ export function Movie() {
             if (data && data.url && /^https?:\/\//i.test(data.url)) {
               foundSources.anwap = [{ name: 'anwap', url: data.url, isLiftw: false }];
               updateUI();
-              setIsExtracting(false);
             }
           }
         } catch (e) {
@@ -925,7 +903,6 @@ export function Movie() {
                     iframeUrl={iframeUrl} 
                     initialTimecode={savedTimecode || undefined} 
                     mediaId={id} 
-                    onReady={() => setIsPrimaryReady(true)}
                   />
                 </div>
               </div>

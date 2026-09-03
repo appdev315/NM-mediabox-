@@ -70,10 +70,20 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     }
   }, [rawUrl]);
 
-  // Append restored timecode parameter when available
+  // Lock initial timecode once on mount/source change to prevent URL mutation on playback ticks
+  const initialTimecodeRef = useRef(initialTimecode);
+  const lastSourceKeyRef = useRef('');
+
+  if (lastSourceKeyRef.current !== sourceKey) {
+    lastSourceKeyRef.current = sourceKey;
+    initialTimecodeRef.current = initialTimecode;
+  }
+
+  // Append restored timecode parameter when mounting initial player
   const currentUrl = useMemo(() => {
-    if (!initialTimecode || initialTimecode <= 5) return rawUrl;
-    const startSec = Math.floor(initialTimecode);
+    const timecode = initialTimecodeRef.current;
+    if (!timecode || timecode <= 5) return rawUrl;
+    const startSec = Math.floor(timecode);
     if (rawUrl.includes('#')) {
       return `${rawUrl}&t=${startSec}`;
     }
@@ -81,7 +91,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       return `${rawUrl}&start=${startSec}#t=${startSec}`;
     }
     return `${rawUrl}?start=${startSec}#t=${startSec}`;
-  }, [rawUrl, initialTimecode]);
+  }, [rawUrl]);
 
   // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
   useEffect(() => {
@@ -234,6 +244,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="eager"
+        referrerPolicy="no-referrer"
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
