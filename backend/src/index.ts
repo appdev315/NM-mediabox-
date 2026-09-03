@@ -339,6 +339,32 @@ function normString(s: string): string {
   return s.toLowerCase().trim().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/g, '');
 }
 
+function cleanWords(s: string): string[] {
+  const norm = s.toLowerCase().replace(/ё/g, 'е').replace(/Ё/g, 'е');
+  const matches = norm.match(/[a-zа-я0-9]+/g);
+  return matches ? Array.from(matches) : [];
+}
+
+function matchesWords(itemWords: string[], candWords: string[]): boolean {
+  if (candWords.length === 0 || itemWords.length === 0) return false;
+  if (candWords.length === 1) {
+    const cw = candWords[0];
+    if (cw.length < 4) return false;
+    return itemWords.includes(cw);
+  }
+  for (let i = 0; i <= itemWords.length - candWords.length; i++) {
+    let match = true;
+    for (let j = 0; j < candWords.length; j++) {
+      if (itemWords[i + j] !== candWords[j]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
 const LIFTW_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
@@ -346,6 +372,8 @@ const LIFTW_HEADERS = {
   'Referer': 'https://liftw.ws/',
   'Origin': 'https://liftw.ws',
 };
+
+const DEFAULT_TMDB_API_KEY = 'cd5b69242e715dc87d65957d7460eba2';
 
 app.get('/api/liftw', async (c: Context) => {
   const title = c.req.query('title') || '';
@@ -360,7 +388,7 @@ app.get('/api/liftw', async (c: Context) => {
     return c.json({ error: 'Title is required' }, 400);
   }
 
-  const cacheKey = `liftw_v2_${normString(title)}_${yearStr}_${vType}_${tmdb}_${normString(titleRu)}`;
+  const cacheKey = `liftw_v3_${normString(title)}_${yearStr}_${vType}_${tmdb}_${normString(titleRu)}`;
   if (!bypassCache && c.env.CACHE) {
     try {
       const cached = await c.env.CACHE.get(cacheKey, 'json');
@@ -377,49 +405,96 @@ app.get('/api/liftw', async (c: Context) => {
   const rawCandidates = [title, titleRu, originalTitle].map(s => s.trim()).filter(Boolean);
   const candidates = Array.from(new Set(rawCandidates));
 
-  let matchedItem: { id: number; name: string; origin_name: string; year: number } | null = null;
+  const searchCandidates = async (candList: string[]): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
+    for (const cand of candList.slice(0, 6)) {
+      try {
+        const searchRes = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
+          headers: LIFTW_HEADERS,
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!searchRes.ok) continue;
+        const searchData = await searchRes.json() as { items?: any[] };
+        const items = searchData.items || [];
 
-  for (const cand of candidates.slice(0, 5)) {
-    try {
-      const searchRes = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
-        headers: LIFTW_HEADERS,
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!searchRes.ok) continue;
-      const searchData = await searchRes.json() as { items?: any[] };
-      const items = searchData.items || [];
+        for (const item of items) {
+          if (!validTypes.includes(item.type)) continue;
 
-      for (const item of items) {
-        if (!validTypes.includes(item.type)) continue;
+          const nameLower = normString(item.name || '');
+          const origLower = normString(item.origin_name || '');
+          const itemWords = cleanWords(item.name || '');
+          const origWords = cleanWords(item.origin_name || '');
+          let isMatch = false;
 
-        const nameLower = normString(item.name || '');
-        const origLower = normString(item.origin_name || '');
-        let isMatch = false;
+          for (const c of candList) {
+            const cn = normString(c);
+            if (!cn) continue;
+            // 1. Full string match
+            if (nameLower === cn || origLower === cn) {
+              isMatch = true;
+              break;
+            }
+            // 2. Slash-separated part match
+            for (const part of (item.name || '').split('/')) {
+              if (normString(part) === cn) {
+                isMatch = true;
+                break;
+              }
+            }
+            if (isMatch) break;
 
-        for (const c of candidates) {
-          const cn = normString(c);
-          if (!cn) continue;
-          if (nameLower === cn || origLower === cn) {
-            isMatch = true;
-            break;
-          }
-          for (const part of (item.name || '').split('/')) {
-            if (normString(part) === cn) {
+            // 3. Sub-sequence word match (e.g. "Ричер" inside "Джек Ричер")
+            const cWords = cleanWords(c);
+            if (matchesWords(itemWords, cWords) || matchesWords(origWords, cWords)) {
               isMatch = true;
               break;
             }
           }
-          if (isMatch) break;
-        }
 
-        if (isMatch) {
-          if (targetYear === 0 || (item.year >= targetYear - 1 && item.year <= targetYear + 1)) {
-            matchedItem = item;
-            break;
+          if (isMatch) {
+            if (targetYear === 0 || (item.year >= targetYear - 1 && item.year <= targetYear + 1)) {
+              return item;
+            }
           }
         }
+      } catch (_) {}
+    }
+    return null;
+  };
+
+  // Step 1: Search direct candidates
+  let matchedItem = await searchCandidates(candidates);
+
+  // Step 2: Fallback to TMDB Alternative Titles & Translations
+  if (!matchedItem && tmdb) {
+    try {
+      const tmdbType = isSeries ? 'tv' : 'movie';
+      const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${DEFAULT_TMDB_API_KEY}&append_to_response=alternative_titles,translations`;
+      const tmdbRes = await fetch(tmdbUrl, { signal: AbortSignal.timeout(4000) });
+      if (tmdbRes.ok) {
+        const tData = await tmdbRes.json() as any;
+        const moreCands: string[] = [];
+        for (const field of ['title', 'name', 'original_title', 'original_name']) {
+          if (tData[field] && typeof tData[field] === 'string') {
+            moreCands.push(tData[field].trim());
+          }
+        }
+        for (const r of (tData.alternative_titles?.results || [])) {
+          if (r.title && typeof r.title === 'string') moreCands.push(r.title.trim());
+        }
+        for (const r of (tData.alternative_titles?.titles || [])) {
+          if (r.title && typeof r.title === 'string') moreCands.push(r.title.trim());
+        }
+        for (const tr of (tData.translations?.translations || [])) {
+          if (tr.data?.name) moreCands.push(tr.data.name.trim());
+          if (tr.data?.title) moreCands.push(tr.data.title.trim());
+        }
+
+        const cyr = moreCands.filter(s => /[а-яёА-ЯЁ]/.test(s));
+        const lat = moreCands.filter(s => !/[а-яёА-ЯЁ]/.test(s));
+        const uniqueMore = Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s));
+
+        matchedItem = await searchCandidates(uniqueMore);
       }
-      if (matchedItem) break;
     } catch (_) {}
   }
 
