@@ -216,8 +216,8 @@ func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, e
 }
 
 func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*http.Response, string) {
-	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 4s timeout
-	proxyClient := scraper.GetHTTPClient(4 * time.Second)
+	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 1.5s timeout
+	proxyClient := scraper.GetHTTPClient(1500 * time.Millisecond)
 	res, err := doLiftwGetRequest(proxyClient, targetUrl)
 	if err == nil && res.StatusCode == 200 {
 		return res, "proxy"
@@ -231,8 +231,8 @@ func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*
 		res.Body.Close()
 	}
 
-	// Stage 2: Immediate direct fallback without proxy
-	directClient := scraper.GetDirectHTTPClient(timeout)
+	// Stage 2: Immediate direct fallback without proxy (2.5s)
+	directClient := scraper.GetDirectHTTPClient(2500 * time.Millisecond)
 	directRes, directErr := doLiftwGetRequest(directClient, targetUrl)
 	if directErr != nil {
 		*lastErr = fmt.Sprintf("proxy failed (%s); direct failed: %v", proxyFailReason, directErr)
@@ -248,8 +248,8 @@ func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*
 }
 
 func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
-	searchLimit := 10
-	if len(candidates) < 10 {
+	searchLimit := 4
+	if len(candidates) < 4 {
 		searchLimit = len(candidates)
 	}
 
@@ -321,8 +321,8 @@ func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap ma
 			}
 
 			if matched {
-				// High confidence match: exact or +/- 1 year allowance for release differences
-				if targetYear == 0 || (item.Year >= targetYear-1 && item.Year <= targetYear+1) {
+				// Flexible +/- 2 year allowance for international festival & documentary release disparities
+				if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
 					return &item
 				}
 			}
@@ -420,6 +420,12 @@ func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, by
 		if len(candidates) > 0 {
 			bestMatch = searchLiftwCandidates(candidates, targetYear, validTypesMap, &lastErr)
 		}
+	}
+
+	// Fallback: Cross-type match across all categories (1-7) for documentaries, miniseries, and specials
+	if bestMatch == nil && len(candidates) > 0 {
+		allTypesMap := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true}
+		bestMatch = searchLiftwCandidates(candidates, targetYear, allTypesMap, &lastErr)
 	}
 
 	if bestMatch == nil {

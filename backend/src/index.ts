@@ -404,8 +404,8 @@ app.get('/api/liftw', async (c: Context) => {
   const rawCandidates = [title, titleRu, originalTitle].map(s => s.trim()).filter(Boolean);
   const candidates = Array.from(new Set(rawCandidates));
 
-  const searchCandidates = async (candList: string[]): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
-    for (const cand of candList.slice(0, 6)) {
+  const searchCandidates = async (candList: string[], strictType = true): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
+    for (const cand of candList.slice(0, 8)) {
       try {
         const searchRes = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
           headers: LIFTW_HEADERS,
@@ -416,7 +416,7 @@ app.get('/api/liftw', async (c: Context) => {
         const items = searchData.items || [];
 
         for (const item of items) {
-          if (!validTypes.includes(item.type)) continue;
+          if (strictType && !validTypes.includes(item.type)) continue;
 
           const nameLower = normString(item.name || '');
           const origLower = normString(item.origin_name || '');
@@ -450,7 +450,8 @@ app.get('/api/liftw', async (c: Context) => {
           }
 
           if (isMatch) {
-            if (targetYear === 0 || (item.year >= targetYear - 1 && item.year <= targetYear + 1)) {
+            // Flexible +/- 2 year allowance for international festival & documentary release disparities
+            if (targetYear === 0 || (item.year >= targetYear - 2 && item.year <= targetYear + 2)) {
               return item;
             }
           }
@@ -460,8 +461,8 @@ app.get('/api/liftw', async (c: Context) => {
     return null;
   };
 
-  // Step 1: Search direct candidates
-  let matchedItem = await searchCandidates(candidates);
+  // Step 1: Search direct candidates (strict type)
+  let matchedItem = await searchCandidates(candidates, true);
 
   // Step 2: Fallback to TMDB Alternative Titles & Translations
   if (!matchedItem && tmdb) {
@@ -492,9 +493,18 @@ app.get('/api/liftw', async (c: Context) => {
         const lat = moreCands.filter(s => !/[а-яёА-ЯЁ]/.test(s));
         const uniqueMore = Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s));
 
-        matchedItem = await searchCandidates(uniqueMore);
+        matchedItem = await searchCandidates(uniqueMore, true);
+        if (!matchedItem) {
+          // If still not matched with strict types, try relaxed types for alternative titles
+          matchedItem = await searchCandidates(uniqueMore, false);
+        }
       }
     } catch (_) {}
+  }
+
+  // Step 3: Fallback across all content types (e.g. movie classified as docu-series/show on Liftw)
+  if (!matchedItem) {
+    matchedItem = await searchCandidates(candidates, false);
   }
 
   if (!matchedItem) {

@@ -487,27 +487,42 @@ export function Movie() {
       const fetchAnwap = async () => {
         const start = performance.now();
         const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 6000);
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 7000);
         try {
-          const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
-          const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(ruTitle)}`, {
-            maxRetries: 1,
-            baseDelayMs: 300,
-            maxDelayMs: 1000,
-            signal: timeoutCtrl.signal,
-          });
-          clearTimeout(timeoutId);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.url && /^https?:\/\//i.test(data.url)) {
-              foundSources.anwap = [{ name: 'anwap', url: data.url, isLiftw: false }];
-              updateUI();
-            }
+          const titlesToTry: string[] = [];
+          const ru = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
+          const orig = (movie as any)?.original_title || (movie as any)?.original_name || queryParams.original_title;
+          if (ru) titlesToTry.push(ru.trim());
+          if (orig && orig.trim() !== ru?.trim()) titlesToTry.push(orig.trim());
+          if (queryParams.title && !titlesToTry.includes(queryParams.title.trim())) titlesToTry.push(queryParams.title.trim());
+
+          let foundUrl = '';
+          for (const candTitle of titlesToTry) {
+            try {
+              const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(candTitle)}`, {
+                maxRetries: 1,
+                baseDelayMs: 250,
+                maxDelayMs: 800,
+                signal: timeoutCtrl.signal,
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.url && /^https?:\/\//i.test(data.url)) {
+                  foundUrl = data.url;
+                  break;
+                }
+              }
+            } catch (_) {}
+          }
+
+          if (foundUrl) {
+            foundSources.anwap = [{ name: 'anwap', url: foundUrl, isLiftw: false }];
+            updateUI();
           }
         } catch (e) {
-          clearTimeout(timeoutId);
           console.error("Anwap fetch failed", e);
         } finally {
+          clearTimeout(timeoutId);
           const end = performance.now();
           console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
         }
@@ -527,6 +542,7 @@ export function Movie() {
         evaluateUIUnblock();
       }).finally(() => {
         isLiftwDone = true;
+        updateUI(); // Immediately trigger Anwap fallback if Liftw has no stream
         if (isLiftwDone && anwapDone) {
           clearTimeout(uiDeadline);
           setIsExtracting(false);
@@ -541,6 +557,7 @@ export function Movie() {
         evaluateUIUnblock();
       }).finally(() => {
         anwapDone = true;
+        updateUI(); // Immediately trigger UI update when Anwap resolves
         if (isLiftwDone && anwapDone) {
           clearTimeout(uiDeadline);
           setIsExtracting(false);
