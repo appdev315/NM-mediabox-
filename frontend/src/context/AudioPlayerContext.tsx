@@ -24,18 +24,18 @@ interface AudioPlayerContextType {
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
-// Dynamic Network Information helper
+// Dynamic Network Information helper with enhanced buffering for unstable mobile connections
 const getOptimalBufferConfig = () => {
   const conn = (navigator as any).connection;
   const effectiveType = conn?.effectiveType || '4g';
   switch (effectiveType) {
     case 'slow-2g':
     case '2g':
-      return { maxBufferLength: 120, maxMaxBufferLength: 240, backBufferLength: 15 };
+      return { maxBufferLength: 180, maxMaxBufferLength: 360, backBufferLength: 30 };
     case '3g':
-      return { maxBufferLength: 90, maxMaxBufferLength: 180, backBufferLength: 15 };
+      return { maxBufferLength: 120, maxMaxBufferLength: 240, backBufferLength: 30 };
     default:
-      return { maxBufferLength: 60, maxMaxBufferLength: 180, backBufferLength: 15 };
+      return { maxBufferLength: 90, maxMaxBufferLength: 240, backBufferLength: 30 };
   }
 };
 
@@ -44,7 +44,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause
+  const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
+  const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
   const hlsRef = useRef<Hls | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -86,6 +87,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Stable callbacks that read from refs instead of captured state
   const stop = useCallback(() => {
     isUserPausedRef.current = true;
+    isPausedByDeviceRef.current = false;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -112,11 +114,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     if (isPlayingRef.current) {
       isUserPausedRef.current = true;
+      isPausedByDeviceRef.current = false;
       audio.pause();
       setIsPlaying(false);
       setIsBuffering(false);
     } else {
       isUserPausedRef.current = false;
+      isPausedByDeviceRef.current = false;
       setIsBuffering(true);
       ensureAudioContextKeepAlive();
 
@@ -132,7 +136,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           });
         } else {
           // Reconnect to live edge upon unpause to avoid dead TCP socket
-          const baseUrl = track.url.split('&_t=')[0].split('?_t=')[0];
+          const rawUrl = track.originalUrl || track.url;
+          const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
           const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
           audio.src = freshUrl;
           audio.load();
@@ -157,7 +162,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
     const audio = audioRef.current;
-    if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current) return;
+    if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current || audio.paused) return;
     if (isReconnectingRef.current) return;
 
     isReconnectingRef.current = true;
@@ -171,21 +176,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // Exponential backoff with random Jitter to prevent thundering herd
     const jitter = (Math.random() - 0.5) * 300;
-    const baseBackoff = Math.min(4000, 400 * Math.pow(1.3, reconnectAttemptRef.current - 1));
+    const baseBackoff = Math.min(5000, 350 * Math.pow(1.25, reconnectAttemptRef.current - 1));
     const backoffMs = Math.max(250, baseBackoff + jitter);
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (isUserPausedRef.current) {
+      if (isUserPausedRef.current || audio.paused) {
         isReconnectingRef.current = false;
         return;
       }
 
-      // Fast failover: Switch to Go proxy immediately on attempt 1 if direct stream dropped
-      let targetUrl = track.url;
-      if (reconnectAttemptRef.current >= 1 && !targetUrl.includes('/proxy')) {
-        const rawUrl = track.originalUrl || track.url;
+      // Prioritize direct station CDN for attempts 1-4.
+      // Only switch to Go proxy if direct stream fails 4+ consecutive times.
+      const rawUrl = track.originalUrl || track.url;
+      let targetUrl = rawUrl;
+      if (reconnectAttemptRef.current >= 5 && !targetUrl.includes('/proxy')) {
         targetUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(rawUrl)}`;
-        console.log('[Radio] Switching to Go proxy stream fallback:', targetUrl);
+        console.log('[Radio] Multiple direct reconnects failed, testing proxy stream fallback:', targetUrl);
       }
 
       const isHls = targetUrl.includes('.m3u8') || targetUrl.includes('/playlist');
@@ -354,7 +360,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const watchdogInterval = setInterval(() => {
       const audio = audioRef.current;
       const track = currentTrackRef.current;
-      if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current || !isPlayingRef.current) {
+      if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current || !isPlayingRef.current || audio.paused || isPausedByDeviceRef.current) {
         return;
       }
 
@@ -382,7 +388,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (!document.hidden && isPlayingRef.current && !isUserPausedRef.current) {
         ensureAudioContextKeepAlive();
         const audio = audioRef.current;
-        if (audio && audio.paused) {
+        if (audio && audio.paused && !isPausedByDeviceRef.current) {
           audio.play().catch(() => {
             attemptReconnect('tab visible resume');
           });
@@ -406,11 +412,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     const onPlay = () => {
       setIsPlaying(true);
+      isPausedByDeviceRef.current = false;
     };
 
     const onPlaying = () => {
       setIsPlaying(true);
       setIsBuffering(false);
+      isPausedByDeviceRef.current = false;
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
       stalledCountRef.current = 0;
@@ -425,8 +433,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onPause = () => {
-      if (isUserPausedRef.current) {
-        setIsPlaying(false);
+      setIsPlaying(false);
+      // If paused but user didn't explicitly click pause in the UI,
+      // it was an earphone removal or OS audio focus interruption.
+      if (!isUserPausedRef.current) {
+        isPausedByDeviceRef.current = true;
+        console.log('[Audio] Playback paused by device/OS (headphone removal or audio focus lost)');
       }
     };
 
@@ -450,7 +462,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onStalled = () => {
-      if (currentTrackRef.current?.type === 'radio' && isPlayingRef.current && !isUserPausedRef.current) {
+      if (currentTrackRef.current?.type === 'radio' && isPlayingRef.current && !isUserPausedRef.current && !audio.paused) {
         // Fast buffer rescue on stall
         setIsBuffering(true);
       }
@@ -467,9 +479,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onOnline = () => {
       console.log('[Network] Back online, refreshing live radio stream...');
       const track = currentTrackRef.current;
-      if (track?.type === 'radio' && isPlayingRef.current && !isUserPausedRef.current) {
+      if (track?.type === 'radio' && !isUserPausedRef.current) {
         reconnectAttemptRef.current = 0;
         attemptReconnect('network back online');
+      }
+    };
+
+    // Auto-resume when headphones are re-inserted
+    const onDeviceChange = () => {
+      console.log('[Audio] Audio output device change detected');
+      if (isPausedByDeviceRef.current && !isUserPausedRef.current && currentTrackRef.current) {
+        console.log('[Audio] Earphone reconnected, resuming radio stream to live edge...');
+        isPausedByDeviceRef.current = false;
+        togglePlayPause();
       }
     };
 
@@ -483,6 +505,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     audio.addEventListener('stalled', onStalled);
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', onDeviceChange);
+    }
 
     return () => {
       audio.removeEventListener('play', onPlay);
@@ -495,8 +520,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('stalled', onStalled);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
+      if (navigator.mediaDevices) {
+        navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
+      }
     };
-  }, [currentTrack, attemptReconnect]);
+  }, [currentTrack, attemptReconnect, togglePlayPause]);
 
   return (
     <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, playTrack, togglePlayPause, stop, audioRef }}>
