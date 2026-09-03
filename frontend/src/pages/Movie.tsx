@@ -21,8 +21,6 @@ export function Movie() {
   const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
   const { t, language } = useLanguage();
   const { triggerMovieAd } = useAdManager();
-  const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: id });
-  
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, episodes?: any}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -34,6 +32,22 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+
+  // Validate media type
+  const queryType = searchParams.get('type');
+  const isTvSeries = queryType === 'series' || queryType === 'tv' || movie?.type === 'series' || movie?.type === 'tv' || (movie?.seasons && movie.seasons.length > 0) || Boolean(liftwEpisodes && Object.keys(liftwEpisodes).length > 0);
+  const mediaType = isTvSeries ? 'tv' : 'movie';
+
+  // Compute composite key for series episodes so each episode retains its own independent timecode
+  const currentMediaKey = useMemo(() => {
+    if (!id) return '';
+    if (isTvSeries && (activeSeason || activeEpisode)) {
+      return `${id}_s${activeSeason || '1'}_e${activeEpisode || '1'}`;
+    }
+    return String(id);
+  }, [id, isTvSeries, activeSeason, activeEpisode]);
+
+  const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: currentMediaKey });
 
   const sortedSeasons = useMemo(() => {
     if (!liftwEpisodes) return ['1'];
@@ -122,8 +136,8 @@ export function Movie() {
         // Timecode tracking for playback position resilience
         if (data.event === 'timeupdate' || data.type === 'timeupdate' || data.event === 'time' || data.type === 'time') {
           const time = data.time || data.currentTime || data.position;
-          if (typeof time === 'number' && time > 0 && id) {
-            saveTimecode(id, time);
+          if (typeof time === 'number' && time > 0 && currentMediaKey) {
+            saveTimecode(currentMediaKey, time);
           }
         }
 
@@ -150,7 +164,7 @@ export function Movie() {
 
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [id, iframeUrl, saveTimecode, sources]);
+  }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     setActiveSeason(season);
@@ -187,11 +201,6 @@ export function Movie() {
       return () => clearTimeout(timer);
     }
   }, [iframeUrl]);
-  
-  // Validate media type
-  const queryType = searchParams.get('type');
-  const isTvSeries = queryType === 'series' || queryType === 'tv' || movie?.type === 'series' || movie?.type === 'tv' || (movie?.seasons && movie.seasons.length > 0) || Boolean(liftwEpisodes && Object.keys(liftwEpisodes).length > 0);
-  const mediaType = isTvSeries ? 'tv' : 'movie';
 
   useEffect(() => {
     let interval: any;

@@ -60,13 +60,15 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
   const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
 
-  // Compute stable sourceKey based on origin + pathname (ignoring query/timecode changes)
+  // Compute stable sourceKey based on origin + pathname + season/episode (ignoring timecode/start/mirror noise)
   const sourceKey = useMemo(() => {
     try {
       const url = new URL(rawUrl);
-      return `${url.origin}${url.pathname}`;
+      const s = url.searchParams.get('season') || '';
+      const e = url.searchParams.get('episode') || '';
+      return `${url.origin}${url.pathname}${s || e ? `?s=${s}&e=${e}` : ''}`;
     } catch (_) {
-      return rawUrl.split('?')[0].split('#')[0];
+      return rawUrl.split('#')[0];
     }
   }, [rawUrl]);
 
@@ -82,15 +84,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
   // Append restored timecode parameter when mounting initial player
   const currentUrl = useMemo(() => {
     const timecode = initialTimecodeRef.current;
-    if (!timecode || timecode <= 5) return rawUrl;
+    let cleanUrl = rawUrl.replace(/[?&](start|t)=\d+/g, '').replace(/#t=\d+/g, '');
+    if (cleanUrl.includes('?&')) cleanUrl = cleanUrl.replace('?&', '?');
+    if (cleanUrl.endsWith('?')) cleanUrl = cleanUrl.slice(0, -1);
+
+    if (!timecode || timecode <= 5) return cleanUrl;
     const startSec = Math.floor(timecode);
-    if (rawUrl.includes('#')) {
-      return `${rawUrl}&t=${startSec}`;
+    if (cleanUrl.includes('?')) {
+      return `${cleanUrl}&start=${startSec}#t=${startSec}`;
     }
-    if (rawUrl.includes('?')) {
-      return `${rawUrl}&start=${startSec}#t=${startSec}`;
-    }
-    return `${rawUrl}?start=${startSec}#t=${startSec}`;
+    return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
   // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
