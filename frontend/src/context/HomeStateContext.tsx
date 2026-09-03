@@ -7,6 +7,8 @@ interface HomeState {
   setActiveTab: (tab: TabType) => void;
   items: any[];
   setItems: React.Dispatch<React.SetStateAction<any[]>>;
+  homeSections: any[];
+  setHomeSections: React.Dispatch<React.SetStateAction<any[]>>;
   page: number;
   setPage: React.Dispatch<React.SetStateAction<number>>;
   selectedGenre: string;
@@ -31,6 +33,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const [items, setItems] = useState<any[]>([]);
+  const [homeSections, setHomeSections] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [selectedGenre, setSelectedGenreState] = useState<string>('');
   const [selectedCountry, setSelectedCountryState] = useState<string>('');
@@ -46,6 +49,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveTabState(tab);
     setPage(1);
     setItems([]);
+    setHomeSections([]);
     setSelectedGenreState('');
     setSearchQueryState('');
     setIsSearchingState(false);
@@ -56,6 +60,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedGenreState(genre);
     setPage(1);
     setItems([]);
+    setHomeSections([]);
     setScrollY(0);
   };
 
@@ -63,6 +68,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedCountryState(country);
     setPage(1);
     setItems([]);
+    setHomeSections([]);
     setScrollY(0);
   };
 
@@ -79,6 +85,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const resetHomeState = () => {
     setActiveTabState('movie');
     setItems([]);
+    setHomeSections([]);
     setPage(1);
     setSelectedGenreState('');
     setSelectedCountryState('');
@@ -100,6 +107,8 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setActiveTab,
         items,
         setItems,
+        homeSections,
+        setHomeSections,
         page,
         setPage,
         selectedGenre,

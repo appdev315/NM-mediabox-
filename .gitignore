@@ -4,3 +4,8 @@
 *.apk
 .env
 .env.*
+node_modules/
+dist/
+*.log
+.system_generated/
+

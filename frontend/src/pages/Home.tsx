@@ -28,6 +28,8 @@ export function Home() {
     setPage,
     items,
     setItems,
+    homeSections,
+    setHomeSections,
     searchQuery,
     setSearchQuery,
     isSearching,
@@ -37,7 +39,6 @@ export function Home() {
   } = useHomeState();
 
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [homeSections, setHomeSections] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const [searchInput, setSearchInput] = useState<string>(searchQuery);
   const isFirstRender = useRef(true);

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
-import ReactPlayer from 'react-player';
 import { Player } from '../components/Player';
 import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
@@ -88,13 +87,12 @@ export function AdultVideo() {
 
           <div className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black shadow-xl mb-8 flex items-center justify-center">
             {details.mp4 ? (
-              <ReactPlayer
-                // @ts-ignore
-                url={details.mp4}
-                width="100%"
-                height="100%"
+              <video
+                src={details.mp4}
+                className="w-full h-full object-contain"
                 controls
-                playing
+                autoPlay
+                playsInline
               />
             ) : details.iframe ? (
               <Player iframeUrl={details.iframe} mirrors={details.mirrors} />

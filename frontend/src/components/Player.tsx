@@ -50,19 +50,15 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       const savedDomain = localStorage.getItem(`preferred_mirror_${provider}`);
       if (savedDomain) {
         const foundIdx = activeMirrors.findIndex(m => m.includes(savedDomain));
-        if (foundIdx !== -1) {
+        if (foundIdx !== -1 && foundIdx !== mirrorIndex) {
           setMirrorIndex(foundIdx);
           return;
         }
       }
     }
-    setMirrorIndex(0);
-  }, [iframeUrl, activeMirrors, provider]);
+  }, [activeMirrors, provider, mirrorIndex]);
 
   const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
-
-  // Lock initial timecode on mount to prevent URL mutation on playback ticks
-  const initialTimecodeRef = useRef(initialTimecode);
 
   // Compute stable sourceKey based on origin + pathname (ignoring query/timecode changes)
   const sourceKey = useMemo(() => {
@@ -76,9 +72,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
   // Append restored timecode parameter when available
   const currentUrl = useMemo(() => {
-    const timecode = initialTimecodeRef.current;
-    if (!timecode || timecode <= 5) return rawUrl;
-    const startSec = Math.floor(timecode);
+    if (!initialTimecode || initialTimecode <= 5) return rawUrl;
+    const startSec = Math.floor(initialTimecode);
     if (rawUrl.includes('#')) {
       return `${rawUrl}&t=${startSec}`;
     }
@@ -86,7 +81,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       return `${rawUrl}&start=${startSec}#t=${startSec}`;
     }
     return `${rawUrl}?start=${startSec}#t=${startSec}`;
-  }, [rawUrl]);
+  }, [rawUrl, initialTimecode]);
 
   // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
   useEffect(() => {

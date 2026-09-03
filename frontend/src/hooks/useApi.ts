@@ -6,6 +6,15 @@ import { clientCache } from '../utils/clientCache';
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
 
+// In-flight request deduplication map to prevent redundant parallel network calls
+const inFlightRequests = new Map<string, Promise<any>>();
+
+// TMDB Edge Image Proxy helper (bypasses ISP blocks in Russia & caches on Cloudflare Edge)
+export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w300' | 'w342' | 'w500' | 'w1280' = 'w342') => {
+  if (!path) return '';
+  return `${CF_API_BASE}/image?path=/t/p/${size}${path.startsWith('/') ? path : '/' + path}`;
+};
+
 export interface TMDBMovie {
   id: number;
   title?: string;
@@ -85,68 +94,86 @@ export function useApi() {
       return cached;
     }
 
-    const fetchViaProxy = async (signal?: AbortSignal) => {
-      const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
-      const response = await fetch(url, {
-        signal,
-        headers: {
-          'X-App-Client': 'mediabox-app',
-          'X-Client-Time': String(Date.now()),
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Proxy error: ${response.status}`);
-      }
-      return await response.json();
-    };
+    // In-flight deduplication: reuse active pending promise for identical requests
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey);
+    }
 
-    const fetchDirectTMDB = async () => {
-      const apiKey = 'cd5b69242e715dc87d65957d7460eba2';
-      const directSearchParams = new URLSearchParams(searchParams);
-      directSearchParams.set('api_key', apiKey);
-      const directUrl = `https://api.themoviedb.org/3${endpoint}?${directSearchParams.toString()}`;
-      const res = await fetch(directUrl);
-      if (!res.ok) {
-        throw new Error(`TMDB Direct Error: ${res.status}`);
-      }
-      return await res.json();
-    };
-
-    let data;
-    const proxyDown = Date.now() - proxyCircuitBreaker.current.failedAt < 60000;
-
-    if (proxyDown) {
-      // Circuit open: proxy failed recently, go direct immediately
-      data = await fetchDirectTMDB();
-    } else {
-      // Race: proxy (with 1.5s timeout) vs direct TMDB — first response wins
-      const proxyController = new AbortController();
-      const directController = new AbortController();
-
+    const executeFetch = async (retryCount = 0): Promise<any> => {
       try {
-        data = await Promise.any([
-          fetchViaProxy(proxyController.signal).then(res => {
-            directController.abort();
-            return res;
-          }),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('proxy_timeout')), 1500))
-            .catch(() => {
-              proxyController.abort();
-              proxyCircuitBreaker.current.failedAt = Date.now();
-              return fetchDirectTMDB();
-            })
-        ]);
-      } catch (raceErr) {
-        // Both failed — try direct as last resort
-        proxyCircuitBreaker.current.failedAt = Date.now();
-        data = await fetchDirectTMDB();
-      }
-    }
+        const fetchViaProxy = async (signal?: AbortSignal) => {
+          const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
+          const response = await fetch(url, {
+            signal,
+            headers: {
+              'X-App-Client': 'mediabox-app',
+              'X-Client-Time': String(Date.now()),
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`Proxy error: ${response.status}`);
+          }
+          return await response.json();
+        };
 
-    if (data) {
-      clientCache.set(cacheKey, data, ttlSeconds);
-    }
-    return data;
+        const fetchDirectTMDB = async () => {
+          const apiKey = 'cd5b69242e715dc87d65957d7460eba2';
+          const directSearchParams = new URLSearchParams(searchParams);
+          directSearchParams.set('api_key', apiKey);
+          const directUrl = `https://api.themoviedb.org/3${endpoint}?${directSearchParams.toString()}`;
+          const res = await fetch(directUrl);
+          if (!res.ok) {
+            throw new Error(`TMDB Direct Error: ${res.status}`);
+          }
+          return await res.json();
+        };
+
+        let data;
+        const proxyDown = Date.now() - proxyCircuitBreaker.current.failedAt < 60000;
+
+        if (proxyDown) {
+          data = await fetchDirectTMDB();
+        } else {
+          const proxyController = new AbortController();
+          const directController = new AbortController();
+
+          try {
+            data = await Promise.any([
+              fetchViaProxy(proxyController.signal).then(res => {
+                directController.abort();
+                return res;
+              }),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('proxy_timeout')), 1500))
+                .catch(() => {
+                  proxyController.abort();
+                  proxyCircuitBreaker.current.failedAt = Date.now();
+                  return fetchDirectTMDB();
+                })
+            ]);
+          } catch (_) {
+            proxyCircuitBreaker.current.failedAt = Date.now();
+            data = await fetchDirectTMDB();
+          }
+        }
+
+        if (data) {
+          clientCache.set(cacheKey, data, ttlSeconds);
+        }
+        return data;
+      } catch (err) {
+        if (retryCount < 1) {
+          await new Promise(r => setTimeout(r, 600));
+          return executeFetch(retryCount + 1);
+        }
+        throw err;
+      }
+    };
+
+    const promise = executeFetch().finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+    inFlightRequests.set(cacheKey, promise);
+    return promise;
   }, [language]);
 
   const extractCertification = (item: any) => {
@@ -179,8 +206,8 @@ export function useApi() {
     return {
       id: item.id,
       title: item.title || item.name || item.original_title || 'Без названия',
-      poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
-      backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : '',
+      poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
+      backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : '',
       description: item.overview || '',
       tagline: item.tagline || '',
       runtime: item.runtime || (item.episode_run_time ? item.episode_run_time[0] : 0),
@@ -313,7 +340,7 @@ export function useApi() {
         biography: data.biography || '',
         birthday: data.birthday || '',
         place_of_birth: data.place_of_birth || '',
-        profile_path: data.profile_path ? `https://image.tmdb.org/t/p/w300${data.profile_path}` : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Photo',
+        profile_path: data.profile_path ? getTmdbImageUrl(data.profile_path, 'w300') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Photo',
         knownFor
       };
       clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
@@ -349,7 +376,37 @@ export function useApi() {
     }
 
     const fetcher = async () => {
-      // 1. Trending (12 items)
+      // 1. High-Performance Primary: Single HTTP call to Cloudflare Edge Feed (cached 12h in KV)
+      try {
+        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}`, {
+          signal: AbortSignal.timeout(6000),
+        });
+        if (cfFeedRes.ok) {
+          const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
+          if (Array.isArray(feedData?.trending) && Array.isArray(feedData?.genres) && feedData.genres.length > 0) {
+            const trendingItems = feedData.trending.map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+            const genreSections = feedData.genres.map((g) => ({
+              id: g.id,
+              name: g.name,
+              genreId: g.genreId,
+              items: (g.rawResults || []).map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie')),
+            }));
+
+            const sections = [
+              { id: 'trending', name: language === 'ru-RU' ? 'Популярное' : 'Popular', genreId: '', items: trendingItems },
+              ...genreSections.filter(s => s.items.length > 0)
+            ];
+
+            // Cache for 48 hours locally
+            clientCache.set(cacheKey, sections, 172800);
+            return sections;
+          }
+        }
+      } catch (e) {
+        console.warn('[HomeFeed] Cloudflare feed fallback triggered:', e);
+      }
+
+      // 2. Resilient Fallback: Local parallel assembly if Cloudflare feed is temporarily unavailable
       const trendingData = await tmdbFetch(`/trending/${type}/day`);
       const trendingItems = (trendingData.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
 
@@ -388,7 +445,6 @@ export function useApi() {
         { id: 37, name: language === 'ru-RU' ? 'Вестерны' : 'Western' },
       ];
 
-      // Fetch all genre sections in 100% parallel requests for maximum speed
       const genreResults = await Promise.all(
         genresToFetch.map(async (g) => {
           try {
@@ -400,7 +456,7 @@ export function useApi() {
               genreId: String(g.id),
               items: mapped
             };
-          } catch (e) {
+          } catch (_) {
             return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
           }
         })
@@ -411,16 +467,14 @@ export function useApi() {
         ...genreResults.filter(s => s.items.length > 0)
       ];
 
-      // Cache categorized sections for 48 HOURS (172800s) on device
       clientCache.set(cacheKey, sections, 172800);
-
       return sections;
     };
 
     if (silent) {
       try {
         return await fetcher();
-      } catch (e) {
+      } catch (_) {
         return cached || [];
       }
     }

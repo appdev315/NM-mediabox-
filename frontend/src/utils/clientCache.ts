@@ -133,6 +133,20 @@ export const clientCache = {
       idbRemove(fullKey);
     }
 
+    // 2. Synchronous instant fallback for critical home feeds before IndexedDB async cursor finishes
+    try {
+      const fallbackStored = localStorage.getItem(fullKey);
+      if (fallbackStored) {
+        const entry: CacheEntry<T> = JSON.parse(fallbackStored);
+        if (now < entry.expiry) {
+          memoryCache.set(fullKey, entry);
+          return entry.data as T;
+        } else {
+          localStorage.removeItem(fullKey);
+        }
+      }
+    } catch (_) {}
+
     return null;
   },
 
@@ -141,14 +155,18 @@ export const clientCache = {
     const expiry = Date.now() + ttlSeconds * 1000;
     const entry: CacheEntry<T> = { data, expiry };
 
-    // Update memory cache synchronously with LRU cap
-    if (memoryCache.has(fullKey)) {
-      memoryCache.delete(fullKey);
-    }
-    memoryCache.set(fullKey, entry);
+    // 1. Memory Tier
     enforceMemoryLRU();
+    memoryCache.set(fullKey, entry);
 
-    // Save to IndexedDB asynchronously in non-blocking macro-task
+    // 2. Synchronous mirror for critical home feeds (instant 0ms hydration on F5)
+    if (key.includes('home') || key.includes('genres') || key.includes('trending') || key.includes('feed')) {
+      try {
+        localStorage.setItem(fullKey, JSON.stringify(entry));
+      } catch (_) {}
+    }
+
+    // 3. Persistent IndexedDB Tier (async background write)
     idbSet(fullKey, entry);
   },
 

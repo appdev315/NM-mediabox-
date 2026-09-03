@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
-import { useApi, EXPRESS_API_BASE, CF_API_BASE } from '../hooks/useApi';
+import { useApi, EXPRESS_API_BASE, CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
@@ -262,15 +262,17 @@ export function Movie() {
       setMovie(null);
       userSelectedRef.current = false;
       try {
-        const [details, recs] = await Promise.all([
-          fetchMovieDetails(id, mediaType),
-          fetchRecommendations(id, mediaType)
-        ]);
+        const initialType = (queryType === 'series' || queryType === 'tv') ? 'tv' : 'movie';
+        const details = await fetchMovieDetails(id, initialType);
         if (!isMounted) return;
         setMovie(details);
         const d = details as any;
-        trackOpen(mediaType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
-        setRecommendations(recs || []);
+        const resolvedType = (d?.type === 'series' || d?.type === 'tv' || initialType === 'tv') ? 'tv' : 'movie';
+        trackOpen(resolvedType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
+        const recs = await fetchRecommendations(id, resolvedType);
+        if (isMounted) {
+          setRecommendations(recs || []);
+        }
       } catch (err) {
         console.error("Failed to load movie data", err);
       }
@@ -282,7 +284,7 @@ export function Movie() {
     return () => {
       isMounted = false;
     };
-  }, [id, mediaType, fetchMovieDetails, fetchRecommendations]);
+  }, [id, queryType, fetchMovieDetails, fetchRecommendations]);
 
   // Trigger ad when navigating to movie
   useEffect(() => {
@@ -995,7 +997,7 @@ export function Movie() {
                   className="w-24 min-w-[96px] cursor-pointer group space-y-1 text-center"
                 >
                   <img
-                    src={actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo'}
+                    src={actor.profile_path ? getTmdbImageUrl(actor.profile_path, 'w185') : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo'}
                     alt={actor.name}
                     className="w-24 aspect-[2/3] object-cover rounded-xl shadow group-hover:scale-105 transition-transform duration-200"
                     loading="lazy"

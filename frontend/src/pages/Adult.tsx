@@ -150,16 +150,7 @@ export function Adult() {
 
   const initialCategoryRef = useRef(category);
 
-  useEffect(() => {
-    if (hasAccess && ageConfirmed) {
-      loadVideos(initialCategoryRef.current, 0);
-    } else {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasAccess, ageConfirmed]);
-
-  const loadVideos = async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
+  const loadVideos = useCallback(async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
     if (append) {
       setIsLoadingMore(true);
     } else {
@@ -186,7 +177,15 @@ export function Adult() {
       setLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [fetchAdultSearch]);
+
+  useEffect(() => {
+    if (hasAccess && ageConfirmed) {
+      loadVideos(initialCategoryRef.current, 0);
+    } else {
+      setLoading(false);
+    }
+  }, [hasAccess, ageConfirmed, loadVideos]);
 
   const loadMore = useCallback(() => {
     if (loading || isLoadingMore || !hasAccess || !ageConfirmed) return;

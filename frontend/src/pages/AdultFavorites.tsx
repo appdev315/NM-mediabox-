@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
@@ -7,11 +7,13 @@ export function AdultFavorites() {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
-  const [privateHistory, setPrivateHistory] = useState<any[]>([]);
-
-  useEffect(() => {
-    setPrivateHistory(JSON.parse(localStorage.getItem('history_adult') || '[]'));
-  }, []);
+  const [privateHistory, setPrivateHistory] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('history_adult') || '[]');
+    } catch (_) {
+      return [];
+    }
+  });
 
   const removeHistoryItem = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

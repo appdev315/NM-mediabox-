@@ -114,7 +114,6 @@ app.get('/api/analytics/stats', async (c: Context) => {
   const since = c.req.query('windowHours') ? Number(c.req.query('windowHours')) : 3;
 
   try {
-    const windowSec = since * 3600;
     const activeUsers = await c.env.DB.prepare(
       `SELECT COUNT(DISTINCT user_id) as users, COUNT(DISTINCT session_id) as sessions, COUNT(*) as events
        FROM analytics_events WHERE ts >= datetime('now', ?)`
@@ -531,6 +530,157 @@ app.get('/api/liftw', async (c: Context) => {
     return c.json(result);
   } catch (err: any) {
     return c.json({ error: err?.message || 'failed to resolve stream' }, 500);
+  }
+});
+
+// --- TMDB EDGE IMAGE PROXY (Global CDN & anti-blocking) ---
+app.get('/api/image', async (c: Context) => {
+  const path = c.req.query('path');
+  if (!path || !path.startsWith('/')) {
+    return c.text('Invalid path', 400);
+  }
+
+  // Prevent directory traversal
+  const cleanPath = path.replace(/\.\./g, '');
+  const tmdbImageUrl = `https://image.tmdb.org${cleanPath}`;
+
+  // Check Cloudflare Cache API for instant 0ms edge response
+  const cache = (caches as any).default;
+  const cacheKey = new Request(c.req.url, c.req.raw);
+  let cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  try {
+    const res = await fetch(tmdbImageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      return c.text(`Image fetch error: ${res.status}`, 502);
+    }
+
+    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const response = new Response(res.body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=604800, s-maxage=2592000, immutable',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+
+    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+    return response;
+  } catch (err: any) {
+    return c.text(`Image proxy error: ${err?.message || 'unknown'}`, 502);
+  }
+});
+
+// --- AGGREGATED HOME FEED (1 request instead of 19, cached 12 hours in KV) ---
+app.get('/api/feed/home', async (c: Context) => {
+  const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
+  const lang = c.req.query('lang') || 'ru-RU';
+  const kvKey = `feed_home_v1_${type}_${lang}`;
+
+  if (c.env.CACHE) {
+    try {
+      const cached = await c.env.CACHE.get(kvKey);
+      if (cached) {
+        return c.json(JSON.parse(cached), 200, {
+          'Cache-Control': 'public, max-age=1800, s-maxage=43200',
+        });
+      }
+    } catch (_) {}
+  }
+
+  const TMDB_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+  const TMDB_BASE = 'https://api.themoviedb.org/3';
+
+  try {
+    // 1. Trending
+    const trendingRes = await fetch(`${TMDB_BASE}/trending/${type}/day?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}`, {
+      signal: AbortSignal.timeout(7000),
+    });
+    const trendingData = trendingRes.ok ? await trendingRes.json() as any : { results: [] };
+
+    // 2. Genres list
+    const genresToFetch = type === 'movie' ? [
+      { id: 28, name: lang.startsWith('ru') ? 'Боевики' : 'Action' },
+      { id: 12, name: lang.startsWith('ru') ? 'Приключения' : 'Adventure' },
+      { id: 16, name: lang.startsWith('ru') ? 'Мультфильмы' : 'Animation' },
+      { id: 35, name: lang.startsWith('ru') ? 'Комедии' : 'Comedy' },
+      { id: 80, name: lang.startsWith('ru') ? 'Криминал' : 'Crime' },
+      { id: 99, name: lang.startsWith('ru') ? 'Документальные' : 'Documentary' },
+      { id: 18, name: lang.startsWith('ru') ? 'Драмы' : 'Drama' },
+      { id: 10751, name: lang.startsWith('ru') ? 'Семейные' : 'Family' },
+      { id: 14, name: lang.startsWith('ru') ? 'Фэнтези' : 'Fantasy' },
+      { id: 36, name: lang.startsWith('ru') ? 'Исторические' : 'History' },
+      { id: 27, name: lang.startsWith('ru') ? 'Ужасы' : 'Horror' },
+      { id: 10402, name: lang.startsWith('ru') ? 'Музыкальные' : 'Music' },
+      { id: 9648, name: lang.startsWith('ru') ? 'Детективы' : 'Mystery' },
+      { id: 10749, name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance' },
+      { id: 878, name: lang.startsWith('ru') ? 'Фантастика' : 'Sci-Fi' },
+      { id: 53, name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller' },
+      { id: 10752, name: lang.startsWith('ru') ? 'Военные' : 'War' },
+      { id: 37, name: lang.startsWith('ru') ? 'Вестерны' : 'Western' },
+    ] : [
+      { id: 10759, name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure' },
+      { id: 16, name: lang.startsWith('ru') ? 'Мультсериалы' : 'Animation' },
+      { id: 35, name: lang.startsWith('ru') ? 'Комедии' : 'Comedy' },
+      { id: 80, name: lang.startsWith('ru') ? 'Криминал' : 'Crime' },
+      { id: 99, name: lang.startsWith('ru') ? 'Документальные' : 'Documentary' },
+      { id: 18, name: lang.startsWith('ru') ? 'Драмы' : 'Drama' },
+      { id: 10751, name: lang.startsWith('ru') ? 'Семейные' : 'Family' },
+      { id: 10762, name: lang.startsWith('ru') ? 'Детские' : 'Kids' },
+      { id: 9648, name: lang.startsWith('ru') ? 'Детективы' : 'Mystery' },
+      { id: 10765, name: lang.startsWith('ru') ? 'Фантастика и Фэнтези' : 'Sci-Fi & Fantasy' },
+      { id: 10768, name: lang.startsWith('ru') ? 'Война и Политика' : 'War & Politics' },
+      { id: 37, name: lang.startsWith('ru') ? 'Вестерны' : 'Western' },
+    ];
+
+    const genreResults = await Promise.all(
+      genresToFetch.map(async (g) => {
+        try {
+          const endpoint = type === 'movie' ? 'discover/movie' : 'discover/tv';
+          const res = await fetch(`${TMDB_BASE}/${endpoint}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&with_genres=${g.id}&page=1`, {
+            signal: AbortSignal.timeout(7000),
+          });
+          if (!res.ok) return { id: String(g.id), name: g.name, genreId: String(g.id), rawResults: [] };
+          const data = await res.json() as any;
+          return {
+            id: String(g.id),
+            name: g.name,
+            genreId: String(g.id),
+            rawResults: (data.results || []).slice(0, 12),
+          };
+        } catch (_) {
+          return { id: String(g.id), name: g.name, genreId: String(g.id), rawResults: [] };
+        }
+      })
+    );
+
+    const payload = {
+      trending: (trendingData.results || []).slice(0, 12),
+      genres: genreResults.filter(g => g.rawResults && g.rawResults.length > 0),
+    };
+
+    if (c.env.CACHE) {
+      try {
+        await c.env.CACHE.put(kvKey, JSON.stringify(payload), { expirationTtl: 43200 }); // 12 hours
+      } catch (_) {}
+    }
+
+    return c.json(payload, 200, {
+      'Cache-Control': 'public, max-age=1800, s-maxage=43200',
+    });
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'failed to load home feed' }, 500);
   }
 });
 
