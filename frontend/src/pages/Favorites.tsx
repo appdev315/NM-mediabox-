@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Hls from 'hls.js';
+import type Hls from 'hls.js';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
+import { WebApp } from '../telegram';
 import React from 'react';
 
 import { favoritesManager } from '../utils/favoritesManager';
@@ -15,7 +16,13 @@ export function Favorites() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('movie');
+  const [mode, setMode] = useState<'favorites' | 'history'>('favorites');
   
+  const [favMovies, setFavMovies] = useState<any[]>([]);
+  const [favSeries, setFavSeries] = useState<any[]>([]);
+  const [favRadio, setFavRadio] = useState<any[]>([]);
+  const [favTv, setFavTv] = useState<any[]>([]);
+
   const [historyMovies, setHistoryMovies] = useState<any[]>([]);
   const [historySeries, setHistorySeries] = useState<any[]>([]);
   const [historyRadio, setHistoryRadio] = useState<any[]>([]);
@@ -29,7 +36,13 @@ export function Favorites() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  const loadHistory = () => {
+  const loadData = () => {
+    // Instant 0ms load from LocalStorage
+    setFavMovies(favoritesManager.getLocal('movie'));
+    setFavSeries(favoritesManager.getLocal('series'));
+    setFavRadio(favoritesManager.getLocal('radio'));
+    setFavTv(favoritesManager.getLocal('tv'));
+
     setHistoryMovies(favoritesManager.getHistory('movie'));
     setHistorySeries(favoritesManager.getHistory('series'));
     setHistoryRadio(favoritesManager.getHistory('radio'));
@@ -37,8 +50,12 @@ export function Favorites() {
   };
 
   useEffect(() => {
-    // Instant 0ms load from LocalStorage (history_movies, history_series, etc.)
-    loadHistory();
+    loadData();
+    // Non-blocking cloud hydration for bookmarks
+    favoritesManager.hydrateFromCloud('movie').then(items => setFavMovies(items));
+    favoritesManager.hydrateFromCloud('series').then(items => setFavSeries(items));
+    favoritesManager.hydrateFromCloud('radio').then(items => setFavRadio(items));
+    favoritesManager.hydrateFromCloud('tv').then(items => setFavTv(items));
   }, []);
 
   // Hls.js stream lifecycle for TV channels
@@ -62,47 +79,61 @@ export function Favorites() {
 
     const streamUrl = activeTvChannel.url;
     const isHls = streamUrl.includes('.m3u8') || streamUrl.includes('/playlist') || streamUrl.includes('/proxy');
+    let isCancelled = false;
 
-    if (isHls && !video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        manifestLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 15000,
-        fragLoadingTimeOut: 15000,
-      });
-      hlsRef.current = hls;
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
+    const initHls = async () => {
+      if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) {
+        try {
+          const { default: HlsClass } = await import('hls.js');
+          if (isCancelled || !videoRef.current) return;
+          if (HlsClass.isSupported()) {
+            const hls = new HlsClass({
+              enableWorker: true,
+              lowLatencyMode: false,
+              manifestLoadingTimeOut: 15000,
+              levelLoadingTimeOut: 15000,
+              fragLoadingTimeOut: 15000,
+            });
+            hlsRef.current = hls;
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {});
-      });
+            hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+              video.play().catch(() => {});
+            });
 
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              setTvError(true);
-              hls.destroy();
-              hlsRef.current = null;
-              break;
+            hls.on(HlsClass.Events.ERROR, (_, data) => {
+              if (data.fatal) {
+                switch (data.type) {
+                  case HlsClass.ErrorTypes.NETWORK_ERROR:
+                    hls.startLoad();
+                    break;
+                  case HlsClass.ErrorTypes.MEDIA_ERROR:
+                    hls.recoverMediaError();
+                    break;
+                  default:
+                    setTvError(true);
+                    hls.destroy();
+                    hlsRef.current = null;
+                    break;
+                }
+              }
+            });
+            return;
           }
-        }
-      });
-    } else {
-      video.src = streamUrl;
-      video.load();
-      video.play().catch(() => {});
-    }
+        } catch (_) {}
+      }
+
+      if (!isCancelled && video) {
+        video.src = streamUrl;
+        video.load();
+        video.play().catch(() => {});
+      }
+    };
+    initHls();
 
     return () => {
+      isCancelled = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -115,36 +146,60 @@ export function Favorites() {
     };
   }, [activeTvChannel]);
 
-  const removeHistoryItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
+  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();
-    const updated = favoritesManager.removeHistory(type, id);
-    if (type === 'movie') setHistoryMovies(updated);
-    else if (type === 'series') setHistorySeries(updated);
-    else if (type === 'radio') setHistoryRadio(updated);
-    else if (type === 'tv') setHistoryTv(updated);
+    if (mode === 'favorites') {
+      const updated = favoritesManager.remove(type, id);
+      if (type === 'movie') setFavMovies(updated);
+      else if (type === 'series') setFavSeries(updated);
+      else if (type === 'radio') setFavRadio(updated);
+      else if (type === 'tv') setFavTv(updated);
+    } else {
+      const updated = favoritesManager.removeHistory(type, id);
+      if (type === 'movie') setHistoryMovies(updated);
+      else if (type === 'series') setHistorySeries(updated);
+      else if (type === 'radio') setHistoryRadio(updated);
+      else if (type === 'tv') setHistoryTv(updated);
+    }
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('light');
+    } catch (_) {}
   };
 
-  const clearAllHistory = () => {
-    const confirmMsg = t('confirmClearHistory') || 'Вы уверены, что хотите очистить всю историю?';
-    if (window.confirm(confirmMsg)) {
-      try {
-        stop(); // Stop active radio playback
-        localStorage.removeItem('history_movies');
-        localStorage.removeItem('history_series');
-        localStorage.removeItem('history_radio');
-        localStorage.removeItem('history_tv');
-        localStorage.removeItem('favorites_movies');
-        localStorage.removeItem('favorites_series');
-        localStorage.removeItem('favorites_radio');
-        localStorage.removeItem('favorites_tv');
-        localStorage.removeItem('history_adult');
-        setHistoryMovies([]);
-        setHistorySeries([]);
-        setHistoryRadio([]);
-        setHistoryTv([]);
-        setActiveTvChannel(null);
-      } catch (e) {
-        console.error(e);
+  const clearCurrentList = () => {
+    if (mode === 'favorites') {
+      const confirmMsg = t('confirmClearFavorites') || 'Вы уверены, что хотите очистить всё избранное?';
+      if (window.confirm(confirmMsg)) {
+        try {
+          localStorage.removeItem('favorites_movies');
+          localStorage.removeItem('favorites_series');
+          localStorage.removeItem('favorites_radio');
+          localStorage.removeItem('favorites_tv');
+          setFavMovies([]);
+          setFavSeries([]);
+          setFavRadio([]);
+          setFavTv([]);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    } else {
+      const confirmMsg = t('confirmClearHistory') || 'Вы уверены, что хотите очистить всю историю просмотров?';
+      if (window.confirm(confirmMsg)) {
+        try {
+          stop(); // Stop active radio playback
+          localStorage.removeItem('history_movies');
+          localStorage.removeItem('history_series');
+          localStorage.removeItem('history_radio');
+          localStorage.removeItem('history_tv');
+          setHistoryMovies([]);
+          setHistorySeries([]);
+          setHistoryRadio([]);
+          setHistoryTv([]);
+          setActiveTvChannel(null);
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
   };
@@ -175,8 +230,18 @@ export function Favorites() {
   };
 
   const renderTmdbList = (type: 'movie' | 'series') => {
-    const list = type === 'movie' ? historyMovies : historySeries;
-    if (list.length === 0) return <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>{t('emptyFavorites') || 'История пуста'}</div>;
+    const list = mode === 'favorites'
+      ? (type === 'movie' ? favMovies : favSeries)
+      : (type === 'movie' ? historyMovies : historySeries);
+
+    if (list.length === 0) {
+      return (
+        <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>
+          {mode === 'favorites' ? (t('emptyFavorites') || 'В избранном пока ничего нет') : (t('emptyHistory') || 'История просмотров пуста')}
+        </div>
+      );
+    }
+
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 w-full">
         {list.map((item: any, idx) => (
@@ -197,7 +262,8 @@ export function Favorites() {
                 />
                 <button 
                   className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
-                  onClick={(e) => removeHistoryItem(e, item.id, type)}
+                  onClick={(e) => removeItem(e, item.id, type)}
+                  title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
                 >
                   ✕
                 </button>
@@ -218,8 +284,17 @@ export function Favorites() {
   };
 
   const renderRadioTvList = (type: 'radio' | 'tv') => {
-    const list = type === 'radio' ? historyRadio : historyTv;
-    if (list.length === 0) return <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>{t('emptyFavorites') || 'История пуста'}</div>;
+    const list = mode === 'favorites'
+      ? (type === 'radio' ? favRadio : favTv)
+      : (type === 'radio' ? historyRadio : historyTv);
+
+    if (list.length === 0) {
+      return (
+        <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>
+          {mode === 'favorites' ? (t('emptyFavorites') || 'В избранном пока ничего нет') : (t('emptyHistory') || 'История просмотров пуста')}
+        </div>
+      );
+    }
     
     return (
       <div className="flex flex-col gap-3">
@@ -270,7 +345,8 @@ export function Favorites() {
               >
                 <button 
                   className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
-                  onClick={(e) => removeHistoryItem(e, item.id, type)}
+                  onClick={(e) => removeItem(e, item.id, type)}
+                  title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
                 >
                   ✕
                 </button>
@@ -296,7 +372,11 @@ export function Favorites() {
     );
   };
 
-  const hasAnyHistory = historyMovies.length > 0 || historySeries.length > 0 || historyRadio.length > 0 || historyTv.length > 0;
+  const currentList = mode === 'favorites'
+    ? (activeTab === 'movie' ? favMovies : activeTab === 'series' ? favSeries : activeTab === 'radio' ? favRadio : favTv)
+    : (activeTab === 'movie' ? historyMovies : activeTab === 'series' ? historySeries : activeTab === 'radio' ? historyRadio : historyTv);
+
+  const hasCurrentItems = currentList.length > 0;
 
   return (
     <div 
@@ -305,13 +385,45 @@ export function Favorites() {
     >
       <Header />
       
-      <div className="flex justify-between items-center mb-4 mt-2 px-1">
-        <h2 className="text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-color)' }}>
-          {t('myFavorites') || 'История'}
+      {/* Top Segmented Control: Favorites vs History */}
+      <div className="flex bg-black/20 p-1 rounded-xl mb-4 mt-2">
+        <button
+          onClick={() => {
+            setMode('favorites');
+            try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+          }}
+          className="flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+          style={{
+            backgroundColor: mode === 'favorites' ? 'var(--button-color)' : 'transparent',
+            color: mode === 'favorites' ? 'var(--button-text-color)' : 'var(--text-color)',
+            boxShadow: mode === 'favorites' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
+          }}
+        >
+          <span>⭐</span> {t('favorites') || 'Избранное'}
+        </button>
+        <button
+          onClick={() => {
+            setMode('history');
+            try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+          }}
+          className="flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+          style={{
+            backgroundColor: mode === 'history' ? 'var(--button-color)' : 'transparent',
+            color: mode === 'history' ? 'var(--button-text-color)' : 'var(--text-color)',
+            boxShadow: mode === 'history' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
+          }}
+        >
+          <span>🕒</span> {t('history') || 'История'}
+        </button>
+      </div>
+
+      <div className="flex justify-between items-center mb-3 px-1">
+        <h2 className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-color)' }}>
+          {mode === 'favorites' ? (t('myFavorites') || 'Моё избранное') : (t('history') || 'История просмотров')}
         </h2>
-        {hasAnyHistory && (
+        {hasCurrentItems && (
           <button 
-            onClick={clearAllHistory}
+            onClick={clearCurrentList}
             className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all active:scale-95 border"
             style={{ 
               backgroundColor: 'rgba(239, 68, 68, 0.1)', 
@@ -319,7 +431,7 @@ export function Favorites() {
               borderColor: 'rgba(239, 68, 68, 0.2)' 
             }}
           >
-            {t('clearHistory') || 'Очистить историю'}
+            {mode === 'favorites' ? (t('clearFavorites') || 'Очистить избранное') : (t('clearHistory') || 'Очистить историю')}
           </button>
         )}
       </div>

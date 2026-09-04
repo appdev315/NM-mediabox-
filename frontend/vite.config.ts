@@ -22,6 +22,9 @@ export default defineConfig({
           if (id.includes('@capacitor')) {
             return 'capacitor';
           }
+          if (id.includes('hls.js')) {
+            return 'hls';
+          }
         }
       }
     }

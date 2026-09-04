@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Hls from 'hls.js';
+import type Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -83,6 +83,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [activeTvChannel, setActiveTvChannel] = useState<Station | null>(null);
   const [tvError, setTvError] = useState(false);
   const [tvLoading, setTvLoading] = useState(false);
+  const inFlightControllerRef = useRef<AbortController | null>(null);
 
   const { playTrack, currentTrack, stop } = useAudioPlayer();
   const { t } = useLanguage();
@@ -91,6 +92,12 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     localStorage.setItem('radio_tv_country', country);
     localStorage.setItem('tv_source', tvSource);
     localStorage.setItem('radio_source', radioSource);
+
+    if (inFlightControllerRef.current) {
+      inFlightControllerRef.current.abort();
+    }
+    const ctrl = new AbortController();
+    inFlightControllerRef.current = ctrl;
 
     // Attempt to load from non-blocking clientCache first
     const cachedRadio = clientCache.get<Station[]>(`cache_radio_${country}_src${radioSource}`);
@@ -117,8 +124,12 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       setLoading(false); // Instantly show cache, still fetch in background
     }
 
-    fetchRadio();
-    fetchTV();
+    fetchRadio(ctrl.signal);
+    fetchTV(ctrl.signal);
+
+    return () => {
+      ctrl.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [country, tvSource, radioSource]);
 
@@ -132,13 +143,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
   }, [activeTab]);
 
-  const fetchRadio = async () => {
+  const fetchRadio = async (signal?: AbortSignal) => {
     try {
       let parsed: Station[] = [];
       
       // 1. Fetch from our Go Server's permanent in-memory cache
       try {
-        const res = await fetchWithRetry(`${EXPRESS_API_BASE}/radio/stations?country=${encodeURIComponent(country)}&source=${encodeURIComponent(radioSource)}`, { maxRetries: 1 });
+        const res = await fetchWithRetry(`${EXPRESS_API_BASE}/radio/stations?country=${encodeURIComponent(country)}&source=${encodeURIComponent(radioSource)}`, { maxRetries: 1, signal });
         if (res && res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -208,14 +219,14 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
   };
 
-  const fetchTV = async () => {
+  const fetchTV = async (signal?: AbortSignal) => {
     try {
       const countryCode = FREE_TV_MAP[country] || COUNTRIES.find(c => c.code === country)?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || country;
 
       // 1. Fetch remote config or use local defaults
       let config: any;
       try {
-        const confRes = await fetch('/tv-config.json?t=' + Date.now());
+        const confRes = await fetch('/tv-config.json?t=' + Date.now(), { signal });
         if (confRes.ok) {
           config = await confRes.json();
         }
@@ -248,9 +259,10 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
       // Try primary playlist candidate, then fallback through list if primary fails
       for (let i = 0; i < countryList.length; i++) {
+        if (signal?.aborted) return;
         const candidateUrl = countryList[(sourceIndex + i) % countryList.length];
         try {
-          const res = await fetchWithRetry(candidateUrl, { maxRetries: 1 });
+          const res = await fetchWithRetry(candidateUrl, { maxRetries: 1, signal });
           if (res && res.ok) {
             const text = await res.text();
             if (text && text.includes('#EXTINF')) {
@@ -504,120 +516,137 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }
       };
 
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          maxBufferLength: 60,
-          maxMaxBufferLength: 180,
-          backBufferLength: 15,
-          maxBufferHole: 0.5,
-          startFragPrefetch: true,
-          enableWorker: true,
-          lowLatencyMode: false,
-          manifestLoadingTimeOut: 30000,
-          levelLoadingTimeOut: 30000,
-          fragLoadingTimeOut: 30000,
-          maxFragLookUpTolerance: 0.25,
-          xhrSetup: (xhr: XMLHttpRequest) => {
-            xhr.withCredentials = false;
-            xhr.timeout = 30000;
-          }
-        });
-        hlsRef.current = hls;
+      let isCancelled = false;
 
-        hls.loadSource(url);
-        hls.attachMedia(video);
+      const initHls = async () => {
+        try {
+          const { default: HlsClass } = await import('hls.js');
+          if (isCancelled || !videoRef.current) return;
 
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          video.play().catch(e => console.log('Autoplay prevented', e));
-        });
+          if (HlsClass.isSupported()) {
+            const hls = new HlsClass({
+              maxBufferLength: 60,
+              maxMaxBufferLength: 180,
+              backBufferLength: 15,
+              maxBufferHole: 0.5,
+              startFragPrefetch: true,
+              enableWorker: true,
+              lowLatencyMode: false,
+              manifestLoadingTimeOut: 30000,
+              levelLoadingTimeOut: 30000,
+              fragLoadingTimeOut: 30000,
+              maxFragLookUpTolerance: 0.25,
+              xhrSetup: (xhr: XMLHttpRequest) => {
+                xhr.withCredentials = false;
+                xhr.timeout = 30000;
+              }
+            });
+            hlsRef.current = hls;
 
-        // Clear timeout once video actually plays
-        video.addEventListener('playing', clearPlaybackTimeout, { once: true });
+            hls.loadSource(url);
+            hls.attachMedia(video);
 
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                networkRetries++;
-                if (networkRetries <= MAX_NETWORK_RETRIES) {
-                  console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
-                  hls.startLoad();
-                } else {
-                  // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
-                  // let's try wrapping it in our Go proxy
-                  if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
-                    console.log('[TV] Stream failed, trying Go proxy fallback...');
-                    clearPlaybackTimeout();
-                    hls.destroy();
-                    hlsRef.current = null;
-                    networkRetries = 0;
-                    
-                    const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
-                    setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
-                  } else {
-                    console.error('fatal network error, max retries reached');
-                    clearPlaybackTimeout();
-                    hls.destroy();
-                    hlsRef.current = null;
-                    
-                    if (activeTvChannel) {
-                      tryAlternativeTvSource(activeTvChannel).then((found) => {
-                        if (!found) {
+            hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+              video.play().catch(e => console.log('Autoplay prevented', e));
+            });
+
+            // Clear timeout once video actually plays
+            video.addEventListener('playing', clearPlaybackTimeout, { once: true });
+
+            hls.on(HlsClass.Events.ERROR, (_event, data) => {
+              if (data.fatal) {
+                switch (data.type) {
+                  case HlsClass.ErrorTypes.NETWORK_ERROR:
+                    networkRetries++;
+                    if (networkRetries <= MAX_NETWORK_RETRIES) {
+                      console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
+                      hls.startLoad();
+                    } else {
+                      // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
+                      // let's try wrapping it in our Go proxy
+                      if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
+                        console.log('[TV] Stream failed, trying Go proxy fallback...');
+                        clearPlaybackTimeout();
+                        hls.destroy();
+                        hlsRef.current = null;
+                        networkRetries = 0;
+                        
+                        const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                        setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
+                      } else {
+                        console.error('fatal network error, max retries reached');
+                        clearPlaybackTimeout();
+                        hls.destroy();
+                        hlsRef.current = null;
+                        
+                        if (activeTvChannel) {
+                          tryAlternativeTvSource(activeTvChannel).then((found) => {
+                            if (!found) {
+                              setTvError(true);
+                              setTvLoading(false);
+                            }
+                          });
+                        } else {
                           setTvError(true);
                           setTvLoading(false);
                         }
-                      });
-                    } else {
-                      setTvError(true);
-                      setTvLoading(false);
+                      }
                     }
-                  }
-                }
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error('fatal media error encountered, try to recover');
-                hls.recoverMediaError();
-                break;
-              default:
-                // Same fallback logic for other fatal errors
-                if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
-                  console.log('[TV] Media error, trying Go proxy fallback...');
-                  clearPlaybackTimeout();
-                  hls.destroy();
-                  hlsRef.current = null;
-                  networkRetries = 0;
-                  
-                  const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
-                  setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
-                } else {
-                  console.error('fatal media error, max retries reached');
-                  clearPlaybackTimeout();
-                  hls.destroy();
-                  hlsRef.current = null;
-                  
-                  if (activeTvChannel) {
-                    tryAlternativeTvSource(activeTvChannel).then((found) => {
-                      if (!found) {
+                    break;
+                  case HlsClass.ErrorTypes.MEDIA_ERROR:
+                    console.error('fatal media error encountered, try to recover');
+                    hls.recoverMediaError();
+                    break;
+                  default:
+                    if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
+                      console.log('[TV] Media error, trying Go proxy fallback...');
+                      clearPlaybackTimeout();
+                      hls.destroy();
+                      hlsRef.current = null;
+                      networkRetries = 0;
+                      
+                      const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                      setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
+                    } else {
+                      console.error('fatal media error, max retries reached');
+                      clearPlaybackTimeout();
+                      hls.destroy();
+                      hlsRef.current = null;
+                      
+                      if (activeTvChannel) {
+                        tryAlternativeTvSource(activeTvChannel).then((found) => {
+                          if (!found) {
+                            setTvError(true);
+                            setTvLoading(false);
+                          }
+                        });
+                      } else {
                         setTvError(true);
                         setTvLoading(false);
                       }
-                    });
-                  } else {
-                    setTvError(true);
-                    setTvLoading(false);
-                  }
+                    }
+                    break;
                 }
-                break;
-            }
+              }
+            });
+            return;
           }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = url;
-        video.addEventListener('playing', clearPlaybackTimeout, { once: true });
-        video.addEventListener('loadedmetadata', () => {
-          video.play().catch(e => console.log('Autoplay prevented', e));
-        }, { once: true });
-      }
+        } catch (_) {}
+
+        if (!isCancelled && video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = url;
+          video.addEventListener('playing', clearPlaybackTimeout, { once: true });
+          video.addEventListener('loadedmetadata', () => {
+            video.play().catch(e => console.log('Autoplay prevented', e));
+          }, { once: true });
+        }
+      };
+
+      initHls();
+
+      return () => {
+        isCancelled = true;
+      };
     }
 
     return () => {

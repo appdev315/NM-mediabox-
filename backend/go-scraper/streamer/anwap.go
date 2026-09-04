@@ -21,6 +21,10 @@ var (
 		"https://anwap.org",
 	}
 	anwapCache sync.Map
+
+	reFilmLink = regexp.MustCompile(`(?i)<a[^>]+href="(/films/\d+)"[^>]*>([\s\S]*?)</a>`)
+	reOrtified = regexp.MustCompile(`(?i)(https?://api\.ortified\.ws/embed/[^"'\s>]+)`)
+	reStream   = regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
 )
 
 type cacheAnwapEntry struct {
@@ -76,9 +80,8 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 
 	html := string(body)
 
-	// Regexp to match film detail page links and their titles
-	reLink := regexp.MustCompile(`(?i)<a[^>]+href="(/films/\d+)"[^>]*>([\s\S]*?)</a>`)
-	allMatches := reLink.FindAllStringSubmatch(html, 15)
+	// Match film detail page links and their titles
+	allMatches := reFilmLink.FindAllStringSubmatch(html, 15)
 	if len(allMatches) == 0 {
 		return "", fmt.Errorf("no movie link found")
 	}
@@ -125,13 +128,11 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	}
 	detailHtml := string(detailBody)
 	// Priority 1: stable Ortified embed iframe (works in Player.tsx, no X-Frame-Options)
-	reOrtified := regexp.MustCompile(`(?i)(https?://api\.ortified\.ws/embed/[^"'\s>]+)`)
 	if m := reOrtified.FindStringSubmatch(detailHtml); len(m) >= 2 {
 		return strings.TrimSpace(m[1]), nil
 	}
 
 	// Priority 2: fallback to direct video stream download URL (hex token)
-	reStream := regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
 	streamMatches := reStream.FindStringSubmatch(detailHtml)
 	if len(streamMatches) >= 2 {
 		streamCandidate := mirror + streamMatches[1]

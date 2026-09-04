@@ -51,6 +51,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setItems([]);
     setHomeSections([]);
     setSelectedGenreState('');
+    setSelectedCountryState('');
     setSearchQueryState('');
     setIsSearchingState(false);
     setScrollY(0);

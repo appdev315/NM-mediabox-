@@ -99,6 +99,7 @@ var defaultOrigins = []string{
 	"https://media-box.xyz",
 	"https://www.media-box.xyz",
 	"https://moviemaniak5555.xyz",
+	"https://t.me",
 }
 
 func isOriginAllowed(origin string) bool {
@@ -121,7 +122,8 @@ func isOriginAllowed(origin string) bool {
 		}
 	}
 
-	if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+	if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "https://localhost") || 
+	   strings.HasPrefix(origin, "http://127.0.0.1") || strings.HasPrefix(origin, "capacitor://") {
 		return true
 	}
 
@@ -133,14 +135,21 @@ func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
+			if isOriginAllowed(origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, Origin, Accept, X-App-Client, X-Client-Time, X-Session-Id")
+				w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range")
+				w.Header().Set("Vary", "Origin")
+			} else {
+				if r.Method == "OPTIONS" {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+			}
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, Origin, Accept")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

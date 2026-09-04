@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,9 +11,63 @@ import (
 	"time"
 )
 
+func isIPSafe(raw net.IP) bool {
+	if raw == nil {
+		return false
+	}
+	// Extract embedded IPv4 from IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1 -> 127.0.0.1)
+	ip := raw.To4()
+	if ip == nil {
+		ip = raw
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
+		return false
+	}
+
+	// Extra checks for CGNAT (100.64.0.0/10), link-local / cloud metadata (169.254.x.x), 0.0.0.0
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
+			return false
+		}
+		if ip4[0] == 169 && ip4[1] == 254 {
+			return false
+		}
+		if ip4[0] == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func safeDialContext(dialer *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = addr
+		}
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if !isIPSafe(ip) {
+				return nil, fmt.Errorf("connection to prohibited IP address %s blocked (SSRF guard)", ip.String())
+			}
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+}
+
+var defaultDialer = &net.Dialer{
+	Timeout:   10 * time.Second,
+	KeepAlive: 30 * time.Second,
+}
+
 var defaultClient = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
+		DialContext:         safeDialContext(defaultDialer),
 		MaxIdleConns:        1000,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
@@ -31,10 +86,7 @@ var StreamBufferPool = sync.Pool{
 var streamClient = &http.Client{
 	Timeout: 0,
 	Transport: &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
+		DialContext:         safeDialContext(defaultDialer),
 		MaxIdleConns:        1000,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
@@ -51,7 +103,7 @@ func IsAllowedProxyUrl(urlStr string) bool {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.Contains(host, "metadata.google") {
 		return false
 	}
 
@@ -61,7 +113,7 @@ func IsAllowedProxyUrl(urlStr string) bool {
 	}
 
 	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		if !isIPSafe(ip) {
 			return false
 		}
 	}

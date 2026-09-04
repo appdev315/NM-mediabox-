@@ -13,6 +13,8 @@ import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
 import { useViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
+import { favoritesManager } from '../utils/favoritesManager';
+import { clientCache } from '../utils/clientCache';
 
 export function Movie() {
   const { id } = useParams();
@@ -39,6 +41,39 @@ export function Movie() {
   const queryType = searchParams.get('type');
   const isTvSeries = queryType === 'series' || queryType === 'tv' || movie?.type === 'series' || movie?.type === 'tv' || (movie?.seasons && movie.seasons.length > 0) || Boolean(liftwEpisodes && Object.keys(liftwEpisodes).length > 0);
   const mediaType = isTvSeries ? 'tv' : 'movie';
+  const favType = isTvSeries ? 'series' : 'movie';
+
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    if (movie?.id) {
+      setIsFavorite(favoritesManager.isFavorite(favType, movie.id));
+    }
+  }, [movie?.id, favType]);
+
+  const handleToggleFavorite = () => {
+    if (!movie?.id) return;
+    if (isFavorite) {
+      favoritesManager.remove(favType, movie.id);
+      setIsFavorite(false);
+      try {
+        WebApp?.HapticFeedback?.impactOccurred('light');
+      } catch (_) {}
+    } else {
+      favoritesManager.add(favType, {
+        id: movie.id,
+        title: movie.title,
+        poster: movie.poster,
+        rating: movie.rating,
+        year: movie.year,
+        type: favType,
+      });
+      setIsFavorite(true);
+      try {
+        WebApp?.HapticFeedback?.impactOccurred('medium');
+      } catch (_) {}
+    }
+  };
 
   // Compute composite key for series episodes so each episode retains its own independent timecode
   const currentMediaKey = useMemo(() => {
@@ -51,26 +86,44 @@ export function Movie() {
 
   const { savedTimecode, saveTimecode } = usePlaybackResilience({ mediaId: currentMediaKey });
 
-  const sortedSeasons = useMemo(() => {
-    if (!liftwEpisodes) return ['1'];
-    return Object.keys(liftwEpisodes).sort((a, b) => {
-      const numA = parseInt(a, 10);
-      const numB = parseInt(b, 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-    });
-  }, [liftwEpisodes]);
+  const sortedSeasons = useMemo<string[]>(() => {
+    if (liftwEpisodes && Object.keys(liftwEpisodes).length > 0) {
+      return Object.keys(liftwEpisodes).sort((a, b) => {
+        const numA = parseInt(a, 10);
+        const numB = parseInt(b, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+      });
+    }
+    // Fallback to TMDB seasons metadata if available
+    if (movie?.seasons && Array.isArray(movie.seasons)) {
+      const valid: string[] = movie.seasons
+        .filter((s: any) => s.season_number > 0)
+        .map((s: any) => String(s.season_number));
+      if (valid.length > 0) return valid;
+    }
+    return ['1'];
+  }, [liftwEpisodes, movie?.seasons]);
 
-  const sortedEpisodes = useMemo(() => {
+  const sortedEpisodes = useMemo<string[]>(() => {
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
-    const epList: string[] = Array.isArray(liftwEpisodes?.[currentSeason]) ? liftwEpisodes[currentSeason] : ['1'];
-    return epList.slice().sort((a: string, b: string) => {
-      const numA = parseInt(String(a), 10);
-      const numB = parseInt(String(b), 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-    });
-  }, [liftwEpisodes, activeSeason, sortedSeasons]);
+    if (liftwEpisodes?.[currentSeason] && Array.isArray(liftwEpisodes[currentSeason])) {
+      return liftwEpisodes[currentSeason].slice().sort((a: string, b: string) => {
+        const numA = parseInt(String(a), 10);
+        const numB = parseInt(String(b), 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+      });
+    }
+    // Fallback to TMDB episode_count
+    if (movie?.seasons && Array.isArray(movie.seasons)) {
+      const sInfo = movie.seasons.find((s: any) => String(s.season_number) === currentSeason);
+      if (sInfo && sInfo.episode_count > 0) {
+        return Array.from({ length: sInfo.episode_count }, (_, i) => String(i + 1));
+      }
+    }
+    return ['1'];
+  }, [liftwEpisodes, activeSeason, sortedSeasons, movie?.seasons]);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -131,6 +184,11 @@ export function Movie() {
   // PostMessage event listener for timecode tracking and explicit 404/not_found stream fallback
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
+      // Validate trusted player origins
+      if (!event.origin || (!event.origin.includes('liftw.ws') && !event.origin.includes('zenithjs.ws') && !event.origin.includes('ortified.ws') && !event.origin.includes(window.location.hostname))) {
+        return;
+      }
+
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!data) return;
@@ -245,6 +303,34 @@ export function Movie() {
         const recs = await fetchRecommendations(id, resolvedType);
         if (isMounted) {
           setRecommendations(recs || []);
+        }
+
+        // Instant check in clientCache for stream and episodes
+        const streamCacheKey = `liftw_stream_v2_${id}_${resolvedType}`;
+        const cachedStream = clientCache.get<any>(streamCacheKey);
+        if (cachedStream?.episodes && isMounted) {
+          setLiftwEpisodes(cachedStream.episodes);
+        } else if (resolvedType === 'tv') {
+          // Non-blocking background pre-fetch for TV series so episodes are ready before click
+          const bgQuery = new URLSearchParams({
+            title: d?.title || d?.name || '',
+            year: d?.year || '',
+            type: 'tv',
+            tmdb: String(id),
+            title_ru: language === 'ru-RU' ? (d?.title || '') : '',
+            original_title: d?.original_title || '',
+          }).toString();
+
+          const cfP = fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, { maxRetries: 1, baseDelayMs: 200 }).then(r => r.ok ? r.json() : null).catch(() => null);
+          const hfP = fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, { maxRetries: 1, baseDelayMs: 200 }).then(r => r.ok ? r.json() : null).catch(() => null);
+          Promise.any([cfP, hfP]).then((data: any) => {
+            if (data && data.iframe && isMounted) {
+              clientCache.set(streamCacheKey, data, 7200);
+              if (data.episodes) {
+                setLiftwEpisodes(data.episodes);
+              }
+            }
+          }).catch(() => {});
         }
       } catch (err) {
         console.error("Failed to load movie data", err);
@@ -409,84 +495,105 @@ export function Movie() {
       // 2. Fetch liftw asynchronously (Primary Player — Priority #1, 1080p)
       const fetchLiftw = async () => {
         const start = performance.now();
-        const queryStr = liftwQuery.toString();
-
-        const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
-          const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
-          try {
-            const res = await fetchWithRetry(`${baseUrl}/liftw?${queryStr}`, {
-              maxRetries: 1,
-              baseDelayMs: 200,
-              maxDelayMs: 600,
-              signal: timeoutCtrl.signal,
-            });
-            clearTimeout(timeoutId);
-            if (!res.ok) return null;
-            return await res.json();
-          } catch (_) {
-            clearTimeout(timeoutId);
-            return null;
-          }
-        };
-
         try {
-          // Race: Query HF microservice, and if no response in 1.2s, launch Cloudflare Edge in parallel
-          const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 4000);
-          const cfPromise = new Promise<any>((resolve) => {
-            setTimeout(() => {
-              tryFetchLiftw(CF_API_BASE, 6000).then(resolve);
-            }, 1200);
-          });
+          const streamCacheKey = `liftw_stream_v2_${id}_${mediaType}`;
+          const queryStr = liftwQuery.toString();
 
-          let liftwData = await Promise.any([
-            hfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-            cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-          ]).catch(async () => {
-            return (await hfPromise) || (await tryFetchLiftw(CF_API_BASE, 6000));
-          });
+        // Instant 0ms read from client cache
+        let liftwData: any = !forceRefresh ? clientCache.get<any>(streamCacheKey) : null;
 
-          if (liftwData && liftwData.iframe) {
-            foundSources.liftw = { name: 'player1', url: liftwData.iframe, isLiftw: true };
-            
-            if (liftwData.episodes) {
-              setLiftwEpisodes(liftwData.episodes);
-              const initSortedSeasons = Object.keys(liftwData.episodes).sort((a, b) => {
-                const numA = parseInt(a, 10);
-                const numB = parseInt(b, 10);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        if (!liftwData) {
+          const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
+            const timeoutCtrl = new AbortController();
+            const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+            try {
+              const res = await fetchWithRetry(`${baseUrl}/liftw?${queryStr}`, {
+                maxRetries: 1,
+                baseDelayMs: 200,
+                maxDelayMs: 600,
+                signal: timeoutCtrl.signal,
               });
-              const firstSeason = initSortedSeasons[0] || '1';
-
-              setActiveSeason(prevSeason => {
-                if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
-                return firstSeason;
-              });
-              setActiveEpisode(prevEp => {
-                const targetSeason = firstSeason;
-                const eps = Array.isArray(liftwData.episodes[targetSeason]) ? liftwData.episodes[targetSeason] : [];
-                const sortedInitEps = eps.slice().sort((a: any, b: any) => {
-                  const numA = parseInt(String(a), 10);
-                  const numB = parseInt(String(b), 10);
-                  if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-                });
-                if (prevEp && sortedInitEps.includes(prevEp)) return prevEp;
-                return sortedInitEps[0] || '1';
-              });
+              clearTimeout(timeoutId);
+              if (!res.ok) return null;
+              return await res.json();
+            } catch (_) {
+              clearTimeout(timeoutId);
+              return null;
             }
+          };
 
-            // Liftw source is Priority #1: Immediately render Player 1 and unblock UI
-            updateUI();
-            setIsExtracting(false);
+          try {
+            // Parallel race: Query Cloudflare Edge and HF microservice simultaneously
+            const cfPromise = tryFetchLiftw(CF_API_BASE, 5000);
+            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 5000);
+
+            liftwData = await Promise.any([
+              cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
+              hfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
+            ]).catch(async () => {
+              return (await cfPromise) || (await hfPromise);
+            });
+
+            if (liftwData && liftwData.iframe) {
+              clientCache.set(streamCacheKey, liftwData, 7200); // 2 hours client cache
+            }
+          } catch (e) {
+            console.error("Liftw fetch failed", e);
           }
-        } catch (e) {
-          console.error("Liftw fetch failed", e);
-        } finally {
-          const end = performance.now();
-          console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
         }
+
+        if (liftwData && liftwData.iframe) {
+          // If the user already selected a specific season/episode, ensure the initial URL reflects it
+          let initialUrl = liftwData.iframe;
+          if (mediaType === 'tv') {
+            const targetSeason = activeSeason || (sortedSeasons[0] || '1');
+            const targetEpisode = activeEpisode || (sortedEpisodes[0] || '1');
+            try {
+              const u = new URL(initialUrl);
+              u.searchParams.set('season', targetSeason);
+              u.searchParams.set('episode', targetEpisode);
+              initialUrl = u.toString();
+            } catch (_) {}
+          }
+
+          foundSources.liftw = { name: 'player1', url: initialUrl, isLiftw: true };
+          
+          if (liftwData.episodes) {
+            setLiftwEpisodes(liftwData.episodes);
+            const initSortedSeasons = Object.keys(liftwData.episodes).sort((a, b) => {
+              const numA = parseInt(a, 10);
+              const numB = parseInt(b, 10);
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            });
+            const firstSeason = initSortedSeasons[0] || '1';
+
+            setActiveSeason(prevSeason => {
+              if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
+              return firstSeason;
+            });
+            setActiveEpisode(prevEp => {
+              const targetSeason = firstSeason;
+              const eps = Array.isArray(liftwData.episodes[targetSeason]) ? liftwData.episodes[targetSeason] : [];
+              const sortedInitEps = eps.slice().sort((a: any, b: any) => {
+                const numA = parseInt(String(a), 10);
+                const numB = parseInt(String(b), 10);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+              });
+              if (prevEp && sortedInitEps.includes(prevEp)) return prevEp;
+              return sortedInitEps[0] || '1';
+            });
+          }
+
+          // Liftw source is Priority #1: Immediately render Player 1 and unblock UI
+          updateUI();
+          setIsExtracting(false);
+        }
+      } finally {
+        const end = performance.now();
+        console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
+      }
       };
 
       // 3. Fetch Anwap stream asynchronously (Player 2 — Backup)
@@ -609,15 +716,15 @@ export function Movie() {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  const trailerVideo = movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0];
-  const directors = movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [];
-  const writers = movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [];
-  const cast = movie?.credits?.cast?.slice(0, 15) || [];
-  const ratingPct = movie?.rating ? Math.round(movie.rating * 10) : 0;
-  const isUnreleased = Boolean(
+  const trailerVideo = useMemo(() => movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0], [movie?.videos]);
+  const directors = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [], [movie?.credits?.crew]);
+  const writers = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [], [movie?.credits?.crew]);
+  const cast = useMemo(() => movie?.credits?.cast?.slice(0, 15) || [], [movie?.credits?.cast]);
+  const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
+  const isUnreleased = useMemo(() => Boolean(
     movie?.isUpcoming || 
     (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
-  );
+  ), [movie?.isUpcoming, movie?.release_date]);
 
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">
@@ -637,6 +744,30 @@ export function Movie() {
             <p className="text-sm opacity-70 font-semibold">{movie.year}</p>
           </div>
           <div className="flex gap-2 relative z-50">
+            <button 
+              onClick={handleToggleFavorite}
+              title={isFavorite ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('addToFavorites') || 'В избранное')}
+              style={{ 
+                backgroundColor: isFavorite ? 'rgba(245, 158, 11, 0.2)' : 'var(--hint-color)', 
+                color: isFavorite ? '#f59e0b' : 'var(--text-color)',
+                border: isFavorite ? '1px solid rgba(245, 158, 11, 0.4)' : 'none'
+              }}
+              className="p-3 rounded-full shadow-lg active:scale-95 transition-all flex-shrink-0 flex items-center justify-center"
+            >
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill={isFavorite ? "#f59e0b" : "none"} 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+
             <button 
               onClick={() => setShowShareMenu(!showShareMenu)}
               style={{ backgroundColor: 'var(--hint-color)', color: 'var(--button-color)' }}
@@ -799,13 +930,66 @@ export function Movie() {
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => handleWatch(false)}
-                className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
-                style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-              >
-                ▶ {t('watch')}
-              </button>
+              <>
+                {mediaType === 'tv' && sortedSeasons.length > 0 && (
+                  <div className="mb-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider opacity-70 mb-2">
+                      {t('seasonsAndEpisodes') || 'Сезоны и серии'}
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1 relative">
+                        <select
+                          value={activeSeason || sortedSeasons[0] || '1'}
+                          onChange={(e) => {
+                            const season = e.target.value;
+                            const availableEpisodes = Array.isArray(liftwEpisodes?.[season]) ? liftwEpisodes[season] : ['1'];
+                            const sortedAvail = availableEpisodes.slice().sort((a: any, b: any) => {
+                              const numA = parseInt(String(a), 10);
+                              const numB = parseInt(String(b), 10);
+                              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                              return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+                            });
+                            const defaultEpisode = sortedAvail[0] || '1';
+                            handleSeasonEpisodeChange(season, defaultEpisode);
+                          }}
+                          className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                        >
+                          {sortedSeasons.map((season: string) => (
+                            <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
+                              {t('season')} {season}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+                      </div>
+
+                      <div className="flex-1 relative">
+                        <select
+                          value={activeEpisode || sortedEpisodes[0] || '1'}
+                          onChange={(e) => handleSeasonEpisodeChange(activeSeason || sortedSeasons[0] || '1', e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+                        >
+                          {sortedEpisodes.map((episode: string) => (
+                            <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
+                              {t('episode')} {episode}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <button
+                  onClick={() => handleWatch(false)}
+                  className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                  style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+                >
+                  ▶ {t('watch')} {mediaType === 'tv' && activeSeason && activeEpisode ? `(${t('season')} ${activeSeason}, ${t('episode')} ${activeEpisode})` : ''}
+                </button>
+              </>
             )}
           </div>
         )}
@@ -972,7 +1156,7 @@ export function Movie() {
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
-                  {sortedSeasons.map((season) => (
+                  {sortedSeasons.map((season: string) => (
                     <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
                       {t('season')} {season}
                     </option>

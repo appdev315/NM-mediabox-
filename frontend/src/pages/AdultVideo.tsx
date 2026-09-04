@@ -23,12 +23,16 @@ export function AdultVideo() {
 
   useEffect(() => {
     if (!id) return;
+    let isCurrent = true;
+
     const fetchVideoAndRelated = async () => {
       setLoading(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       try {
         // Fetch Video Details using cached API helper
         const data = await fetchAdultStream(id);
+        if (!isCurrent) return;
+
         if (data) {
           stopAudio();
           setDetails(data);
@@ -56,6 +60,7 @@ export function AdultVideo() {
         let cat = location.state?.category || 'teen';
         if (cat === '') cat = 'milf'; // fallback if empty
         const relatedData = await fetchAdultSearch(cat, 0);
+        if (!isCurrent) return;
         
         if (Array.isArray(relatedData)) {
           // Shuffle and take up to 20
@@ -65,10 +70,16 @@ export function AdultVideo() {
       } catch (e) {
         console.error(e);
       } finally {
-        setLoading(false);
+        if (isCurrent) {
+          setLoading(false);
+        }
       }
     };
     fetchVideoAndRelated();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [id, location.state, fetchAdultStream, fetchAdultSearch]);
 
   if (loading) {

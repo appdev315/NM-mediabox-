@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
@@ -10,6 +10,77 @@ import { RadioTVContent } from './RadioTV';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
+
+interface MovieCardProps {
+  item: any;
+  mediaType: string;
+  selectedCountry?: string;
+  comingSoonText: string;
+  onNavigate: (id: string | number, mediaType: string, country?: string) => void;
+}
+
+const MovieCard = React.memo(function MovieCard({
+  item,
+  mediaType,
+  selectedCountry,
+  comingSoonText,
+  onNavigate,
+}: MovieCardProps) {
+  if (!item || !item.id) return null;
+  const targetMediaType = item.type || mediaType;
+
+  return (
+    <div 
+      onClick={(e) => {
+        e.stopPropagation();
+        (document.activeElement as HTMLElement)?.blur();
+        onNavigate(item.id, targetMediaType, selectedCountry);
+      }}
+      className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
+    >
+      <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
+        {item.isUpcoming && (
+          <div className="absolute top-2 left-2 z-20">
+            <span className="bg-amber-500/90 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md backdrop-blur-sm flex items-center gap-1 border border-amber-400/40">
+              ⏳ {comingSoonText}
+            </span>
+          </div>
+        )}
+        <img 
+          src={item.poster} 
+          alt={item.title} 
+          width={300}
+          height={450}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
+          }}
+        />
+      </div>
+      <div className="mt-1 px-1">
+        <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
+        <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
+          {item.rating && item.rating > 0 && (
+            <span className="flex items-center gap-1">
+              <span 
+                className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
+                style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
+              >
+                IMDb
+              </span>
+              <span className="font-bold">{item.rating.toFixed(1)}</span>
+            </span>
+          )}
+          {item.rating && item.rating > 0 && item.year && <span className="opacity-40">•</span>}
+          {item.year && <span>{item.year}</span>}
+        </p>
+      </div>
+    </div>
+  );
+});
 
 export function Home() {
   const navigate = useNavigate();
@@ -188,15 +259,7 @@ export function Home() {
   const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     (document.activeElement as HTMLElement)?.blur();
     setActiveTab(tab);
-    setPage(1);
-    setSelectedGenre('');
-    setSelectedCountry('');
-    setSearchQuery('');
-    setItems([]);
-    setHomeSections([]);
-    setIsSearching(false);
     hasRestoredScrollRef.current = false;
-    setScrollY(0);
     triggerAd();
   };
 
@@ -207,65 +270,10 @@ export function Home() {
     setPage(1);
   };
 
-  const renderMovieCard = (item: any, idx?: number) => {
-    if (!item || !item.id) return null;
-    const mediaType = item.type || (activeTab === 'series' ? 'series' : 'movie');
-    const cardKey = idx !== undefined ? `${item.id}_${mediaType}_${idx}` : `${item.id}_${mediaType}`;
-    return (
-      <div 
-        key={cardKey}
-        onClick={(e) => {
-          e.stopPropagation();
-          (document.activeElement as HTMLElement)?.blur();
-          const countryQuery = selectedCountry ? `&country=${selectedCountry}` : '';
-          navigate(`/movie/${item.id}?type=${mediaType}${countryQuery}`);
-        }}
-        className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
-      >
-      <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
-        {item.isUpcoming && (
-          <div className="absolute top-2 left-2 z-20">
-            <span className="bg-amber-500/90 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md backdrop-blur-sm flex items-center gap-1 border border-amber-400/40">
-              ⏳ {(t as any)('comingSoon') || 'Скоро...'}
-            </span>
-          </div>
-        )}
-        <img 
-          src={item.poster} 
-          alt={item.title} 
-          width={300}
-          height={450}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
-          }}
-        />
-
-      </div>
-      <div className="mt-1 px-1">
-        <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
-        <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
-          {item.rating && item.rating > 0 && (
-            <span className="flex items-center gap-1">
-              <span 
-                className="px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none border" 
-                style={{ borderColor: 'var(--text-color)', color: 'var(--text-color)' }}
-              >
-                IMDb
-              </span>
-              <span className="font-bold">{item.rating.toFixed(1)}</span>
-            </span>
-          )}
-          {item.rating && item.rating > 0 && item.year && <span className="opacity-40">•</span>}
-          {item.year && <span>{item.year}</span>}
-        </p>
-      </div>
-    </div>
-  );
-};
+  const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string) => {
+    const countryQuery = country ? `&country=${country}` : '';
+    navigate(`/movie/${id}?type=${mediaType}${countryQuery}`);
+  }, [navigate]);
 
   const isCategorizedMode = !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !isSearching && page === 1;
 
@@ -434,7 +442,16 @@ export function Home() {
 
                   {/* 12-Card Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
-                    {section.items.map((item: any, idx: number) => renderMovieCard(item, idx))}
+                    {section.items.map((item: any, idx: number) => (
+                      <MovieCard
+                        key={`${item.id}_${item.type || activeTab}_${idx}`}
+                        item={item}
+                        mediaType={activeTab === 'series' ? 'series' : 'movie'}
+                        selectedCountry={selectedCountry}
+                        comingSoonText={(t as any)('comingSoon') || 'Скоро...'}
+                        onNavigate={handleNavigate}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -442,7 +459,16 @@ export function Home() {
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full animate-fade-in">
-              {items.map((item, idx) => renderMovieCard(item, idx))}
+              {items.map((item, idx) => (
+                <MovieCard
+                  key={`${item.id}_${item.type || activeTab}_${idx}`}
+                  item={item}
+                  mediaType={activeTab === 'series' ? 'series' : 'movie'}
+                  selectedCountry={selectedCountry}
+                  comingSoonText={(t as any)('comingSoon') || 'Скоро...'}
+                  onNavigate={handleNavigate}
+                />
+              ))}
             </div>
           )}
           

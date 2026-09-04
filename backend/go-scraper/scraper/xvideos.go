@@ -15,7 +15,10 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-var xvideosRegex = regexp.MustCompile(`/video\.?([a-zA-Z0-9_-]+)`)
+var (
+	xvideosRegex  = regexp.MustCompile(`/video\.?([a-zA-Z0-9_-]+)`)
+	durationRegex = regexp.MustCompile(`\s*\d+\s*(мин\.|sec\.|min\.)`)
+)
 
 func SearchXvideos(query string, page int) []types.Video {
 	// 1. High-speed primary provider: RedTube Public API
@@ -54,7 +57,10 @@ func SearchXvideos(query string, page int) []types.Video {
 		}
 
 		for _, reqUrl := range reqUrls {
-			req, _ := http.NewRequest("GET", reqUrl, nil)
+			req, err := http.NewRequest("GET", reqUrl, nil)
+			if err != nil {
+				continue
+			}
 			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 			req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 			req.Header.Set("Cookie", "age_verified=1; lang=english")
@@ -65,7 +71,6 @@ func SearchXvideos(query string, page int) []types.Video {
 				res.Body.Close()
 				if errDoc == nil {
 					var videos []types.Video
-					durationRegex := regexp.MustCompile(`\s*\d+\s*(мин\.|sec\.|min\.)`)
 
 					doc.Find(".thumb-block, div[id^='video_']").Each(func(i int, s *goquery.Selection) {
 						titleNode := s.Find("p.title a")
@@ -141,7 +146,10 @@ func searchRedtube(query string, page int) []types.Video {
 	}
 	apiUrl := fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
 	client := &http.Client{Timeout: 6 * time.Second}
-	req, _ := http.NewRequest("GET", apiUrl, nil)
+	req, err := http.NewRequest("GET", apiUrl, nil)
+	if err != nil {
+		return nil
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	res, err := client.Do(req)

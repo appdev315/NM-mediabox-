@@ -195,10 +195,6 @@ func sortCandidates(cands []string) []string {
 	return cands
 }
 
-func getDirectHttpClient(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout}
-}
-
 func doLiftwGetRequest(ctx context.Context, client *http.Client, targetUrl string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", targetUrl, nil)
 	if err != nil {
@@ -382,11 +378,12 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 	
 	if !bypassCache {
 		if val, ok := liftwCache.Load(cacheKey); ok {
-			entry := val.(cacheEntry)
-			if time.Now().Before(entry.exp) {
-				return entry.data, nil
+			if entry, isEntry := val.(cacheEntry); isEntry {
+				if time.Now().Before(entry.exp) {
+					return entry.data, nil
+				}
+				liftwCache.Delete(cacheKey)
 			}
-			liftwCache.Delete(cacheKey)
 		}
 	}
 
@@ -437,26 +434,28 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 		req, rErr := http.NewRequestWithContext(resolveCtx, "GET", tmdbUrl, nil)
 		if rErr == nil {
 			res, err := client.Do(req)
-			if err == nil && res.StatusCode == 200 {
-				var tData TMDBResponse
-				if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
-					candidates = append(candidates, strings.TrimSpace(tData.Title))
-					candidates = append(candidates, strings.TrimSpace(tData.Name))
-					candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
-					candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
+			if err == nil && res != nil {
+				if res.StatusCode == 200 {
+					var tData TMDBResponse
+					if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
+						candidates = append(candidates, strings.TrimSpace(tData.Title))
+						candidates = append(candidates, strings.TrimSpace(tData.Name))
+						candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
+						candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
 
-					for _, r := range tData.AlternativeTitles.Results {
-						candidates = append(candidates, strings.TrimSpace(r.Title))
-					}
-					for _, t := range tData.AlternativeTitles.Titles {
-						candidates = append(candidates, strings.TrimSpace(t.Title))
-					}
-					for _, tr := range tData.Translations.Translations {
-						if tr.Data.Name != "" {
-							candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+						for _, r := range tData.AlternativeTitles.Results {
+							candidates = append(candidates, strings.TrimSpace(r.Title))
 						}
-						if tr.Data.Title != "" {
-							candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+						for _, t := range tData.AlternativeTitles.Titles {
+							candidates = append(candidates, strings.TrimSpace(t.Title))
+						}
+						for _, tr := range tData.Translations.Translations {
+							if tr.Data.Name != "" {
+								candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+							}
+							if tr.Data.Title != "" {
+								candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+							}
 						}
 					}
 				}

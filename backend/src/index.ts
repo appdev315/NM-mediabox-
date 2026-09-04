@@ -592,6 +592,62 @@ app.get('/api/image', async (c: Context) => {
   }
 });
 
+// --- TMDB EDGE API PROXY (Bypasses ISP blocks in Russia & caches on Cloudflare Edge) ---
+app.get('/api/tmdb/*', async (c: Context) => {
+  const url = new URL(c.req.url);
+  const endpoint = url.pathname.replace(/^\/api\/tmdb/, '');
+  if (!endpoint || endpoint === '/') {
+    return c.json({ error: 'Endpoint required' }, 400);
+  }
+
+  // Check Cloudflare Edge Cache API for instant response
+  const cache = (caches as any).default;
+  const cacheKey = new Request(c.req.url, c.req.raw);
+  let cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  const TMDB_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+  const tmdbUrl = new URL(`https://api.themoviedb.org/3${endpoint}`);
+  url.searchParams.forEach((val, key) => {
+    if (key !== 'api_key') {
+      tmdbUrl.searchParams.set(key, val);
+    }
+  });
+  tmdbUrl.searchParams.set('api_key', TMDB_KEY);
+
+  try {
+    const res = await fetch(tmdbUrl.toString(), {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'MediaBox-Edge/1.0',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) {
+      return c.json({ error: `TMDB API error: ${res.status}` }, res.status as any);
+    }
+
+    const data = await res.json();
+    const ttl = endpoint.includes('/trending/') ? 1800 : 7200;
+    const response = new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl * 2}`,
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+
+    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+    return response;
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Failed to fetch from TMDB' }, 502);
+  }
+});
+
 // --- AGGREGATED HOME FEED (1 request instead of 19, cached 12 hours in KV) ---
 app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');

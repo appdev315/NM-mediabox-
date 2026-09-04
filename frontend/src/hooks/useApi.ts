@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
@@ -74,9 +74,6 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  // Circuit breaker: skip proxy entirely for 60s after a failure
-  const proxyCircuitBreaker = useRef({ failedAt: 0 });
-
   const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600) => {
     const searchParams = new URLSearchParams();
     const targetLanguage = (params.language as string) || language;
@@ -101,7 +98,22 @@ export function useApi() {
 
     const executeFetch = async (retryCount = 0): Promise<any> => {
       try {
-        const fetchViaProxy = async (signal?: AbortSignal) => {
+        const fetchViaCFProxy = async (signal?: AbortSignal) => {
+          const url = `${CF_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
+          const response = await fetch(url, {
+            signal,
+            headers: {
+              'X-App-Client': 'mediabox-app',
+              'X-Client-Time': String(Date.now()),
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`CF Proxy error: ${response.status}`);
+          }
+          return await response.json();
+        };
+
+        const fetchViaHFProxy = async (signal?: AbortSignal) => {
           const url = `${EXPRESS_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
           const response = await fetch(url, {
             signal,
@@ -111,49 +123,29 @@ export function useApi() {
             }
           });
           if (!response.ok) {
-            throw new Error(`Proxy error: ${response.status}`);
+            throw new Error(`HF Proxy error: ${response.status}`);
           }
           return await response.json();
         };
 
-        const fetchDirectTMDB = async () => {
-          const apiKey = 'cd5b69242e715dc87d65957d7460eba2';
-          const directSearchParams = new URLSearchParams(searchParams);
-          directSearchParams.set('api_key', apiKey);
-          const directUrl = `https://api.themoviedb.org/3${endpoint}?${directSearchParams.toString()}`;
-          const res = await fetch(directUrl);
-          if (!res.ok) {
-            throw new Error(`TMDB Direct Error: ${res.status}`);
-          }
-          return await res.json();
-        };
-
         let data;
-        const proxyDown = Date.now() - proxyCircuitBreaker.current.failedAt < 60000;
+        const cfCtrl = new AbortController();
+        const hfCtrl = new AbortController();
 
-        if (proxyDown) {
-          data = await fetchDirectTMDB();
-        } else {
-          const proxyController = new AbortController();
-          const directController = new AbortController();
-
-          try {
-            data = await Promise.any([
-              fetchViaProxy(proxyController.signal).then(res => {
-                directController.abort();
-                return res;
-              }),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('proxy_timeout')), 1500))
-                .catch(() => {
-                  proxyController.abort();
-                  proxyCircuitBreaker.current.failedAt = Date.now();
-                  return fetchDirectTMDB();
-                })
-            ]);
-          } catch (_) {
-            proxyCircuitBreaker.current.failedAt = Date.now();
-            data = await fetchDirectTMDB();
-          }
+        try {
+          // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
+          // Race with HF backup if CF takes > 2500ms
+          data = await Promise.any([
+            fetchViaCFProxy(cfCtrl.signal).then(res => {
+              hfCtrl.abort();
+              return res;
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('cf_timeout')), 2500))
+              .catch(() => fetchViaHFProxy(hfCtrl.signal))
+          ]);
+        } catch (_) {
+          // If race failed, try Hugging Face backup explicitly
+          data = await fetchViaHFProxy(hfCtrl.signal);
         }
 
         if (data) {

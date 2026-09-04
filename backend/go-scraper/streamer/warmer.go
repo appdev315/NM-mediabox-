@@ -189,10 +189,11 @@ func processNextBatch() {
 			// Wait, to see if it actually scraped or used cache, we check cache first
 			cacheKey := fmt.Sprintf("%s|%s|%s|%d", item.Title, item.Year, item.Type, item.ID)
 			if val, ok := liftwCache.Load(cacheKey); ok {
-				entry := val.(cacheEntry)
-				if time.Now().Before(entry.exp) {
-					// Fresh in cache, skip!
-					continue
+				if entry, isEntry := val.(cacheEntry); isEntry {
+					if time.Now().Before(entry.exp) {
+						// Fresh in cache, skip!
+						continue
+					}
 				}
 			}
 

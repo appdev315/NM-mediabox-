@@ -228,6 +228,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     };
   }, []);
 
+  const isSafeUrl = typeof currentUrl === 'string' && /^https?:\/\//i.test(currentUrl);
+  if (!isSafeUrl) {
+    return null;
+  }
+
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
       <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-500 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
