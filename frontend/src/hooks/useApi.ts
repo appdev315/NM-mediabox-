@@ -206,6 +206,7 @@ export function useApi() {
     return {
       id: item.id,
       title: item.title || item.name || item.original_title || 'Без названия',
+      original_title: item.original_title || item.original_name || '',
       poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
       backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : '',
       description: item.overview || '',

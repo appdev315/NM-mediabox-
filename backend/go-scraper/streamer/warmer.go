@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -196,7 +197,7 @@ func processNextBatch() {
 			}
 
 			log.Printf("[Warmer] Warming cache for %s (%s, %s, ID: %d)...", item.Title, item.Year, item.Type, item.ID)
-			_, err := ResolveLiftw(item.Title, item.Year, item.Type, strconv.Itoa(item.ID), "", "", false)
+			_, err := ResolveLiftw(context.Background(), item.Title, item.Year, item.Type, strconv.Itoa(item.ID), "", "", false)
 			if err != nil {
 				log.Printf("[Warmer] Failed to warm %s: %v", item.Title, err)
 			} else {

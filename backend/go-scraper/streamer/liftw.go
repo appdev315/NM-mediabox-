@@ -199,8 +199,8 @@ func getDirectHttpClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout}
 }
 
-func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", targetUrl, nil)
+func doLiftwGetRequest(ctx context.Context, client *http.Client, targetUrl string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", targetUrl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -215,12 +215,12 @@ func doLiftwGetRequest(client *http.Client, targetUrl string) (*http.Response, e
 	return client.Do(req)
 }
 
-func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*http.Response, string) {
+func fetchLiftwData(ctx context.Context, targetUrl string) (*http.Response, string, error) {
 	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 1.5s timeout
 	proxyClient := scraper.GetHTTPClient(1500 * time.Millisecond)
-	res, err := doLiftwGetRequest(proxyClient, targetUrl)
+	res, err := doLiftwGetRequest(ctx, proxyClient, targetUrl)
 	if err == nil && res.StatusCode == 200 {
-		return res, "proxy"
+		return res, "proxy", nil
 	}
 
 	proxyFailReason := ""
@@ -231,109 +231,153 @@ func fetchLiftwData(targetUrl string, timeout time.Duration, lastErr *string) (*
 		res.Body.Close()
 	}
 
+	// If context was cancelled (e.g. early exit because another candidate won), do not attempt stage 2
+	if ctx.Err() != nil {
+		return nil, "", ctx.Err()
+	}
+
 	// Stage 2: Immediate direct fallback without proxy (2.5s)
 	directClient := scraper.GetDirectHTTPClient(2500 * time.Millisecond)
-	directRes, directErr := doLiftwGetRequest(directClient, targetUrl)
+	directRes, directErr := doLiftwGetRequest(ctx, directClient, targetUrl)
 	if directErr != nil {
-		*lastErr = fmt.Sprintf("proxy failed (%s); direct failed: %v", proxyFailReason, directErr)
-		return nil, ""
+		return nil, "", fmt.Errorf("proxy failed (%s); direct failed: %w", proxyFailReason, directErr)
 	}
 	if directRes.StatusCode != 200 {
-		*lastErr = fmt.Sprintf("proxy failed (%s); direct status code %d", proxyFailReason, directRes.StatusCode)
+		code := directRes.StatusCode
 		directRes.Body.Close()
-		return nil, ""
+		return nil, "", fmt.Errorf("proxy failed (%s); direct status code %d", proxyFailReason, code)
 	}
 
-	return directRes, "direct"
+	return directRes, "direct", nil
 }
 
-func searchLiftwCandidates(candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
+func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
 	searchLimit := 4
 	if len(candidates) < 4 {
 		searchLimit = len(candidates)
 	}
+	if searchLimit == 0 {
+		return nil
+	}
+
+	searchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		once      sync.Once
+		bestMatch *LiftwSearchItem
+		errMu     sync.Mutex
+		wg        sync.WaitGroup
+	)
 
 	for _, cand := range candidates[:searchLimit] {
-		searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(cand))
-		var sRes LiftwSearchResponse
+		wg.Add(1)
+		go func(c string) {
+			defer wg.Done()
 
-		res, via := fetchLiftwData(searchUrl, 6*time.Second, lastErr)
-		if res == nil {
-			continue
-		}
-
-		decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
-		res.Body.Close()
-		if decodeErr != nil {
-			*lastErr = fmt.Sprintf("via %s decode error: %v", via, decodeErr)
-			continue
-		}
-
-		for i := range sRes.Items {
-			item := sRes.Items[i]
-			if !validTypesMap[item.Type] {
-				continue
+			searchUrl := fmt.Sprintf("https://api.liftw.ws/search?q=%s", url.QueryEscape(c))
+			res, via, err := fetchLiftwData(searchCtx, searchUrl)
+			if err != nil {
+				if searchCtx.Err() == nil {
+					errMu.Lock()
+					*lastErr = err.Error()
+					errMu.Unlock()
+				}
+				return
+			}
+			if res == nil {
+				return
 			}
 
-			nameLower := normString(item.Name)
-			origLower := normString(item.OriginName)
-			matched := false
-			for _, c := range candidates {
-				cn := normString(c)
-				if cn == "" {
+			var sRes LiftwSearchResponse
+			decodeErr := json.NewDecoder(res.Body).Decode(&sRes)
+			res.Body.Close()
+			if decodeErr != nil {
+				if searchCtx.Err() == nil {
+					errMu.Lock()
+					*lastErr = fmt.Sprintf("via %s decode error: %v", via, decodeErr)
+					errMu.Unlock()
+				}
+				return
+			}
+
+			for i := range sRes.Items {
+				if searchCtx.Err() != nil {
+					return
+				}
+
+				item := sRes.Items[i]
+				if !validTypesMap[item.Type] {
 					continue
 				}
-				// 1. Exact match on full string
-				if nameLower == cn || origLower == cn {
-					matched = true
-					break
-				}
-				// 2. Exact match on slash-separated alternative titles (e.g. "Замужняя убийца / Замужняя женщина-убийца")
-				for _, part := range strings.Split(item.Name, "/") {
-					if normString(part) == cn {
+
+				nameLower := normString(item.Name)
+				origLower := normString(item.OriginName)
+				matched := false
+				for _, candName := range candidates {
+					cn := normString(candName)
+					if cn == "" {
+						continue
+					}
+					// 1. Exact match on full string
+					if nameLower == cn || origLower == cn {
 						matched = true
 						break
 					}
-				}
-				if matched {
-					break
-				}
-				for _, part := range strings.Split(item.OriginName, "/") {
-					if normString(part) == cn {
-						matched = true
+					// 2. Exact match on slash-separated alternative titles (e.g. "Замужняя убийца / Замужняя женщина-убийца")
+					for _, part := range strings.Split(item.Name, "/") {
+						if normString(part) == cn {
+							matched = true
+							break
+						}
+					}
+					if matched {
 						break
 					}
-				}
-				if matched {
-					break
+					for _, part := range strings.Split(item.OriginName, "/") {
+						if normString(part) == cn {
+							matched = true
+							break
+						}
+					}
+					if matched {
+						break
+					}
+
+					// 3. Word-level match: if candidate matches whole word in item (e.g. "Ричер" in "Джек Ричер")
+					cWords := cleanWords(candName)
+					if len(cWords) > 0 {
+						nameWords := cleanWords(item.Name)
+						origWords := cleanWords(item.OriginName)
+						if matchesWords(nameWords, cWords) || matchesWords(origWords, cWords) {
+							matched = true
+							break
+						}
+					}
 				}
 
-				// 3. Word-level match: if candidate matches whole word in item (e.g. "Ричер" in "Джек Ричер")
-				cWords := cleanWords(c)
-				if len(cWords) > 0 {
-					nameWords := cleanWords(item.Name)
-					origWords := cleanWords(item.OriginName)
-					if matchesWords(nameWords, cWords) || matchesWords(origWords, cWords) {
-						matched = true
-						break
+				if matched {
+					// Flexible +/- 2 year allowance for international festival & documentary release disparities
+					if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
+						found := item
+						once.Do(func() {
+							bestMatch = &found
+							cancel() // Early exit: cancel other concurrent searches immediately
+						})
+						return
 					}
 				}
 			}
-
-			if matched {
-				// Flexible +/- 2 year allowance for international festival & documentary release disparities
-				if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
-					return &item
-				}
-			}
-		}
+		}(cand)
 	}
-	return nil
+
+	wg.Wait()
+	return bestMatch
 }
 
 // ResolveLiftw resolves a streaming path for a movie/series and caches it.
 // If bypassCache is true, it ignores the cache and forces a fresh query.
-func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, bypassCache bool) ([]byte, error) {
+func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, originalTitle string, bypassCache bool) ([]byte, error) {
 	cacheKey := fmt.Sprintf("%s|%s|%s|%s|%s|%s", title, yearStr, vType, tmdb, titleRu, originalTitle)
 	
 	if !bypassCache {
@@ -376,8 +420,11 @@ func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, by
 	}
 
 	var lastErr string
+	resolveCtx, cancel := context.WithTimeout(ctx, 14*time.Second)
+	defer cancel()
+
 	// Fast path: try the exact title without calling TMDB!
-	bestMatch := searchLiftwCandidates(candidates, targetYear, validTypesMap, &lastErr)
+	bestMatch := searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
 
 	// Fallback: If not found, fetch TMDB alternative titles and search them
 	if bestMatch == nil && tmdb != "" {
@@ -387,45 +434,48 @@ func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, by
 		}
 		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
 		client := scraper.GetHTTPClient(4 * time.Second)
-		res, err := client.Get(tmdbUrl)
-		if err == nil && res.StatusCode == 200 {
-			var tData TMDBResponse
-			if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
-				candidates = append(candidates, strings.TrimSpace(tData.Title))
-				candidates = append(candidates, strings.TrimSpace(tData.Name))
-				candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
-				candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
+		req, rErr := http.NewRequestWithContext(resolveCtx, "GET", tmdbUrl, nil)
+		if rErr == nil {
+			res, err := client.Do(req)
+			if err == nil && res.StatusCode == 200 {
+				var tData TMDBResponse
+				if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
+					candidates = append(candidates, strings.TrimSpace(tData.Title))
+					candidates = append(candidates, strings.TrimSpace(tData.Name))
+					candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
+					candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
 
-				for _, r := range tData.AlternativeTitles.Results {
-					candidates = append(candidates, strings.TrimSpace(r.Title))
-				}
-				for _, t := range tData.AlternativeTitles.Titles {
-					candidates = append(candidates, strings.TrimSpace(t.Title))
-				}
-				for _, tr := range tData.Translations.Translations {
-					if tr.Data.Name != "" {
-						candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+					for _, r := range tData.AlternativeTitles.Results {
+						candidates = append(candidates, strings.TrimSpace(r.Title))
 					}
-					if tr.Data.Title != "" {
-						candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+					for _, t := range tData.AlternativeTitles.Titles {
+						candidates = append(candidates, strings.TrimSpace(t.Title))
+					}
+					for _, tr := range tData.Translations.Translations {
+						if tr.Data.Name != "" {
+							candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+						}
+						if tr.Data.Title != "" {
+							candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+						}
 					}
 				}
+				res.Body.Close()
 			}
-			res.Body.Close()
 		}
 		candidates = uniqueStrings(candidates)
 		candidates = sortCandidates(candidates)
 		
 		// Search all candidates with Cyrillic prioritized
 		if len(candidates) > 0 {
-			bestMatch = searchLiftwCandidates(candidates, targetYear, validTypesMap, &lastErr)
+			bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
 		}
 	}
 
 	// Fallback: Cross-type match across all categories (1-7) for documentaries, miniseries, and specials
 	if bestMatch == nil && len(candidates) > 0 {
 		allTypesMap := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true}
-		bestMatch = searchLiftwCandidates(candidates, targetYear, allTypesMap, &lastErr)
+		bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, allTypesMap, &lastErr)
 	}
 
 	if bestMatch == nil {
@@ -436,9 +486,12 @@ func ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle string, by
 	}
 
 	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
-	infoRes, infoVia := fetchLiftwData(infoUrl, 8*time.Second, &lastErr)
+	infoRes, infoVia, infoErr := fetchLiftwData(resolveCtx, infoUrl)
 	if infoRes == nil {
-		return nil, fmt.Errorf("failed to get info (%s)", lastErr)
+		if infoErr != nil {
+			return nil, fmt.Errorf("failed to get info (%v)", infoErr)
+		}
+		return nil, fmt.Errorf("failed to get info")
 	}
 	defer infoRes.Body.Close()
 
@@ -498,7 +551,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ch := make(chan liftwRes, 1)
 	go func() {
-		data, err := ResolveLiftw(title, yearStr, vType, tmdb, titleRu, originalTitle, bypassCache)
+		data, err := ResolveLiftw(ctx, title, yearStr, vType, tmdb, titleRu, originalTitle, bypassCache)
 		ch <- liftwRes{data: data, err: err}
 	}()
 
