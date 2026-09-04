@@ -387,12 +387,36 @@ app.get('/api/liftw', async (c: Context) => {
     return c.json({ error: 'Title is required' }, 400);
   }
 
+  // 1. Check Cloudflare Edge Cache API for instant 0ms edge response
+  if (!bypassCache) {
+    try {
+      const edgeCache = (caches as any).default;
+      const cachedResponse = await edgeCache.match(new Request(c.req.url, c.req.raw));
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+    } catch (_) {}
+  }
+
+  const tmdbKey = tmdb ? `liftw_tmdb_${tmdb}_${vType}` : '';
   const cacheKey = `liftw_v3_${normString(title)}_${yearStr}_${vType}_${tmdb}_${normString(titleRu)}`;
   if (!bypassCache && c.env.CACHE) {
     try {
+      if (tmdbKey) {
+        const cached = await c.env.CACHE.get(tmdbKey, 'json');
+        if (cached) {
+          return c.json(cached, 200, {
+            'Cache-Control': 'public, max-age=10800, s-maxage=21600',
+            'Access-Control-Allow-Origin': '*',
+          });
+        }
+      }
       const cached = await c.env.CACHE.get(cacheKey, 'json');
       if (cached) {
-        return c.json(cached);
+        return c.json(cached, 200, {
+          'Cache-Control': 'public, max-age=10800, s-maxage=21600',
+          'Access-Control-Allow-Origin': '*',
+        });
       }
     } catch (_) {}
   }
@@ -533,11 +557,29 @@ app.get('/api/liftw', async (c: Context) => {
 
     if (c.env.CACHE) {
       try {
-        await c.env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 10800 }); // 3 hours
+        const jsonStr = JSON.stringify(result);
+        await c.env.CACHE.put(cacheKey, jsonStr, { expirationTtl: 10800 }); // 3 hours
+        if (tmdbKey) {
+          await c.env.CACHE.put(tmdbKey, jsonStr, { expirationTtl: 10800 });
+        }
       } catch (_) {}
     }
 
-    return c.json(result);
+    const resHeaders = {
+      'Cache-Control': 'public, max-age=10800, s-maxage=21600',
+      'Access-Control-Allow-Origin': '*',
+    };
+
+    const response = c.json(result, 200, resHeaders);
+
+    if (!bypassCache) {
+      try {
+        const edgeCache = (caches as any).default;
+        c.executionCtx.waitUntil(edgeCache.put(new Request(c.req.url, c.req.raw), response.clone()));
+      } catch (_) {}
+    }
+
+    return response;
   } catch (err: any) {
     return c.json({ error: err?.message || 'failed to resolve stream' }, 500);
   }

@@ -930,66 +930,13 @@ export function Movie() {
                 )}
               </div>
             ) : (
-              <>
-                {mediaType === 'tv' && sortedSeasons.length > 0 && (
-                  <div className="mb-3">
-                    <label className="block text-xs font-bold uppercase tracking-wider opacity-70 mb-2">
-                      {t('seasonsAndEpisodes') || 'Сезоны и серии'}
-                    </label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex-1 relative">
-                        <select
-                          value={activeSeason || sortedSeasons[0] || '1'}
-                          onChange={(e) => {
-                            const season = e.target.value;
-                            const availableEpisodes = Array.isArray(liftwEpisodes?.[season]) ? liftwEpisodes[season] : ['1'];
-                            const sortedAvail = availableEpisodes.slice().sort((a: any, b: any) => {
-                              const numA = parseInt(String(a), 10);
-                              const numB = parseInt(String(b), 10);
-                              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                              return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-                            });
-                            const defaultEpisode = sortedAvail[0] || '1';
-                            handleSeasonEpisodeChange(season, defaultEpisode);
-                          }}
-                          className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
-                          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                        >
-                          {sortedSeasons.map((season: string) => (
-                            <option key={season} value={season} className="bg-[var(--bg-color)] text-[var(--text-color)]">
-                              {t('season')} {season}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
-                      </div>
-
-                      <div className="flex-1 relative">
-                        <select
-                          value={activeEpisode || sortedEpisodes[0] || '1'}
-                          onChange={(e) => handleSeasonEpisodeChange(activeSeason || sortedSeasons[0] || '1', e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
-                          style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                        >
-                          {sortedEpisodes.map((episode: string) => (
-                            <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
-                              {t('episode')} {episode}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => handleWatch(false)}
-                  className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
-                  style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-                >
-                  ▶ {t('watch')} {mediaType === 'tv' && activeSeason && activeEpisode ? `(${t('season')} ${activeSeason}, ${t('episode')} ${activeEpisode})` : ''}
-                </button>
-              </>
+              <button
+                onClick={() => handleWatch(false)}
+                className="w-full py-4 rounded-2xl font-bold text-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+              >
+                ▶ {t('watch')}
+              </button>
             )}
           </div>
         )}

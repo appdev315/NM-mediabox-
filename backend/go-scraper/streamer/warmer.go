@@ -185,10 +185,12 @@ func processNextBatch() {
 	// Process items sequentially with spacing to avoid DDoS
 	go func() {
 		for _, item := range batch {
-			// Check if already in cache and not expired (ResolveLiftw bypassCache=false does this automatically)
-			// Wait, to see if it actually scraped or used cache, we check cache first
-			cacheKey := fmt.Sprintf("%s|%s|%s|%d", item.Title, item.Year, item.Type, item.ID)
-			if val, ok := liftwCache.Load(cacheKey); ok {
+			canonicalType := "movie"
+			if item.Type == "series" || item.Type == "tv" {
+				canonicalType = "series"
+			}
+			tmdbKey := fmt.Sprintf("tmdb:%d:%s", item.ID, canonicalType)
+			if val, ok := liftwCache.Load(tmdbKey); ok {
 				if entry, isEntry := val.(cacheEntry); isEntry {
 					if time.Now().Before(entry.exp) {
 						// Fresh in cache, skip!

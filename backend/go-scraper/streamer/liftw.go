@@ -375,8 +375,28 @@ func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear 
 // If bypassCache is true, it ignores the cache and forces a fresh query.
 func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, originalTitle string, bypassCache bool) ([]byte, error) {
 	cacheKey := fmt.Sprintf("%s|%s|%s|%s|%s|%s", title, yearStr, vType, tmdb, titleRu, originalTitle)
+	var tmdbKey string
+	if tmdb != "" {
+		canonicalType := "movie"
+		if vType == "tv" || vType == "series" {
+			canonicalType = "series"
+		}
+		tmdbKey = fmt.Sprintf("tmdb:%s:%s", tmdb, canonicalType)
+	}
 	
 	if !bypassCache {
+		// 1. Check canonical TMDB key first (shared with cache warmer)
+		if tmdbKey != "" {
+			if val, ok := liftwCache.Load(tmdbKey); ok {
+				if entry, isEntry := val.(cacheEntry); isEntry {
+					if time.Now().Before(entry.exp) {
+						return entry.data, nil
+					}
+					liftwCache.Delete(tmdbKey)
+				}
+			}
+		}
+		// 2. Check title-based cache key
 		if val, ok := liftwCache.Load(cacheKey); ok {
 			if entry, isEntry := val.(cacheEntry); isEntry {
 				if time.Now().Before(entry.exp) {
@@ -515,10 +535,14 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 	}
 
 	// Cache the result for 3 hours (increased from 1 hour to support longer cache warming)
-	liftwCache.Store(cacheKey, cacheEntry{
+	cEntry := cacheEntry{
 		data: responseBytes,
 		exp:  time.Now().Add(3 * time.Hour),
-	})
+	}
+	liftwCache.Store(cacheKey, cEntry)
+	if tmdbKey != "" {
+		liftwCache.Store(tmdbKey, cEntry)
+	}
 
 	return responseBytes, nil
 }
@@ -526,6 +550,7 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Cache-Control", "public, max-age=10800")
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
