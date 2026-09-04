@@ -132,20 +132,35 @@ export function useApi() {
         const cfCtrl = new AbortController();
         const hfCtrl = new AbortController();
 
+        // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
+        // Instant failover: If CF fails (4xx/5xx/network error), query HF immediately (0ms delay).
+        // Speculative parallel race: If CF takes > 1500ms, start HF in parallel so user never waits.
+        let hfTimer: ReturnType<typeof setTimeout> | undefined;
+        const cfPromise = fetchViaCFProxy(cfCtrl.signal);
+
+        const speculativeHfPromise = new Promise((resolve, reject) => {
+          hfTimer = setTimeout(() => {
+            fetchViaHFProxy(hfCtrl.signal).then(resolve).catch(reject);
+          }, 1500);
+        });
+
         try {
-          // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
-          // Race with HF backup if CF takes > 2500ms
-          data = await Promise.any([
-            fetchViaCFProxy(cfCtrl.signal).then(res => {
+          data = await Promise.race([
+            cfPromise.then(res => {
+              if (hfTimer) clearTimeout(hfTimer);
               hfCtrl.abort();
               return res;
             }),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('cf_timeout')), 2500))
-              .catch(() => fetchViaHFProxy(hfCtrl.signal))
+            cfPromise.catch(async () => {
+              // CF failed immediately! Clear speculative timer and call HF instantly
+              if (hfTimer) clearTimeout(hfTimer);
+              return await fetchViaHFProxy(hfCtrl.signal);
+            }),
+            speculativeHfPromise
           ]);
         } catch (_) {
-          // If race failed, try Hugging Face backup explicitly
-          data = await fetchViaHFProxy(hfCtrl.signal);
+          // Safety fallback with fresh AbortSignal
+          data = await fetchViaHFProxy();
         }
 
         if (data) {
