@@ -429,58 +429,76 @@ app.get('/api/liftw', async (c: Context) => {
   const candidates = Array.from(new Set(rawCandidates));
 
   const searchCandidates = async (candList: string[], strictType = true): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
-    for (const cand of candList.slice(0, 8)) {
+    const list = candList.slice(0, 8);
+    if (list.length === 0) return null;
+
+    // Parallel fetch across all candidate queries for instant sub-second matching
+    const searchPromises = list.map(async (cand) => {
       try {
         const searchRes = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
           headers: LIFTW_HEADERS,
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(4500),
         });
-        if (!searchRes.ok) continue;
+        if (!searchRes.ok) return [];
         const searchData = await searchRes.json() as { items?: any[] };
-        const items = searchData.items || [];
+        return searchData.items || [];
+      } catch (_) {
+        return [];
+      }
+    });
 
-        for (const item of items) {
-          if (strictType && !validTypes.includes(item.type)) continue;
+    const results = await Promise.all(searchPromises);
+    const seenIds = new Set<number>();
+    const allItems: any[] = [];
+    for (const items of results) {
+      for (const item of items) {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          allItems.push(item);
+        }
+      }
+    }
 
-          const nameLower = normString(item.name || '');
-          const origLower = normString(item.origin_name || '');
-          const itemWords = cleanWords(item.name || '');
-          const origWords = cleanWords(item.origin_name || '');
-          let isMatch = false;
+    for (const item of allItems) {
+      if (strictType && !validTypes.includes(item.type)) continue;
 
-          for (const c of candList) {
-            const cn = normString(c);
-            if (!cn) continue;
-            // 1. Full string match
-            if (nameLower === cn || origLower === cn) {
-              isMatch = true;
-              break;
-            }
-            // 2. Slash-separated part match
-            for (const part of (item.name || '').split('/')) {
-              if (normString(part) === cn) {
-                isMatch = true;
-                break;
-              }
-            }
-            if (isMatch) break;
+      const nameLower = normString(item.name || '');
+      const origLower = normString(item.origin_name || '');
+      const itemWords = cleanWords(item.name || '');
+      const origWords = cleanWords(item.origin_name || '');
+      let isMatch = false;
 
-            // 3. Sub-sequence word match (e.g. "Ричер" inside "Джек Ричер")
-            const cWords = cleanWords(c);
-            if (matchesWords(itemWords, cWords) || matchesWords(origWords, cWords)) {
-              isMatch = true;
-              break;
-            }
-          }
-
-          if (isMatch) {
-            // Flexible +/- 2 year allowance for international festival & documentary release disparities
-            if (targetYear === 0 || (item.year >= targetYear - 2 && item.year <= targetYear + 2)) {
-              return item;
-            }
+      for (const c of candList) {
+        const cn = normString(c);
+        if (!cn) continue;
+        // 1. Full string match
+        if (nameLower === cn || origLower === cn) {
+          isMatch = true;
+          break;
+        }
+        // 2. Slash-separated part match
+        for (const part of (item.name || '').split('/')) {
+          if (normString(part) === cn) {
+            isMatch = true;
+            break;
           }
         }
-      } catch (_) {}
+        if (isMatch) break;
+
+        // 3. Sub-sequence word match (e.g. "Ричер" inside "Джек Ричер")
+        const cWords = cleanWords(c);
+        if (matchesWords(itemWords, cWords) || matchesWords(origWords, cWords)) {
+          isMatch = true;
+          break;
+        }
+      }
+
+      if (isMatch) {
+        // Flexible +/- 2 year allowance for international festival & documentary release disparities
+        if (targetYear === 0 || (item.year >= targetYear - 2 && item.year <= targetYear + 2)) {
+          return item;
+        }
+      }
     }
     return null;
   };

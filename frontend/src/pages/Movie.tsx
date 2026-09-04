@@ -15,6 +15,7 @@ import { useViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
 import { clientCache } from '../utils/clientCache';
+import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
 
 export function Movie() {
   const { id } = useParams();
@@ -327,28 +328,20 @@ export function Movie() {
         const cachedStream = clientCache.get<any>(streamCacheKey);
         if (cachedStream?.episodes && isMounted) {
           setLiftwEpisodes(cachedStream.episodes);
-        } else if (resolvedType === 'tv') {
-          // Non-blocking background pre-fetch for TV series so episodes are ready before click
-          const bgQuery = new URLSearchParams({
-            title: d?.title || d?.name || '',
-            year: d?.year || '',
-            type: 'tv',
-            tmdb: String(id),
-            title_ru: language === 'ru-RU' ? (d?.title || '') : '',
-            original_title: d?.original_title || '',
-          }).toString();
-
-          const cfP = fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, { maxRetries: 1, baseDelayMs: 200 }).then(r => r.ok ? r.json() : null).catch(() => null);
-          const hfP = fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, { maxRetries: 1, baseDelayMs: 200 }).then(r => r.ok ? r.json() : null).catch(() => null);
-          Promise.any([cfP, hfP]).then((data: any) => {
-            if (data && data.iframe && isMounted) {
-              clientCache.set(streamCacheKey, data, 7200);
-              if (data.episodes) {
-                setLiftwEpisodes(data.episodes);
-              }
-            }
-          }).catch(() => {});
         }
+
+        // Speculative pre-warm stream in background for BOTH movies and TV series
+        prewarmStream(id, {
+          title: d?.title || d?.name || '',
+          year: d?.year || '',
+          type: resolvedType,
+          original_title: d?.original_title || '',
+          title_ru: language === 'ru-RU' ? (d?.title || '') : '',
+        }, language).then(streamData => {
+          if (streamData && isMounted && streamData.episodes) {
+            setLiftwEpisodes(streamData.episodes);
+          }
+        }).catch(() => {});
       } catch (err) {
         console.error("Failed to load movie data", err);
       }
@@ -519,6 +512,11 @@ export function Movie() {
         // Instant 0ms read from client cache
         let liftwData: any = !forceRefresh ? clientCache.get<any>(streamCacheKey) : null;
 
+        // If not cached, connect to in-flight prewarm stream if running
+        if (!liftwData && !forceRefresh && inFlightStreamMap.has(streamCacheKey)) {
+          liftwData = await inFlightStreamMap.get(streamCacheKey);
+        }
+
         if (!liftwData) {
           const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
             const timeoutCtrl = new AbortController();
@@ -540,9 +538,9 @@ export function Movie() {
           };
 
           try {
-            // Parallel race: Query Cloudflare Edge and HF microservice simultaneously
-            const cfPromise = tryFetchLiftw(CF_API_BASE, 5000);
-            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 5000);
+            // Parallel race: Query Cloudflare Edge and HF microservice simultaneously with 8s safe timeout
+            const cfPromise = tryFetchLiftw(CF_API_BASE, 8000);
+            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 8000);
 
             liftwData = await Promise.any([
               cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
@@ -1002,7 +1000,9 @@ export function Movie() {
                 <div 
                   key={rec.id} 
                   className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
+                  onPointerDown={() => prewarmStream(rec.id, rec, language)}
                   onClick={() => {
+                    prewarmStream(rec.id, rec, language);
                     setIframeUrl(null);
                     setSources([]);
                     navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
+import { prewarmStream } from '../utils/streamPreloader';
 import { useLanguage, countriesList } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
@@ -31,9 +32,13 @@ const MovieCard = React.memo(function MovieCard({
 
   return (
     <div 
+      onPointerDown={() => {
+        prewarmStream(item.id, item);
+      }}
       onClick={(e) => {
         e.stopPropagation();
         (document.activeElement as HTMLElement)?.blur();
+        prewarmStream(item.id, item);
         onNavigate(item.id, targetMediaType, selectedCountry);
       }}
       className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"

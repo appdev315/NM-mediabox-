@@ -192,7 +192,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
     const audio = audioRef.current;
-    if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current || audio.paused) return;
+    if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current) return;
     if (isReconnectingRef.current) return;
 
     isReconnectingRef.current = true;
@@ -206,11 +206,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // Exponential backoff with random Jitter to prevent thundering herd
     const jitter = (Math.random() - 0.5) * 300;
-    const baseBackoff = Math.min(5000, 350 * Math.pow(1.25, reconnectAttemptRef.current - 1));
-    const backoffMs = Math.max(250, baseBackoff + jitter);
+    const baseBackoff = Math.min(4000, 300 * Math.pow(1.2, reconnectAttemptRef.current - 1));
+    const backoffMs = Math.max(200, baseBackoff + jitter);
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (isUserPausedRef.current || audio.paused) {
+      if (isUserPausedRef.current) {
         isReconnectingRef.current = false;
         return;
       }
@@ -390,7 +390,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const watchdogInterval = setInterval(() => {
       const audio = audioRef.current;
       const track = currentTrackRef.current;
-      if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current || !isPlayingRef.current || audio.paused || isPausedByDeviceRef.current) {
+      if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current) {
+        return;
+      }
+
+      // If audio paused unintentionally (e.g. TCP stream drop by server after 2-3 mins)
+      if (audio.paused) {
+        stalledCountRef.current++;
+        if (stalledCountRef.current >= 2) {
+          stalledCountRef.current = 0;
+          attemptReconnect('watchdog: audio element paused unexpectedly');
+        }
         return;
       }
 
@@ -463,12 +473,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onPause = () => {
-      setIsPlaying(false);
-      // If paused but user didn't explicitly click pause in the UI,
-      // it was an earphone removal or OS audio focus interruption.
-      if (!isUserPausedRef.current) {
-        isPausedByDeviceRef.current = true;
-        console.log('[Audio] Playback paused by device/OS (headphone removal or audio focus lost)');
+      if (isUserPausedRef.current) {
+        setIsPlaying(false);
+      } else {
+        // Stream interrupted by server, network blip, or buffer underrun
+        console.warn('[Audio] Stream paused unexpectedly (server disconnect or buffer underrun), auto-reconnecting...');
+        attemptReconnect('unexpected stream pause');
       }
     };
 
