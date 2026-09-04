@@ -133,6 +133,23 @@ export function Movie() {
   const [isReporting, setIsReporting] = useState(false);
   const [isReported, setIsReported] = useState(false);
 
+  const formatRuntime = (minutes: number) => {
+    if (!minutes) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const trailerVideo = useMemo(() => movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0], [movie?.videos]);
+  const directors = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [], [movie?.credits?.crew]);
+  const writers = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [], [movie?.credits?.crew]);
+  const cast = useMemo(() => movie?.credits?.cast?.slice(0, 15) || [], [movie?.credits?.cast]);
+  const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
+  const isUnreleased = useMemo(() => Boolean(
+    movie?.isUpcoming || 
+    (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
+  ), [movie?.isUpcoming, movie?.release_date]);
+
   const handleReportMissing = async () => {
     if (!movie || isReporting || isReported) return;
     setIsReporting(true);
@@ -708,23 +725,6 @@ export function Movie() {
   }
 
 
-
-  const formatRuntime = (minutes: number) => {
-    if (!minutes) return '';
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  };
-
-  const trailerVideo = useMemo(() => movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0], [movie?.videos]);
-  const directors = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [], [movie?.credits?.crew]);
-  const writers = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [], [movie?.credits?.crew]);
-  const cast = useMemo(() => movie?.credits?.cast?.slice(0, 15) || [], [movie?.credits?.cast]);
-  const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
-  const isUnreleased = useMemo(() => Boolean(
-    movie?.isUpcoming || 
-    (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
-  ), [movie?.isUpcoming, movie?.release_date]);
 
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">

@@ -100,13 +100,7 @@ export function useApi() {
       try {
         const fetchViaCFProxy = async (signal?: AbortSignal) => {
           const url = `${CF_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
-          const response = await fetch(url, {
-            signal,
-            headers: {
-              'X-App-Client': 'mediabox-app',
-              'X-Client-Time': String(Date.now()),
-            }
-          });
+          const response = await fetch(url, { signal });
           if (!response.ok) {
             throw new Error(`CF Proxy error: ${response.status}`);
           }

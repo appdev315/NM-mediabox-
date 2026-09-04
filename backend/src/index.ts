@@ -40,7 +40,7 @@ app.use('/api/*', cors({
     }
     return origin;
   },
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'Origin', 'Accept'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'Origin', 'Accept', 'X-App-Client', 'X-Client-Time', 'Range'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
 }));
 
