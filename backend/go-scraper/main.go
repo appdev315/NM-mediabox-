@@ -178,6 +178,8 @@ func main() {
 	mux.HandleFunc("/api/radio/stations", streamer.RadioStationsHandler)
 	mux.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
 	mux.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
+	mux.HandleFunc("/proxy/stream", streamer.ProxyStreamHandler)
+	mux.HandleFunc("/proxy", streamer.ProxyTVHandler)
 	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
 	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)

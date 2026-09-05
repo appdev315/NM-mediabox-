@@ -337,18 +337,18 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
         if (country === 'ru') {
           const verifiedRu: Station[] = [
-            { id: 'ru_rossia1', name: 'Россия 1 HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://stream.smotrim.ru/hls2/russia_hd/playlist_6.m3u8')}`, logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Russia-1_logo.svg/200px-Russia-1_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
-            { id: 'ru_ntv', name: 'НТВ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn.ntv.ru/ntv-msk_hd/index.m3u8')}`, logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NTV_Russia_logo.svg/200px-NTV_Russia_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
-            { id: 'ru_tnt', name: 'ТНТ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/546602986e6a424d74d594876ddb3f04/index.m3u8?s=K-z3nz49R1oGQ-5yPSd8pg&e=2082157024&scheme=https')}`, logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
-            { id: 'ru_2x2', name: '2x2', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/392b4686b770bae2da6bf5ac4574add5/index.m3u8?e=2068731801&s=tenr-yHXUv1wibfka78s2A&scheme=https')}`, logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
-            { id: 'ru_tvc', name: 'ТВ Центр HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvc-hls.cdnvideo.ru/tvc-res/smil:vd9221.smil/playlist.m3u8')}`, logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
-            { id: 'ru_zvezda', name: 'Звезда HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvzvezda.bonus-tv.ru/cdn/tvzvezda/playlist.m3u8')}`, logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
-            { id: 'ru_360', name: '360° HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn-evacoder-tv.facecast.io/evacoder_hls_hi/CkxfR1xNUAJwTgtXTBZTAJli/index.m3u8')}`, logo: '', group: 'Новости', type: 'tv', isHttp: true },
-            { id: 'ru_360news', name: '360° Новости', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://live-vgtrksmotrim.cdnvideo.ru/vgtrksmotrim/smotrim-live-03-srt.smil/playlist.m3u8')}`, logo: '', group: 'Новости', type: 'tv', isHttp: true },
-            { id: 'ru_mir', name: 'Мир HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://hls-mirtv.cdnvideo.ru/mirtv-parampublish/mirtv_2500/playlist.m3u8')}`, logo: '', group: 'Общественные', type: 'tv', isHttp: true },
-            { id: 'ru_spas', name: 'Спас', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bonusspas.mediacdn.ru/cdn/spas/playlist.m3u8')}`, logo: '', group: 'Общественные', type: 'tv', isHttp: true },
-            { id: 'ru_12ch', name: '12 Канал', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://12channel.bonus-tv.ru/cdn/12channel/playlist.m3u8')}`, logo: '', group: 'Региональные', type: 'tv', isHttp: true },
-            { id: 'ru_muztv', name: 'Муз ТВ', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('http://185.71.81.6:8080/20/index.m3u8')}`, logo: '', group: 'Музыка', type: 'tv', isHttp: true },
+            { id: 'ru_rossia1', name: 'Россия 1 HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://stream.smotrim.ru/hls2/russia_hd/playlist_6.m3u8')}`, originalUrl: 'https://stream.smotrim.ru/hls2/russia_hd/playlist_6.m3u8', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Russia-1_logo.svg/200px-Russia-1_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_ntv', name: 'НТВ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn.ntv.ru/ntv-msk_hd/index.m3u8')}`, originalUrl: 'https://cdn.ntv.ru/ntv-msk_hd/index.m3u8', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NTV_Russia_logo.svg/200px-NTV_Russia_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_tnt', name: 'ТНТ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/546602986e6a424d74d594876ddb3f04/index.m3u8?s=K-z3nz49R1oGQ-5yPSd8pg&e=2082157024&scheme=https')}`, originalUrl: 'https://bl.rutube.ru/livestream/546602986e6a424d74d594876ddb3f04/index.m3u8?s=K-z3nz49R1oGQ-5yPSd8pg&e=2082157024&scheme=https', logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
+            { id: 'ru_2x2', name: '2x2', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/392b4686b770bae2da6bf5ac4574add5/index.m3u8?e=2068731801&s=tenr-yHXUv1wibfka78s2A&scheme=https')}`, originalUrl: 'https://bl.rutube.ru/livestream/392b4686b770bae2da6bf5ac4574add5/index.m3u8?e=2068731801&s=tenr-yHXUv1wibfka78s2A&scheme=https', logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
+            { id: 'ru_tvc', name: 'ТВ Центр HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvc-hls.cdnvideo.ru/tvc-res/smil:vd9221.smil/playlist.m3u8')}`, originalUrl: 'https://tvc-hls.cdnvideo.ru/tvc-res/smil:vd9221.smil/playlist.m3u8', logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_zvezda', name: 'Звезда HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvzvezda.bonus-tv.ru/cdn/tvzvezda/playlist.m3u8')}`, originalUrl: 'https://tvzvezda.bonus-tv.ru/cdn/tvzvezda/playlist.m3u8', logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_360', name: '360° HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn-evacoder-tv.facecast.io/evacoder_hls_hi/CkxfR1xNUAJwTgtXTBZTAJli/index.m3u8')}`, originalUrl: 'https://cdn-evacoder-tv.facecast.io/evacoder_hls_hi/CkxfR1xNUAJwTgtXTBZTAJli/index.m3u8', logo: '', group: 'Новости', type: 'tv', isHttp: true },
+            { id: 'ru_360news', name: '360° Новости', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://live-vgtrksmotrim.cdnvideo.ru/vgtrksmotrim/smotrim-live-03-srt.smil/playlist.m3u8')}`, originalUrl: 'https://live-vgtrksmotrim.cdnvideo.ru/vgtrksmotrim/smotrim-live-03-srt.smil/playlist.m3u8', logo: '', group: 'Новости', type: 'tv', isHttp: true },
+            { id: 'ru_mir', name: 'Мир HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://hls-mirtv.cdnvideo.ru/mirtv-parampublish/mirtv_2500/playlist.m3u8')}`, originalUrl: 'https://hls-mirtv.cdnvideo.ru/mirtv-parampublish/mirtv_2500/playlist.m3u8', logo: '', group: 'Общественные', type: 'tv', isHttp: true },
+            { id: 'ru_spas', name: 'Спас', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bonusspas.mediacdn.ru/cdn/spas/playlist.m3u8')}`, originalUrl: 'https://bonusspas.mediacdn.ru/cdn/spas/playlist.m3u8', logo: '', group: 'Общественные', type: 'tv', isHttp: true },
+            { id: 'ru_12ch', name: '12 Канал', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://12channel.bonus-tv.ru/cdn/12channel/playlist.m3u8')}`, originalUrl: 'https://12channel.bonus-tv.ru/cdn/12channel/playlist.m3u8', logo: '', group: 'Региональные', type: 'tv', isHttp: true },
+            { id: 'ru_muztv', name: 'Муз ТВ', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('http://185.71.81.6:8080/20/index.m3u8')}`, originalUrl: 'http://185.71.81.6:8080/20/index.m3u8', logo: '', group: 'Музыка', type: 'tv', isHttp: true },
           ];
           const existingNames = new Set(channels.map(c => c.name.toLowerCase()));
           const toPrepend = verifiedRu.filter(v => !existingNames.has(v.name.toLowerCase()));
@@ -475,7 +475,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
           for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
             if (lines[j].startsWith('http')) {
               const newUrl = lines[j].trim();
-              const proxied = newUrl.startsWith('https://') 
+              const proxied = newUrl.includes('/proxy')
                 ? newUrl 
                 : `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(newUrl)}`;
 
@@ -522,6 +522,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   useEffect(() => {
     let playbackTimeout: ReturnType<typeof setTimeout> | null = null;
     let networkRetries = 0;
+    let isCancelled = false;
     const MAX_NETWORK_RETRIES = 2;
 
     if (activeTvChannel && activeTab === 'tv' && videoRef.current) {
@@ -558,8 +559,6 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
           playbackTimeout = null;
         }
       };
-
-      let isCancelled = false;
 
       const initHls = async () => {
         try {
@@ -686,13 +685,10 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       };
 
       initHls();
-
-      return () => {
-        isCancelled = true;
-      };
     }
 
     return () => {
+      isCancelled = true;
       if (playbackTimeout) clearTimeout(playbackTimeout);
       if (hlsRef.current) {
         hlsRef.current.destroy();
