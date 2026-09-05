@@ -256,16 +256,20 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			switch code {
 			case 429:
 				atomic.AddUint64(&GlobalMetrics.Errors.RateLimits, 1)
+				RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 			case 403:
-				atomic.AddUint64(&GlobalMetrics.Errors.DonorBans, 1)
+				// Only donor endpoints returning 403 signify an actual donor IP/domain ban.
+				// 403 on /api/proxy or client probes are BotGuard / SSRF blocks.
+				if strings.Contains(path, "/api/liftw") || strings.Contains(path, "/api/stream") {
+					atomic.AddUint64(&GlobalMetrics.Errors.DonorBans, 1)
+					RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
+				}
 			default:
 				if code >= 500 {
 					atomic.AddUint64(&GlobalMetrics.Errors.Internal, 1)
+					RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 				}
 			}
-
-			// Only log actionable infrastructure failures (500s, bans, rate-limits) for AI analysis
-			RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 		}
 	})
 }

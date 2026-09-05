@@ -232,7 +232,11 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }
       } catch (e) { }
 
-      const defaultCountryPlaylists = [
+      const defaultCountryPlaylists = country === 'ru' ? [
+        `https://raw.githubusercontent.com/smolnp/IPTVru/master/IPTVru.m3u`,
+        `https://naggdd.github.io/iptv/ru.m3u`,
+        `https://iptv-org.github.io/iptv/countries/ru.m3u`
+      ] : [
         `https://iptv-org.github.io/iptv/countries/${country}.m3u`,
         `https://raw.githubusercontent.com/romaxa55/world_ip_tv/master/output/${country}.m3u`,
         `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_${countryCode}.m3u8`
@@ -287,9 +291,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         } catch (e) { }
       }
 
-      if (!resText) throw new Error("No TV playlists reachable");
-
-      const parseM3u = (text: string, sourceUrl: string) => {
+      const parseM3u = (text: string, _sourceUrl: string) => {
         const lines = text.split('\n');
         const channels: Station[] = [];
         let current: Partial<Station> = {};
@@ -312,28 +314,60 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
               const streamUrl = line.trim();
               
               // Skip DASH MPD manifests and HTML iframe webpages which break HLS.js
-              if (streamUrl.includes('.mpd') || streamUrl.includes('smotrim.ru/iframe') || streamUrl.includes('/iframe/')) {
+              if (streamUrl.includes('.mpd') || streamUrl.includes('smotrim.ru/iframe') || streamUrl.includes('/iframe/') || streamUrl.includes('zabava-block')) {
                 current = {};
                 return;
               }
 
-              if (streamUrl.startsWith('https://')) {
-                channels.push({ ...current, url: streamUrl, isHttp: false, originalUrl: sourceUrl } as Station);
-              } else {
-                const WORKER_URL = `${EXPRESS_API_BASE}/proxy`;
-                channels.push({ 
-                  ...current, 
-                  url: `${WORKER_URL}?url=${encodeURIComponent(streamUrl)}`, 
-                  isHttp: true,
-                  originalUrl: sourceUrl
-                } as Station);
-              }
+              // All TV streams are proxied via EXPRESS_API_BASE to bypass CORS and Geo-restrictions (e.g. Bali / Indonesia)
+              const proxiedUrl = streamUrl.startsWith(`${EXPRESS_API_BASE}/proxy`)
+                ? streamUrl
+                : `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(streamUrl)}`;
+
+              channels.push({ 
+                ...current, 
+                url: proxiedUrl, 
+                isHttp: true,
+                originalUrl: streamUrl
+              } as Station);
               current = {};
             }
           }
         });
+
+        if (country === 'ru') {
+          const verifiedRu: Station[] = [
+            { id: 'ru_rossia1', name: 'Россия 1 HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://stream.smotrim.ru/hls2/russia_hd/playlist_6.m3u8')}`, logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Russia-1_logo.svg/200px-Russia-1_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_ntv', name: 'НТВ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn.ntv.ru/ntv-msk_hd/index.m3u8')}`, logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NTV_Russia_logo.svg/200px-NTV_Russia_logo.svg.png', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_tnt', name: 'ТНТ HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/546602986e6a424d74d594876ddb3f04/index.m3u8?s=K-z3nz49R1oGQ-5yPSd8pg&e=2082157024&scheme=https')}`, logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
+            { id: 'ru_2x2', name: '2x2', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bl.rutube.ru/livestream/392b4686b770bae2da6bf5ac4574add5/index.m3u8?e=2068731801&s=tenr-yHXUv1wibfka78s2A&scheme=https')}`, logo: '', group: 'Развлекательные', type: 'tv', isHttp: true },
+            { id: 'ru_tvc', name: 'ТВ Центр HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvc-hls.cdnvideo.ru/tvc-res/smil:vd9221.smil/playlist.m3u8')}`, logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_zvezda', name: 'Звезда HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://tvzvezda.bonus-tv.ru/cdn/tvzvezda/playlist.m3u8')}`, logo: '', group: 'Федеральные', type: 'tv', isHttp: true },
+            { id: 'ru_360', name: '360° HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://cdn-evacoder-tv.facecast.io/evacoder_hls_hi/CkxfR1xNUAJwTgtXTBZTAJli/index.m3u8')}`, logo: '', group: 'Новости', type: 'tv', isHttp: true },
+            { id: 'ru_360news', name: '360° Новости', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://live-vgtrksmotrim.cdnvideo.ru/vgtrksmotrim/smotrim-live-03-srt.smil/playlist.m3u8')}`, logo: '', group: 'Новости', type: 'tv', isHttp: true },
+            { id: 'ru_mir', name: 'Мир HD', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://hls-mirtv.cdnvideo.ru/mirtv-parampublish/mirtv_2500/playlist.m3u8')}`, logo: '', group: 'Общественные', type: 'tv', isHttp: true },
+            { id: 'ru_spas', name: 'Спас', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://bonusspas.mediacdn.ru/cdn/spas/playlist.m3u8')}`, logo: '', group: 'Общественные', type: 'tv', isHttp: true },
+            { id: 'ru_12ch', name: '12 Канал', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('https://12channel.bonus-tv.ru/cdn/12channel/playlist.m3u8')}`, logo: '', group: 'Региональные', type: 'tv', isHttp: true },
+            { id: 'ru_muztv', name: 'Муз ТВ', url: `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent('http://185.71.81.6:8080/20/index.m3u8')}`, logo: '', group: 'Музыка', type: 'tv', isHttp: true },
+          ];
+          const existingNames = new Set(channels.map(c => c.name.toLowerCase()));
+          const toPrepend = verifiedRu.filter(v => !existingNames.has(v.name.toLowerCase()));
+          return [...toPrepend, ...channels];
+        }
+
         return channels;
       };
+
+      if (!resText && country === 'ru') {
+        const verifiedOnly = parseM3u('', '');
+        if (verifiedOnly.length > 0) {
+          setTvChannels(verifiedOnly);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!resText) throw new Error("No TV playlists reachable");
 
       const parsedTv = parseM3u(resText, successfulUrl);
       
@@ -488,7 +522,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   useEffect(() => {
     let playbackTimeout: ReturnType<typeof setTimeout> | null = null;
     let networkRetries = 0;
-    const MAX_NETWORK_RETRIES = 5;
+    const MAX_NETWORK_RETRIES = 2;
 
     if (activeTvChannel && activeTab === 'tv' && videoRef.current) {
       const video = videoRef.current;
@@ -499,15 +533,24 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         hlsRef.current = null;
       }
 
-      // Timeout: if nothing plays within 30s, show error
+      // Timeout: if nothing plays within 15s, try alternative source or show error
       playbackTimeout = setTimeout(() => {
         if (hlsRef.current) {
           hlsRef.current.destroy();
           hlsRef.current = null;
         }
-        setTvError(true);
-        setTvLoading(false);
-      }, 30000);
+        if (activeTvChannel) {
+          tryAlternativeTvSource(activeTvChannel).then((found) => {
+            if (!found) {
+              setTvError(true);
+              setTvLoading(false);
+            }
+          });
+        } else {
+          setTvError(true);
+          setTvLoading(false);
+        }
+      }, 15000);
 
       const clearPlaybackTimeout = () => {
         if (playbackTimeout) {
@@ -532,13 +575,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
               startFragPrefetch: true,
               enableWorker: true,
               lowLatencyMode: false,
-              manifestLoadingTimeOut: 30000,
-              levelLoadingTimeOut: 30000,
-              fragLoadingTimeOut: 30000,
+              manifestLoadingTimeOut: 12000,
+              levelLoadingTimeOut: 12000,
+              fragLoadingTimeOut: 12000,
               maxFragLookUpTolerance: 0.25,
               xhrSetup: (xhr: XMLHttpRequest) => {
                 xhr.withCredentials = false;
-                xhr.timeout = 30000;
+                xhr.timeout = 12000;
               }
             });
             hlsRef.current = hls;
@@ -732,6 +775,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         type="text"
         placeholder={t('searchPlaceholderRadio')}
         value={search}
+        maxLength={100}
         onChange={(e) => {
           setSearch(e.target.value);
           setVisibleCount(50);

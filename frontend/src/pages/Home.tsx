@@ -270,7 +270,7 @@ export function Home() {
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const trimmed = searchInput.trim();
+    const trimmed = searchInput.trim().slice(0, 120);
     setSearchQuery(trimmed);
     setPage(1);
   };
@@ -330,6 +330,7 @@ export function Home() {
               type="text" 
               placeholder={t('searchPlaceholder')} 
               value={searchInput}
+              maxLength={120}
               onChange={(e) => {
                 const val = e.target.value;
                 setSearchInput(val);

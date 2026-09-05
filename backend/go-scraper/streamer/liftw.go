@@ -437,7 +437,7 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 	}
 
 	var lastErr string
-	resolveCtx, cancel := context.WithTimeout(ctx, 14*time.Second)
+	resolveCtx, cancel := context.WithTimeout(ctx, 7500*time.Millisecond)
 	defer cancel()
 
 	// Fast path: try the exact title without calling TMDB!
@@ -552,7 +552,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Cache-Control", "public, max-age=10800")
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
 	title := r.URL.Query().Get("title")
@@ -581,15 +581,12 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case <-ctx.Done():
-		http.Error(w, `{"error":"Liftw request timeout"}`, http.StatusGatewayTimeout)
+		http.Error(w, `{"error":"exact match not found on liftw"}`, http.StatusNotFound)
 		return
 	case res := <-ch:
 		if res.err != nil {
-			status := http.StatusBadGateway
+			status := http.StatusNotFound
 			errMsg := res.err.Error()
-			if strings.Contains(errMsg, "not found") {
-				status = http.StatusNotFound
-			}
 			http.Error(w, fmt.Sprintf(`{"error":%q}`, errMsg), status)
 			return
 		}

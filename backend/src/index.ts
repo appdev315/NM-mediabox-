@@ -655,9 +655,16 @@ app.get('/api/image', async (c: Context) => {
 // --- TMDB EDGE API PROXY (Bypasses ISP blocks in Russia & caches on Cloudflare Edge) ---
 app.get('/api/tmdb/*', async (c: Context) => {
   const url = new URL(c.req.url);
+  // Extract endpoint path after /api/tmdb
   const endpoint = url.pathname.replace(/^\/api\/tmdb/, '');
   if (!endpoint || endpoint === '/') {
     return c.json({ error: 'Endpoint required' }, 400);
+  }
+
+  // Guard against oversized search queries (prevents HTTP 414 from TMDB)
+  const searchQuery = url.searchParams.get('query');
+  if ((searchQuery && searchQuery.length > 150) || url.search.length > 2048) {
+    return c.json({ page: 1, results: [], total_pages: 0, total_results: 0 });
   }
 
   // Check Cloudflare Edge Cache API for instant response

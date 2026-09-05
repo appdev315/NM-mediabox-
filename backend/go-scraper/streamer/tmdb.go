@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -74,6 +75,15 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Forward all query parameters
 	queryParams := r.URL.Query()
+
+	// Guard against oversized search queries or URL flooding (prevents HTTP 414 from TMDB)
+	searchQuery := queryParams.Get("query")
+	if utf8.RuneCountInString(searchQuery) > 150 || len(r.URL.RawQuery) > 2048 {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"page":1,"results":[],"total_pages":0,"total_results":0}`))
+		return
+	}
+
 	queryParams.Set("api_key", getTMDBApiKey())
 	targetUrl.RawQuery = queryParams.Encode()
 

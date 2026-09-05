@@ -343,6 +343,7 @@ export function Adult() {
         <input 
           type="text" 
           value={query}
+          maxLength={100}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === 'Escape') {

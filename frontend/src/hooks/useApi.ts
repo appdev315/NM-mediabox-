@@ -238,9 +238,11 @@ export function useApi() {
   }, [tmdbFetch, withLoading]);
 
   const searchContent = useCallback(async (query: string) => {
+    const cleanQuery = (query || '').trim().slice(0, 120);
+    if (!cleanQuery) return [];
     return withLoading(async () => {
-      const data = await tmdbFetch('/search/multi', { query });
-      return data.results
+      const data = await tmdbFetch('/search/multi', { query: cleanQuery });
+      return (data?.results || [])
         .filter((i: TMDBMovie) => i.media_type !== 'person')
         .map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
     });

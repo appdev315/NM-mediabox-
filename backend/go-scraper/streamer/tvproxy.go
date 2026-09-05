@@ -152,7 +152,19 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		proxyBase := "/api/proxy" // Frontend expects this path
+		proto := r.Header.Get("X-Forwarded-Proto")
+		if proto == "" {
+			if r.TLS != nil {
+				proto = "https"
+			} else {
+				proto = "http"
+			}
+		}
+		host := r.Host
+		if host == "" {
+			host = "evro90-nm6.hf.space"
+		}
+		proxyBase := fmt.Sprintf("%s://%s/api/proxy", proto, host)
 		rewritten := rewriteM3u8(string(bodyBytes), targetUrl, proxyBase)
 
 		w.Header().Set("X-Accel-Buffering", "no")
