@@ -270,8 +270,9 @@ export function Home() {
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const trimmed = searchInput.trim().slice(0, 120);
-    setSearchQuery(trimmed);
+    const sanitized = searchInput.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
+    setSearchInput(sanitized);
+    setSearchQuery(sanitized);
     setPage(1);
   };
 
@@ -337,6 +338,19 @@ export function Home() {
                 if (val === '') {
                   setSearchQuery('');
                   setPage(1);
+                }
+              }}
+              onPaste={(e) => {
+                const pastedText = e.clipboardData.getData('text');
+                if (pastedText && /[\r\n\t]/.test(pastedText)) {
+                  e.preventDefault();
+                  const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+                  const currentVal = searchInput;
+                  const target = e.target as HTMLInputElement;
+                  const start = target.selectionStart || 0;
+                  const end = target.selectionEnd || 0;
+                  const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
+                  setSearchInput(nextVal);
                 }
               }}
               onKeyDown={(e) => {

@@ -33,6 +33,29 @@ export interface Genre {
   name: string;
 }
 
+/**
+ * Intelligent search query normalizer.
+ * Cleans whitespace/newlines, strips copy-pasted release years (1900..currentYear+5),
+ * while safeguarding numbers-as-titles (1917, 2012, Blade Runner 2049).
+ */
+export function parseSearchQuery(raw: string): { title: string; year?: string } {
+  if (!raw) return { title: '' };
+  const normalized = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  
+  const currentYear = new Date().getFullYear();
+  const maxReleaseYear = currentYear + 5;
+
+  const yearMatch = normalized.match(/^(.*?)(?:[\s,/–-]+[\(\[\{]?(19\d\d|20\d\d)[\)\]\}]?)$/);
+  if (yearMatch && yearMatch[1].trim().length > 0) {
+    const parsedYear = parseInt(yearMatch[2], 10);
+    if (parsedYear >= 1900 && parsedYear <= maxReleaseYear) {
+      return { title: yearMatch[1].trim(), year: String(parsedYear) };
+    }
+  }
+
+  return { title: normalized };
+}
+
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -237,14 +260,33 @@ export function useApi() {
     });
   }, [tmdbFetch, withLoading]);
 
-  const searchContent = useCallback(async (query: string) => {
-    const cleanQuery = (query || '').trim().slice(0, 120);
-    if (!cleanQuery) return [];
+  const searchContent = useCallback(async (rawQuery: string) => {
+    const { title, year } = parseSearchQuery(rawQuery);
+    const cleanTitle = title.slice(0, 120);
+    if (!cleanTitle) return [];
+
     return withLoading(async () => {
-      const data = await tmdbFetch('/search/multi', { query: cleanQuery });
-      return (data?.results || [])
-        .filter((i: TMDBMovie) => i.media_type !== 'person')
-        .map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
+      // 1. Primary search with parsed clean title (+ year parameter if detected)
+      const primaryParams: Record<string, string | number> = { query: cleanTitle };
+      if (year) primaryParams.year = year;
+
+      let data = await tmdbFetch('/search/multi', primaryParams);
+      let results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+
+      // 2. Fallback: if 0 results and year was attached, retry with just title (without year constraint)
+      if (results.length === 0 && year) {
+        data = await tmdbFetch('/search/multi', { query: cleanTitle });
+        results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+      }
+
+      // 3. Fallback: if 0 results and normalized raw differed from cleanTitle, try raw query
+      const normalizedRaw = (rawQuery || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 120);
+      if (results.length === 0 && normalizedRaw !== cleanTitle) {
+        data = await tmdbFetch('/search/multi', { query: normalizedRaw });
+        results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+      }
+
+      return results.map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
     });
   }, [tmdbFetch, withLoading]);
 
@@ -487,7 +529,10 @@ export function useApi() {
   }, [language, tmdbFetch, withLoading]);
 
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
-    const cacheKey = `adult_search_${query}_${pageNum}`;
+    const cleanQuery = (query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
+    if (!cleanQuery) return [];
+
+    const cacheKey = `adult_search_${cleanQuery}_${pageNum}`;
     const cached = clientCache.get<any[]>(cacheKey);
     if (cached) {
       return cached;
@@ -499,7 +544,7 @@ export function useApi() {
       'X-App-Client': 'mediabox-app',
       'X-Client-Time': String(Date.now()),
     };
-    const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(query)}&page=${pageNum}`, { headers });
+    const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(cleanQuery)}&page=${pageNum}`, { headers });
     if (!res.ok) return [];
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
