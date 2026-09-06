@@ -26,6 +26,9 @@ export interface TMDBMovie {
   first_air_date?: string;
   media_type?: 'movie' | 'tv' | 'person' | string;
   seasons?: any[];
+  popularity?: number;
+  vote_count?: number;
+  vote_average?: number;
 }
 
 export interface Genre {
@@ -54,6 +57,142 @@ export function parseSearchQuery(raw: string): { title: string; year?: string } 
   }
 
   return { title: normalized };
+}
+
+/**
+ * Normalizes accidental Latin homoglyphs in predominantly Cyrillic words
+ * caused by mobile/desktop keyboard layout switching.
+ */
+export function fixMixedScript(text: string): string {
+  const words = text.split(/\s+/);
+  return words.map(w => {
+    const cyrCount = (w.match(/[а-яё]/gi) || []).length;
+    const latCount = (w.match(/[a-z]/gi) || []).length;
+    if (cyrCount > 0 && latCount > 0 && cyrCount >= latCount) {
+      return w
+        .replace(/a/g, 'а').replace(/A/g, 'А')
+        .replace(/c/g, 'с').replace(/C/g, 'С')
+        .replace(/e/g, 'е').replace(/E/g, 'Е')
+        .replace(/o/g, 'о').replace(/O/g, 'О')
+        .replace(/p/g, 'р').replace(/P/g, 'Р')
+        .replace(/x/g, 'х').replace(/X/g, 'Х')
+        .replace(/y/g, 'у').replace(/Y/g, 'У')
+        .replace(/k/g, 'к').replace(/K/g, 'К');
+    }
+    return w;
+  }).join(' ');
+}
+
+const YO_REPLACEMENTS: [RegExp, string][] = [
+  [/рублев/gi, 'рублёв'],
+  [/зелен/gi, 'зелён'],
+  [/черн/gi, 'чёрн'],
+  [/темн/gi, 'тёмн'],
+  [/елк/gi, 'ёлк'],
+  [/крестн/gi, 'крёстн'],
+  [/звезд/gi, 'звёзд'],
+  [/мертв/gi, 'мёртв'],
+  [/слез/gi, 'слёз'],
+  [/влюблен/gi, 'влюблён'],
+  [/королев/gi, 'королёв'],
+  [/потемкин/gi, 'потёмкин'],
+  [/вертолет/gi, 'вертолёт'],
+  [/самолет/gi, 'самолёт'],
+  [/тяжел/gi, 'тяжёл'],
+  [/актер/gi, 'актёр'],
+  [/боксер/gi, 'боксёр'],
+  [/шофер/gi, 'шофёр'],
+  [/стажер/gi, 'стажёр'],
+  [/режиссер/gi, 'режиссёр'],
+  [/дирижер/gi, 'дирижёр'],
+  [/шахтер/gi, 'шахтёр'],
+  [/\bо чем\b/gi, 'о чём'],
+  [/\bчем\b/gi, 'чём'],
+  [/\bеще\b/gi, 'ещё'],
+  [/\блед\b/gi, 'лёд'],
+  [/\bпес\b/gi, 'пёс'],
+  [/\bсчет\b/gi, 'счёт'],
+  [/\bчерт\b/gi, 'чёрт'],
+  [/\bмед\b/gi, 'мёд'],
+  [/\bжелт/gi, 'жёлт'],
+  [/\bкотел\b/gi, 'котёл'],
+  [/\борел\b/gi, 'орёл'],
+  [/\bкозел\b/gi, 'козёл'],
+  [/\bперекрест/gi, 'перекрёст']
+];
+
+function preserveCaseReplace(text: string, re: RegExp, targetWord: string): string {
+  return text.replace(re, (match) => {
+    if (match[0] === match[0].toUpperCase()) {
+      return targetWord[0].toUpperCase() + targetWord.slice(1);
+    }
+    return targetWord.toLowerCase();
+  });
+}
+
+/**
+ * Generates orthographic search variants to seamlessly bridge E and Ё.
+ */
+export function generateSearchVariants(text: string): string[] {
+  const clean = fixMixedScript(text).trim();
+  const variants = new Set<string>([clean]);
+
+  if (/[ёЁ]/.test(clean)) {
+    variants.add(clean.replace(/ё/g, 'е').replace(/Ё/g, 'Е'));
+  }
+
+  if (/[еЕ]/.test(clean)) {
+    let yoText = clean;
+    for (const [re, rep] of YO_REPLACEMENTS) {
+      yoText = preserveCaseReplace(yoText, re, rep);
+    }
+    if (yoText !== clean) {
+      variants.add(yoText);
+    }
+  }
+
+  return Array.from(variants);
+}
+
+function normalizeForRelevance(str: string): string {
+  return (str || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Ranks combined results ensuring exact/prefix matches and higher popularity appear on top.
+ */
+export function rankSearchResults(items: TMDBMovie[], query: string): TMDBMovie[] {
+  const normQ = normalizeForRelevance(query);
+  const qWords = normQ.split(' ').filter(Boolean);
+
+  return [...items].sort((a, b) => {
+    const titleA = a.title || a.name || '';
+    const titleB = b.title || b.name || '';
+    const normA = normalizeForRelevance(titleA);
+    const normB = normalizeForRelevance(titleB);
+
+    let scoreA = (a.popularity || 0) + (a.vote_count || 0) * 0.1;
+    let scoreB = (b.popularity || 0) + (b.vote_count || 0) * 0.1;
+
+    if (normA === normQ) scoreA += 1000;
+    if (normB === normQ) scoreB += 1000;
+
+    if (normA.startsWith(normQ)) scoreA += 500;
+    if (normB.startsWith(normQ)) scoreB += 500;
+
+    let matchCountA = 0;
+    let matchCountB = 0;
+    for (const qw of qWords) {
+      if (qw.length > 2) {
+        if (normA.includes(qw)) matchCountA++;
+        if (normB.includes(qw)) matchCountB++;
+      }
+    }
+    scoreA += matchCountA * 200;
+    scoreB += matchCountB * 200;
+
+    return scoreB - scoreA;
+  });
 }
 
 export function useApi() {
@@ -266,27 +405,65 @@ export function useApi() {
     if (!cleanTitle) return [];
 
     return withLoading(async () => {
-      // 1. Primary search with parsed clean title (+ year parameter if detected)
-      const primaryParams: Record<string, string | number> = { query: cleanTitle };
-      if (year) primaryParams.year = year;
+      const searchVariants = generateSearchVariants(cleanTitle);
 
-      let data = await tmdbFetch('/search/multi', primaryParams);
-      let results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+      const fetchBatch = async (queries: string[], yearFilter?: string) => {
+        const promises = queries.map(async (q) => {
+          const params: Record<string, string | number> = { query: q };
+          if (yearFilter) params.year = yearFilter;
+          try {
+            const data = await tmdbFetch('/search/multi', params);
+            return (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+          } catch {
+            return [];
+          }
+        });
+        const resultsArray = await Promise.all(promises);
+        const seen = new Set<number>();
+        const merged: TMDBMovie[] = [];
+        for (const list of resultsArray) {
+          for (const item of list) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              merged.push(item);
+            }
+          }
+        }
+        return merged;
+      };
 
-      // 2. Fallback: if 0 results and year was attached, retry with just title (without year constraint)
+      // 1. Primary search with all orthographic variants (+ year if specified)
+      let results = await fetchBatch(searchVariants, year);
+
+      // 2. Fallback: if 0 results and year was attached, retry variants without year restriction
       if (results.length === 0 && year) {
-        data = await tmdbFetch('/search/multi', { query: cleanTitle });
-        results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+        results = await fetchBatch(searchVariants);
       }
 
-      // 3. Fallback: if 0 results and normalized raw differed from cleanTitle, try raw query
+      // 3. Fallback: if 0 results and query had multiple words, try keyword search for typos
+      if (results.length === 0) {
+        const words = cleanTitle.replace(/[^a-zа-я0-9]/gi, ' ').trim().split(/\s+/).filter(w => w.length >= 4);
+        for (const word of words) {
+          const wordVariants = generateSearchVariants(word);
+          const wordResults = await fetchBatch(wordVariants);
+          if (wordResults.length > 0) {
+            results = wordResults;
+            break;
+          }
+        }
+      }
+
+      // 4. Fallback: if still 0 results and normalized raw differed from cleanTitle, try raw query
       const normalizedRaw = (rawQuery || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 120);
       if (results.length === 0 && normalizedRaw !== cleanTitle) {
-        data = await tmdbFetch('/search/multi', { query: normalizedRaw });
-        results = (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+        const rawResults = await fetchBatch([normalizedRaw]);
+        results = rawResults;
       }
 
-      return results.map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
+      // 5. Intelligent relevance ranking: exact title match > starts-with > popularity & votes
+      const ranked = rankSearchResults(results, cleanTitle);
+
+      return ranked.map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
     });
   }, [tmdbFetch, withLoading]);
 
