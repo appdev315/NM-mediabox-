@@ -225,7 +225,6 @@ func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 
 func AnwapApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	title := r.URL.Query().Get("title")
 	if title == "" {

@@ -155,7 +155,6 @@ func main() {
 	mux.HandleFunc("/api/stats", middleware.StatsHandler)
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write([]byte(`{"status":"ok","version":"1.0.0"}`))
 	})
 

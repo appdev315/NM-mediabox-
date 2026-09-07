@@ -297,16 +297,18 @@ export default function App() {
   }, [isAdultApp]);
 
   return (
-    <ThemeProvider>
-      <AudioPlayerProvider>
-        <HomeStateProvider>
-          <AdProvider>
-            <>
-              {isAdultApp ? <AdultApp /> : <MainApp />}
-            </>
-          </AdProvider>
-        </HomeStateProvider>
-      </AudioPlayerProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AudioPlayerProvider>
+          <HomeStateProvider>
+            <AdProvider>
+              <>
+                {isAdultApp ? <AdultApp /> : <MainApp />}
+              </>
+            </AdProvider>
+          </HomeStateProvider>
+        </AudioPlayerProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

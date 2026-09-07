@@ -141,8 +141,8 @@ func CORSMiddleware(next http.Handler) http.Handler {
 			if isOriginAllowed(origin) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, Origin, Accept, X-App-Client, X-Client-Time, X-Session-Id")
-				w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, Origin, Accept, X-App-Client, X-Client-Time, X-Session-Id, Icy-MetaData")
+				w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Type")
 				w.Header().Set("Vary", "Origin")
 			} else {
 				if r.Method == "OPTIONS" {

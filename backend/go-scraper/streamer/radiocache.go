@@ -282,7 +282,6 @@ func RadioStationsHandler(w http.ResponseWriter, r *http.Request) {
 	data := getOrFetchCountryStations(r.Context(), country, source)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)

@@ -11,31 +11,64 @@ import (
 	"time"
 )
 
+var prohibitedCIDRs []*net.IPNet
+
+func init() {
+	cidrs := []string{
+		"0.0.0.0/8",
+		"10.0.0.0/8",
+		"100.64.0.0/10",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"172.16.0.0/12",
+		"192.0.0.0/24",
+		"192.0.2.0/24",
+		"192.88.99.0/24",
+		"192.168.0.0/16",
+		"198.18.0.0/15",
+		"198.51.100.0/24",
+		"203.0.113.0/24",
+		"224.0.0.0/4",
+		"240.0.0.0/4",
+		"255.255.255.255/32",
+		"::/128",
+		"::1/128",
+		"::ffff:0:0/96",
+		"100::/64",
+		"2001::/23",
+		"2001:db8::/32",
+		"2002::/16",
+		"fc00::/7",
+		"fe80::/10",
+		"ff00::/8",
+	}
+	for _, c := range cidrs {
+		_, netCIDR, err := net.ParseCIDR(c)
+		if err == nil {
+			prohibitedCIDRs = append(prohibitedCIDRs, netCIDR)
+		}
+	}
+}
+
 func isIPSafe(raw net.IP) bool {
 	if raw == nil {
 		return false
 	}
-	// Extract embedded IPv4 from IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1 -> 127.0.0.1)
-	ip := raw.To4()
-	if ip == nil {
-		ip = raw
+	for _, block := range prohibitedCIDRs {
+		if block.Contains(raw) {
+			return false
+		}
 	}
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
-		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
+	if ip4 := raw.To4(); ip4 != nil {
+		for _, block := range prohibitedCIDRs {
+			if block.Contains(ip4) {
+				return false
+			}
+		}
+	}
+	if raw.IsLoopback() || raw.IsPrivate() || raw.IsUnspecified() ||
+		raw.IsLinkLocalUnicast() || raw.IsLinkLocalMulticast() || raw.IsInterfaceLocalMulticast() {
 		return false
-	}
-
-	// Extra checks for CGNAT (100.64.0.0/10), link-local / cloud metadata (169.254.x.x), 0.0.0.0
-	if ip4 := ip.To4(); ip4 != nil {
-		if ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
-			return false
-		}
-		if ip4[0] == 169 && ip4[1] == 254 {
-			return false
-		}
-		if ip4[0] == 0 {
-			return false
-		}
 	}
 	return true
 }
@@ -134,16 +167,6 @@ func IsAllowedProxyUrl(urlStr string) bool {
 }
 
 func ProxyStreamHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range, Icy-MetaData")
-	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Type")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	targetUrl := r.URL.Query().Get("url")
 	if targetUrl == "" {
 		http.Error(w, `{"error":"URL is required"}`, http.StatusBadRequest)

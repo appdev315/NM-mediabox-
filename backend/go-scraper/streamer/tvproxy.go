@@ -85,16 +85,6 @@ var hopByHopHeaders = map[string]bool{
 }
 
 func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range, Icy-MetaData")
-	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Type")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	targetUrl := r.URL.Query().Get("url")
 	if targetUrl == "" {
 		http.Error(w, `{"error":"Missing url parameter"}`, http.StatusBadRequest)
