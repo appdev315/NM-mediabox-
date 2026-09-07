@@ -42,6 +42,7 @@ const markTrailerAsViewed = (id: number): void => {
     const parsed: Record<string, number> = raw ? JSON.parse(raw) : {};
     parsed[String(id)] = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    window.dispatchEvent(new CustomEvent('mb_trailer_viewed', { detail: { id } }));
   } catch {
     // Ignore storage write issues
   }
@@ -56,7 +57,7 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return result;
 };
 
-const prioritizeUnviewedTrailers = (items: TrailerFeedItem[]): TrailerFeedItem[] => {
+const prioritizeUnviewedTrailers = (items: TrailerFeedItem[], shuffleIfAllViewed: boolean = false): TrailerFeedItem[] => {
   const viewedIds = getViewedTrailerIds();
   const unviewed: TrailerFeedItem[] = [];
   const viewed: TrailerFeedItem[] = [];
@@ -69,10 +70,23 @@ const prioritizeUnviewedTrailers = (items: TrailerFeedItem[]): TrailerFeedItem[]
     }
   });
 
-  return [...unviewed, ...shuffleArray(viewed)];
+  if (unviewed.length === 0 && shuffleIfAllViewed) {
+    return shuffleArray(items);
+  }
+
+  return [...unviewed, ...viewed];
 };
 
-export const TrailerFeed: React.FC = () => {
+export { getViewedTrailerIds, markTrailerAsViewed, prioritizeUnviewedTrailers };
+
+export interface TrailerFeedProps {
+  initialTrailerId?: number;
+  initialIndex?: number;
+  isModal?: boolean;
+  onClose?: () => void;
+}
+
+export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, initialIndex = 0, isModal = false, onClose }) => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { fetchTrailerFeed } = useApi();
@@ -100,7 +114,8 @@ export const TrailerFeed: React.FC = () => {
     fetchTrailerFeed(1)
       .then(items => {
         if (!isMounted) return;
-        const prioritized = prioritizeUnviewedTrailers(items);
+        const isFromWatchAll = initialTrailerId === undefined;
+        const prioritized = prioritizeUnviewedTrailers(items, isFromWatchAll);
         setTrailers(prioritized);
         setHasMore(items.length > 0);
         // Hydrate favorites
@@ -109,6 +124,24 @@ export const TrailerFeed: React.FC = () => {
           favs[it.id] = favoritesManager.isFavorite(it.mediaType === 'tv' ? 'series' : 'movie', it.id);
         });
         setFavoriteMap(favs);
+
+        let targetIndex = 0;
+        if (initialTrailerId !== undefined) {
+          const foundIdx = prioritized.findIndex(it => it.id === initialTrailerId);
+          if (foundIdx !== -1) {
+            targetIndex = foundIdx;
+          }
+          markTrailerAsViewed(initialTrailerId);
+        } else if (initialIndex > 0 && initialIndex < prioritized.length) {
+          targetIndex = initialIndex;
+        }
+
+        if (targetIndex > 0) {
+          setActiveIndex(targetIndex);
+          setTimeout(() => {
+            cardRefs.current[targetIndex]?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+          }, 80);
+        }
       })
       .catch(err => {
         console.error('Failed to load initial trailer feed:', err);
@@ -135,7 +168,7 @@ export const TrailerFeed: React.FC = () => {
         setTrailers(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const unique = nextItems.filter(p => !existingIds.has(p.id));
-          const prioritized = prioritizeUnviewedTrailers(unique);
+          const prioritized = prioritizeUnviewedTrailers(unique, initialTrailerId === undefined);
           return [...prev, ...prioritized];
         });
         setPage(nextPage);
@@ -220,9 +253,13 @@ export const TrailerFeed: React.FC = () => {
     }
   }, [activeIndex, scrollToIndex]);
 
-  // Desktop keyboard navigation (ArrowUp/ArrowDown)
+  // Desktop keyboard navigation (ArrowUp/ArrowDown) & Escape for modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isModal && onClose && e.key === 'Escape') {
+        onClose();
+        return;
+      }
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
         e.preventDefault();
         scrollToIndex(activeIndex + 1);
@@ -233,7 +270,7 @@ export const TrailerFeed: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, scrollToIndex]);
+  }, [activeIndex, scrollToIndex, isModal, onClose]);
 
   // Toggle favorite
   const handleToggleFavorite = (item: TrailerFeedItem) => {
@@ -258,14 +295,14 @@ export const TrailerFeed: React.FC = () => {
   };
 
 
-  // Mark active trailer as viewed in device cache after 2.5 seconds
+  // Mark active trailer as viewed in device cache after 1.0 second
   useEffect(() => {
     const currentItem = trailers[activeIndex];
     if (!currentItem) return;
 
     const timer = window.setTimeout(() => {
       markTrailerAsViewed(currentItem.id);
-    }, 2500);
+    }, 1000);
 
     return () => {
       window.clearTimeout(timer);
@@ -308,8 +345,8 @@ export const TrailerFeed: React.FC = () => {
     );
   }
 
-  return (
-    <div className="relative w-full max-w-2xl mx-auto">
+  const content = (
+    <div className={`relative w-full ${isModal ? 'max-w-md sm:max-w-lg h-full flex flex-col justify-center' : 'max-w-2xl'} mx-auto`}>
       {/* Desktop/Tablet Quick Nav Arrows */}
       <div className="hidden sm:flex fixed right-8 bottom-24 z-40 flex-col gap-2">
         <button
@@ -351,25 +388,14 @@ export const TrailerFeed: React.FC = () => {
               {/* Media Video or Thumbnail */}
               <div className="relative w-full flex-1 bg-black overflow-hidden">
                 {isActive ? (
-                  <>
-                    <iframe
-                      src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1`}
-                      title={`Trailer for ${item.title}`}
-                      className="w-full h-full border-0 absolute inset-0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                    {/* Transparent wheel & click catcher overlay to allow mouse wheel scrolling on desktop */}
-                    <div
-                      onClick={() => {
-                        setIsMuted(prev => !prev);
-                        if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-                      }}
-                      onWheel={handleWheel}
-                      className="absolute inset-0 z-10 cursor-pointer"
-                      title="Колёсико мыши: следующий/предыдущий трейлер"
-                    />
-                  </>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                    title={`Trailer for ${item.title}`}
+                    className="w-full h-full border-0 absolute inset-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
                 ) : (
                   <div
                     onClick={() => scrollToIndex(index)}
@@ -400,7 +426,7 @@ export const TrailerFeed: React.FC = () => {
                 )}
 
                 {/* Right Side Action Bar (Reels Style) */}
-                <div className="absolute right-3 bottom-20 sm:bottom-24 z-30 flex flex-col items-center gap-3">
+                <div className="absolute right-3 bottom-12 sm:bottom-16 z-30 flex flex-col items-center gap-3">
                   {/* Primary Watch Button (Direct navigation to movie/series) */}
                   <button
                     onClick={() => handleWatchMovie(item)}
@@ -420,22 +446,23 @@ export const TrailerFeed: React.FC = () => {
                     className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-90 ${
                       isFav ? 'bg-red-500/90 text-white' : 'bg-black/60 text-white hover:bg-black/80'
                     }`}
-                    aria-label="Избранное"
+                    aria-label={t('favorites') || 'Избранное'}
                   >
                     <span className="text-lg">{isFav ? '❤️' : '🤍'}</span>
                   </button>
-
-                  {/* Media type indicator */}
-                  <div className="px-2 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-bold text-gray-300 uppercase tracking-wider">
-                    {item.mediaType === 'tv' ? (t('series') || 'Сериал') : (t('movies') || 'Фильм')}
-                  </div>
+                  <span className="text-[10px] font-black text-white drop-shadow -mt-2">
+                    {t('favorites') || 'Избранное'}
+                  </span>
                 </div>
               </div>
 
               {/* Bottom Card Info Overlay */}
-              <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-4 pb-3 px-3.5 sm:px-4 flex flex-col gap-2">
-                {/* Meta header: rating, year, genres */}
+              <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-6 pb-4 px-3.5 sm:px-4 flex flex-col gap-2">
+                {/* Meta header: media type, rating, year, genres */}
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] uppercase">
+                    {item.mediaType === 'tv' ? (t('series') || 'Сериал') : (t('movies') || 'Фильм')}
+                  </span>
                   {item.rating > 0 && (
                     <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-extrabold flex items-center gap-1 text-[11px]">
                       ⭐ {item.rating}
@@ -457,19 +484,6 @@ export const TrailerFeed: React.FC = () => {
                 <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-md pr-16">
                   {item.title}
                 </h3>
-
-                {/* Primary CTA Button: Watch Movie / Watch Series */}
-                <button
-                  onClick={() => handleWatchMovie(item)}
-                  className="w-full mt-0.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 active:scale-[0.98] transition-transform duration-150"
-                >
-                  <span className="text-base">▶️</span>
-                  <span>
-                    {item.mediaType === 'tv'
-                      ? (t('watchSeries') || 'Смотреть сериал')
-                      : (t('watchMovie') || 'Смотреть фильм')}
-                  </span>
-                </button>
               </div>
             </div>
           );
@@ -485,4 +499,23 @@ export const TrailerFeed: React.FC = () => {
       </div>
     </div>
   );
+
+  if (isModal) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+        {/* Floating Close Button */}
+        <button
+          onClick={onClose}
+          className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md"
+          title="Закрыть"
+          aria-label="Закрыть"
+        >
+          ✕
+        </button>
+        {content}
+      </div>
+    );
+  }
+
+  return content;
 };

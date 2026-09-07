@@ -768,6 +768,12 @@ export function useApi() {
 
   const fetchTrailerFeed = useCallback(async (page: number = 1): Promise<TrailerFeedItem[]> => {
     return withLoading(async () => {
+      const cacheKey = `trailer_feed_v2_${page}_${language}`;
+      const cached = clientCache.get(cacheKey) as TrailerFeedItem[] | undefined;
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        return cached;
+      }
+
       // 1. Fetch trending items for this page
       const trendingData = await tmdbFetch('/trending/all/day', { page });
       const rawItems = (trendingData.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
@@ -793,13 +799,54 @@ export function useApi() {
           const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
           if (!ytVideos.length) return null;
 
-          const trailer = 
-            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === 'en') ||
-            ytVideos.find((v: any) => v.type === 'Trailer') ||
-            ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.type === 'Teaser') ||
-            ytVideos[0];
+          // Smart prioritization:
+          // 1. Official studio trailer in user language (100% embeddable)
+          // 2. Official studio trailer in English / original (100% embeddable, no 'watch on youtube' error)
+          // 3. Official teaser in user language
+          // 4. Official teaser
+          // 5. Any official video
+          // 6. Unofficial trailer (verified for embeddability via oEmbed)
+          const candidates: any[] = [
+            ...ytVideos.filter((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode),
+            ...ytVideos.filter((v: any) => v.official && v.type === 'Trailer'),
+            ...ytVideos.filter((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode),
+            ...ytVideos.filter((v: any) => v.official && v.type === 'Teaser'),
+            ...ytVideos.filter((v: any) => v.official),
+            ...ytVideos.filter((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode),
+            ...ytVideos.filter((v: any) => v.type === 'Trailer'),
+            ...ytVideos
+          ];
+
+          // Deduplicate candidates by key while preserving order
+          const seenKeys = new Set<string>();
+          const uniqueCandidates = candidates.filter((c: any) => {
+            if (!c?.key || seenKeys.has(c.key)) return false;
+            seenKeys.add(c.key);
+            return true;
+          });
+
+          let trailer: any = null;
+          for (const c of uniqueCandidates) {
+            // Official studio trailers from TMDB are guaranteed to allow 3rd party embedding
+            if (c.official) {
+              trailer = c;
+              break;
+            }
+            // For unofficial fan uploads, verify embeddability to prevent "Watch on YouTube" errors
+            try {
+              const oe = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${c.key}&format=json`);
+              if (oe.status === 200) {
+                trailer = c;
+                break;
+              }
+            } catch {
+              // Ignore network check failure and continue to next candidate
+            }
+          }
+
+          if (!trailer && uniqueCandidates.length > 0) {
+            trailer = uniqueCandidates[0];
+          }
 
           if (!trailer?.key) return null;
 
@@ -830,7 +877,11 @@ export function useApi() {
       });
 
       const settled = await Promise.all(videoPromises);
-      return settled.filter((item): item is TrailerFeedItem => item !== null);
+      const result = settled.filter((item): item is TrailerFeedItem => item !== null);
+      if (result.length > 0) {
+        clientCache.set(cacheKey, result, 3600); // 1 hour client cache
+      }
+      return result;
     });
   }, [tmdbFetch, fetchGenres, language, withLoading]);
 

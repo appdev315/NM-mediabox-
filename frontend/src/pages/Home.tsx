@@ -8,6 +8,7 @@ import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
 import { RadioTVContent } from './RadioTV';
 import { TrailerFeed } from '../components/TrailerFeed';
+import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
@@ -117,6 +118,7 @@ export function Home() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const [searchInput, setSearchInput] = useState<string>(searchQuery);
+  const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
 
@@ -294,74 +296,40 @@ export function Home() {
       {/* Header & Profile */}
       <Header />
 
-      {/* Top Navigation Block */}
-      <div className="flex flex-col gap-2.5 mb-4">
-        {/* Row 1: Full-width Hero Button for 'Что глянуть? 🔥' */}
-        <button
-          onClick={() => handleTabChange('trailers')}
-          className={`relative w-full py-3 px-4 rounded-2xl font-black flex items-center justify-center transition-all active:scale-[0.98] shadow-xl ${
-            activeTab === 'trailers'
-              ? 'bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 text-white shadow-orange-500/30 border border-orange-300/60 scale-[1.01]'
-              : 'bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-rose-500/20 border border-orange-500/40 text-amber-300 hover:text-white shadow-orange-500/10'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2.5">
-            <span className="text-xl animate-pulse">🔥</span>
-            <span className="tracking-wide text-base font-extrabold text-center">{t('trailersTab') || 'Что глянуть? 🔥'}</span>
-          </div>
-          <span className="absolute right-3 sm:right-4 text-[11px] sm:text-xs px-2.5 py-1 rounded-full bg-white/20 text-white font-bold backdrop-blur-sm">
-            {language === 'ru-RU' ? 'Трейлеры' : 'Trailers'}
-          </span>
-        </button>
+      {/* Top Stories Bar (Facebook / Instagram style stories for trailers) */}
+      <TrailerStoriesBar onOpenFeed={(trailerId, idx) => setModalTrailerTarget({ id: trailerId, index: idx })} />
 
-        {/* Row 2: 2x2 Grid for Movies, Series, Radio, TV */}
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { id: 'movie', label: t('movies'), icon: '🎬' },
-            { id: 'series', label: t('series'), icon: '📺' },
-            { id: 'radio', label: t('tab_radio') || 'Радио', icon: '📻' },
-            { id: 'tv', label: t('tab_tv') || 'ТВ', icon: '📡' },
-          ].map(tab => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv')}
-                className={`py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] border ${
-                  isActive
-                    ? 'border-white/20 shadow-lg text-white'
-                    : 'bg-black/30 border-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
-                }`}
-                style={{
-                  backgroundColor: isActive ? 'var(--button-color)' : undefined,
-                  color: isActive ? 'var(--button-text-color)' : undefined,
-                }}
-              >
-                <span className="text-base">{tab.icon}</span>
-                <span className="truncate">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Optional Private Room if applicable */}
-        {((WebApp.platform === 'unknown' && !(window as any).Capacitor)) && (
+      {/* Top Navigation */}
+      <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
+        {[
+          { id: 'movie', label: t('movies') },
+          { id: 'series', label: t('series') },
+          { id: 'radio', label: t('tab_radio') || 'Радио' },
+          { id: 'tv', label: t('tab_tv') || 'ТВ' },
+          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
+        ].map(tab => (
           <button
+            key={tab.id}
             onClick={(e) => {
-              e.preventDefault();
-              window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+              if (tab.id === 'private') {
+                e.preventDefault();
+                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+                return;
+              }
+              handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv');
             }}
-            className="w-full py-2 px-3 rounded-xl font-bold text-xs bg-rose-950/40 border border-rose-500/30 text-rose-300 hover:bg-rose-900/40 flex items-center justify-center gap-2 transition-colors"
+            className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
+            style={{ 
+              backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
+              color: activeTab === tab.id ? 'var(--button-text-color)' : 'var(--text-color)'
+            }}
           >
-            <span>🍓</span>
-            <span>{t('secretRoomTab')}</span>
+            {tab.label}
           </button>
-        )}
+        ))}
       </div>
 
-      {activeTab === 'trailers' ? (
-        <TrailerFeed />
-      ) : (activeTab === 'radio' || activeTab === 'tv') ? (
+      {(activeTab === 'radio' || activeTab === 'tv') ? (
         <RadioTVContent activeTab={activeTab} />
       ) : (
         <>
@@ -480,23 +448,28 @@ export function Home() {
             <div className="space-y-4 w-full">
               {homeSections.map((section: any) => (
                 <div key={section.id} className="w-full bg-white/5 dark:bg-gray-800/40 border border-white/10 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm transition-all hover:border-white/20">
-                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-6 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-md"></span>
-                      <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">{section.name}</h2>
-                    </div>
-                    {section.genreId && (
-                      <button
-                        onClick={() => {
+                  <div className="flex items-center mb-4 pb-3 border-b border-white/10">
+                    <button
+                      onClick={() => {
+                        if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                        if (section.genreId) {
                           setSelectedGenre(section.genreId);
-                          setPage(1);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="text-xs sm:text-sm font-extrabold px-3.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                      >
-                        {t('showMore') || 'Показать еще'} ➔
-                      </button>
-                    )}
+                        } else if (section.id === 'trending') {
+                          setSelectedGenre('');
+                          setSortBy('popularity.desc');
+                        }
+                        setPage(1);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="group inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/10 hover:bg-blue-600/20 border border-white/15 hover:border-blue-500/40 text-left transition-all active:scale-[0.96] shadow-sm hover:shadow-md cursor-pointer backdrop-blur-md"
+                      title={section.genreId ? `${section.name} — ${t('showMore') || 'Показать еще'}` : section.name}
+                    >
+                      <span className="w-2 h-4 sm:w-2.5 sm:h-5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm transition-transform group-hover:scale-110"></span>
+                      <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                        <span>{section.name}</span>
+                        <span className="text-sm sm:text-base text-gray-400 group-hover:text-blue-300 group-hover:translate-x-0.5 transition-all font-bold">›</span>
+                      </h2>
+                    </button>
                   </div>
 
                   {/* 12-Card Grid */}
@@ -555,6 +528,18 @@ export function Home() {
             </div>
           )}
         </>
+      )}
+      {/* Fullscreen Stories Trailer Feed Modal */}
+      {modalTrailerTarget !== null && (
+        <TrailerFeed
+          isModal={true}
+          initialTrailerId={modalTrailerTarget.id}
+          initialIndex={modalTrailerTarget.index}
+          onClose={() => {
+            setModalTrailerTarget(null);
+            window.dispatchEvent(new CustomEvent('mb_trailer_viewed'));
+          }}
+        />
       )}
     </div>
   );
