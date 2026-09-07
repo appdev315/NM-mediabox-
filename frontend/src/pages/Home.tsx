@@ -8,6 +8,7 @@ import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
 import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { RadioTVContent } from './RadioTV';
+import { TrailerFeed } from '../components/TrailerFeed';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
@@ -126,7 +127,7 @@ export function Home() {
 
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
-    if (searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
+    if (activeTab !== 'radio' && activeTab !== 'tv' && activeTab !== 'trailers' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
       const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
@@ -146,7 +147,7 @@ export function Home() {
 
   // Fetch genres
   useEffect(() => {
-    if (activeTab === 'radio' || activeTab === 'tv') return;
+    if (activeTab === 'radio' || activeTab === 'tv' || activeTab === 'trailers') return;
     fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
   }, [activeTab, fetchGenres]);
 
@@ -190,6 +191,9 @@ export function Home() {
 
     const loadContent = async () => {
       try {
+        if (activeTab === 'radio' || activeTab === 'tv' || activeTab === 'trailers') {
+          return;
+        }
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
           const results = await searchContent(searchQuery);
@@ -261,7 +265,7 @@ export function Home() {
 
 
 
-  const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
+  const handleTabChange = (tab: 'movie' | 'series' | 'trailers' | 'radio' | 'tv') => {
     (document.activeElement as HTMLElement)?.blur();
     setActiveTab(tab);
     hasRestoredScrollRef.current = false;
@@ -297,32 +301,53 @@ export function Home() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
+          { id: 'trailers', label: t('trailersTab') || 'Что глянуть? 🔥' },
           { id: 'radio', label: t('tab_radio') || 'Радио' },
           { id: 'tv', label: t('tab_tv') || 'ТВ' },
           ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={(e) => {
-              if (tab.id === 'private') {
-                e.preventDefault();
-                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
-                return;
-              }
-              handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv');
-            }}
-            className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-            style={{ 
-              backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
-              color: activeTab === tab.id ? 'var(--button-text-color)' : 'var(--text-color)'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        ].map(tab => {
+          const isTrailers = tab.id === 'trailers';
+          const isActive = activeTab === tab.id;
+
+          let btnClass = "px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-all whitespace-nowrap flex-shrink-0";
+          let customStyle: React.CSSProperties = {
+            backgroundColor: isActive ? 'var(--button-color)' : 'transparent',
+            color: isActive ? 'var(--button-text-color)' : 'var(--text-color)'
+          };
+
+          if (isTrailers) {
+            if (isActive) {
+              btnClass = "px-3.5 py-2 flex-1 text-[15px] font-black rounded-lg transition-all whitespace-nowrap flex-shrink-0 bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 text-white shadow-lg shadow-orange-500/30 scale-[1.02] border border-orange-300/60";
+              customStyle = {};
+            } else {
+              btnClass = "px-3.5 py-2 flex-1 text-[15px] font-extrabold rounded-lg transition-all whitespace-nowrap flex-shrink-0 bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-rose-500/20 border border-orange-500/40 text-amber-300 hover:text-white shadow-md shadow-orange-500/10";
+              customStyle = {};
+            }
+          }
+
+          return (
+            <button
+              key={tab.id}
+              onClick={(e) => {
+                if (tab.id === 'private') {
+                  e.preventDefault();
+                  window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+                  return;
+                }
+                handleTabChange(tab.id as 'movie' | 'series' | 'trailers' | 'radio' | 'tv');
+              }}
+              className={btnClass}
+              style={customStyle}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {(activeTab === 'radio' || activeTab === 'tv') ? (
+      {activeTab === 'trailers' ? (
+        <TrailerFeed />
+      ) : (activeTab === 'radio' || activeTab === 'tv') ? (
         <RadioTVContent activeTab={activeTab} />
       ) : (
         <>

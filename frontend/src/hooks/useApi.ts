@@ -36,6 +36,20 @@ export interface Genre {
   name: string;
 }
 
+export interface TrailerFeedItem {
+  id: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  originalTitle: string;
+  year: string;
+  rating: number;
+  genreNames: string[];
+  overview: string;
+  poster: string;
+  backdrop: string;
+  trailerKey: string;
+}
+
 /**
  * Intelligent search query normalizer.
  * Cleans whitespace/newlines, strips copy-pasted release years (1900..currentYear+5),
@@ -752,5 +766,73 @@ export function useApi() {
     return data;
   }, []);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, loading, error };
+  const fetchTrailerFeed = useCallback(async (page: number = 1): Promise<TrailerFeedItem[]> => {
+    return withLoading(async () => {
+      // 1. Fetch trending items for this page
+      const trendingData = await tmdbFetch('/trending/all/day', { page });
+      const rawItems = (trendingData.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
+
+      // 2. Fetch genres to build name dictionary
+      const [movieGenres, tvGenres] = await Promise.all([
+        fetchGenres('movie').catch(() => []),
+        fetchGenres('tv').catch(() => [])
+      ]);
+      const genreMap = new Map<number, string>();
+      movieGenres.forEach(g => genreMap.set(g.id, g.name));
+      tvGenres.forEach(g => genreMap.set(g.id, g.name));
+
+      // 3. Batch fetch videos for each item in parallel (Edge cached)
+      const langCode = (language || 'ru-RU').split('-')[0].toLowerCase();
+      const videoPromises = rawItems.map(async (item: any) => {
+        try {
+          const type = item.media_type === 'tv' ? 'tv' : 'movie';
+          const vData = await tmdbFetch(`/${type}/${item.id}/videos`, {
+            include_video_language: `${langCode},en,null`
+          }, 86400);
+          const videos = vData?.results || [];
+          const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
+          if (!ytVideos.length) return null;
+
+          const trailer = 
+            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === 'en') ||
+            ytVideos.find((v: any) => v.type === 'Trailer') ||
+            ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.type === 'Teaser') ||
+            ytVideos[0];
+
+          if (!trailer?.key) return null;
+
+          const genres = (item.genre_ids || [])
+            .map((gid: number) => genreMap.get(gid))
+            .filter(Boolean)
+            .slice(0, 3) as string[];
+
+          const dateStr = item.release_date || item.first_air_date || '';
+          const year = dateStr ? dateStr.split('-')[0] : '';
+
+          return {
+            id: item.id,
+            mediaType: type as 'movie' | 'tv',
+            title: item.title || item.name || item.original_title || item.original_name || 'Без названия',
+            originalTitle: item.original_title || item.original_name || '',
+            year,
+            rating: Number((item.vote_average || 0).toFixed(1)),
+            genreNames: genres,
+            overview: item.overview || '',
+            poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w500') : '',
+            backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : (item.poster_path ? getTmdbImageUrl(item.poster_path, 'w500') : ''),
+            trailerKey: trailer.key
+          } as TrailerFeedItem;
+        } catch {
+          return null;
+        }
+      });
+
+      const settled = await Promise.all(videoPromises);
+      return settled.filter((item): item is TrailerFeedItem => item !== null);
+    });
+  }, [tmdbFetch, fetchGenres, language, withLoading]);
+
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading, error };
 }

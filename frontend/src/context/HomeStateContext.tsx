@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type TabType = 'movie' | 'series' | 'radio' | 'tv';
+type TabType = 'movie' | 'series' | 'trailers' | 'radio' | 'tv';
 
 interface HomeState {
   activeTab: TabType;
