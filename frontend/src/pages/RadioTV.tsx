@@ -61,6 +61,8 @@ const FREE_TV_MAP: Record<string, string> = {
 export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const tvConfigRef = useRef<any>(null);
+  const tvCountryRef = useRef<string>('');
   const [showTvWarning, setShowTvWarning] = useState(false);
   const [country, setCountry] = useState(() => {
     const saved = localStorage.getItem('radio_tv_country');
@@ -283,7 +285,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       // Final fallback to global Free-TV playlist if country-specific lists fail
       if (!resText) {
         try {
-          const fbRes = await fetchWithRetry(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`, { maxRetries: 1 });
+          const fbRes = await fetchWithRetry(`https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`, { maxRetries: 1, signal });
           if (fbRes && fbRes.ok) {
             resText = await fbRes.text();
             successfulUrl = `https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8`;
@@ -372,8 +374,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       const parsedTv = parseM3u(resText, successfulUrl);
       
       if (!['pluto', 'samsung', 'plex', 'pbs'].includes(tvSource)) {
-         (window as any)._tvConfig = config;
-         (window as any)._tvCountry = country;
+        tvConfigRef.current = config;
+        tvCountryRef.current = country;
       }
 
       if (parsedTv.length > 0) {
@@ -451,8 +453,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   };
 
   const tryAlternativeTvSource = async (channel: Station): Promise<boolean> => {
-    const config = (window as any)._tvConfig;
-    const c = (window as any)._tvCountry;
+    const config = tvConfigRef.current;
+    const c = tvCountryRef.current;
     if (!config || !c || !config.tvPlaylists[c]) return false;
 
     const currentSourceIndex = parseInt(tvSource) - 1;

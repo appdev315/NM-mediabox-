@@ -46,6 +46,17 @@ export function Movie() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (extractDeadlineRef.current) {
+        clearTimeout(extractDeadlineRef.current);
+        extractDeadlineRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (movie?.id) {
       setIsFavorite(favoritesManager.isFavorite(favType, movie.id));
     }
@@ -129,6 +140,8 @@ export function Movie() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contentUnavailable, setContentUnavailable] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
   const [isReported, setIsReported] = useState(false);
@@ -448,12 +461,14 @@ export function Movie() {
       let anwapDone = false;
 
       const evaluateUIUnblock = () => {
+        if (!isMountedRef.current) return;
         if (foundSources.liftw || isLiftwDone || anwapDone) {
           setIsExtracting(false);
         }
       };
 
       const updateUI = () => {
+        if (!isMountedRef.current) return;
         const combined: any[] = [];
         
         // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
@@ -651,7 +666,11 @@ export function Movie() {
       };
 
       // 10s UI deadline: if neither source responds, stop spinner and show unavailable
-      const uiDeadline = setTimeout(() => {
+      if (extractDeadlineRef.current) {
+        clearTimeout(extractDeadlineRef.current);
+      }
+      extractDeadlineRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
         if (foundSources.liftw === null && foundSources.anwap.length === 0) {
           setIsExtracting(false);
           setContentUnavailable(true);
@@ -660,13 +679,18 @@ export function Movie() {
 
       // Fetch primary and secondary player sources in parallel without blocking UI
       fetchLiftw().then(() => {
+        if (!isMountedRef.current) return;
         updateUI();
         evaluateUIUnblock();
       }).finally(() => {
         isLiftwDone = true;
+        if (!isMountedRef.current) return;
         updateUI(); // Immediately trigger Anwap fallback if Liftw has no stream
         if (isLiftwDone && anwapDone) {
-          clearTimeout(uiDeadline);
+          if (extractDeadlineRef.current) {
+            clearTimeout(extractDeadlineRef.current);
+            extractDeadlineRef.current = null;
+          }
           setIsExtracting(false);
           if (foundSources.liftw === null && foundSources.anwap.length === 0) {
             setContentUnavailable(true);
@@ -675,13 +699,18 @@ export function Movie() {
       });
 
       fetchAnwap().then(() => {
+        if (!isMountedRef.current) return;
         updateUI();
         evaluateUIUnblock();
       }).finally(() => {
         anwapDone = true;
+        if (!isMountedRef.current) return;
         updateUI(); // Immediately trigger UI update when Anwap resolves
         if (isLiftwDone && anwapDone) {
-          clearTimeout(uiDeadline);
+          if (extractDeadlineRef.current) {
+            clearTimeout(extractDeadlineRef.current);
+            extractDeadlineRef.current = null;
+          }
           setIsExtracting(false);
           if (foundSources.liftw === null && foundSources.anwap.length === 0) {
             setContentUnavailable(true);

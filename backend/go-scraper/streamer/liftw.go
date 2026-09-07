@@ -14,10 +14,14 @@ import (
 	"time"
 	"unicode"
 
+	"golang.org/x/sync/singleflight"
 	"scraper/scraper"
 )
 
-var liftwCache sync.Map
+var (
+	liftwCache       sync.Map
+	liftwSingleGroup singleflight.Group
+)
 
 type cacheEntry struct {
 	data []byte
@@ -415,144 +419,173 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 		}
 	}
 
-	isSeries := (vType == "tv" || vType == "series")
-	candidates := []string{strings.TrimSpace(title)}
-	if titleRu != "" {
-		candidates = append(candidates, strings.TrimSpace(titleRu))
+	flightKey := tmdbKey
+	if flightKey == "" {
+		flightKey = cacheKey
 	}
-	if originalTitle != "" && originalTitle != title {
-		candidates = append(candidates, strings.TrimSpace(originalTitle))
-	}
-	candidates = uniqueStrings(candidates)
-
-	validTypesMap := make(map[int]bool)
-	if isSeries {
-		validTypesMap[3] = true
-		validTypesMap[4] = true
-		validTypesMap[5] = true
-		validTypesMap[7] = true
-	} else {
-		validTypesMap[1] = true
-		validTypesMap[2] = true
-		validTypesMap[6] = true
+	if bypassCache {
+		flightKey = fmt.Sprintf("bypass:%s:%d", flightKey, time.Now().UnixNano())
 	}
 
-	targetYear := 0
-	if yearStr != "" {
-		if y, err := strconv.Atoi(yearStr); err == nil {
-			targetYear = y
+	val, err, _ := liftwSingleGroup.Do(flightKey, func() (interface{}, error) {
+		if !bypassCache {
+			if tmdbKey != "" {
+				if v, ok := liftwCache.Load(tmdbKey); ok {
+					if entry, isEntry := v.(cacheEntry); isEntry && time.Now().Before(entry.exp) {
+						return entry.data, nil
+					}
+				}
+			}
+			if v, ok := liftwCache.Load(cacheKey); ok {
+				if entry, isEntry := v.(cacheEntry); isEntry && time.Now().Before(entry.exp) {
+					return entry.data, nil
+				}
+			}
 		}
-	}
 
-	var lastErr string
-	resolveCtx, cancel := context.WithTimeout(ctx, 7500*time.Millisecond)
-	defer cancel()
+		isSeries := (vType == "tv" || vType == "series")
+		candidates := []string{strings.TrimSpace(title)}
+		if titleRu != "" {
+			candidates = append(candidates, strings.TrimSpace(titleRu))
+		}
+		if originalTitle != "" && originalTitle != title {
+			candidates = append(candidates, strings.TrimSpace(originalTitle))
+		}
+		candidates = uniqueStrings(candidates)
 
-	// Fast path: try the exact title without calling TMDB!
-	bestMatch := searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
-
-	// Fallback: If not found, fetch TMDB alternative titles and search them
-	if bestMatch == nil && tmdb != "" {
-		tmdbType := "movie"
+		validTypesMap := make(map[int]bool)
 		if isSeries {
-			tmdbType = "tv"
+			validTypesMap[3] = true
+			validTypesMap[4] = true
+			validTypesMap[5] = true
+			validTypesMap[7] = true
+		} else {
+			validTypesMap[1] = true
+			validTypesMap[2] = true
+			validTypesMap[6] = true
 		}
-		tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
-		client := scraper.GetHTTPClient(4 * time.Second)
-		req, rErr := http.NewRequestWithContext(resolveCtx, "GET", tmdbUrl, nil)
-		if rErr == nil {
-			res, err := client.Do(req)
-			if err == nil && res != nil {
-				if res.StatusCode == 200 {
-					var tData TMDBResponse
-					if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
-						candidates = append(candidates, strings.TrimSpace(tData.Title))
-						candidates = append(candidates, strings.TrimSpace(tData.Name))
-						candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
-						candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
 
-						for _, r := range tData.AlternativeTitles.Results {
-							candidates = append(candidates, strings.TrimSpace(r.Title))
-						}
-						for _, t := range tData.AlternativeTitles.Titles {
-							candidates = append(candidates, strings.TrimSpace(t.Title))
-						}
-						for _, tr := range tData.Translations.Translations {
-							if tr.Data.Name != "" {
-								candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+		targetYear := 0
+		if yearStr != "" {
+			if y, err := strconv.Atoi(yearStr); err == nil {
+				targetYear = y
+			}
+		}
+
+		var lastErr string
+		resolveCtx, cancel := context.WithTimeout(ctx, 7500*time.Millisecond)
+		defer cancel()
+
+		// Fast path: try the exact title without calling TMDB!
+		bestMatch := searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
+
+		// Fallback: If not found, fetch TMDB alternative titles and search them
+		if bestMatch == nil && tmdb != "" {
+			tmdbType := "movie"
+			if isSeries {
+				tmdbType = "tv"
+			}
+			tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
+			client := scraper.GetHTTPClient(4 * time.Second)
+			req, rErr := http.NewRequestWithContext(resolveCtx, "GET", tmdbUrl, nil)
+			if rErr == nil {
+				res, err := client.Do(req)
+				if err == nil && res != nil {
+					if res.StatusCode == 200 {
+						var tData TMDBResponse
+						if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
+							candidates = append(candidates, strings.TrimSpace(tData.Title))
+							candidates = append(candidates, strings.TrimSpace(tData.Name))
+							candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
+							candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
+
+							for _, r := range tData.AlternativeTitles.Results {
+								candidates = append(candidates, strings.TrimSpace(r.Title))
 							}
-							if tr.Data.Title != "" {
-								candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+							for _, t := range tData.AlternativeTitles.Titles {
+								candidates = append(candidates, strings.TrimSpace(t.Title))
+							}
+							for _, tr := range tData.Translations.Translations {
+								if tr.Data.Name != "" {
+									candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
+								}
+								if tr.Data.Title != "" {
+									candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+								}
 							}
 						}
 					}
+					res.Body.Close()
 				}
-				res.Body.Close()
+			}
+			candidates = uniqueStrings(candidates)
+			candidates = sortCandidates(candidates)
+			
+			// Search all candidates with Cyrillic prioritized
+			if len(candidates) > 0 {
+				bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
 			}
 		}
-		candidates = uniqueStrings(candidates)
-		candidates = sortCandidates(candidates)
-		
-		// Search all candidates with Cyrillic prioritized
-		if len(candidates) > 0 {
-			bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, validTypesMap, &lastErr)
+
+		// Fallback: Cross-type match across all categories (1-7) for documentaries, miniseries, and specials
+		if bestMatch == nil && len(candidates) > 0 {
+			allTypesMap := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true}
+			bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, allTypesMap, &lastErr)
 		}
-	}
 
-	// Fallback: Cross-type match across all categories (1-7) for documentaries, miniseries, and specials
-	if bestMatch == nil && len(candidates) > 0 {
-		allTypesMap := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true}
-		bestMatch = searchLiftwCandidates(resolveCtx, candidates, targetYear, allTypesMap, &lastErr)
-	}
-
-	if bestMatch == nil {
-		if lastErr != "" {
-			return nil, fmt.Errorf("exact match not found on liftw, last err: %v", lastErr)
+		if bestMatch == nil {
+			if lastErr != "" {
+				return nil, fmt.Errorf("exact match not found on liftw, last err: %v", lastErr)
+			}
+			return nil, fmt.Errorf("exact match not found on liftw")
 		}
-		return nil, fmt.Errorf("exact match not found on liftw")
-	}
 
-	infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
-	infoRes, infoVia, infoErr := fetchLiftwData(resolveCtx, infoUrl)
-	if infoRes == nil {
-		if infoErr != nil {
-			return nil, fmt.Errorf("failed to get info (%v)", infoErr)
+		infoUrl := fmt.Sprintf("https://api.liftw.ws/info/%d", bestMatch.ID)
+		infoRes, infoVia, infoErr := fetchLiftwData(resolveCtx, infoUrl)
+		if infoRes == nil {
+			if infoErr != nil {
+				return nil, fmt.Errorf("failed to get info (%v)", infoErr)
+			}
+			return nil, fmt.Errorf("failed to get info")
 		}
-		return nil, fmt.Errorf("failed to get info")
-	}
-	defer infoRes.Body.Close()
+		defer infoRes.Body.Close()
 
-	var info LiftwInfoResponse
-	if err := json.NewDecoder(infoRes.Body).Decode(&info); err != nil {
-		return nil, fmt.Errorf("failed to decode info via %s", infoVia)
-	}
+		var info LiftwInfoResponse
+		if err := json.NewDecoder(infoRes.Body).Decode(&info); err != nil {
+			return nil, fmt.Errorf("failed to decode info via %s", infoVia)
+		}
 
-	response := map[string]interface{}{
-		"liftwId":   info.ID,
-		"liftwType": info.Type,
-		"name":      info.Name,
-		"iframe":    info.IframeURI,
-	}
-	if info.Episodes != nil {
-		response["episodes"] = info.Episodes
-	}
+		response := map[string]interface{}{
+			"liftwId":   info.ID,
+			"liftwType": info.Type,
+			"name":      info.Name,
+			"iframe":    info.IframeURI,
+		}
+		if info.Episodes != nil {
+			response["episodes"] = info.Episodes
+		}
 
-	responseBytes, err := json.Marshal(response)
+		responseBytes, err := json.Marshal(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response")
+		}
+
+		// Cache the result for 3 hours (increased from 1 hour to support longer cache warming)
+		cEntry := cacheEntry{
+			data: responseBytes,
+			exp:  time.Now().Add(3 * time.Hour),
+		}
+		liftwCache.Store(cacheKey, cEntry)
+		if tmdbKey != "" {
+			liftwCache.Store(tmdbKey, cEntry)
+		}
+
+		return responseBytes, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response")
+		return nil, err
 	}
-
-	// Cache the result for 3 hours (increased from 1 hour to support longer cache warming)
-	cEntry := cacheEntry{
-		data: responseBytes,
-		exp:  time.Now().Add(3 * time.Hour),
-	}
-	liftwCache.Store(cacheKey, cEntry)
-	if tmdbKey != "" {
-		liftwCache.Store(tmdbKey, cEntry)
-	}
-
-	return responseBytes, nil
+	return val.([]byte), nil
 }
 
 func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {

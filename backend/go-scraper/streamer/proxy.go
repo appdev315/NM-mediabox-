@@ -42,20 +42,28 @@ func isIPSafe(raw net.IP) bool {
 
 func safeDialContext(dialer *net.Dialer) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(addr)
+		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
 			host = addr
+			port = "80"
 		}
 		ips, err := net.LookupIP(host)
 		if err != nil {
 			return nil, err
 		}
+		var safeIP net.IP
 		for _, ip := range ips {
 			if !isIPSafe(ip) {
 				return nil, fmt.Errorf("connection to prohibited IP address %s blocked (SSRF guard)", ip.String())
 			}
+			if safeIP == nil {
+				safeIP = ip
+			}
 		}
-		return dialer.DialContext(ctx, network, addr)
+		if safeIP == nil {
+			return nil, fmt.Errorf("no IP addresses resolved for %s", host)
+		}
+		return dialer.DialContext(ctx, network, net.JoinHostPort(safeIP.String(), port))
 	}
 }
 

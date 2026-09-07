@@ -69,7 +69,8 @@ app.post('/api/analytics/track', async (c: Context) => {
     return c.json({ error: 'Database not available' }, 500);
   }
   const body = await c.req.json().catch(() => ({}));
-  const events: AnalyticsEvent[] = Array.isArray(body?.events) ? body.events : body?.events ? [body.events] : [];
+  const rawEvents: AnalyticsEvent[] = Array.isArray(body?.events) ? body.events : body?.events ? [body.events] : [];
+  const events = rawEvents.slice(0, 100);
   if (events.length === 0) {
     return c.json({ ok: true, count: 0 });
   }
@@ -112,7 +113,8 @@ app.get('/api/analytics/stats', async (c: Context) => {
   // No Bearer auth on this endpoint: it returns only aggregated, anonymous
   // product statistics (countries, session counts, content titles) for the
   // 3-hour report and is safe to read from the GitHub Actions workflow.
-  const since = c.req.query('windowHours') ? Number(c.req.query('windowHours')) : 3;
+  const rawSince = Number(c.req.query('windowHours')) || 3;
+  const since = Math.min(Math.max(1, Math.floor(rawSince)), 168);
 
   try {
     const activeUsers = await c.env.DB.prepare(
@@ -217,7 +219,10 @@ app.post('/api/user/favorites', async (c: Context) => {
   if (!user) {
     return c.json({ error: 'Unauthorized: user not found' }, 401);
   }
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400);
+  }
   const itemId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
   const title = body.title || '';
@@ -255,7 +260,10 @@ app.delete('/api/user/favorites', async (c: Context) => {
   if (!user) {
     return c.json({ error: 'Unauthorized: user not found' }, 401);
   }
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400);
+  }
   const itemId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
 
@@ -311,7 +319,11 @@ app.post('/api/user/history', async (c: Context) => {
   if (!user) {
     return c.json({ error: 'Unauthorized: user not found' }, 401);
   }
-  const { itemId, type = 'movie', timecode } = await c.req.json();
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON payload' }, 400);
+  }
+  const { itemId, type = 'movie', timecode } = body;
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);

@@ -122,8 +122,11 @@ func isOriginAllowed(origin string) bool {
 		}
 	}
 
-	if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "https://localhost") || 
-	   strings.HasPrefix(origin, "http://127.0.0.1") || strings.HasPrefix(origin, "capacitor://") {
+	if origin == "http://localhost" || strings.HasPrefix(origin, "http://localhost:") ||
+		origin == "https://localhost" || strings.HasPrefix(origin, "https://localhost:") ||
+		origin == "http://127.0.0.1" || strings.HasPrefix(origin, "http://127.0.0.1:") ||
+		origin == "https://127.0.0.1" || strings.HasPrefix(origin, "https://127.0.0.1:") ||
+		strings.HasPrefix(origin, "capacitor://") {
 		return true
 	}
 
