@@ -107,6 +107,10 @@ func IsAllowedProxyUrl(urlStr string) bool {
 		return false
 	}
 
+	if directIP := net.ParseIP(host); directIP != nil {
+		return isIPSafe(directIP)
+	}
+
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		return false

@@ -146,13 +146,21 @@ func matchesWords(itemWords, candWords []string) bool {
 }
 
 func hasCyrillic(s string) bool {
-	matched, _ := regexp.MatchString(`[а-яёА-ЯЁ]`, s)
-	return matched
+	for _, r := range s {
+		if (r >= 'а' && r <= 'я') || (r >= 'А' && r <= 'Я') || r == 'ё' || r == 'Ё' {
+			return true
+		}
+	}
+	return false
 }
 
 func hasLatin(s string) bool {
-	matched, _ := regexp.MatchString(`[a-zA-Z]`, s)
-	return matched
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			return true
+		}
+	}
+	return false
 }
 
 func uniqueStrings(input []string) []string {

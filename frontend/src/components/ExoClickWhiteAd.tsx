@@ -43,6 +43,9 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
     const timer = setTimeout(loadAd, 150);
     return () => {
       clearTimeout(timer);
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
     };
   }, [zoneId]);
 

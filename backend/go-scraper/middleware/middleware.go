@@ -239,10 +239,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(lrw, r)
 
 		code := lrw.statusCode
-		if code == http.StatusNotFound {
-			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
-			atomic.AddUint64(&GlobalMetrics.Errors.NotFounds, 1)
-		} else if code >= 200 && code < 400 {
+		if code >= 200 && code < 400 {
 			atomic.AddUint64(&GlobalMetrics.SuccessfulRequests, 1)
 		} else {
 			atomic.AddUint64(&GlobalMetrics.Errors.Total, 1)
@@ -254,6 +251,8 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			}
 
 			switch code {
+			case http.StatusNotFound:
+				atomic.AddUint64(&GlobalMetrics.Errors.NotFounds, 1)
 			case 429:
 				atomic.AddUint64(&GlobalMetrics.Errors.RateLimits, 1)
 				RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))

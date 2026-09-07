@@ -23,6 +23,7 @@ import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
 import { TopBanner } from './components/TopBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { trackVisit } from './utils/analytics';
 
 function NetworkBanner() {
@@ -154,18 +155,20 @@ function MainApp() {
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
         <TopBanner />
-        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/movies" element={<Home />} />
-            <Route path="/movie/:id" element={<Movie />} />
-            <Route path="/adult" element={<Adult />} />
-            <Route path="/adult/:id" element={<AdultVideo />} />
-            <Route path="/adult/favorites" element={<AdultFavorites />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/favorites" element={<Favorites />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/movies" element={<Home />} />
+              <Route path="/movie/:id" element={<Movie />} />
+              <Route path="/adult" element={<Adult />} />
+              <Route path="/adult/:id" element={<AdultVideo />} />
+              <Route path="/adult/favorites" element={<AdultFavorites />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/favorites" element={<Favorites />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </div>
       <BottomNav isAdultApp={false} />
       <FloatingTitle />
@@ -181,16 +184,18 @@ function AdultApp() {
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative">
-        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-          <Routes>
-            <Route path="/" element={<Adult />} />
-            <Route path="/adult" element={<Adult />} />
-            <Route path="/adult/:id" element={<AdultVideo />} />
-            <Route path="/adult/favorites" element={<AdultFavorites />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/favorites" element={<AdultFavorites />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+            <Routes>
+              <Route path="/" element={<Adult />} />
+              <Route path="/adult" element={<Adult />} />
+              <Route path="/adult/:id" element={<AdultVideo />} />
+              <Route path="/adult/favorites" element={<AdultFavorites />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/favorites" element={<AdultFavorites />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </div>
       <BottomNav isAdultApp={true} />
       <FloatingTitle />

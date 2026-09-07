@@ -34,7 +34,12 @@ export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdPro
     };
     
     const timer = setTimeout(loadAd, 150);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+    };
   }, []);
 
   return (
