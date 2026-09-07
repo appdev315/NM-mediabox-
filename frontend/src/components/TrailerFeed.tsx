@@ -102,6 +102,8 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
 
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
 
   // Load initial trailer feed
   useEffect(() => {
@@ -193,12 +195,14 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
 
   // IntersectionObserver to detect currently centered trailer card
   useEffect(() => {
+    if (!containerRef.current || trailers.length === 0) return;
+
     const observer = new IntersectionObserver(
       entries => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const index = Number(entry.target.getAttribute('data-index'));
-            if (!isNaN(index) && index !== activeIndex) {
+            if (!isNaN(index) && index !== activeIndexRef.current) {
               setActiveIndex(index);
               if (WebApp.HapticFeedback) {
                 WebApp.HapticFeedback.selectionChanged();
@@ -220,7 +224,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     return () => {
       observer.disconnect();
     };
-  }, [trailers, activeIndex]);
+  }, [trailers]);
 
   // Infinite scroll trigger when reaching bottom 3 items
   useEffect(() => {
@@ -317,7 +321,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   };
 
   if (initialLoading) {
-    return (
+    const loadingView = (
       <div className="w-full h-[70vh] flex flex-col items-center justify-center gap-4 text-center px-4">
         <div className="w-12 h-12 rounded-full border-3 border-blue-500 border-t-transparent animate-spin" />
         <p className="text-gray-400 font-medium text-sm animate-pulse">
@@ -325,10 +329,28 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
         </p>
       </div>
     );
+
+    if (isModal) {
+      return (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+          <button
+            onClick={onClose}
+            className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
+            title="Закрыть"
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+          {loadingView}
+        </div>
+      );
+    }
+
+    return loadingView;
   }
 
   if (trailers.length === 0) {
-    return (
+    const emptyView = (
       <div className="w-full h-[60vh] flex flex-col items-center justify-center gap-3 text-center px-4">
         <span className="text-4xl">🎬</span>
         <p className="text-white font-bold text-base">{t('notFound') || 'Трейлеры не найдены'}</p>
@@ -337,12 +359,30 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
             setInitialLoading(true);
             fetchTrailerFeed(1).then(setTrailers).finally(() => setInitialLoading(false));
           }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold cursor-pointer"
         >
           {t('retry') || 'Повторить'}
         </button>
       </div>
     );
+
+    if (isModal) {
+      return (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+          <button
+            onClick={onClose}
+            className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
+            title="Закрыть"
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+          {emptyView}
+        </div>
+      );
+    }
+
+    return emptyView;
   }
 
   const content = (
@@ -389,16 +429,18 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
               <div className="relative w-full flex-1 bg-black overflow-hidden">
                 {isActive ? (
                   <iframe
-                    src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                    src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1`}
                     title={`Trailer for ${item.title}`}
                     className="w-full h-full border-0 absolute inset-0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
                     allowFullScreen
                   />
                 ) : (
                   <div
-                    onClick={() => scrollToIndex(index)}
+                    onClick={() => {
+                      setActiveIndex(index);
+                      scrollToIndex(index);
+                    }}
                     className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center flex items-center justify-center transition-transform hover:scale-105 duration-300"
                     style={{
                       backgroundImage: `url(${item.backdrop || item.poster})`,
