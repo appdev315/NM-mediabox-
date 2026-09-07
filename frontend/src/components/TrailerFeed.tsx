@@ -257,21 +257,6 @@ export const TrailerFeed: React.FC = () => {
     }
   };
 
-  // Share trailer / movie
-  const handleShare = (item: TrailerFeedItem) => {
-    const url = `${window.location.origin}/movie/${item.id}?type=${item.mediaType === 'tv' ? 'series' : 'movie'}`;
-    if (navigator.share) {
-      navigator.share({
-        title: item.title,
-        text: `Трейлер к фильму «${item.title}» в MediaBox!`,
-        url,
-      }).catch(() => {});
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
-      if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('success');
-      alert(t('addressCopied') || 'Ссылка скопирована!');
-    }
-  };
 
   // Mark active trailer as viewed in device cache after 2.5 seconds
   useEffect(() => {
@@ -361,7 +346,7 @@ export const TrailerFeed: React.FC = () => {
               key={`${item.id}-${index}`}
               ref={el => { cardRefs.current[index] = el; }}
               data-index={index}
-              className="snap-start snap-always relative w-full h-full min-h-[520px] max-h-[820px] rounded-2xl overflow-hidden bg-black flex flex-col justify-between border border-white/10 shadow-2xl shrink-0"
+              className="snap-start snap-always relative w-full h-[calc(100vh-145px)] max-h-[720px] rounded-2xl overflow-hidden bg-black flex flex-col justify-between border border-white/10 shadow-2xl shrink-0"
             >
               {/* Media Video or Thumbnail */}
               <div className="relative w-full flex-1 bg-black overflow-hidden">
@@ -415,7 +400,20 @@ export const TrailerFeed: React.FC = () => {
                 )}
 
                 {/* Right Side Action Bar (Reels Style) */}
-                <div className="absolute right-3 bottom-28 z-30 flex flex-col items-center gap-4">
+                <div className="absolute right-3 bottom-20 sm:bottom-24 z-30 flex flex-col items-center gap-3">
+                  {/* Primary Watch Button (Direct navigation to movie/series) */}
+                  <button
+                    onClick={() => handleWatchMovie(item)}
+                    className="w-12 h-12 rounded-full flex flex-col items-center justify-center bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-2xl shadow-blue-600/50 border border-white/30 transition-transform active:scale-90"
+                    title={item.mediaType === 'tv' ? (t('watchSeries') || 'Смотреть сериал') : (t('watchMovie') || 'Смотреть фильм')}
+                    aria-label="Смотреть фильм или сериал"
+                  >
+                    <span className="text-xl pl-0.5">▶️</span>
+                  </button>
+                  <span className="text-[10px] font-black text-white drop-shadow -mt-2">
+                    {t('watch') || 'Смотреть'}
+                  </span>
+
                   {/* Favorite button */}
                   <button
                     onClick={() => handleToggleFavorite(item)}
@@ -427,15 +425,6 @@ export const TrailerFeed: React.FC = () => {
                     <span className="text-lg">{isFav ? '❤️' : '🤍'}</span>
                   </button>
 
-                  {/* Share button */}
-                  <button
-                    onClick={() => handleShare(item)}
-                    className="w-11 h-11 rounded-full flex items-center justify-center bg-black/60 text-white hover:bg-black/80 backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-90"
-                    aria-label="Поделиться"
-                  >
-                    <span className="text-lg">↗️</span>
-                  </button>
-
                   {/* Media type indicator */}
                   <div className="px-2 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-bold text-gray-300 uppercase tracking-wider">
                     {item.mediaType === 'tv' ? (t('series') || 'Сериал') : (t('movies') || 'Фильм')}
@@ -444,37 +433,37 @@ export const TrailerFeed: React.FC = () => {
               </div>
 
               {/* Bottom Card Info Overlay */}
-              <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-8 pb-4 px-4 sm:px-5 flex flex-col gap-2.5">
+              <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-4 pb-3 px-3.5 sm:px-4 flex flex-col gap-2">
                 {/* Meta header: rating, year, genres */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   {item.rating > 0 && (
-                    <span className="px-2 py-0.5 rounded-md bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-extrabold flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-extrabold flex items-center gap-1 text-[11px]">
                       ⭐ {item.rating}
                     </span>
                   )}
                   {item.year && (
-                    <span className="px-2 py-0.5 rounded-md bg-white/10 text-gray-300 font-semibold">
+                    <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-gray-300 font-semibold text-[11px]">
                       {item.year}
                     </span>
                   )}
                   {item.genreNames.map(g => (
-                    <span key={g} className="px-2 py-0.5 rounded-md bg-white/5 text-gray-400 font-medium">
+                    <span key={g} className="px-1.5 py-0.5 rounded-md bg-white/5 text-gray-400 font-medium text-[11px]">
                       {g}
                     </span>
                   ))}
                 </div>
 
                 {/* Title */}
-                <h3 className="text-lg sm:text-xl font-bold text-white leading-tight drop-shadow-md">
+                <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-md pr-16">
                   {item.title}
                 </h3>
 
                 {/* Primary CTA Button: Watch Movie / Watch Series */}
                 <button
                   onClick={() => handleWatchMovie(item)}
-                  className="w-full mt-1 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl shadow-blue-900/30 active:scale-[0.98] transition-transform duration-150"
+                  className="w-full mt-0.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 active:scale-[0.98] transition-transform duration-150"
                 >
-                  <span className="text-lg">▶️</span>
+                  <span className="text-base">▶️</span>
                   <span>
                     {item.mediaType === 'tv'
                       ? (t('watchSeries') || 'Смотреть сериал')
