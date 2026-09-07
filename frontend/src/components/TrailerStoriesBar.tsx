@@ -105,7 +105,7 @@ export const TrailerStoriesBar: React.FC<TrailerStoriesBarProps> = ({ onOpenFeed
               ▶
             </div>
             <p className="text-xs font-black text-white leading-tight drop-shadow">
-              Смотреть все
+              {t('watchAll') || 'Смотреть все'}
             </p>
           </div>
         </div>

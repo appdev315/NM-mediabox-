@@ -825,28 +825,8 @@ export function useApi() {
             return true;
           });
 
-          let trailer: any = null;
-          for (const c of uniqueCandidates) {
-            // Official studio trailers from TMDB are guaranteed to allow 3rd party embedding
-            if (c.official) {
-              trailer = c;
-              break;
-            }
-            // For unofficial fan uploads, verify embeddability to prevent "Watch on YouTube" errors
-            try {
-              const oe = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${c.key}&format=json`);
-              if (oe.status === 200) {
-                trailer = c;
-                break;
-              }
-            } catch {
-              // Ignore network check failure and continue to next candidate
-            }
-          }
-
-          if (!trailer && uniqueCandidates.length > 0) {
-            trailer = uniqueCandidates[0];
-          }
+          // Select official studio trailer first, or fallback to top candidate directly (no network overhead)
+          const trailer = uniqueCandidates.find((c: any) => c.official) || uniqueCandidates[0];
 
           if (!trailer?.key) return null;
 

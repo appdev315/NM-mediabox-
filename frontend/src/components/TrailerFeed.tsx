@@ -332,7 +332,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
 
     if (isModal) {
       return (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
           <button
             onClick={onClose}
             className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
@@ -368,7 +368,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
 
     if (isModal) {
       return (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
           <button
             onClick={onClose}
             className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
@@ -417,6 +417,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
         {trailers.map((item, index) => {
           const isActive = index === activeIndex;
           const isFav = !!favoriteMap[item.id];
+          const isNear = Math.abs(index - activeIndex) <= 1;
 
           return (
             <div
@@ -425,108 +426,129 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
               data-index={index}
               className="snap-start snap-always relative w-full h-[calc(100vh-145px)] max-h-[720px] rounded-2xl overflow-hidden bg-black flex flex-col justify-between border border-white/10 shadow-2xl shrink-0"
             >
-              {/* Media Video or Thumbnail */}
-              <div className="relative w-full flex-1 bg-black overflow-hidden">
-                {isActive ? (
-                  <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1`}
-                    title={`Trailer for ${item.title}`}
-                    className="w-full h-full border-0 absolute inset-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div
-                    onClick={() => {
-                      setActiveIndex(index);
-                      scrollToIndex(index);
-                    }}
-                    className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center flex items-center justify-center transition-transform hover:scale-105 duration-300"
-                    style={{
-                      backgroundImage: `url(${item.backdrop || item.poster})`,
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-                    <div className="w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-2xl shadow-2xl pl-1 animate-pulse border border-white/20">
-                      ▶
+              {!isNear ? (
+                /* Virtualized offscreen card placeholder - saves GPU memory on mobile Safari */
+                <div
+                  onClick={() => {
+                    setActiveIndex(index);
+                    scrollToIndex(index);
+                  }}
+                  className="w-full h-full flex flex-col items-center justify-between p-6 bg-gray-950 cursor-pointer"
+                >
+                  <div />
+                  <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl text-gray-400">
+                    🎬
+                  </div>
+                  <div className="w-full text-left">
+                    <p className="text-sm font-bold text-gray-400 truncate">{item.title}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Media Video or Thumbnail */}
+                  <div className="relative w-full flex-1 bg-black overflow-hidden">
+                    {isActive ? (
+                      <iframe
+                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1`}
+                        title={`Trailer for ${item.title}`}
+                        className="w-full h-full border-0 absolute inset-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div
+                        onClick={() => {
+                          setActiveIndex(index);
+                          scrollToIndex(index);
+                        }}
+                        className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center flex items-center justify-center transition-transform hover:scale-105 duration-300"
+                        style={{
+                          backgroundImage: `url(${item.backdrop || item.poster})`,
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-black/40" />
+                        <div className="w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-2xl shadow-2xl pl-1 animate-pulse border border-white/20">
+                          ▶
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Floating Sound Toggle Pill */}
+                    {isActive && (
+                      <button
+                        onClick={() => {
+                          setIsMuted(prev => !prev);
+                          if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                        }}
+                        className="absolute top-4 left-4 z-30 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95 shadow-lg"
+                      >
+                        <span>{isMuted ? '🔇' : '🔊'}</span>
+                        <span>{isMuted ? (t('trailerSoundOff') || 'Без звука') : (t('trailerSoundOn') || 'Звук')}</span>
+                      </button>
+                    )}
+
+                    {/* Right Side Action Bar (Reels Style) */}
+                    <div className="absolute right-3 bottom-12 sm:bottom-16 z-30 flex flex-col items-center gap-3">
+                      {/* Primary Watch Button (Direct navigation to movie/series) */}
+                      <button
+                        onClick={() => handleWatchMovie(item)}
+                        className="w-12 h-12 rounded-full flex flex-col items-center justify-center bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-2xl shadow-blue-600/50 border border-white/30 transition-transform active:scale-90"
+                        title={item.mediaType === 'tv' ? (t('watchSeries') || 'Смотреть сериал') : (t('watchMovie') || 'Смотреть фильм')}
+                        aria-label="Смотреть фильм или сериал"
+                      >
+                        <span className="text-xl pl-0.5">▶️</span>
+                      </button>
+                      <span className="text-[10px] font-black text-white drop-shadow -mt-2">
+                        {t('watch') || 'Смотреть'}
+                      </span>
+
+                      {/* Favorite button */}
+                      <button
+                        onClick={() => handleToggleFavorite(item)}
+                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-90 ${
+                          isFav ? 'bg-red-500/90 text-white' : 'bg-black/60 text-white hover:bg-black/80'
+                        }`}
+                        aria-label={t('favorites') || 'Избранное'}
+                      >
+                        <span className="text-lg">{isFav ? '❤️' : '🤍'}</span>
+                      </button>
+                      <span className="text-[10px] font-black text-white drop-shadow -mt-2">
+                        {t('favorites') || 'Избранное'}
+                      </span>
                     </div>
                   </div>
-                )}
 
-                {/* Floating Sound Toggle Pill */}
-                {isActive && (
-                  <button
-                    onClick={() => {
-                      setIsMuted(prev => !prev);
-                      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-                    }}
-                    className="absolute top-4 left-4 z-30 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95 shadow-lg"
-                  >
-                    <span>{isMuted ? '🔇' : '🔊'}</span>
-                    <span>{isMuted ? (t('trailerSoundOff') || 'Без звука') : (t('trailerSoundOn') || 'Звук')}</span>
-                  </button>
-                )}
+                  {/* Bottom Card Info Overlay */}
+                  <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-6 pb-4 px-3.5 sm:px-4 flex flex-col gap-2">
+                    {/* Meta header: media type, rating, year, genres */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] uppercase">
+                        {item.mediaType === 'tv' ? (t('series') || 'Сериал') : (t('movies') || 'Фильм')}
+                      </span>
+                      {item.rating > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-extrabold flex items-center gap-1 text-[11px]">
+                          ⭐ {item.rating}
+                        </span>
+                      )}
+                      {item.year && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-gray-300 font-semibold text-[11px]">
+                          {item.year}
+                        </span>
+                      )}
+                      {item.genreNames.map(g => (
+                        <span key={g} className="px-1.5 py-0.5 rounded-md bg-white/5 text-gray-400 font-medium text-[11px]">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
 
-                {/* Right Side Action Bar (Reels Style) */}
-                <div className="absolute right-3 bottom-12 sm:bottom-16 z-30 flex flex-col items-center gap-3">
-                  {/* Primary Watch Button (Direct navigation to movie/series) */}
-                  <button
-                    onClick={() => handleWatchMovie(item)}
-                    className="w-12 h-12 rounded-full flex flex-col items-center justify-center bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-2xl shadow-blue-600/50 border border-white/30 transition-transform active:scale-90"
-                    title={item.mediaType === 'tv' ? (t('watchSeries') || 'Смотреть сериал') : (t('watchMovie') || 'Смотреть фильм')}
-                    aria-label="Смотреть фильм или сериал"
-                  >
-                    <span className="text-xl pl-0.5">▶️</span>
-                  </button>
-                  <span className="text-[10px] font-black text-white drop-shadow -mt-2">
-                    {t('watch') || 'Смотреть'}
-                  </span>
-
-                  {/* Favorite button */}
-                  <button
-                    onClick={() => handleToggleFavorite(item)}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-90 ${
-                      isFav ? 'bg-red-500/90 text-white' : 'bg-black/60 text-white hover:bg-black/80'
-                    }`}
-                    aria-label={t('favorites') || 'Избранное'}
-                  >
-                    <span className="text-lg">{isFav ? '❤️' : '🤍'}</span>
-                  </button>
-                  <span className="text-[10px] font-black text-white drop-shadow -mt-2">
-                    {t('favorites') || 'Избранное'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Bottom Card Info Overlay */}
-              <div className="relative z-20 w-full bg-gradient-to-t from-gray-950 via-gray-950/90 to-transparent pt-6 pb-4 px-3.5 sm:px-4 flex flex-col gap-2">
-                {/* Meta header: media type, rating, year, genres */}
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] uppercase">
-                    {item.mediaType === 'tv' ? (t('series') || 'Сериал') : (t('movies') || 'Фильм')}
-                  </span>
-                  {item.rating > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-extrabold flex items-center gap-1 text-[11px]">
-                      ⭐ {item.rating}
-                    </span>
-                  )}
-                  {item.year && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-gray-300 font-semibold text-[11px]">
-                      {item.year}
-                    </span>
-                  )}
-                  {item.genreNames.map(g => (
-                    <span key={g} className="px-1.5 py-0.5 rounded-md bg-white/5 text-gray-400 font-medium text-[11px]">
-                      {g}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Title */}
-                <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-md pr-16">
-                  {item.title}
-                </h3>
-              </div>
+                    {/* Title */}
+                    <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-md pr-16">
+                      {item.title}
+                    </h3>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -544,7 +566,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
 
   if (isModal) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
         {/* Floating Close Button */}
         <button
           onClick={onClose}
