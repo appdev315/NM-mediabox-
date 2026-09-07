@@ -29,28 +29,34 @@ var (
 	adultDetailsCache sync.Map
 )
 
-func init() {
+func startAdultSweeper(ctx context.Context) {
 	// Background sweeper to evict expired adult search and details cache entries
 	go func() {
 		ticker := time.NewTicker(30 * time.Minute)
-		for range ticker.C {
-			now := time.Now()
-			adultSearchCache.Range(func(key, value interface{}) bool {
-				if entry, ok := value.(adultCacheEntry); ok {
-					if now.After(entry.exp) {
-						adultSearchCache.Delete(key)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				now := time.Now()
+				adultSearchCache.Range(func(key, value interface{}) bool {
+					if entry, ok := value.(adultCacheEntry); ok {
+						if now.After(entry.exp) {
+							adultSearchCache.Delete(key)
+						}
 					}
-				}
-				return true
-			})
-			adultDetailsCache.Range(func(key, value interface{}) bool {
-				if entry, ok := value.(adultCacheEntry); ok {
-					if now.After(entry.exp) {
-						adultDetailsCache.Delete(key)
+					return true
+				})
+				adultDetailsCache.Range(func(key, value interface{}) bool {
+					if entry, ok := value.(adultCacheEntry); ok {
+						if now.After(entry.exp) {
+							adultDetailsCache.Delete(key)
+						}
 					}
-				}
-				return true
-			})
+					return true
+				})
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
@@ -184,10 +190,6 @@ func main() {
 	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)
 	mux.HandleFunc("/api/report-missing", streamer.ReportMissingHandler)
 
-	// Start background cache warmers (trends and weekly smooth radio catalog updater)
-	streamer.StartCacheWarmer()
-	streamer.StartRadioCacheWarmer()
-
 	// Apply global middleware chain: Gzip -> RateLimiter -> BotGuard -> Metrics -> CORS -> Mux
 	rateLimiter := middleware.RateLimiterMiddleware(10*time.Minute, 150)
 	handler := middleware.CORSMiddleware(middleware.BotGuardMiddleware(middleware.MetricsMiddleware(middleware.GzipMiddleware(rateLimiter(mux)))))
@@ -211,6 +213,11 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Start background cache sweepers and warmers coordinated with shutdown context
+	startAdultSweeper(ctx)
+	streamer.StartCacheWarmer(ctx)
+	streamer.StartRadioCacheWarmer(ctx)
 
 	go func() {
 		log.Printf("MediaBox Unified Go Microservice starting on %s...", port)

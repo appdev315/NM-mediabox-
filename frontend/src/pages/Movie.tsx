@@ -214,10 +214,23 @@ export function Movie() {
   // PostMessage event listener for timecode tracking and explicit 404/not_found stream fallback
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
-      // Validate trusted player origins
-      if (!event.origin || (!event.origin.includes('liftw.ws') && !event.origin.includes('zenithjs.ws') && !event.origin.includes('ortified.ws') && !event.origin.includes(window.location.hostname))) {
+      // Validate trusted player origins strictly by hostname to prevent substring bypasses
+      if (!event.origin) return;
+      let isTrusted = false;
+      try {
+        const hostname = new URL(event.origin).hostname.toLowerCase();
+        isTrusted =
+          hostname === 'liftw.ws' ||
+          hostname.endsWith('.liftw.ws') ||
+          hostname === 'zenithjs.ws' ||
+          hostname.endsWith('.zenithjs.ws') ||
+          hostname === 'ortified.ws' ||
+          hostname.endsWith('.ortified.ws') ||
+          hostname === window.location.hostname.toLowerCase();
+      } catch (_) {
         return;
       }
+      if (!isTrusted) return;
 
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;

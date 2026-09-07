@@ -230,24 +230,41 @@ func getOrFetchCountryStations(ctx context.Context, countryCode string, source s
 }
 
 // StartRadioCacheWarmer runs a background task updating station catalogs country-by-country smoothly once a week
-func StartRadioCacheWarmer() {
+func StartRadioCacheWarmer(ctx context.Context) {
 	go func() {
 		// Initial gentle warm-up 15 seconds after startup
-		time.Sleep(15 * time.Second)
-		warmAllCountriesSmoothly()
+		select {
+		case <-time.After(15 * time.Second):
+			warmAllCountriesSmoothly(ctx)
+		case <-ctx.Done():
+			return
+		}
 
 		// Periodic weekly warmer: updates country by country every 7 days
 		ticker := time.NewTicker(7 * 24 * time.Hour)
-		for range ticker.C {
-			warmAllCountriesSmoothly()
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				warmAllCountriesSmoothly(ctx)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
 
-func warmAllCountriesSmoothly() {
+func warmAllCountriesSmoothly(ctx context.Context) {
 	log.Println("[RadioWarmer] Starting smooth weekly radio catalog update (country-by-country)...")
 
 	for _, country := range SupportedCountryCodes {
+		select {
+		case <-ctx.Done():
+			log.Println("[RadioWarmer] Context canceled, stopping smooth radio catalog update.")
+			return
+		default:
+		}
+
 		// Source 2 for RU, Source 1 for all others
 		source := "1"
 		if country == "ru" {
@@ -255,7 +272,7 @@ func warmAllCountriesSmoothly() {
 		}
 
 		cacheKey := fmt.Sprintf("%s_%s", country, source)
-		stations, err := fetchCountryStationsFromMirrors(context.Background(), country)
+		stations, err := fetchCountryStationsFromMirrors(ctx, country)
 		if err == nil && len(stations) > 0 {
 			if bytes, err := json.Marshal(stations); err == nil {
 				radioCacheMu.Lock()
@@ -268,7 +285,11 @@ func warmAllCountriesSmoothly() {
 		}
 
 		// Gentle 5-second pause between countries to avoid rate limits or CPU spikes
-		time.Sleep(5 * time.Second)
+		select {
+		case <-time.After(5 * time.Second):
+		case <-ctx.Done():
+			return
+		}
 	}
 
 	log.Println("[RadioWarmer] Weekly radio catalog update complete.")

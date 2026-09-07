@@ -111,29 +111,45 @@ func fetchTopTrending() []warmItem {
 	return items
 }
 
-func StartCacheWarmer() {
+func StartCacheWarmer(ctx context.Context) {
 	log.Println("[Warmer] Cache warmer service starting...")
 
 	// Initial warm load
 	go func() {
 		// Wait a bit after app start to let it boot up
-		time.Sleep(10 * time.Second)
-		refreshTrendingQueue()
+		select {
+		case <-time.After(10 * time.Second):
+			refreshTrendingQueue()
+		case <-ctx.Done():
+			return
+		}
 	}()
 
 	// 24 hour ticker to reload trends from TMDB
-	reloadTicker := time.NewTicker(24 * time.Hour)
 	go func() {
-		for range reloadTicker.C {
-			refreshTrendingQueue()
+		reloadTicker := time.NewTicker(24 * time.Hour)
+		defer reloadTicker.Stop()
+		for {
+			select {
+			case <-reloadTicker.C:
+				refreshTrendingQueue()
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	// 2 minute ticker to process warm queue batches
-	processTicker := time.NewTicker(2 * time.Minute)
 	go func() {
-		for range processTicker.C {
-			processNextBatch()
+		processTicker := time.NewTicker(2 * time.Minute)
+		defer processTicker.Stop()
+		for {
+			select {
+			case <-processTicker.C:
+				processNextBatch(ctx)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
@@ -150,7 +166,7 @@ func refreshTrendingQueue() {
 	log.Printf("[Warmer] Queue refreshed with %d items.", len(items))
 }
 
-func processNextBatch() {
+func processNextBatch(ctx context.Context) {
 	queueMu.Lock()
 	if len(warmQueue) == 0 {
 		queueMu.Unlock()
@@ -185,6 +201,13 @@ func processNextBatch() {
 	// Process items sequentially with spacing to avoid DDoS
 	go func() {
 		for _, item := range batch {
+			select {
+			case <-ctx.Done():
+				log.Println("[Warmer] Context canceled, stopping batch warm.")
+				return
+			default:
+			}
+
 			canonicalType := "movie"
 			if item.Type == "series" || item.Type == "tv" {
 				canonicalType = "series"
@@ -200,15 +223,19 @@ func processNextBatch() {
 			}
 
 			log.Printf("[Warmer] Warming cache for %s (%s, %s, ID: %d)...", item.Title, item.Year, item.Type, item.ID)
-			_, err := ResolveLiftw(context.Background(), item.Title, item.Year, item.Type, strconv.Itoa(item.ID), "", "", false)
+			_, err := ResolveLiftw(ctx, item.Title, item.Year, item.Type, strconv.Itoa(item.ID), "", "", false)
 			if err != nil {
 				log.Printf("[Warmer] Failed to warm %s: %v", item.Title, err)
 			} else {
 				log.Printf("[Warmer] Successfully warmed %s", item.Title)
 			}
 
-			// Wait 3 seconds to keep requests friendly
-			time.Sleep(3 * time.Second)
+			// Wait 3 seconds to keep requests friendly, but cancelable
+			select {
+			case <-time.After(3 * time.Second):
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
