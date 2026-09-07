@@ -294,56 +294,74 @@ export function Home() {
     >
       {/* Header & Profile */}
       <Header />
-      <ExoClickMainBanner />
 
-      {/* Top Navigation */}
-      <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
-        {[
-          { id: 'movie', label: t('movies') },
-          { id: 'series', label: t('series') },
-          { id: 'trailers', label: t('trailersTab') || 'Что глянуть? 🔥' },
-          { id: 'radio', label: t('tab_radio') || 'Радио' },
-          { id: 'tv', label: t('tab_tv') || 'ТВ' },
-          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
-        ].map(tab => {
-          const isTrailers = tab.id === 'trailers';
-          const isActive = activeTab === tab.id;
+      {/* Top Navigation Block */}
+      <div className="flex flex-col gap-2.5 mb-4">
+        {/* Row 1: Full-width Hero Button for 'Что глянуть? 🔥' */}
+        <button
+          onClick={() => handleTabChange('trailers')}
+          className={`w-full py-3 px-4 rounded-2xl font-black flex items-center justify-between transition-all active:scale-[0.98] shadow-xl ${
+            activeTab === 'trailers'
+              ? 'bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 text-white shadow-orange-500/30 border border-orange-300/60 scale-[1.01]'
+              : 'bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-rose-500/20 border border-orange-500/40 text-amber-300 hover:text-white shadow-orange-500/10'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl animate-pulse">🔥</span>
+            <span className="tracking-wide text-base font-extrabold">{t('trailersTab') || 'Что глянуть? 🔥'}</span>
+          </div>
+          <span className="text-[11px] sm:text-xs px-2.5 py-1 rounded-full bg-white/20 text-white font-bold backdrop-blur-sm">
+            {language === 'ru-RU' ? 'Трейлеры' : 'Trailers'}
+          </span>
+        </button>
 
-          let btnClass = "px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-all whitespace-nowrap flex-shrink-0";
-          let customStyle: React.CSSProperties = {
-            backgroundColor: isActive ? 'var(--button-color)' : 'transparent',
-            color: isActive ? 'var(--button-text-color)' : 'var(--text-color)'
-          };
+        {/* Row 2: 2x2 Grid for Movies, Series, Radio, TV */}
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'movie', label: t('movies'), icon: '🎬' },
+            { id: 'series', label: t('series'), icon: '📺' },
+            { id: 'radio', label: t('tab_radio') || 'Радио', icon: '📻' },
+            { id: 'tv', label: t('tab_tv') || 'ТВ', icon: '📡' },
+          ].map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] border ${
+                  isActive
+                    ? 'border-white/20 shadow-lg text-white'
+                    : 'bg-black/30 border-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+                }`}
+                style={{
+                  backgroundColor: isActive ? 'var(--button-color)' : undefined,
+                  color: isActive ? 'var(--button-text-color)' : undefined,
+                }}
+              >
+                <span className="text-base">{tab.icon}</span>
+                <span className="truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-          if (isTrailers) {
-            if (isActive) {
-              btnClass = "px-3.5 py-2 flex-1 text-[15px] font-black rounded-lg transition-all whitespace-nowrap flex-shrink-0 bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 text-white shadow-lg shadow-orange-500/30 scale-[1.02] border border-orange-300/60";
-              customStyle = {};
-            } else {
-              btnClass = "px-3.5 py-2 flex-1 text-[15px] font-extrabold rounded-lg transition-all whitespace-nowrap flex-shrink-0 bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-rose-500/20 border border-orange-500/40 text-amber-300 hover:text-white shadow-md shadow-orange-500/10";
-              customStyle = {};
-            }
-          }
-
-          return (
-            <button
-              key={tab.id}
-              onClick={(e) => {
-                if (tab.id === 'private') {
-                  e.preventDefault();
-                  window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
-                  return;
-                }
-                handleTabChange(tab.id as 'movie' | 'series' | 'trailers' | 'radio' | 'tv');
-              }}
-              className={btnClass}
-              style={customStyle}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+        {/* Optional Private Room if applicable */}
+        {((WebApp.platform === 'unknown' && !(window as any).Capacitor)) && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+            }}
+            className="w-full py-2 px-3 rounded-xl font-bold text-xs bg-rose-950/40 border border-rose-500/30 text-rose-300 hover:bg-rose-900/40 flex items-center justify-center gap-2 transition-colors"
+          >
+            <span>🍓</span>
+            <span>{t('secretRoomTab')}</span>
+          </button>
+        )}
       </div>
+
+      {/* Main Banner below navigation (hidden when viewing full-screen trailers feed) */}
+      {activeTab !== 'trailers' && <ExoClickMainBanner />}
 
       {activeTab === 'trailers' ? (
         <TrailerFeed />

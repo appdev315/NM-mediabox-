@@ -47,13 +47,13 @@ export const ExoClickMainBanner = React.memo(function ExoClickMainBanner() {
   }
 
   const padding = 24;
-  const maxAvailableWidth = containerWidth - padding;
-  const scale = maxAvailableWidth < width ? maxAvailableWidth / width : 1;
-  const scaledHeight = height * scale;
+  const maxAvailableWidth = Math.max(containerWidth - padding, 280);
+  const scale = maxAvailableWidth < width ? Math.max(maxAvailableWidth / width, 0.75) : 1;
+  const scaledHeight = Math.max(Math.round(height * scale), 48);
 
   return (
     <div 
-      className="w-full mb-4 mt-4 flex justify-center items-center overflow-hidden" 
+      className="w-full mb-3 mt-1 flex justify-center items-start overflow-hidden min-h-[50px]" 
       style={{ height: `${scaledHeight}px` }}
     >
       <div 
