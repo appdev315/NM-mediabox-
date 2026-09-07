@@ -83,6 +83,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
   // Append restored timecode parameter when mounting initial player
   const currentUrl = useMemo(() => {
+    if (!rawUrl || !/^https?:\/\//i.test(rawUrl.trim())) {
+      return 'about:blank';
+    }
     const timecode = initialTimecodeRef.current;
     let cleanUrl = rawUrl.replace(/[?&](start|t)=\d+/g, '').replace(/#t=\d+/g, '');
     if (cleanUrl.includes('?&')) cleanUrl = cleanUrl.replace('?&', '?');

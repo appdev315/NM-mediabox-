@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
-import Hls from 'hls.js';
+import type Hls from 'hls.js';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 
 export interface Track {
@@ -133,6 +133,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setCurrentTrack(null);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      stop();
+    };
+  }, [stop]);
+
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
     const track = currentTrackRef.current;
@@ -221,7 +227,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       let targetUrl = rawUrl;
       if (reconnectAttemptRef.current >= 5 && !targetUrl.includes('/proxy')) {
         targetUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(rawUrl)}`;
-        console.log('[Radio] Multiple direct reconnects failed, testing proxy stream fallback:', targetUrl);
       }
 
       const isHls = targetUrl.includes('.m3u8') || targetUrl.includes('/playlist');
@@ -252,7 +257,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }, backoffMs);
   }, []);
 
-  const playTrack = useCallback((track: Track) => {
+  const playTrack = useCallback(async (track: Track) => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -292,49 +297,52 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
         audio.src = url;
-      } else if (Hls.isSupported()) {
-        const bufferCfg = getOptimalBufferConfig();
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: false,
-          maxBufferLength: bufferCfg.maxBufferLength,
-          maxMaxBufferLength: bufferCfg.maxMaxBufferLength,
-          backBufferLength: bufferCfg.backBufferLength,
-          maxBufferHole: 0.5,
-          startFragPrefetch: true,
-          maxBufferSize: 60 * 1024 * 1024,
-          liveSyncDuration: 3,
-          liveMaxLatencyDuration: 10,
-          manifestLoadingMaxRetry: 10,
-          levelLoadingMaxRetry: 10,
-          fragLoadingMaxRetry: 10,
-          maxFragLookUpTolerance: 0.25,
-        });
-        hls.loadSource(url);
-        hls.attachMedia(audio);
-        hlsRef.current = hls;
-
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('[HLS] Network error encountered, attempting recovery...');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn('[HLS] Media error encountered, recovering media...');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.error('[HLS] Fatal error, delegating to attemptReconnect...');
-                attemptReconnect('hls fatal error');
-                break;
-            }
-          }
-        });
       } else {
-        audio.src = url;
-        audio.load();
+        const { default: HlsClass } = await import('hls.js');
+        if (HlsClass.isSupported()) {
+          const bufferCfg = getOptimalBufferConfig();
+          const hls = new HlsClass({
+            enableWorker: true,
+            lowLatencyMode: false,
+            maxBufferLength: bufferCfg.maxBufferLength,
+            maxMaxBufferLength: bufferCfg.maxMaxBufferLength,
+            backBufferLength: bufferCfg.backBufferLength,
+            maxBufferHole: 0.5,
+            startFragPrefetch: true,
+            maxBufferSize: 60 * 1024 * 1024,
+            liveSyncDuration: 3,
+            liveMaxLatencyDuration: 10,
+            manifestLoadingMaxRetry: 10,
+            levelLoadingMaxRetry: 10,
+            fragLoadingMaxRetry: 10,
+            maxFragLookUpTolerance: 0.25,
+          });
+          hls.loadSource(url);
+          hls.attachMedia(audio);
+          hlsRef.current = hls;
+
+          hls.on(HlsClass.Events.ERROR, (_, data) => {
+            if (data.fatal) {
+              switch (data.type) {
+                case HlsClass.ErrorTypes.NETWORK_ERROR:
+                  console.warn('[HLS] Network error encountered, attempting recovery...');
+                  hls.startLoad();
+                  break;
+                case HlsClass.ErrorTypes.MEDIA_ERROR:
+                  console.warn('[HLS] Media error encountered, recovering media...');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('[HLS] Fatal error, delegating to attemptReconnect...');
+                  attemptReconnect('hls fatal error');
+                  break;
+              }
+            }
+          });
+        } else {
+          audio.src = url;
+          audio.load();
+        }
       }
     } else {
       audio.src = url;
@@ -517,7 +525,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onOnline = () => {
-      console.log('[Network] Back online, refreshing live radio stream...');
       const track = currentTrackRef.current;
       if (track?.type === 'radio' && !isUserPausedRef.current) {
         reconnectAttemptRef.current = 0;
@@ -527,9 +534,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // Auto-resume when headphones are re-inserted
     const onDeviceChange = () => {
-      console.log('[Audio] Audio output device change detected');
       if (isPausedByDeviceRef.current && !isUserPausedRef.current && currentTrackRef.current) {
-        console.log('[Audio] Earphone reconnected, resuming radio stream to live edge...');
         isPausedByDeviceRef.current = false;
         togglePlayPause();
       }

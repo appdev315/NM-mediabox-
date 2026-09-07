@@ -22,7 +22,6 @@ import { HomeStateProvider } from './context/HomeStateContext';
 import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
-import { TopBanner } from './components/TopBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { trackVisit } from './utils/analytics';
 
@@ -154,7 +153,6 @@ function MainApp() {
       <HardwareBackButtonHandler />
       <NetworkBanner />
       <div className="pb-16 min-h-screen relative flex flex-col">
-        <TopBanner />
         <ErrorBoundary>
           <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             <Routes>

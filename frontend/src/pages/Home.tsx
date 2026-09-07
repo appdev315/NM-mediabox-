@@ -453,7 +453,7 @@ export function Home() {
           {isCategorizedMode ? (
             <div className="space-y-4 w-full">
               {homeSections.map((section: any) => (
-                <div key={section.id} className="w-full bg-white/5 dark:bg-gray-800/40 border border-white/10 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm transition-all hover:border-white/20">
+                <div key={section.id} className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20">
                   <div className="flex items-center mb-4 pb-3 border-b border-white/10">
                     <button
                       onClick={() => {

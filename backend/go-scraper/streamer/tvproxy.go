@@ -146,7 +146,7 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 		strings.HasSuffix(strings.ToLower(strings.Split(targetUrl, "?")[0]), ".m3u8")
 
 	if isM3u8 {
-		bodyBytes, err := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
 		if err != nil {
 			http.Error(w, `{"error":"Failed to read M3U8"}`, http.StatusInternalServerError)
 			return

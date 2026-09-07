@@ -503,7 +503,6 @@ export function Movie() {
 
       // 2. Fetch liftw asynchronously (Primary Player — Priority #1, 1080p)
       const fetchLiftw = async () => {
-        const start = performance.now();
         try {
           const streamCacheKey = `liftw_stream_v2_${id}_${mediaType}`;
           const queryStr = liftwQuery.toString();
@@ -604,15 +603,13 @@ export function Movie() {
           updateUI();
           setIsExtracting(false);
         }
-      } finally {
-        const end = performance.now();
-        console.log(`[Perf] Liftw fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
+      } catch (e) {
+        console.error("Liftw fetch error", e);
       }
-      };
+    };
 
       // 3. Fetch Anwap stream asynchronously (Player 2 — Backup)
       const fetchAnwap = async () => {
-        const start = performance.now();
         const timeoutCtrl = new AbortController();
         const timeoutId = setTimeout(() => timeoutCtrl.abort(), 7000);
         try {
@@ -650,8 +647,6 @@ export function Movie() {
           console.error("Anwap fetch failed", e);
         } finally {
           clearTimeout(timeoutId);
-          const end = performance.now();
-          console.log(`[Perf] Anwap fetch completed in ${((end - start) / 1000).toFixed(2)}s`);
         }
       };
 

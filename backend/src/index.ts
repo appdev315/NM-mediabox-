@@ -9,6 +9,7 @@ type Bindings = {
   BOT_TOKEN_MAIN?: string;
   BOT_TOKEN?: string;
   ALLOWED_ORIGIN?: string;
+  TMDB_API_KEY?: string;
 };
 
 type Variables = {
@@ -38,7 +39,7 @@ app.use('/api/*', cors({
     if (allowed.includes(origin) || isLocalhost) {
       return origin;
     }
-    return origin;
+    return null;
   },
   allowHeaders: ['Content-Type', 'Authorization', 'X-Session-Id', 'Origin', 'Accept', 'X-App-Client', 'X-Client-Time', 'Range'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
@@ -372,7 +373,9 @@ const LIFTW_HEADERS = {
   'Origin': 'https://liftw.ws',
 };
 
-const DEFAULT_TMDB_API_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+const getTmdbKey = (c: Context): string => {
+  return (c.env as any)?.TMDB_API_KEY || ((globalThis as any).process?.env?.TMDB_API_KEY as string) || '';
+};
 
 app.get('/api/liftw', async (c: Context) => {
   const title = c.req.query('title') || '';
@@ -510,7 +513,8 @@ app.get('/api/liftw', async (c: Context) => {
   if (!matchedItem && tmdb) {
     try {
       const tmdbType = isSeries ? 'tv' : 'movie';
-      const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${DEFAULT_TMDB_API_KEY}&append_to_response=alternative_titles,translations`;
+      const tmdbKey = getTmdbKey(c);
+      const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${tmdbKey}&append_to_response=alternative_titles,translations`;
       const tmdbRes = await fetch(tmdbUrl, { signal: AbortSignal.timeout(4000) });
       if (tmdbRes.ok) {
         const tData = await tmdbRes.json() as any;
@@ -606,13 +610,11 @@ app.get('/api/liftw', async (c: Context) => {
 // --- TMDB EDGE IMAGE PROXY (Global CDN & anti-blocking) ---
 app.get('/api/image', async (c: Context) => {
   const path = c.req.query('path');
-  if (!path || !path.startsWith('/')) {
+  if (!path || !path.startsWith('/') || path.includes('..') || !/^\/t\/p\/(w\d+|original)\/[\w\-./]+$/i.test(path)) {
     return c.text('Invalid path', 400);
   }
 
-  // Prevent directory traversal
-  const cleanPath = path.replace(/\.\./g, '');
-  const tmdbImageUrl = `https://image.tmdb.org${cleanPath}`;
+  const tmdbImageUrl = `https://image.tmdb.org${path}`;
 
   // Check Cloudflare Cache API for instant 0ms edge response
   const cache = (caches as any).default;
@@ -675,7 +677,7 @@ app.get('/api/tmdb/*', async (c: Context) => {
     return cachedResponse;
   }
 
-  const TMDB_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+  const TMDB_KEY = getTmdbKey(c);
   const tmdbUrl = new URL(`https://api.themoviedb.org/3${endpoint}`);
   url.searchParams.forEach((val, key) => {
     if (key !== 'api_key') {
@@ -732,7 +734,7 @@ app.get('/api/feed/home', async (c: Context) => {
     } catch (_) {}
   }
 
-  const TMDB_KEY = 'cd5b69242e715dc87d65957d7460eba2';
+  const TMDB_KEY = getTmdbKey(c);
   const TMDB_BASE = 'https://api.themoviedb.org/3';
 
   try {

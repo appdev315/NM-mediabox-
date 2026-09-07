@@ -17,7 +17,8 @@
 		}
 	],
 	"vars": {
-		"HF_BACKEND_URL": "https://evro90-nm6.hf.space"
+		"HF_BACKEND_URL": "https://evro90-nm6.hf.space",
+		"TMDB_API_KEY": "cd5b69242e715dc87d65957d7460eba2"
 	}
 	// To create the D1 database, run:
 	// npx wrangler d1 create mediabox
