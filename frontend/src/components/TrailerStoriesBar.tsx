@@ -22,7 +22,7 @@ export const TrailerStoriesBar: React.FC<TrailerStoriesBarProps> = ({ onOpenFeed
     fetchTrailerFeed(1)
       .then(fetched => {
         if (!isMounted) return;
-        const prioritized = prioritizeUnviewedTrailers(fetched);
+        const prioritized = prioritizeUnviewedTrailers(fetched, true);
         setItems(prioritized);
         setViewedSet(getViewedTrailerIds());
       })

@@ -441,6 +441,9 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                   </div>
                   <div className="w-full text-left">
                     <p className="text-sm font-bold text-gray-400 truncate">{item.title}</p>
+                    {item.originalTitle && item.originalTitle !== item.title && (
+                      <p className="text-xs text-gray-500 italic truncate -mt-0.5">{item.originalTitle}</p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -546,6 +549,11 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                     <h3 className="text-base sm:text-lg font-bold text-white leading-tight drop-shadow-md pr-16">
                       {item.title}
                     </h3>
+                    {item.originalTitle && item.originalTitle !== item.title && (
+                      <p className="text-xs text-gray-400 font-medium italic -mt-1 drop-shadow pr-16">
+                        {item.originalTitle}
+                      </p>
+                    )}
                   </div>
                 </>
               )}
