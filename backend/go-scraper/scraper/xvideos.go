@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -20,9 +21,9 @@ var (
 	durationRegex = regexp.MustCompile(`\s*\d+\s*(мин\.|sec\.|min\.)`)
 )
 
-func SearchXvideos(query string, page int) []types.Video {
+func SearchXvideos(ctx context.Context, query string, page int) []types.Video {
 	// 1. High-speed primary provider: RedTube Public API
-	rtVideos := searchRedtube(query, page)
+	rtVideos := searchRedtube(ctx, query, page)
 	if len(rtVideos) > 0 {
 		return rtVideos
 	}
@@ -57,7 +58,10 @@ func SearchXvideos(query string, page int) []types.Video {
 		}
 
 		for _, reqUrl := range reqUrls {
-			req, err := http.NewRequest("GET", reqUrl, nil)
+			if ctx.Err() != nil {
+				return nil
+			}
+			req, err := http.NewRequestWithContext(ctx, "GET", reqUrl, nil)
 			if err != nil {
 				continue
 			}
@@ -139,14 +143,14 @@ type redtubeSearchResponse struct {
 	} `json:"videos"`
 }
 
-func searchRedtube(query string, page int) []types.Video {
+func searchRedtube(ctx context.Context, query string, page int) []types.Video {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		q = "popular"
 	}
 	apiUrl := fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
 	client := &http.Client{Timeout: 6 * time.Second}
-	req, err := http.NewRequest("GET", apiUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {
 		return nil
 	}

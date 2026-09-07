@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -107,7 +108,7 @@ func init() {
 }
 
 // Fetch stations for a given country with mirror failover
-func fetchCountryStationsFromMirrors(countryCode string) ([]StationItem, error) {
+func fetchCountryStationsFromMirrors(ctx context.Context, countryCode string) ([]StationItem, error) {
 	countryName := CountryNames[countryCode]
 	if countryName == "" {
 		countryName = "Russia"
@@ -119,10 +120,13 @@ func fetchCountryStationsFromMirrors(countryCode string) ([]StationItem, error) 
 
 	var lastErr error
 	for _, mirror := range RadioBrowserMirrors {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		targetUrl := fmt.Sprintf("https://%s/json/stations/search?limit=500&country=%s&hidebroken=true&order=votes&reverse=true",
 			mirror, url.QueryEscape(countryName))
 
-		req, err := http.NewRequest("GET", targetUrl, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", targetUrl, nil)
 		if err != nil {
 			lastErr = err
 			continue
@@ -173,7 +177,7 @@ func fetchCountryStationsFromMirrors(countryCode string) ([]StationItem, error) 
 	return nil, fmt.Errorf("failed to fetch stations from all mirrors: %v", lastErr)
 }
 
-func getOrFetchCountryStations(countryCode string, source string) []byte {
+func getOrFetchCountryStations(ctx context.Context, countryCode string, source string) []byte {
 	countryCode = strings.ToLower(strings.TrimSpace(countryCode))
 	if countryCode == "" {
 		countryCode = "ru"
@@ -203,7 +207,7 @@ func getOrFetchCountryStations(countryCode string, source string) []byte {
 	}
 
 	// Fetch on demand
-	stations, err := fetchCountryStationsFromMirrors(countryCode)
+	stations, err := fetchCountryStationsFromMirrors(ctx, countryCode)
 	if err == nil && len(stations) > 0 {
 		if bytes, err := json.Marshal(stations); err == nil {
 			radioCacheMu.Lock()
@@ -251,7 +255,7 @@ func warmAllCountriesSmoothly() {
 		}
 
 		cacheKey := fmt.Sprintf("%s_%s", country, source)
-		stations, err := fetchCountryStationsFromMirrors(country)
+		stations, err := fetchCountryStationsFromMirrors(context.Background(), country)
 		if err == nil && len(stations) > 0 {
 			if bytes, err := json.Marshal(stations); err == nil {
 				radioCacheMu.Lock()
@@ -275,7 +279,7 @@ func RadioStationsHandler(w http.ResponseWriter, r *http.Request) {
 	country := r.URL.Query().Get("country")
 	source := r.URL.Query().Get("source")
 
-	data := getOrFetchCountryStations(country, source)
+	data := getOrFetchCountryStations(r.Context(), country, source)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")

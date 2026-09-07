@@ -154,7 +154,7 @@ export function Header() {
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
                 >
                   <span className="text-base sm:text-lg">✈️</span>
-                  <span>{(t as any)('mediaBoxTelegram') || 'MediaBox в Telegram'}</span>
+                  <span>{t('mediaBoxTelegram') || 'MediaBox в Telegram'}</span>
                 </button>
 
                 <button
@@ -162,7 +162,7 @@ export function Header() {
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
                 >
                   <span className="text-base sm:text-lg">🤖</span>
-                  <span>{(t as any)('downloadAndroid') || 'Скачать на Android'}</span>
+                  <span>{t('downloadAndroid') || 'Скачать на Android'}</span>
                 </button>
 
                 <button
@@ -170,7 +170,7 @@ export function Header() {
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
                 >
                   <span className="text-base sm:text-lg">🍏</span>
-                  <span>{(t as any)('downloadIos') || 'Добавить на iPhone'}</span>
+                  <span>{t('downloadIos') || 'Добавить на iPhone'}</span>
                 </button>
 
                 <div className="my-1 border-t border-white/10" />

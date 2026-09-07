@@ -79,7 +79,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		adultSearchCache.Delete(cacheKey)
 	}
 
-	xvideosRes := scraper.SearchXvideos(q, page)
+	xvideosRes := scraper.SearchXvideos(r.Context(), q, page)
 	if xvideosRes == nil {
 		xvideosRes = []types.Video{}
 	}

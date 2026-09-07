@@ -391,6 +391,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     });
     navigator.mediaSession.setActionHandler('stop', () => stop());
+
+    return () => {
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setActionHandler('play', null);
+          navigator.mediaSession.setActionHandler('pause', null);
+          navigator.mediaSession.setActionHandler('stop', null);
+        } catch (_) {}
+      }
+    };
   }, [currentTrack, isPlaying, stop, togglePlayPause]);
 
   // Watchdog Heartbeat: Periodically inspect currentTime to auto-heal frozen streams

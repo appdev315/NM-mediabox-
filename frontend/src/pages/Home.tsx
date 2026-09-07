@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
@@ -6,7 +6,7 @@ import { prewarmStream } from '../utils/streamPreloader';
 import { useLanguage, countriesList } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
-import { RadioTVContent } from './RadioTV';
+const RadioTVContent = lazy(() => import('./RadioTV').then(m => ({ default: m.RadioTVContent })));
 import { TrailerFeed } from '../components/TrailerFeed';
 import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
@@ -336,7 +336,13 @@ export function Home() {
       </div>
 
       {(activeTab === 'radio' || activeTab === 'tv') ? (
-        <RadioTVContent activeTab={activeTab} />
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-12 min-h-[300px]">
+            <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <RadioTVContent activeTab={activeTab} />
+        </Suspense>
       ) : (
         <>
           <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 items-center">
@@ -486,7 +492,7 @@ export function Home() {
                         item={item}
                         mediaType={activeTab === 'series' ? 'series' : 'movie'}
                         selectedCountry={selectedCountry}
-                        comingSoonText={(t as any)('comingSoon') || 'Скоро...'}
+                        comingSoonText={t('comingSoon') || 'Скоро...'}
                         onNavigate={handleNavigate}
                       />
                     ))}
@@ -503,7 +509,7 @@ export function Home() {
                   item={item}
                   mediaType={activeTab === 'series' ? 'series' : 'movie'}
                   selectedCountry={selectedCountry}
-                  comingSoonText={(t as any)('comingSoon') || 'Скоро...'}
+                  comingSoonText={t('comingSoon') || 'Скоро...'}
                   onNavigate={handleNavigate}
                 />
               ))}
