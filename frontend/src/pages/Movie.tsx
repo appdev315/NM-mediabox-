@@ -5,7 +5,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
-import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { useApi, EXPRESS_API_BASE, CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
@@ -1159,11 +1158,6 @@ export function Movie() {
             </div>
           </div>
         )}
-
-        {/* Bottom Banner */}
-        <div className="mt-8 mb-4">
-          <ExoClickMainBanner />
-        </div>
       </div>
 
       {/* Trailer Modal */}

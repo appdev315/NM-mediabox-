@@ -6,7 +6,6 @@ import { prewarmStream } from '../utils/streamPreloader';
 import { useLanguage, countriesList } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
-import { ExoClickMainBanner } from '../components/ExoClickMainBanner';
 import { RadioTVContent } from './RadioTV';
 import { TrailerFeed } from '../components/TrailerFeed';
 import { WebApp } from '../telegram';
@@ -300,17 +299,17 @@ export function Home() {
         {/* Row 1: Full-width Hero Button for 'Что глянуть? 🔥' */}
         <button
           onClick={() => handleTabChange('trailers')}
-          className={`w-full py-3 px-4 rounded-2xl font-black flex items-center justify-between transition-all active:scale-[0.98] shadow-xl ${
+          className={`relative w-full py-3 px-4 rounded-2xl font-black flex items-center justify-center transition-all active:scale-[0.98] shadow-xl ${
             activeTab === 'trailers'
               ? 'bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 text-white shadow-orange-500/30 border border-orange-300/60 scale-[1.01]'
               : 'bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-rose-500/20 border border-orange-500/40 text-amber-300 hover:text-white shadow-orange-500/10'
           }`}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center gap-2.5">
             <span className="text-xl animate-pulse">🔥</span>
-            <span className="tracking-wide text-base font-extrabold">{t('trailersTab') || 'Что глянуть? 🔥'}</span>
+            <span className="tracking-wide text-base font-extrabold text-center">{t('trailersTab') || 'Что глянуть? 🔥'}</span>
           </div>
-          <span className="text-[11px] sm:text-xs px-2.5 py-1 rounded-full bg-white/20 text-white font-bold backdrop-blur-sm">
+          <span className="absolute right-3 sm:right-4 text-[11px] sm:text-xs px-2.5 py-1 rounded-full bg-white/20 text-white font-bold backdrop-blur-sm">
             {language === 'ru-RU' ? 'Трейлеры' : 'Trailers'}
           </span>
         </button>
@@ -359,9 +358,6 @@ export function Home() {
           </button>
         )}
       </div>
-
-      {/* Main Banner below navigation (hidden when viewing full-screen trailers feed) */}
-      {activeTab !== 'trailers' && <ExoClickMainBanner />}
 
       {activeTab === 'trailers' ? (
         <TrailerFeed />

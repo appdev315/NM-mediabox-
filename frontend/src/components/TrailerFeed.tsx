@@ -197,11 +197,43 @@ export const TrailerFeed: React.FC = () => {
   }, [activeIndex, trailers.length, hasMore, isLoadingMore, loadMoreTrailers]);
 
   // Scroll to index helper
-  const scrollToIndex = (idx: number) => {
+  const scrollToIndex = useCallback((idx: number) => {
     if (idx < 0 || idx >= trailers.length) return;
     cardRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setActiveIndex(idx);
-  };
+  }, [trailers.length]);
+
+  // Desktop mouse wheel navigation (TikTok/Shorts style)
+  const isWheelingRef = useRef(false);
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (isWheelingRef.current) return;
+    if (Math.abs(e.deltaY) > 25) {
+      isWheelingRef.current = true;
+      if (e.deltaY > 0) {
+        scrollToIndex(activeIndex + 1);
+      } else {
+        scrollToIndex(activeIndex - 1);
+      }
+      setTimeout(() => {
+        isWheelingRef.current = false;
+      }, 400);
+    }
+  }, [activeIndex, scrollToIndex]);
+
+  // Desktop keyboard navigation (ArrowUp/ArrowDown)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        scrollToIndex(activeIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        scrollToIndex(activeIndex - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeIndex, scrollToIndex]);
 
   // Toggle favorite
   const handleToggleFavorite = (item: TrailerFeedItem) => {
@@ -316,6 +348,7 @@ export const TrailerFeed: React.FC = () => {
       {/* Snap Scroll Vertical Feed */}
       <div
         ref={containerRef}
+        onWheel={handleWheel}
         className="w-full h-[calc(100vh-145px)] overflow-y-auto snap-y snap-mandatory hide-scrollbar rounded-2xl flex flex-col gap-6"
         style={{ scrollBehavior: 'smooth' }}
       >
@@ -333,13 +366,25 @@ export const TrailerFeed: React.FC = () => {
               {/* Media Video or Thumbnail */}
               <div className="relative w-full flex-1 bg-black overflow-hidden">
                 {isActive ? (
-                  <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1`}
-                    title={`Trailer for ${item.title}`}
-                    className="w-full h-full border-0 absolute inset-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+                  <>
+                    <iframe
+                      src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1`}
+                      title={`Trailer for ${item.title}`}
+                      className="w-full h-full border-0 absolute inset-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                    {/* Transparent wheel & click catcher overlay to allow mouse wheel scrolling on desktop */}
+                    <div
+                      onClick={() => {
+                        setIsMuted(prev => !prev);
+                        if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                      }}
+                      onWheel={handleWheel}
+                      className="absolute inset-0 z-10 cursor-pointer"
+                      title="Колёсико мыши: следующий/предыдущий трейлер"
+                    />
+                  </>
                 ) : (
                   <div
                     onClick={() => scrollToIndex(index)}
