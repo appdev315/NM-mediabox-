@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type TabType = 'movie' | 'series' | 'trailers' | 'radio' | 'tv';
+type TabType = 'movie' | 'series' | 'radio' | 'tv';
+
+const VALID_TABS: readonly TabType[] = ['movie', 'series', 'radio', 'tv'];
 
 interface HomeState {
   activeTab: TabType;
@@ -29,7 +31,14 @@ const HomeStateContext = createContext<HomeState | undefined>(undefined);
 export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
-    return (localStorage.getItem('mb_home_activeTab') as TabType) || 'movie';
+    const saved = localStorage.getItem('mb_home_activeTab') as TabType;
+    if (VALID_TABS.includes(saved)) {
+      return saved;
+    }
+    try {
+      localStorage.setItem('mb_home_activeTab', 'movie');
+    } catch { }
+    return 'movie';
   });
 
   const [items, setItems] = useState<any[]>([]);

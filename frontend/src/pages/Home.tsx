@@ -126,9 +126,15 @@ export function Home() {
     setSearchInput(searchQuery);
   }, [searchQuery]);
 
+  useEffect(() => {
+    if (activeTab !== 'movie' && activeTab !== 'series' && activeTab !== 'radio' && activeTab !== 'tv') {
+      setActiveTab('movie');
+    }
+  }, [activeTab, setActiveTab]);
+
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
-    if (activeTab !== 'radio' && activeTab !== 'tv' && activeTab !== 'trailers' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
+    if (activeTab !== 'radio' && activeTab !== 'tv' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
       const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
@@ -148,7 +154,7 @@ export function Home() {
 
   // Fetch genres
   useEffect(() => {
-    if (activeTab === 'radio' || activeTab === 'tv' || activeTab === 'trailers') return;
+    if (activeTab === 'radio' || activeTab === 'tv') return;
     fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
   }, [activeTab, fetchGenres]);
 
@@ -192,7 +198,7 @@ export function Home() {
 
     const loadContent = async () => {
       try {
-        if (activeTab === 'radio' || activeTab === 'tv' || activeTab === 'trailers') {
+        if (activeTab === 'radio' || activeTab === 'tv') {
           return;
         }
         if (searchQuery.trim().length > 0) {
@@ -266,7 +272,7 @@ export function Home() {
 
 
 
-  const handleTabChange = (tab: 'movie' | 'series' | 'trailers' | 'radio' | 'tv') => {
+  const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
     (document.activeElement as HTMLElement)?.blur();
     setActiveTab(tab);
     hasRestoredScrollRef.current = false;
