@@ -234,7 +234,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		// Donor tracking
 		if strings.Contains(path, "/api/liftw") {
 			atomic.AddUint64(&GlobalMetrics.Donors.LiftwRequests, 1)
-		} else if strings.Contains(path, "/api/stream") {
+		} else if strings.Contains(path, "/api/anwap") {
 			atomic.AddUint64(&GlobalMetrics.Donors.GoRequests, 1)
 		}
 
@@ -249,7 +249,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 
 			if strings.Contains(path, "/api/liftw") {
 				atomic.AddUint64(&GlobalMetrics.Donors.LiftwFails, 1)
-			} else if strings.Contains(path, "/api/stream") {
+			} else if strings.Contains(path, "/api/anwap") {
 				atomic.AddUint64(&GlobalMetrics.Donors.GoFails, 1)
 			}
 
@@ -262,7 +262,7 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			case 403:
 				// Only donor endpoints returning 403 signify an actual donor IP/domain ban.
 				// 403 on /api/proxy or client probes are BotGuard / SSRF blocks.
-				if strings.Contains(path, "/api/liftw") || strings.Contains(path, "/api/stream") {
+				if strings.Contains(path, "/api/liftw") || strings.Contains(path, "/api/anwap") {
 					atomic.AddUint64(&GlobalMetrics.Errors.DonorBans, 1)
 					RecordRecentError(path, code, fmt.Sprintf("HTTP %d error", code))
 				}
