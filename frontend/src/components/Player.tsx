@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { WebApp } from '../telegram';
-import { useLanguage } from '../context/LanguageContext';
 
 interface PlayerProps {
   iframeUrl: string;
@@ -14,9 +13,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wakeLockRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const [mirrorIndex, setMirrorIndex] = useState(0);
-  const { t } = useLanguage();
 
   // Determine provider type
   const provider = useMemo(() => {
@@ -99,14 +96,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Fallback timer: Force show iframe after 6s even if onLoad doesn't fire (crucial for Movies/Series WebViews)
+  // Fallback timer: Force show iframe after 2s even if onLoad doesn't fire (crucial for WebViews)
   useEffect(() => {
     setIframeLoaded(false);
 
     const fallbackTimer = setTimeout(() => {
       setIframeLoaded(true);
       onReady?.();
-    }, 6000);
+    }, 2000);
 
     // Auto-Fallback Sentinel for Adult multi-mirrors
     let sentinelTimer: any = null;
@@ -124,26 +121,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       if (sentinelTimer) clearTimeout(sentinelTimer);
     };
   }, [currentUrl, mirrorIndex, activeMirrors]);
-
-  // Loading progress bar animation
-  useEffect(() => {
-    let interval: any;
-    if (!iframeLoaded) {
-      setLoadingProgress(0);
-      interval = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return 95;
-          }
-          return prev + Math.random() * 8;
-        });
-      }, 300);
-    } else {
-      setLoadingProgress(100);
-    }
-    return () => clearInterval(interval);
-  }, [iframeLoaded]);
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
@@ -238,14 +215,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
-      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-500 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
-          <div 
-            className="h-full bg-[#fbbf24] transition-all duration-300 ease-out"
-            style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
-          />
-        </div>
-        <span className="text-[#fbbf24] text-xs font-bold tracking-wider uppercase">{t('loading')} {Math.round(loadingProgress)}%</span>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-300 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
       </div>
 
       <iframe 

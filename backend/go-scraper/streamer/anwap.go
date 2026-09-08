@@ -19,6 +19,8 @@ var (
 		"https://anwap.film",
 		"https://mm.anwap.media",
 		"https://anwap.org",
+		"https://m.anwap.media",
+		"https://m.anwap.movie",
 	}
 	anwapCache sync.Map
 

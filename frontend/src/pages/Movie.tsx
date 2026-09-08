@@ -362,10 +362,6 @@ export function Movie() {
         const d = details as any;
         const resolvedType = (d?.type === 'series' || d?.type === 'tv' || initialType === 'tv') ? 'tv' : 'movie';
         trackOpen(resolvedType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
-        const recs = await fetchRecommendations(id, resolvedType);
-        if (isMounted) {
-          setRecommendations(recs || []);
-        }
 
         // Instant check in clientCache for stream and episodes
         const streamCacheKey = `liftw_stream_v2_${id}_${resolvedType}`;
@@ -374,7 +370,7 @@ export function Movie() {
           setLiftwEpisodes(cachedStream.episodes);
         }
 
-        // Speculative pre-warm stream in background for BOTH movies and TV series
+        // Speculative pre-warm stream in background immediately for BOTH movies and TV series
         prewarmStream(id, {
           title: d?.title || d?.name || '',
           year: d?.year || '',
@@ -384,6 +380,13 @@ export function Movie() {
         }, language).then(streamData => {
           if (streamData && isMounted && streamData.episodes) {
             setLiftwEpisodes(streamData.episodes);
+          }
+        }).catch(() => {});
+
+        // Fetch recommendations in background without blocking stream prewarm
+        fetchRecommendations(id, resolvedType).then(recs => {
+          if (isMounted) {
+            setRecommendations(recs || []);
           }
         }).catch(() => {});
       } catch (err) {

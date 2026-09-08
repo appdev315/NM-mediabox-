@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useApi, type TrailerFeedItem } from '../hooks/useApi';
 import { favoritesManager } from '../utils/favoritesManager';
+import { prewarmStream } from '../utils/streamPreloader';
 import { WebApp } from '../telegram';
 
 const STORAGE_KEY = 'mb_viewed_trailers_v1';
@@ -316,6 +317,13 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   const handleWatchMovie = (item: TrailerFeedItem) => {
     markTrailerAsViewed(item.id);
     if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('heavy');
+    prewarmStream(item.id, {
+      title: item.title,
+      year: item.year,
+      type: item.mediaType,
+      original_title: item.originalTitle,
+      title_ru: item.title,
+    }, language);
     navigate(`/movie/${item.id}?type=${item.mediaType === 'tv' ? 'series' : 'movie'}`);
   };
 
