@@ -153,7 +153,26 @@ export function Movie() {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  const trailerVideo = useMemo(() => movie?.videos?.results?.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') || movie?.videos?.results?.[0], [movie?.videos]);
+  const trailerVideo = useMemo(() => {
+    const results = movie?.videos?.results;
+    if (!Array.isArray(results) || results.length === 0) return null;
+    const ytVideos = results.filter((v: any) => v.site === 'YouTube' && v.key);
+    if (ytVideos.length === 0) return null;
+
+    const langCode = (language || 'ru-RU').split('-')[0].toLowerCase();
+    return (
+      ytVideos.find((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+      ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+      ytVideos.find((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+      ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+      ytVideos.find((v: any) => v.iso_639_1 === langCode) ||
+      ytVideos.find((v: any) => v.official && v.type === 'Trailer') ||
+      ytVideos.find((v: any) => v.type === 'Trailer') ||
+      ytVideos.find((v: any) => v.official && v.type === 'Teaser') ||
+      ytVideos.find((v: any) => v.type === 'Teaser') ||
+      ytVideos[0]
+    );
+  }, [movie?.videos, language]);
   const directors = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [], [movie?.credits?.crew]);
   const writers = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [], [movie?.credits?.crew]);
   const cast = useMemo(() => movie?.credits?.cast?.slice(0, 15) || [], [movie?.credits?.cast]);

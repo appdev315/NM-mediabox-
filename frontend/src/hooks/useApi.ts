@@ -768,7 +768,7 @@ export function useApi() {
 
   const fetchTrailerFeed = useCallback(async (page: number = 1): Promise<TrailerFeedItem[]> => {
     return withLoading(async () => {
-      const cacheKey = `trailer_feed_v2_${page}_${language}`;
+      const cacheKey = `trailer_feed_v3_${page}_${language}`;
       const cached = clientCache.get(cacheKey) as TrailerFeedItem[] | undefined;
       if (cached && Array.isArray(cached) && cached.length > 0) {
         return cached;
@@ -799,34 +799,27 @@ export function useApi() {
           const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
           if (!ytVideos.length) return null;
 
-          // Smart prioritization:
-          // 1. Official studio trailer in user language (100% embeddable)
-          // 2. Official studio trailer in English / original (100% embeddable, no 'watch on youtube' error)
+          // Language-first prioritization:
+          // 1. Official trailer in user language
+          // 2. Dubbed/translated trailer in user language (RHS, Kinopoisk, etc., official: false on TMDB)
           // 3. Official teaser in user language
-          // 4. Official teaser
-          // 5. Any official video
-          // 6. Unofficial trailer (verified for embeddability via oEmbed)
-          const candidates: any[] = [
-            ...ytVideos.filter((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode),
-            ...ytVideos.filter((v: any) => v.official && v.type === 'Trailer'),
-            ...ytVideos.filter((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode),
-            ...ytVideos.filter((v: any) => v.official && v.type === 'Teaser'),
-            ...ytVideos.filter((v: any) => v.official),
-            ...ytVideos.filter((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode),
-            ...ytVideos.filter((v: any) => v.type === 'Trailer'),
-            ...ytVideos
-          ];
-
-          // Deduplicate candidates by key while preserving order
-          const seenKeys = new Set<string>();
-          const uniqueCandidates = candidates.filter((c: any) => {
-            if (!c?.key || seenKeys.has(c.key)) return false;
-            seenKeys.add(c.key);
-            return true;
-          });
-
-          // Select official studio trailer first, or fallback to top candidate directly (no network overhead)
-          const trailer = uniqueCandidates.find((c: any) => c.official) || uniqueCandidates[0];
+          // 4. Any teaser in user language
+          // 5. Any video in user language
+          // 6. Official trailer in original/English
+          // 7. Any trailer
+          // 8. Official teaser
+          // 9. Fallback to first available video
+          const trailer = 
+            ytVideos.find((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.iso_639_1 === langCode) ||
+            ytVideos.find((v: any) => v.official && v.type === 'Trailer') ||
+            ytVideos.find((v: any) => v.type === 'Trailer') ||
+            ytVideos.find((v: any) => v.official && v.type === 'Teaser') ||
+            ytVideos.find((v: any) => v.type === 'Teaser') ||
+            ytVideos[0];
 
           if (!trailer?.key) return null;
 
