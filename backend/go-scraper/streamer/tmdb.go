@@ -33,7 +33,8 @@ func getTMDBApiKey() string {
 	tmdbApiKeyOnce.Do(func() {
 		tmdbApiKey = os.Getenv("TMDB_API_KEY")
 		if tmdbApiKey == "" {
-			log.Println("[WARN] TMDB_API_KEY environment variable is not set")
+			tmdbApiKey = "cd5b69242e715dc87d65957d7460eba2"
+			log.Println("[INFO] TMDB_API_KEY env not set, using default key")
 		}
 	})
 	return tmdbApiKey
