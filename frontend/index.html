@@ -19,19 +19,55 @@
     <link rel="preconnect" href="https://evro90-nm6.hf.space" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
     <title>MediaBox 🍿</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // 1. Purge legacy Service Workers and stale CacheStorage
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          for (let registration of registrations) {
-            registration.unregister();
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
           }
         });
       }
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          for (var i = 0; i < keys.length; i++) {
+            caches.delete(keys[i]);
+          }
+        });
+      }
+
+      // 2. Watchdog: Auto-heal PWA blank screen from stale chunk hashes or failed network
+      (function() {
+        var MAX_WAIT_MS = 3000;
+        var RELOAD_KEY = 'mb_pwa_watchdog_reload';
+        
+        window.addEventListener('error', function(event) {
+          var target = event.target;
+          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+            var lastReload = sessionStorage.getItem(RELOAD_KEY);
+            if (!lastReload || Date.now() - Number(lastReload) > 10000) {
+              sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+              window.location.reload();
+            }
+          }
+        }, true);
+
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && (!root.firstElementChild || root.children.length === 0)) {
+            var lastReload = sessionStorage.getItem(RELOAD_KEY);
+            if (!lastReload || Date.now() - Number(lastReload) > 10000) {
+              sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+              window.location.reload();
+            }
+          }
+        }, MAX_WAIT_MS);
+      })();
     </script>
   </body>
 </html>
