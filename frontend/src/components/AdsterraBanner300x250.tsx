@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BannerAd } from './BannerAd';
 
-export const AdsterraBanner300x250: React.FC = () => {
-  const bannerRef = useRef<HTMLDivElement>(null);
-  const [showFallback, setShowFallback] = useState(false);
+const SingleAdsterraBanner: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!bannerRef.current) return;
-    bannerRef.current.innerHTML = '';
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
 
     const conf = document.createElement('script');
     conf.type = 'text/javascript';
@@ -25,37 +23,39 @@ export const AdsterraBanner300x250: React.FC = () => {
     script.type = 'text/javascript';
     script.src = 'https://www.highrevenueformat.com/e6118425b43ea5b0ff7aa13e8dbd4c3a/invoke.js';
 
-    bannerRef.current.appendChild(conf);
-    bannerRef.current.appendChild(script);
-
-    const fallbackTimer = setTimeout(() => {
-      if (bannerRef.current) {
-        const iframe = bannerRef.current.querySelector('iframe');
-        if (!iframe || iframe.offsetHeight === 0) {
-          setShowFallback(true);
-        }
-      }
-    }, 2500);
+    containerRef.current.appendChild(conf);
+    containerRef.current.appendChild(script);
 
     return () => {
-      clearTimeout(fallbackTimer);
-      if (bannerRef.current) {
-        bannerRef.current.innerHTML = '';
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
       }
     };
   }, []);
 
-  if (showFallback) {
-    return (
-      <div className="w-full mb-4">
-        <BannerAd variant="wide" type="adult" />
-      </div>
-    );
-  }
+  return (
+    <div 
+      ref={containerRef} 
+      style={{ width: '300px', height: '250px', maxWidth: '100%', flexShrink: 0 }} 
+      className="flex justify-center items-center rounded-xl overflow-hidden shadow-sm"
+    />
+  );
+};
+
+export const AdsterraBanner300x250: React.FC = () => {
+  const [count] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+      return 3;
+    }
+    return 1;
+  });
 
   return (
-    <div className="w-full flex justify-center items-center my-3 overflow-hidden min-h-[250px]">
-      <div ref={bannerRef} style={{ width: '300px', height: '250px', maxWidth: '100%' }} />
+    <div className="w-full flex justify-center items-center gap-4 sm:gap-6 my-3 flex-wrap overflow-hidden min-h-[250px]">
+      {Array.from({ length: count }).map((_, idx) => (
+        <SingleAdsterraBanner key={idx} />
+      ))}
     </div>
   );
 };
+

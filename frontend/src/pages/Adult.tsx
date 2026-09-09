@@ -314,6 +314,11 @@ export function Adult() {
 
   return (
     <div className="px-3 sm:px-4 pb-20 pt-16 sm:pt-16">
+      {/* Top Banner to Telegram Bot */}
+      <div className="mb-4">
+        <BannerAd variant="wide" type="telegram" />
+      </div>
+
       <div className="flex items-center gap-3 mb-3">
         <h1 className="text-xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
@@ -406,15 +411,7 @@ export function Adult() {
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
                 {(idx + 1) % 12 === 0 && (
-                  <React.Fragment>
-                    {Math.floor(idx / 12) % 2 === 0 ? (
-                      <AdsterraNativeAd />
-                    ) : (
-                      <div className="col-span-full w-full my-2">
-                        <BannerAd variant="wide" type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
-                      </div>
-                    )}
-                  </React.Fragment>
+                  <AdsterraNativeAd />
                 )}
               </React.Fragment>
             ))}
