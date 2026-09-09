@@ -12,6 +12,9 @@ import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
+import { BannerAd } from '../components/BannerAd';
+import { MovieWordReelBanners } from '../components/MovieWordReelBanners';
+import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
 
 interface MovieCardProps {
   item: any;
@@ -345,6 +348,14 @@ export function Home() {
         </Suspense>
       ) : (
         <>
+          {/* Top Banner to Movie Telegram Bot */}
+          <div className="mb-3">
+            <BannerAd variant="wide" type="mainbot" />
+          </div>
+
+          {/* 3 Word Reel Banners (Movies, TV Shows, Everywhere) */}
+          <MovieWordReelBanners />
+
           <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 items-center">
             <input 
               type="text" 
@@ -486,7 +497,7 @@ export function Home() {
 
                   {/* 12-Card Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
-                    {section.items.map((item: any, idx: number) => (
+                    {section.items.slice(0, 11).map((item: any, idx: number) => (
                       <MovieCard
                         key={`${item.id}_${item.type || activeTab}_${idx}`}
                         item={item}
@@ -496,6 +507,7 @@ export function Home() {
                         onNavigate={handleNavigate}
                       />
                     ))}
+                    <AdsterraNativeCard sectionId={String(section.id || section.genreId || 'cat')} />
                   </div>
                 </div>
               ))}

@@ -10,6 +10,7 @@ import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
+import { MovieStaticBanners } from '../components/MovieStaticBanners';
 import { useViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
@@ -1346,6 +1347,11 @@ export function Movie() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* 3 Static Banners under actors / player in watch mode */}
+        {(isExtracting || iframeUrl) && (
+          <MovieStaticBanners />
         )}
       </div>
 
