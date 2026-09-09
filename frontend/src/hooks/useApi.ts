@@ -63,11 +63,41 @@ export function parseSearchQuery(raw: string): { title: string; year?: string } 
   const currentYear = new Date().getFullYear();
   const maxReleaseYear = currentYear + 5;
 
-  const yearMatch = normalized.match(/^(.*?)(?:[\s,/–-]+[\(\[\{]?(19\d\d|20\d\d)[\)\]\}]?)$/);
-  if (yearMatch && yearMatch[1].trim().length > 0) {
-    const parsedYear = parseInt(yearMatch[2], 10);
+  // Safeguard numbers-as-titles (e.g. "1917", "2012")
+  if (/^\d{4}$/.test(normalized)) {
+    return { title: normalized };
+  }
+
+  // 1. Year at the end: "title 2019", "title (2019)", "title [2019]", "title - 2019", "title 2019 года"
+  const endYearMatch = normalized.match(/^(.*?)(?:[\s,/–-]+[\(\[\{]?(19\d\d|20\d\d)[\)\]\}]?(?:\s*(?:года|год|г\.|г))?)$/i);
+  if (endYearMatch && endYearMatch[1].trim().length > 0) {
+    const parsedYear = parseInt(endYearMatch[2], 10);
     if (parsedYear >= 1900 && parsedYear <= maxReleaseYear) {
-      return { title: yearMatch[1].trim(), year: String(parsedYear) };
+      return { title: endYearMatch[1].trim(), year: String(parsedYear) };
+    }
+  }
+
+  // 2. Year at the beginning: "2019 title"
+  const startYearMatch = normalized.match(/^[\(\[\{]?(19\d\d|20\d\d)[\)\]\}]?[\s,/–-]+(.*?)$/);
+  if (startYearMatch && startYearMatch[2].trim().length > 0) {
+    const parsedYear = parseInt(startYearMatch[1], 10);
+    if (parsedYear >= 1900 && parsedYear <= maxReleaseYear) {
+      return { title: startYearMatch[2].trim(), year: String(parsedYear) };
+    }
+  }
+
+  // 3. Year embedded anywhere: e.g. "игры с огнем 2019 с джоном синой"
+  const embeddedYearMatch = normalized.match(/(?:^|[\s,\(\[\{])(19\d\d|20\d\d)(?:[\)\]\}]|(?:\s*(?:года|год|г\.|г))?(?:[\s,;\)]|$))/i);
+  if (embeddedYearMatch) {
+    const parsedYear = parseInt(embeddedYearMatch[1], 10);
+    if (parsedYear >= 1900 && parsedYear <= maxReleaseYear) {
+      const strippedTitle = normalized
+        .replace(new RegExp(`(?:[\\(\\[\\{]?\\s*${parsedYear}\\s*[\\)\\]\\}]?(?:\\s*(?:года|год|г\\.|г))?)`, 'gi'), ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      if (strippedTitle.length > 0) {
+        return { title: strippedTitle, year: String(parsedYear) };
+      }
     }
   }
 
@@ -113,6 +143,11 @@ const YO_REPLACEMENTS: [RegExp, string][] = [
   [/потемкин/gi, 'потёмкин'],
   [/вертолет/gi, 'вертолёт'],
   [/самолет/gi, 'самолёт'],
+  [/полет/gi, 'полёт'],
+  [/огнем\b/gi, 'огнём'],
+  [/огнен/gi, 'огнён'],
+  [/партнер/gi, 'партнёр'],
+  [/тренер/gi, 'тренёр'],
   [/тяжел/gi, 'тяжёл'],
   [/актер/gi, 'актёр'],
   [/боксер/gi, 'боксёр'],
@@ -121,6 +156,11 @@ const YO_REPLACEMENTS: [RegExp, string][] = [
   [/режиссер/gi, 'режиссёр'],
   [/дирижер/gi, 'дирижёр'],
   [/шахтер/gi, 'шахтёр'],
+  [/наемник/gi, 'наёмник'],
+  [/приемн/gi, 'приёмн'],
+  [/съемк/gi, 'съёмк'],
+  [/воробьев/gi, 'воробьёв'],
+  [/соловьев/gi, 'соловьёв'],
   [/\bо чем\b/gi, 'о чём'],
   [/\bчем\b/gi, 'чём'],
   [/\bеще\b/gi, 'ещё'],
@@ -133,7 +173,10 @@ const YO_REPLACEMENTS: [RegExp, string][] = [
   [/\bкотел\b/gi, 'котёл'],
   [/\борел\b/gi, 'орёл'],
   [/\bкозел\b/gi, 'козёл'],
-  [/\bперекрест/gi, 'перекрёст']
+  [/\bперекрест/gi, 'перекрёст'],
+  [/\bвсе\b/gi, 'всё'],
+  [/\bсвое\b/gi, 'своё'],
+  [/\bее\b/gi, 'её']
 ];
 
 function preserveCaseReplace(text: string, re: RegExp, targetWord: string): string {
@@ -157,12 +200,29 @@ export function generateSearchVariants(text: string): string[] {
   }
 
   if (/[еЕ]/.test(clean)) {
+    // 1. High-confidence dictionary replacements
     let yoText = clean;
     for (const [re, rep] of YO_REPLACEMENTS) {
       yoText = preserveCaseReplace(yoText, re, rep);
     }
     if (yoText !== clean) {
       variants.add(yoText);
+    }
+
+    // 2. Global replacement of all Cyrillic 'e' with 'ё'
+    const allYo = clean.replace(/е/g, 'ё').replace(/Е/g, 'Ё');
+    variants.add(allYo);
+
+    // 3. Word-by-word substitution for phrases with up to 5 words
+    const words = clean.split(/\s+/);
+    if (words.length > 1 && words.length <= 5) {
+      for (let i = 0; i < words.length; i++) {
+        if (/[еЕ]/.test(words[i])) {
+          const variantWords = [...words];
+          variantWords[i] = variantWords[i].replace(/е/g, 'ё').replace(/Е/g, 'Ё');
+          variants.add(variantWords.join(' '));
+        }
+      }
     }
   }
 
@@ -194,6 +254,9 @@ export function rankSearchResults(items: TMDBMovie[], query: string): TMDBMovie[
 
     if (normA.startsWith(normQ)) scoreA += 500;
     if (normB.startsWith(normQ)) scoreB += 500;
+
+    if (normQ.startsWith(normA) && normA.length >= 3) scoreA += 600;
+    if (normQ.startsWith(normB) && normB.length >= 3) scoreB += 600;
 
     let matchCountA = 0;
     let matchCountB = 0;
@@ -433,7 +496,24 @@ export function useApi() {
           if (yearFilter) params.year = yearFilter;
           try {
             const data = await tmdbFetch('/search/multi', params);
-            return (data?.results || []).filter((i: TMDBMovie) => i.media_type !== 'person');
+            const items: TMDBMovie[] = [];
+            for (const item of (data?.results || [])) {
+              if (item.media_type === 'person') {
+                if (Array.isArray(item.known_for)) {
+                  for (const kf of item.known_for) {
+                    if (kf && (kf.title || kf.name) && (kf.poster_path || kf.backdrop_path)) {
+                      items.push({
+                        ...kf,
+                        media_type: kf.media_type || (kf.name ? 'tv' : 'movie')
+                      });
+                    }
+                  }
+                }
+              } else {
+                items.push(item);
+              }
+            }
+            return items;
           } catch {
             return [];
           }
@@ -460,7 +540,32 @@ export function useApi() {
         results = await fetchBatch(searchVariants);
       }
 
-      // 3. Fallback: if 0 results and query had multiple words, try keyword search for typos
+      // 3. Fallback: if 0 results and title contains actor phrase like "фильм с <актером>" or "<название> с <актером>"
+      if (results.length === 0) {
+        const actorMatch = cleanTitle.match(/^(.*)\s+(?:с|со|with)\s+([а-яёa-z\s]+)$/i);
+        if (actorMatch && actorMatch[1].trim().length >= 2) {
+          const strippedTitle = actorMatch[1].trim();
+          const strippedVariants = generateSearchVariants(strippedTitle);
+          results = await fetchBatch(strippedVariants, year);
+          if (results.length === 0 && year) {
+            results = await fetchBatch(strippedVariants);
+          }
+        }
+      }
+
+      // 4. Fallback: if 0 results, strip descriptive media prefixes ("фильм", "сериал", "кино")
+      if (results.length === 0) {
+        const strippedPrefix = cleanTitle.replace(/^(?:фильм|сериал|кино|мультфильм|аниме)\s+/i, '').trim();
+        if (strippedPrefix && strippedPrefix !== cleanTitle) {
+          const prefixVariants = generateSearchVariants(strippedPrefix);
+          results = await fetchBatch(prefixVariants, year);
+          if (results.length === 0 && year) {
+            results = await fetchBatch(prefixVariants);
+          }
+        }
+      }
+
+      // 5. Fallback: if 0 results and query had multiple words, try distinctive keywords
       if (results.length === 0) {
         const words = cleanTitle.replace(/[^a-zа-я0-9]/gi, ' ').trim().split(/\s+/).filter(w => w.length >= 4);
         for (const word of words) {
@@ -473,7 +578,7 @@ export function useApi() {
         }
       }
 
-      // 4. Fallback: if still 0 results and normalized raw differed from cleanTitle, try raw query
+      // 6. Fallback: if still 0 results and normalized raw differed from cleanTitle, try raw query
       const normalizedRaw = (rawQuery || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 120);
       if (results.length === 0 && normalizedRaw !== cleanTitle) {
         const rawResults = await fetchBatch([normalizedRaw]);
