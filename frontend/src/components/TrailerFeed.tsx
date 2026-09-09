@@ -546,8 +546,8 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                       </div>
                     )}
 
-                    {/* Right Side Action Bar (Reels Style) - position bottom-24 clears the bottom YouTube control bar */}
-                    <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-3 pointer-events-auto">
+                    {/* Right Side Action Bar (Reels Style) - centered vertically to completely clear bottom YouTube controls and fullscreen button */}
+                    <div className="absolute right-3 top-[42%] -translate-y-1/2 z-30 flex flex-col items-center gap-3 pointer-events-auto">
                       {/* Primary Watch Button (Direct navigation to movie/series) */}
                       <button
                         onClick={() => handleWatchMovie(item)}
