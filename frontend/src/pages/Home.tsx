@@ -12,8 +12,7 @@ import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
-import { BannerAd } from '../components/BannerAd';
-import { MovieWordReelBanners } from '../components/MovieWordReelBanners';
+import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
 
 interface MovieCardProps {
@@ -305,13 +304,8 @@ export function Home() {
       {/* Header & Profile */}
       <Header />
 
-      {/* 3 Word Reel Banners (Movies, TV Shows, Everywhere) */}
-      <MovieWordReelBanners />
-
-      {/* Top Banner to Movie Telegram Bot */}
-      <div className="mb-4">
-        <BannerAd variant="wide" type="mainbot" />
-      </div>
+      {/* Top Leaderboard Banner (Adaptive 728x90 Desktop / 320x50 Mobile) */}
+      <MovieBottomBanner className="my-2" slotId="home-top" />
 
       {/* Top Stories Bar (Facebook / Instagram style stories for trailers) */}
       <TrailerStoriesBar onOpenFeed={(trailerId, idx) => setModalTrailerTarget({ id: trailerId, index: idx })} />

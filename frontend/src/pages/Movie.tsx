@@ -12,6 +12,7 @@ import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
 import { MovieStaticBanners } from '../components/MovieStaticBanners';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
+import { BannerAd } from '../components/BannerAd';
 import { useViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
@@ -1313,6 +1314,13 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Telegram Bot Banner (In watch mode, between player and cast) */}
+        {(isExtracting || iframeUrl) && (
+          <div className="my-4">
+            <BannerAd variant="wide" type="mainbot" />
           </div>
         )}
 
