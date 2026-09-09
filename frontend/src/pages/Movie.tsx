@@ -11,6 +11,7 @@ import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
 import { MovieStaticBanners } from '../components/MovieStaticBanners';
+import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { useViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
@@ -1180,6 +1181,11 @@ export function Movie() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Bottom Movie Banner (Adaptive 728x90 Desktop / 320x50 Mobile) */}
+        {!isExtracting && !iframeUrl && (
+          <MovieBottomBanner />
         )}
 
         <div id="video-player-container" className="relative">
