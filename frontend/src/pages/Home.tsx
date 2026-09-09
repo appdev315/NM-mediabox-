@@ -305,6 +305,14 @@ export function Home() {
       {/* Header & Profile */}
       <Header />
 
+      {/* 3 Word Reel Banners (Movies, TV Shows, Everywhere) */}
+      <MovieWordReelBanners />
+
+      {/* Top Banner to Movie Telegram Bot */}
+      <div className="mb-4">
+        <BannerAd variant="wide" type="mainbot" />
+      </div>
+
       {/* Top Stories Bar (Facebook / Instagram style stories for trailers) */}
       <TrailerStoriesBar onOpenFeed={(trailerId, idx) => setModalTrailerTarget({ id: trailerId, index: idx })} />
 
@@ -348,14 +356,6 @@ export function Home() {
         </Suspense>
       ) : (
         <>
-          {/* Top Banner to Movie Telegram Bot */}
-          <div className="mb-3">
-            <BannerAd variant="wide" type="mainbot" />
-          </div>
-
-          {/* 3 Word Reel Banners (Movies, TV Shows, Everywhere) */}
-          <MovieWordReelBanners />
-
           <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 items-center">
             <input 
               type="text" 
