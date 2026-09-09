@@ -93,42 +93,6 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
   min-height: 100px;
 }
 
-/* Adsterra Native Ad Container: 1 card on mobile, 4 cards in a row on desktop */
-#container-3208ff608ab1302402523bc766aa65a2 {
-  width: 100% !important;
-}
-
-@media (max-width: 767px) {
-  #container-3208ff608ab1302402523bc766aa65a2 > *:nth-child(n+2) {
-    display: none !important;
-  }
-  #container-3208ff608ab1302402523bc766aa65a2 > *:first-child {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 auto !important;
-  }
-}
-
-@media (min-width: 768px) {
-  #container-3208ff608ab1302402523bc766aa65a2 {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 12px !important;
-  }
-}
-
-#container-3208ff608ab1302402523bc766aa65a2 img {
-  width: 100% !important;
-  aspect-ratio: 4/3 !important;
-  object-fit: cover !important;
-  border-radius: 12px !important;
-}
-
-#container-3208ff608ab1302402523bc766aa65a2 a {
-  text-decoration: none !important;
-  color: inherit !important;
-}
-
 /* Performance-Optimized Visual Enhancements */
 
 /* Lightweight card tap feedback (no GPU-heavy ::after or hover transforms) */
