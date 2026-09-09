@@ -13,6 +13,7 @@ import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
+import { BannerAd } from '../components/BannerAd';
 import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
 
 interface MovieCardProps {
@@ -464,7 +465,7 @@ export function Home() {
           {/* MODE 1: Categorized Home Feed (12 cards per genre section in distinct framed containers) */}
           {isCategorizedMode ? (
             <div className="space-y-4 w-full">
-              {homeSections.map((section: any) => (
+              {homeSections.map((section: any, sIdx: number) => (
                 <div key={section.id} className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20">
                   <div className="flex items-center mb-4 pb-3 border-b border-white/10">
                     <button
@@ -503,6 +504,11 @@ export function Home() {
                     ))}
                     <AdsterraNativeCard sectionId={String(section.id || section.genreId || 'cat')} />
                   </div>
+                  {sIdx === 1 && (
+                    <div className="my-6">
+                      <BannerAd variant="wide" type="adult" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

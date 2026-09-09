@@ -11,14 +11,23 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={(e) => {
            e.preventDefault();
-           const botLink = type === 'mainbot' ? 'https://t.me/moviemaniakbot' : 'https://t.me/mediaboxxxbot';
-           if (WebApp.platform !== 'unknown') {
-             WebApp.openTelegramLink(botLink);
-             try {
-               WebApp.close?.();
-             } catch (_) {}
+           if (type === 'adult') {
+             if (WebApp.platform !== 'unknown') {
+               WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
+               try { WebApp.close?.(); } catch (_) {}
+             } else {
+               window.open('https://moviemaniak5555.xyz/?app=adult', '_blank', 'noopener,noreferrer');
+             }
            } else {
-             window.open(botLink, '_blank', 'noopener,noreferrer');
+             const botLink = type === 'mainbot' ? 'https://t.me/moviemaniakbot' : 'https://t.me/mediaboxxxbot';
+             if (WebApp.platform !== 'unknown') {
+               WebApp.openTelegramLink(botLink);
+               try {
+                 WebApp.close?.();
+               } catch (_) {}
+             } else {
+               window.open(botLink, '_blank', 'noopener,noreferrer');
+             }
            }
          }}
     >
