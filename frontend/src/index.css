@@ -80,93 +80,17 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
-/* ExoClick Banner Grid Wrappers */
-
-/* Reserved-height ad slots — prevent CLS when creatives load */
+/* Generic Ad Slot Wrappers */
 .ad-slot {
   position: relative;
   width: 100%;
-  min-height: 250px;
+  min-height: 120px;
   grid-column: 1 / -1;
   overflow: hidden;
 }
 
 .ad-slot--compact {
   min-height: 100px;
-}
-
-.ad-slot > ins {
-  position: relative;
-  width: 100% !important;
-  display: block !important;
-}
-
-/* ExoClick Native Ad Styles for Adult Grid */
-.exo-native-ad-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  grid-column: 1 / -1;
-  min-height: 120px;
-  overflow: hidden;
-}
-
-.exo-banner-movie-card {
-  grid-column: 1 / -1;
-  min-height: 250px;
-  overflow: hidden;
-}
-
-@media (max-width: 767px) {
-  .exo-native-ad-container {
-    min-height: 100px;
-  }
-  .exo-banner-movie-card {
-    min-height: 150px;
-  }
-}
-
-.exo-native-ad-container img {
-  max-width: 100% !important;
-  max-height: 220px !important;
-  object-fit: cover !important;
-  border-radius: 14px !important;
-  margin-bottom: 6px !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
-}
-
-.exo-native-ad-container a {
-  text-decoration: none !important;
-  color: inherit !important;
-  display: block !important;
-}
-
-/* Style titles and texts inside ExoClick Native Ads */
-.exo-native-ad-container [class*="title"], 
-.exo-native-ad-container [class*="label"],
-.exo-native-ad-container a > div:nth-child(2) {
-  font-size: 0.875rem !important; /* text-sm */
-  font-weight: 600 !important; /* font-semibold */
-  line-height: 1.375 !important; /* leading-snug */
-  color: var(--text-color) !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
-}
-
-.exo-native-ad-container [class*="description"],
-.exo-native-ad-container [class*="desc"],
-.exo-native-ad-container a > div:nth-child(3) {
-  font-size: 0.75rem !important; /* text-xs */
-  opacity: 0.6 !important;
-  margin-top: 4px !important;
-  color: var(--text-color) !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 1 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
 }
 
 /* Performance-Optimized Visual Enhancements */

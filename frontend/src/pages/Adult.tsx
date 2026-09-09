@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
@@ -6,8 +6,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import { BannerAd } from '../components/BannerAd';
 import React from 'react';
-import ExoClickNativeAd from '../components/ExoClickNativeAd';
-import { ExoClickBanner18 } from '../components/ExoClickBanner18';
+import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
+import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 
@@ -147,9 +147,7 @@ export function Adult() {
 
   const [ageConfirmed, setAgeConfirmed] = useState(() => localStorage.getItem('age_confirmed') === 'true');
 
-  const initialCategoryRef = useRef(category);
-
-  const loadVideos = useCallback(async (searchQuery: string, pageNum: number = 0, append: boolean = false) => {
+  const loadVideos = useCallback(async (searchQuery: string, pageNum: number = 0, append: boolean = false, randomize: boolean = false) => {
     if (append) {
       setIsLoadingMore(true);
     } else {
@@ -157,17 +155,23 @@ export function Adult() {
     }
     
     try {
-      const data = await fetchAdultSearch(searchQuery, pageNum);
+      const queryToFetch = searchQuery || 'popular';
+      // If randomized popular launch, query a random page between 0 and 3
+      const actualPage = (randomize && queryToFetch === 'popular') ? Math.floor(Math.random() * 4) : pageNum;
+
+      const data = await fetchAdultSearch(queryToFetch, actualPage);
       if (Array.isArray(data)) {
+        // Randomize order if randomize is requested for popular
+        const processed = (randomize && queryToFetch === 'popular') ? [...data].sort(() => Math.random() - 0.5) : data;
         if (append) {
           setVideos(prev => {
             // Filter out duplicates
             const existingIds = new Set(prev.map(v => v.id));
-            const newVideos = data.filter(v => !existingIds.has(v.id));
+            const newVideos = processed.filter(v => !existingIds.has(v.id));
             return [...prev, ...newVideos];
           });
         } else {
-          setVideos(data);
+          setVideos(processed);
         }
       }
     } catch (e) {
@@ -180,8 +184,8 @@ export function Adult() {
 
   useEffect(() => {
     if (hasAccess && ageConfirmed) {
-      loadVideos(initialCategoryRef.current, 0);
-      trackOpen('adult_catalog', initialCategoryRef.current || 'all', 'catalog');
+      loadVideos('popular', 0, false, true);
+      trackOpen('adult_catalog', 'popular', 'catalog');
     } else {
       setLoading(false);
     }
@@ -285,7 +289,7 @@ export function Adult() {
               setAgeConfirmed(true);
               localStorage.setItem('age_confirmed', 'true');
               setPage(0);
-              loadVideos(category || 'popular', 0);
+              loadVideos('popular', 0, false, true);
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
@@ -367,7 +371,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
-          <ExoClickBanner18 />
+          <AdsterraBanner300x250 />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
             {videos.map((v, idx) => (
               <React.Fragment key={`${v.id}-${idx}`}>
@@ -402,13 +406,15 @@ export function Adult() {
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
                 {(idx + 1) % 12 === 0 && (
-                  <div className="col-span-full w-full my-2">
+                  <React.Fragment>
                     {Math.floor(idx / 12) % 2 === 0 ? (
-                      <ExoClickNativeAd className="exo-native-ad-container" />
+                      <AdsterraNativeAd />
                     ) : (
-                      <BannerAd variant="wide" type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
+                      <div className="col-span-full w-full my-2">
+                        <BannerAd variant="wide" type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
+                      </div>
                     )}
-                  </div>
+                  </React.Fragment>
                 )}
               </React.Fragment>
             ))}

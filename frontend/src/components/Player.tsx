@@ -22,31 +22,36 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     return 'generic';
   }, [iframeUrl]);
 
-  // Compute full mirror list
+  // Compute full mirror list (xvideos.com first, xv-ru purged due to Cloudflare 429)
   const activeMirrors = useMemo(() => {
-    if (mirrors && mirrors.length > 0) return mirrors;
+    if (mirrors && mirrors.length > 0) {
+      return mirrors
+        .map(m => m.replace('www.xv-ru.com', 'www.xvideos.com'))
+        .filter(m => !m.includes('xv-ru.com'));
+    }
 
     if (provider === 'xvideos') {
       const match = iframeUrl.match(/\/embedframe\/([^/?#]+)/);
       const id = match ? match[1] : '';
       if (id) {
         return [
-          `https://www.xv-ru.com/embedframe/${id}`,
+          `https://www.xvideos.com/embedframe/${id}`,
           `https://www.xvideos2.com/embedframe/${id}`,
           `https://www.xvideos3.com/embedframe/${id}`,
-          `https://www.xvideos.es/embedframe/${id}`,
-          `https://www.xvideos.com/embedframe/${id}`
+          `https://www.xvideos.es/embedframe/${id}`
         ];
       }
     }
     return [iframeUrl];
   }, [iframeUrl, mirrors, provider]);
 
-  // Read stored working mirror preference on launch
+  // Read stored working mirror preference on launch, purging any stale xv-ru
   useEffect(() => {
     if (provider !== 'generic') {
       const savedDomain = localStorage.getItem(`preferred_mirror_${provider}`);
-      if (savedDomain) {
+      if (savedDomain && savedDomain.includes('xv-ru')) {
+        localStorage.removeItem(`preferred_mirror_${provider}`);
+      } else if (savedDomain) {
         const foundIdx = activeMirrors.findIndex(m => m.includes(savedDomain));
         if (foundIdx !== -1 && foundIdx !== mirrorIndex) {
           setMirrorIndex(foundIdx);

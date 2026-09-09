@@ -84,7 +84,7 @@ func interleaveVideos(lists ...[]types.Video) []types.Video {
 
 func searchXvideosHtml(ctx context.Context, cleanQ string, page int) []types.Video {
 	client := GetHTTPClient(5 * time.Second)
-	domains := []string{"www.xvideos.com", "www.xvideos2.com", "www.xvideos3.com", "www.xv-ru.com", "www.xvideos.es"}
+	domains := []string{"www.xvideos.com", "www.xvideos2.com", "www.xvideos3.com", "www.xvideos.es"}
 
 	tagQ := strings.ReplaceAll(cleanQ, " ", "-")
 
@@ -340,11 +340,10 @@ func XvideosDetails(id string) *types.VideoDetails {
 	}
 
 	mirrors := []string{
-		fmt.Sprintf("https://www.xv-ru.com/embedframe/%s", realID),
+		fmt.Sprintf("https://www.xvideos.com/embedframe/%s", realID),
 		fmt.Sprintf("https://www.xvideos2.com/embedframe/%s", realID),
 		fmt.Sprintf("https://www.xvideos3.com/embedframe/%s", realID),
 		fmt.Sprintf("https://www.xvideos.es/embedframe/%s", realID),
-		fmt.Sprintf("https://www.xvideos.com/embedframe/%s", realID),
 	}
 
 	return &types.VideoDetails{

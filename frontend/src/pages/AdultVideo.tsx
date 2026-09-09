@@ -6,7 +6,7 @@ import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { ExoClickBanner18 } from '../components/ExoClickBanner18';
+import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
 import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
@@ -119,7 +119,7 @@ export function AdultVideo() {
         </p>
         
         <div className="mb-8">
-          <ExoClickBanner18 />
+          <AdsterraBanner300x250 />
         </div>
 
         {/* Related Videos */}

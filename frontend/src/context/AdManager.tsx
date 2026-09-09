@@ -24,11 +24,11 @@ interface AdProviderProps {
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   
   const triggerAd = () => {
-    // No-op for now as we're migrating to ExoClick
+    // No-op for now
   };
 
   const triggerPostAd = () => {
-    // No-op for now as we're migrating to ExoClick
+    // No-op for now
   };
 
   return (

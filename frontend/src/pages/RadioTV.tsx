@@ -4,7 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import ExoClickWhiteAd from '../components/ExoClickWhiteAd';
+import { BannerAd } from '../components/BannerAd';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
@@ -920,7 +920,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   {/* Exactly 1 Ad Banner embedded seamlessly at index 8 */}
                   {idx === 8 && (
                     <div className="col-span-full w-full flex justify-center my-2">
-                      <ExoClickWhiteAd zoneId="5965876" className="ad-slot exo-banner-movie-card w-full rounded-xl overflow-hidden" />
+                      <BannerAd variant="wide" type="mainbot" />
                     </div>
                   )}
                 </React.Fragment>
