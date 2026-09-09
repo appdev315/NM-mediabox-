@@ -202,38 +202,73 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     }
   }, [fetchTrailerFeed, hasMore, isLoadingMore, page]);
 
-  // IntersectionObserver to detect currently centered trailer card
-  useEffect(() => {
-    if (!containerRef.current || trailers.length === 0) return;
+  // Precision real-time scroll & snap tracking (TikTok / Reels / Shorts style)
+  const scrollRafRef = useRef<number | null>(null);
 
-    const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const index = Number(entry.target.getAttribute('data-index'));
-            if (!isNaN(index) && index !== activeIndexRef.current) {
-              setActiveIndex(index);
-              if (WebApp.HapticFeedback) {
-                WebApp.HapticFeedback.selectionChanged();
-              }
-            }
-          }
-        });
-      },
-      {
-        root: containerRef.current,
-        threshold: 0.6,
+  const updateActiveCardFromScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || cardRefs.current.length === 0) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerCenterY = containerRect.top + containerRect.height / 2;
+
+    let closestIdx = activeIndexRef.current;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < cardRefs.current.length; i++) {
+      const card = cardRefs.current[i];
+      if (!card) continue;
+      const cardRect = card.getBoundingClientRect();
+      const cardCenterY = cardRect.top + cardRect.height / 2;
+      const distance = Math.abs(containerCenterY - cardCenterY);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIdx = i;
       }
-    );
+    }
 
-    cardRefs.current.forEach(ref => {
-      if (ref) observer.observe(ref);
+    if (closestIdx !== activeIndexRef.current) {
+      activeIndexRef.current = closestIdx;
+      setActiveIndex(closestIdx);
+      if (WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.selectionChanged();
+      }
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+    scrollRafRef.current = requestAnimationFrame(() => {
+      updateActiveCardFromScroll();
     });
+  }, [updateActiveCardFromScroll]);
 
+  // Clean up RAF on unmount
+  useEffect(() => {
     return () => {
-      observer.disconnect();
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
     };
-  }, [trailers]);
+  }, []);
+
+  // Listen to native scrollend event for exact snap settling
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onScrollEnd = () => {
+      updateActiveCardFromScroll();
+    };
+
+    container.addEventListener('scrollend', onScrollEnd);
+    return () => {
+      container.removeEventListener('scrollend', onScrollEnd);
+    };
+  }, [updateActiveCardFromScroll]);
 
   // Infinite scroll trigger when reaching bottom 3 items
   useEffect(() => {
@@ -246,6 +281,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   const scrollToIndex = useCallback((idx: number) => {
     if (idx < 0 || idx >= trailers.length) return;
     cardRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    activeIndexRef.current = idx;
     setActiveIndex(idx);
   }, [trailers.length]);
 
@@ -445,8 +481,9 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
       {/* Snap Scroll Vertical Feed */}
       <div
         ref={containerRef}
+        onScroll={handleScroll}
         onWheel={handleWheel}
-        className="w-full h-[calc(100vh-145px)] overflow-y-auto snap-y snap-mandatory hide-scrollbar rounded-2xl flex flex-col gap-6"
+        className="w-full h-[calc(100vh-145px)] sm:h-[calc(100dvh-130px)] overflow-y-auto snap-y snap-mandatory hide-scrollbar rounded-2xl flex flex-col gap-6"
         style={{ scrollBehavior: 'smooth' }}
       >
         {trailers.map((item, index) => {
@@ -459,13 +496,12 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
               key={`${item.id}-${index}`}
               ref={el => { cardRefs.current[index] = el; }}
               data-index={index}
-              className="snap-start snap-always relative w-full h-[calc(100vh-145px)] max-h-[720px] rounded-2xl overflow-hidden bg-black flex flex-col justify-between border border-white/10 shadow-2xl shrink-0"
+              className="snap-start snap-always relative w-full h-[calc(100vh-145px)] sm:h-[calc(100dvh-130px)] min-h-[480px] max-h-[720px] rounded-2xl overflow-hidden bg-black flex flex-col justify-between border border-white/10 shadow-2xl shrink-0"
             >
               {!isNear ? (
                 /* Virtualized offscreen card placeholder - saves GPU memory on mobile Safari */
                 <div
                   onClick={() => {
-                    setActiveIndex(index);
                     scrollToIndex(index);
                   }}
                   className="w-full h-full flex flex-col items-center justify-between p-6 bg-gray-950 cursor-pointer"
@@ -487,29 +523,31 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                   <div className="relative w-full flex-1 bg-black overflow-hidden">
                     {isActive ? (
                       <iframe
-                        src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&playsinline=1&rel=0&controls=1`}
+                        src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&playsinline=1&rel=0&controls=1&fs=1&enablejsapi=1`}
                         title={`Trailer for ${item.title}`}
                         className="w-full h-full border-0 absolute inset-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                         allowFullScreen
                       />
                     ) : (
                       <div
                         onClick={() => {
-                          setActiveIndex(index);
                           scrollToIndex(index);
                         }}
-                        className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center transition-transform hover:scale-105 duration-300"
+                        className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center transition-transform hover:scale-105 duration-300 flex items-center justify-center"
                         style={{
                           backgroundImage: `url(${item.backdrop || item.poster})`,
                         }}
                       >
-                        <div className="absolute inset-0 bg-black/30" />
+                        <div className="absolute inset-0 bg-black/40" />
+                        <div className="w-12 h-12 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white/90 shadow-xl pl-0.5 pointer-events-none">
+                          ▶
+                        </div>
                       </div>
                     )}
 
-                    {/* Right Side Action Bar (Reels Style) */}
-                    <div className="absolute right-3 bottom-12 sm:bottom-16 z-30 flex flex-col items-center gap-3">
+                    {/* Right Side Action Bar (Reels Style) - position bottom-24 clears the bottom YouTube control bar */}
+                    <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-3 pointer-events-auto">
                       {/* Primary Watch Button (Direct navigation to movie/series) */}
                       <button
                         onClick={() => handleWatchMovie(item)}

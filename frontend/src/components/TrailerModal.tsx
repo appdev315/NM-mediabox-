@@ -29,10 +29,10 @@ export const TrailerModal: React.FC<TrailerModalProps> = ({ videoKey, title, onC
         {/* Video Container */}
         <div className="relative w-full aspect-video bg-black">
           <iframe
-            src={`https://www.youtube.com/embed/${videoKey}?autoplay=1&rel=0`}
+            src={`https://www.youtube.com/embed/${videoKey}?autoplay=1&rel=0&controls=1&fs=1`}
             title={`Trailer for ${title}`}
             className="w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowFullScreen
           />
         </div>

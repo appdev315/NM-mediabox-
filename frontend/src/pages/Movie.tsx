@@ -1120,18 +1120,7 @@ export function Movie() {
         {!isExtracting && !iframeUrl && recommendations.length > 0 && (
           <div className="relative border-t border-white/10 pt-4 mb-6">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2.5">
-                <h2 className="font-bold text-xl">{t('recommendations')}</h2>
-                {hasMoreRecs && (
-                  <button
-                    onClick={handleLoadMoreRecommendations}
-                    disabled={loadingMoreRecs}
-                    className="text-xs font-bold px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all border border-white/10 text-blue-400 hover:text-blue-300 disabled:opacity-50 cursor-pointer"
-                  >
-                    {loadingMoreRecs ? '...' : `+ ${t('moreMovies') || 'Больше фильмов'}`}
-                  </button>
-                )}
-              </div>
+              <h2 className="font-bold text-xl">{t('recommendations')}</h2>
               <div className="flex gap-2">
                 <button 
                   onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
