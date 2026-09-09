@@ -144,7 +144,7 @@ export function AdultVideo() {
                       <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
                     </div>
                     {idx === 9 && (
-                      <div className="col-span-2 w-full">
+                      <div className="col-span-full w-full my-2">
                         <BannerAd variant="wide" />
                       </div>
                     )}

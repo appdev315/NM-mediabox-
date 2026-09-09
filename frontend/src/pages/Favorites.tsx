@@ -278,8 +278,8 @@ export function Favorites() {
               </div>
             </div>
             {(idx + 1) % 15 === 0 && (
-              <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
-                <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
+              <div className="col-span-full w-full my-2">
+                <BannerAd variant="wide" type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
               </div>
             )}
           </React.Fragment>

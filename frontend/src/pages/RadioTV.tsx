@@ -919,7 +919,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   </div>
                   {/* Exactly 1 Ad Banner embedded seamlessly at index 8 */}
                   {idx === 8 && (
-                    <div className="col-span-3 md:col-span-4 lg:col-span-6 w-full flex justify-center my-2">
+                    <div className="col-span-full w-full flex justify-center my-2">
                       <ExoClickWhiteAd zoneId="5965876" className="ad-slot exo-banner-movie-card w-full rounded-xl overflow-hidden" />
                     </div>
                   )}

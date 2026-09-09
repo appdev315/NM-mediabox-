@@ -410,11 +410,11 @@ export function Adult() {
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
                 {(idx + 1) % 12 === 0 && (
-                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
+                  <div className="col-span-full w-full my-2">
                     {Math.floor(idx / 12) % 2 === 0 ? (
                       <ExoClickNativeAd className="exo-native-ad-container" />
                     ) : (
-                      <BannerAd type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
+                      <BannerAd variant="wide" type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
                     )}
                   </div>
                 )}

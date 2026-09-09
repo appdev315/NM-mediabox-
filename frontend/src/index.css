@@ -87,6 +87,7 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
   position: relative;
   width: 100%;
   height: 250px;
+  grid-column: 1 / -1;
   overflow: hidden;
 }
 
@@ -94,7 +95,7 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
   height: 100px;
 }
 
-.ad-slot ins {
+.ad-slot > ins {
   position: absolute;
   inset: 0;
   width: 100% !important;
