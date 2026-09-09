@@ -376,7 +376,7 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
       ) : (
         <>
-          <AdsterraBanner300x250 />
+          <AdsterraBanner300x250 enableSlotAnimation={true} />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
             {videos.map((v, idx) => (
               <React.Fragment key={`${v.id}-${idx}`}>

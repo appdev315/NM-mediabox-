@@ -11,21 +11,14 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={(e) => {
            e.preventDefault();
-           // Open the ad in a new tab (only if it's the main app, to avoid monetag adult ban)
-
-
-
-           if (type === 'telegram' || type === 'mainbot') {
-             // Redirect the current tab to Telegram bot
-             const botLink = type === 'mainbot' ? 'https://t.me/M_Box_bot' : 'https://t.me/mediaboxxxbot';
-             if (WebApp.platform !== 'unknown') {
-               WebApp.openTelegramLink(botLink);
-             } else {
-               window.location.href = botLink;
-             }
+           const botLink = type === 'mainbot' ? 'https://t.me/M_Box_bot' : 'https://t.me/mediaboxxxbot';
+           if (WebApp.platform !== 'unknown') {
+             WebApp.openTelegramLink(botLink);
+             try {
+               WebApp.close?.();
+             } catch (_) {}
            } else {
-             // Redirect to adult web app on the same domain
-             window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
+             window.open(botLink, '_blank', 'noopener,noreferrer');
            }
          }}
     >

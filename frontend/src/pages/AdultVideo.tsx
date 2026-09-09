@@ -6,7 +6,7 @@ import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
-import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
+import { BannerAd } from '../components/BannerAd';
 import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
@@ -92,7 +92,12 @@ export function AdultVideo() {
 
   return (
     <div className="pb-20">
-      <div className="p-4 pt-24">
+      <div className="p-4 pt-20 sm:pt-24">
+        {/* Top Banner to Telegram Bot */}
+        <div className="mb-4">
+          <BannerAd variant="wide" type="telegram" />
+        </div>
+
         <div className="flex items-center gap-3 mb-6">
           <h1 className="text-xl font-bold">Private Collection 🍓</h1>
         </div>
@@ -161,12 +166,36 @@ export function AdultVideo() {
                       </div>
                       <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                     </div>
-                    {idx === 7 && (
-                      <AdsterraNativeAd />
-                    )}
                   </React.Fragment>
                 );
               })}
+
+              {/* Return to Category / Previous Page Card */}
+              <div 
+                className="cursor-pointer group flex flex-col"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    navigate(-1);
+                  } else {
+                    navigate('/adult', { state: location.state });
+                  }
+                }}
+              >
+                <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-gradient-to-br from-zinc-800 via-zinc-900 to-[#121216] border border-white/10 flex flex-col items-center justify-center transition-all duration-200 active:scale-95 group-hover:border-amber-400/60 shadow-md">
+                  <div className="w-11 h-11 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                    <span className="text-2xl select-none">↩️</span>
+                  </div>
+                  <span className="text-xs sm:text-sm font-extrabold text-white text-center px-2 line-clamp-1">
+                    {location.state?.category ? `«${location.state.category}»` : 'В каталог'}
+                  </span>
+                  <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-amber-400 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                    Назад
+                  </div>
+                </div>
+                <p className="text-sm font-semibold line-clamp-2 leading-snug break-words text-amber-400/90 group-hover:text-amber-300">
+                  ← Вернуться к списку
+                </p>
+              </div>
             </div>
           </div>
         )}

@@ -86,7 +86,7 @@ const SingleAdsterraBanner: React.FC<SingleBannerProps> = ({ id, animate, stopDe
   );
 };
 
-export const AdsterraBanner300x250: React.FC = () => {
+export const AdsterraBanner300x250: React.FC<{ enableSlotAnimation?: boolean }> = ({ enableSlotAnimation = false }) => {
   const [count] = useState(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 768) {
       return 3;
@@ -95,7 +95,7 @@ export const AdsterraBanner300x250: React.FC = () => {
   });
 
   const [animate] = useState(() => {
-    if (typeof window === 'undefined') return false;
+    if (!enableSlotAnimation || typeof window === 'undefined') return false;
     const played = sessionStorage.getItem('ad_slot_played');
     if (!played) {
       sessionStorage.setItem('ad_slot_played', 'true');
