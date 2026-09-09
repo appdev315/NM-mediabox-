@@ -11,7 +11,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={(e) => {
            e.preventDefault();
-           const botLink = type === 'mainbot' ? 'https://t.me/M_Box_bot' : 'https://t.me/mediaboxxxbot';
+           const botLink = type === 'mainbot' ? 'https://t.me/moviemaniakbot' : 'https://t.me/mediaboxxxbot';
            if (WebApp.platform !== 'unknown') {
              WebApp.openTelegramLink(botLink);
              try {

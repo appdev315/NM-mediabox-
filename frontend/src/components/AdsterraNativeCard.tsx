@@ -21,7 +21,7 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
   }, []);
 
   const handleBotClick = () => {
-    const botUrl = 'https://t.me/M_Box_bot';
+    const botUrl = 'https://t.me/moviemaniakbot';
     if (WebApp.platform !== 'unknown') {
       WebApp.openTelegramLink(botUrl);
       try {

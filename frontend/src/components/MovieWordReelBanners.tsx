@@ -156,15 +156,19 @@ export const MovieWordReelBanners: React.FC = () => {
 
   return (
     <div className="w-full flex justify-center items-center gap-4 sm:gap-6 my-4 flex-wrap overflow-hidden min-h-[250px]">
-      {reels.map((reel) => (
-        <SingleMovieReelBanner
+      {reels.map((reel, index) => (
+        <div
           key={reel.id}
-          id={reel.id}
-          targetWord={reel.targetWord}
-          icon={reel.icon}
-          animate={animate}
-          stopDelay={reel.stopDelay}
-        />
+          className={index > 0 ? 'hidden md:flex justify-center' : 'flex justify-center'}
+        >
+          <SingleMovieReelBanner
+            id={reel.id}
+            targetWord={reel.targetWord}
+            icon={reel.icon}
+            animate={animate}
+            stopDelay={reel.stopDelay}
+          />
+        </div>
       ))}
     </div>
   );

@@ -926,7 +926,7 @@ export function Movie() {
                 <button
                   onClick={() => {
                     setShowShareMenu(false);
-                    const tgLink = `https://t.me/M_Box_bot/app?startapp=${mediaType}_${movie?.id}`;
+                    const tgLink = `https://t.me/moviemaniakbot/app?startapp=${mediaType}_${movie?.id}`;
                     const text = `Watch "${movie?.title}" for free on MediaBox!`;
                     WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(tgLink)}&text=${encodeURIComponent(text)}`);
                   }}

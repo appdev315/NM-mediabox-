@@ -182,10 +182,10 @@ export function Profile() {
         <button 
           onClick={() => {
             if (WebApp.platform !== 'unknown') {
-              WebApp.openTelegramLink('https://t.me/M_Box_bot');
+              WebApp.openTelegramLink('https://t.me/moviemaniakbot');
               WebApp.close();
             } else {
-              window.open('https://t.me/M_Box_bot', '_blank', 'noopener,noreferrer');
+              window.open('https://t.me/moviemaniakbot', '_blank', 'noopener,noreferrer');
             }
           }}
           className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
