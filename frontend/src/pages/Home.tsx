@@ -333,7 +333,9 @@ export function Home() {
             className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
             style={{ 
               backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
-              color: activeTab === tab.id ? 'var(--button-text-color)' : 'var(--text-color)'
+              color: activeTab === tab.id ? 'var(--button-text-color)' : 'var(--text-color)',
+              border: activeTab === tab.id ? '1.5px solid var(--button-color)' : '1.5px solid var(--button-color)',
+              opacity: activeTab === tab.id ? 1 : 0.85
             }}
           >
             {tab.label}
