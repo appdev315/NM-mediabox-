@@ -7,7 +7,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
 
   return (
     <div 
-         className={`w-full h-full flex flex-col flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg ${variant === 'wide' ? 'min-h-[6rem] max-h-24' : ''}`}
+         className={`w-full flex flex-col flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl group relative transition-transform duration-300 hover:scale-[1.02] shadow-lg ${variant === 'wide' ? 'h-24' : 'h-[180px]'}`}
          style={{ backgroundColor: 'var(--hint-color)', border: '1px solid var(--button-color)' }}
          onClick={(e) => {
            e.preventDefault();

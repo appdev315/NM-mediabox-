@@ -25,9 +25,11 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
         const ins = document.createElement('ins');
         ins.className = 'eas6a97888e20';
         ins.setAttribute('data-zoneid', zoneId);
-        ins.style.display = 'inline-block';
+        ins.style.display = 'block';
+        ins.style.position = 'absolute';
+        ins.style.inset = '0';
         ins.style.width = '100%';
-        ins.style.minHeight = 'inherit';
+        ins.style.height = '100%';
         containerRef.current.appendChild(ins);
       }
 
@@ -50,7 +52,7 @@ export default React.memo(function ExoClickWhiteAd({ className = 'exo-banner-mov
   }, [zoneId]);
 
   return (
-    <div ref={containerRef} className={className + " min-h-[50px] flex justify-center items-center overflow-hidden"}>
+    <div ref={containerRef} className={className + " ad-slot flex justify-center items-center overflow-hidden"}>
     </div>
   );
 });

@@ -266,7 +266,7 @@ export function Favorites() {
                   }}
                 />
                 <button 
-                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
                   onClick={(e) => removeItem(e, item.id, type)}
                   title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
                 >
@@ -349,7 +349,7 @@ export function Favorites() {
                 }}
               >
                 <button 
-                  className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
+                  className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
                   onClick={(e) => removeItem(e, item.id, type)}
                   title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
                 >

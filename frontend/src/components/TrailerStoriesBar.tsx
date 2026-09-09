@@ -97,7 +97,7 @@ export const TrailerStoriesBar: React.FC<TrailerStoriesBarProps> = ({ onOpenFeed
           onClick={() => handleCardClick(undefined, 0)}
           className="relative w-24 sm:w-28 h-36 sm:h-40 rounded-2xl p-2.5 flex flex-col justify-between overflow-hidden cursor-pointer flex-shrink-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 shadow-xl shadow-blue-500/20 border-2 border-indigo-400/80 transition-transform active:scale-95 hover:scale-[1.02] duration-150"
         >
-          <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-base border border-white/30 shadow-md">
+          <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center text-base border border-white/30 shadow-md">
             🎬
           </div>
           <div>
@@ -138,19 +138,19 @@ export const TrailerStoriesBar: React.FC<TrailerStoriesBarProps> = ({ onOpenFeed
               {/* Top Meta: Rating or New Badge */}
               <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between pointer-events-none">
                 {item.rating > 0 ? (
-                  <span className="px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-black text-yellow-400 flex items-center gap-0.5">
+                  <span className="px-1.5 py-0.5 rounded-md bg-black/80 border border-white/10 text-[10px] font-black text-yellow-400 flex items-center gap-0.5">
                     ⭐ {item.rating}
                   </span>
                 ) : <span />}
 
                 {!isViewed && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
                 )}
               </div>
 
               {/* Center Play Icon on Hover / Idle */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/30 text-white flex items-center justify-center text-xs pl-0.5 shadow-lg">
+                <div className="w-8 h-8 rounded-full bg-black/80 border border-white/30 text-white flex items-center justify-center text-xs pl-0.5 shadow-lg">
                   ▶
                 </div>
               </div>

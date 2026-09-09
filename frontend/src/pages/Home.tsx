@@ -47,7 +47,7 @@ const MovieCard = React.memo(function MovieCard({
       <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[var(--hint-color)]">
         {item.isUpcoming && (
           <div className="absolute top-2 left-2 z-20">
-            <span className="bg-amber-500/90 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md backdrop-blur-sm flex items-center gap-1 border border-amber-400/40">
+            <span className="bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-amber-400/40">
               ⏳ {comingSoonText}
             </span>
           </div>
@@ -473,7 +473,7 @@ export function Home() {
                         setPage(1);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="group inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/10 hover:bg-blue-600/20 border border-white/15 hover:border-blue-500/40 text-left transition-all active:scale-[0.96] shadow-sm hover:shadow-md cursor-pointer backdrop-blur-md"
+                      className="group inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/10 hover:bg-blue-600/20 border border-white/15 hover:border-blue-500/40 text-left transition-all active:scale-[0.96] shadow-sm hover:shadow-md cursor-pointer"
                       title={section.genreId ? `${section.name} — ${t('showMore') || 'Показать еще'}` : section.name}
                     >
                       <span className="w-2 h-4 sm:w-2.5 sm:h-5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm transition-transform group-hover:scale-110"></span>

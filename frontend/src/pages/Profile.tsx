@@ -221,7 +221,7 @@ export function Profile() {
         </button>
       </div>
       {showDonationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85"
              onClick={() => setShowDonationModal(false)}>
           <div className="rounded-3xl p-6 max-w-sm w-full border shadow-2xl relative"
                style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}

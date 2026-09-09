@@ -33,10 +33,10 @@ export const PersonModal: React.FC<PersonModalProps> = ({ personId, onClose, fet
   }, [personId, fetchPersonDetails]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-3xl bg-[var(--bg-color)] text-[var(--text-color)] rounded-2xl overflow-hidden shadow-2xl border border-white/10 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-white/10 bg-black/20 sticky top-0 backdrop-blur-md z-10">
+        <div className="flex justify-between items-center px-5 py-4 border-b border-white/10 bg-[var(--bg-color)] sticky top-0 z-10">
           <h2 className="text-xl font-bold truncate pr-4">
             {loading ? t('loading') : person?.name}
           </h2>

@@ -8,7 +8,7 @@ export function GlobalAudioPlayer() {
 
   return (
     <div
-      className="fixed left-4 right-4 z-50 p-3 rounded-2xl shadow-2xl backdrop-blur-2xl flex items-center gap-3 border"
+      className="fixed left-4 right-4 z-50 p-3 rounded-2xl shadow-2xl flex items-center gap-3 border"
       style={{
         bottom: '80px',
         backgroundColor: 'var(--bg-color)',

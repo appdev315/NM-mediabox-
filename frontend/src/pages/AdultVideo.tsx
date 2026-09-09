@@ -137,14 +137,17 @@ export function AdultVideo() {
                     >
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm">
                         <img src={v.poster} className="w-full h-full object-cover" alt="" />
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg">
                           {v.duration}
                         </div>
                       </div>
                       <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
                     </div>
-                    {/* Insert Banner Ad after the 10th item */}
-                    {idx === 9 && <BannerAd />}
+                    {idx === 9 && (
+                      <div className="col-span-2 w-full">
+                        <BannerAd variant="wide" />
+                      </div>
+                    )}
                   </React.Fragment>
                 );
               })}

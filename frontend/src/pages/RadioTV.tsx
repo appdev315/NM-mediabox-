@@ -800,7 +800,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       {/* TV Player Modal/Inline */}
       {activeTvChannel && activeTab === 'tv' && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in zoom-in-95 duration-200">
-          <div className="bg-black/90 backdrop-blur-md flex justify-between items-center p-4 border-b border-white/10 z-20 absolute top-0 left-0 right-0">
+          <div className="bg-black/95 flex justify-between items-center p-4 border-b border-white/10 z-20 absolute top-0 left-0 right-0">
             <div className="flex items-center gap-3">
               {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-10 h-10 rounded-full shadow-md bg-white/10" />}
               <span className="font-bold text-white text-lg truncate shadow-sm drop-shadow-md">{activeTvChannel.name}</span>
@@ -920,7 +920,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   {/* Exactly 1 Ad Banner embedded seamlessly at index 8 */}
                   {idx === 8 && (
                     <div className="col-span-3 md:col-span-4 lg:col-span-6 w-full flex justify-center my-2">
-                      <ExoClickWhiteAd zoneId="5965876" className="exo-banner-movie-card w-full rounded-xl overflow-hidden" />
+                      <ExoClickWhiteAd zoneId="5965876" className="ad-slot exo-banner-movie-card w-full rounded-xl overflow-hidden" />
                     </div>
                   )}
                 </React.Fragment>

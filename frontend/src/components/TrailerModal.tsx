@@ -11,7 +11,7 @@ export const TrailerModal: React.FC<TrailerModalProps> = ({ videoKey, title, onC
   const { t } = useLanguage();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in">
       <div className="relative w-full max-w-4xl bg-gray-900 rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col">
         {/* Modal Header */}
         <div className="flex justify-between items-center px-4 py-3 bg-gray-950 border-b border-white/10">

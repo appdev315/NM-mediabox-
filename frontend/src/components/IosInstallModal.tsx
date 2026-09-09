@@ -27,16 +27,13 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
         className="relative w-full max-w-sm sm:max-w-md bg-gradient-to-b from-gray-900 via-gray-900 to-black rounded-3xl border border-white/15 p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Background decorative glow */}
-        <div className="absolute -top-20 -left-20 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
         <button
@@ -74,7 +71,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
         {/* Step-by-step guides */}
         <div className="space-y-3 mb-6">
           {/* Step 1 */}
-          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10">
             <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
               {/* Safari Share Icon */}
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -90,7 +87,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
           </div>
 
           {/* Step 2 */}
-          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
               {/* Add to Home Screen Icon */}
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,7 +103,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
           </div>
 
           {/* Step 3 */}
-          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+          <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
               {/* Add Confirmation Icon */}
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

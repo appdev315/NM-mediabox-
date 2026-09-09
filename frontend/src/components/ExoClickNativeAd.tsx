@@ -18,9 +18,11 @@ export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdPro
         ins.className = 'eas6a97888e20';
         ins.setAttribute('data-zoneid', '5964558');
         ins.setAttribute('data-ex_av', 'name');
-        ins.style.display = 'inline-block';
+        ins.style.display = 'block';
+        ins.style.position = 'absolute';
+        ins.style.inset = '0';
         ins.style.width = '100%';
-        ins.style.minHeight = 'inherit';
+        ins.style.height = '100%';
         containerRef.current.appendChild(ins);
       }
 
@@ -43,7 +45,7 @@ export default function ExoClickNativeAd({ className = '' }: ExoClickNativeAdPro
   }, []);
 
   return (
-    <div ref={containerRef} className={`w-full rounded-xl overflow-hidden ${className}`}>
+    <div ref={containerRef} className={`ad-slot w-full rounded-xl overflow-hidden ${className}`}>
     </div>
   );
 }

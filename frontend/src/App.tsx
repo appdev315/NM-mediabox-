@@ -30,7 +30,7 @@ function NetworkBanner() {
   if (isOnline) return null;
 
   return (
-    <div className="bg-amber-600/90 text-white text-xs font-semibold text-center py-1 px-3 w-full backdrop-blur-sm z-50 sticky top-0 animate-pulse">
+    <div className="bg-amber-600 text-white text-xs font-semibold text-center py-1 px-3 w-full z-50 sticky top-0">
       📡 Соединение частично отсутствует — используется локальный кэш
     </div>
   );
@@ -71,7 +71,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
 
   return (
     <div 
-      className="fixed bottom-0 left-0 right-0 flex justify-around p-3 border-t backdrop-blur-md z-40"
+      className="fixed bottom-0 left-0 right-0 flex justify-around p-3 border-t z-40"
       style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
     >
       <Link 

@@ -51,7 +51,7 @@ export function ExoClickBanner18() {
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full mb-6">
+    <div ref={containerRef} className="ad-slot w-full mb-4">
     </div>
   );
 }

@@ -10,7 +10,7 @@ export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https:
 const inFlightRequests = new Map<string, Promise<any>>();
 
 // TMDB Edge Image Proxy helper (bypasses ISP blocks in Russia & caches on Cloudflare Edge)
-export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w300' | 'w342' | 'w500' | 'w1280' = 'w342') => {
+export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w300' | 'w342' | 'w500' | 'w780' | 'w1280' = 'w342') => {
   if (!path) return '';
   return `${CF_API_BASE}/image?path=/t/p/${size}${path.startsWith('/') ? path : '/' + path}`;
 };
@@ -391,7 +391,7 @@ export function useApi() {
       original_title: item.original_title || item.original_name || '',
       title_ru: titleRu,
       poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
-      backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : '',
+      backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w780') : '',
       description: item.overview || '',
       tagline: item.tagline || '',
       runtime: item.runtime || (item.episode_run_time ? item.episode_run_time[0] : 0),
@@ -858,8 +858,8 @@ export function useApi() {
             rating: Number((item.vote_average || 0).toFixed(1)),
             genreNames: genres,
             overview: item.overview || '',
-            poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w500') : '',
-            backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : (item.poster_path ? getTmdbImageUrl(item.poster_path, 'w500') : ''),
+            poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : '',
+            backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w780') : (item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : ''),
             trailerKey: trailer.key
           } as TrailerFeedItem;
         } catch {

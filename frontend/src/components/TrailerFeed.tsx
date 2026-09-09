@@ -360,7 +360,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
             <button
               onClick={onClose}
               style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
-              className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+              className="fixed z-50 w-10 h-10 rounded-full bg-black/80 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl active:scale-90 transition-transform cursor-pointer"
               title={t('close') || 'Закрыть'}
               aria-label={t('close') || 'Закрыть'}
             >
@@ -399,7 +399,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
             <button
               onClick={onClose}
               style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
-              className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+              className="fixed z-50 w-10 h-10 rounded-full bg-black/80 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl active:scale-90 transition-transform cursor-pointer"
               title={t('close') || 'Закрыть'}
               aria-label={t('close') || 'Закрыть'}
             >
@@ -421,7 +421,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
         <button
           onClick={() => scrollToIndex(activeIndex - 1)}
           disabled={activeIndex === 0}
-          className="p-3 bg-gray-900/80 hover:bg-gray-800 disabled:opacity-30 text-white rounded-full backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-95"
+          className="p-3 bg-gray-900 hover:bg-gray-800 disabled:opacity-30 text-white rounded-full border border-white/10 shadow-xl transition-transform active:scale-95"
           title={t('prevTrailer') || 'Предыдущий'}
         >
           ▲
@@ -429,7 +429,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
         <button
           onClick={() => scrollToIndex(activeIndex + 1)}
           disabled={activeIndex === trailers.length - 1}
-          className="p-3 bg-gray-900/80 hover:bg-gray-800 disabled:opacity-30 text-white rounded-full backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-95"
+          className="p-3 bg-gray-900 hover:bg-gray-800 disabled:opacity-30 text-white rounded-full border border-white/10 shadow-xl transition-transform active:scale-95"
           title={t('nextTrailer') || 'Следующий'}
         >
           ▼
@@ -523,8 +523,8 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                       {/* Favorite button */}
                       <button
                         onClick={() => handleToggleFavorite(item)}
-                        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 shadow-xl transition-transform active:scale-90 ${
-                          isFav ? 'bg-red-500/90 text-white' : 'bg-black/60 text-white hover:bg-black/80'
+                        className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 shadow-xl transition-transform active:scale-90 ${
+                          isFav ? 'bg-red-500 text-white' : 'bg-black/80 text-white hover:bg-black/90'
                         }`}
                         aria-label={t('favorites') || 'Избранное'}
                       >
@@ -595,7 +595,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
           <button
             onClick={onClose}
             style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
-            className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+            className="fixed z-50 w-10 h-10 rounded-full bg-black/80 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl active:scale-90 transition-transform cursor-pointer"
             title={t('close') || 'Закрыть'}
             aria-label={t('close') || 'Закрыть'}
           >

@@ -409,14 +409,13 @@ export function Adult() {
                   </div>
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
-                {(idx + 1) % 15 === 0 && (
-                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
-                    <BannerAd type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
-                  </div>
-                )}
                 {(idx + 1) % 12 === 0 && (
                   <div className="col-span-2 sm:col-span-3 lg:col-span-4 w-full my-2">
-                    <ExoClickNativeAd className="exo-native-ad-container" />
+                    {Math.floor(idx / 12) % 2 === 0 ? (
+                      <ExoClickNativeAd className="exo-native-ad-container" />
+                    ) : (
+                      <BannerAd type={Math.floor(idx / 12) % 4 === 1 ? "telegram" : "mainbot"} />
+                    )}
                   </div>
                 )}
               </React.Fragment>

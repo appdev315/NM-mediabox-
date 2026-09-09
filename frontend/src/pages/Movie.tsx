@@ -176,7 +176,10 @@ export function Movie() {
   }, [movie?.videos, language]);
   const directors = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Director') || [], [movie?.credits?.crew]);
   const writers = useMemo(() => movie?.credits?.crew?.filter((c: any) => c.job === 'Writer' || c.job === 'Screenplay' || c.job === 'Characters')?.slice(0, 3) || [], [movie?.credits?.crew]);
-  const cast = useMemo(() => movie?.credits?.cast?.slice(0, 15) || [], [movie?.credits?.cast]);
+  const [showAllCast, setShowAllCast] = useState(false);
+  const allCast = useMemo(() => movie?.credits?.cast || [], [movie?.credits?.cast]);
+  const cast = useMemo(() => showAllCast ? allCast.slice(0, 15) : allCast.slice(0, 6), [allCast, showAllCast]);
+  const displayedRecommendations = useMemo(() => recommendations.slice(0, 8), [recommendations]);
   const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
   const isUnreleased = useMemo(() => Boolean(
     movie?.isUpcoming || 
@@ -1102,7 +1105,7 @@ export function Movie() {
               )}
             </div>
             <div ref={scrollRef} className="flex overflow-x-auto gap-4 pt-1 pb-6 snap-x scrollbar-thin">
-              {recommendations.map((rec) => (
+              {displayedRecommendations.map((rec) => (
                 <div 
                   key={rec.id} 
                   className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
@@ -1117,7 +1120,7 @@ export function Movie() {
                   <div className="relative overflow-hidden rounded-xl w-full aspect-[2/3] shadow-sm bg-[var(--hint-color)]">
                     <img 
                       src={rec.poster} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 will-change-transform" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                       alt={rec.title}
                       loading="lazy"
                     />
@@ -1165,7 +1168,7 @@ export function Movie() {
               {showAudioHint && !isExtracting && iframeUrl && (
                 <div
                   onClick={() => setShowAudioHint(false)}
-                  className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-2xl border border-white/20 backdrop-blur-md animate-bounce cursor-pointer select-none max-w-[calc(100%-16px)]"
+                  className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-lg border border-white/20 cursor-pointer select-none max-w-[calc(100%-16px)]"
                   title="Нажмите, чтобы скрыть"
                 >
                   <span className="truncate">🎧 {t('audioLanguageHint') || 'Переключи язык аудио здесь'}</span>
@@ -1261,8 +1264,18 @@ export function Movie() {
         {/* Cast Carousel / В главных ролях (Under player in Watch mode) */}
         {(isExtracting || iframeUrl) && cast.length > 0 && (
           <div className="mb-8 border-t border-white/10 pt-4 space-y-3">
-            <h3 className="font-extrabold text-base">{t('topCast')}</h3>
-            <div className="flex overflow-x-auto gap-3 pt-1 pb-6 scrollbar-thin">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base">{t('topCast')}</h3>
+              {allCast.length > 6 && (
+                <button
+                  onClick={() => setShowAllCast(prev => !prev)}
+                  className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                >
+                  {showAllCast ? (language === 'ru-RU' ? 'Свернуть' : 'Show less') : `${t('showMore')} (${allCast.length})`}
+                </button>
+              )}
+            </div>
+            <div className="flex overflow-x-auto gap-3 pt-1 pb-4 scrollbar-thin">
               {cast.map((actor: any) => (
                 <div
                   key={actor.id}

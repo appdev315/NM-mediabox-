@@ -74,11 +74,11 @@ export function AdultFavorites() {
                       e.currentTarget.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
                     }}
                   />
-                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+                  <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg">
                     {v.duration}
                   </div>
                   <button 
-                    className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
+                    className="absolute top-2 right-2 w-7 h-7 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
                     onClick={(e) => removeHistoryItem(e, v.id)}
                   >
                     ✕

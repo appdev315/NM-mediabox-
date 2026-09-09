@@ -88,7 +88,7 @@ export function Header() {
                 setIsLangOpen(prev => !prev);
                 setIsOpen(false);
               }}
-              className="h-10 px-3 rounded-full shadow-xl border border-white/10 flex items-center gap-1.5 transition-transform active:scale-95 bg-gray-800/90 hover:bg-gray-700 text-white font-semibold text-xs tracking-wide backdrop-blur-md"
+              className="h-10 px-3 rounded-full shadow-xl border border-white/10 flex items-center gap-1.5 transition-transform active:scale-95 bg-gray-800 hover:bg-gray-700 text-white font-semibold text-xs tracking-wide"
               aria-label="Выбор языка"
             >
               <span className="text-sm">{currentLang.flag}</span>
@@ -98,7 +98,7 @@ export function Header() {
 
             {/* Language Dropdown */}
             {isLangOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-gray-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 p-1.5 flex flex-col gap-1 text-xs max-h-72 overflow-y-auto hide-scrollbar z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-44 bg-[#18222d] rounded-2xl shadow-2xl border border-white/10 p-1.5 flex flex-col gap-1 text-xs max-h-72 overflow-y-auto hide-scrollbar z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 {LANGUAGES_CONFIG.map(l => (
                   <button
                     key={l.code}
@@ -148,7 +148,7 @@ export function Header() {
 
             {/* Dropdown Menu */}
             {isOpen && (
-              <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-gray-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 p-2 flex flex-col gap-1 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-[#18222d] rounded-2xl shadow-2xl border border-white/10 p-2 flex flex-col gap-1 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2 duration-150">
                 <button
                   onClick={handleOpenTelegram}
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-white/10 text-left transition-colors text-white font-medium"
