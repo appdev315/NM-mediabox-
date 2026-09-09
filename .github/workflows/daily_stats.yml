@@ -34,6 +34,7 @@ jobs:
             SERIES=$(echo "$BODY" | jq -r '.metrics.categories.series // 0')
             RADIO=$(echo "$BODY" | jq -r '.metrics.categories.radio // 0')
             TV=$(echo "$BODY" | jq -r '.metrics.categories.tv // 0')
+            ADULT=$(echo "$BODY" | jq -r '.metrics.categories.adult // 0')
             
             LIFTW_REQ=$(echo "$BODY" | jq -r '.metrics.donors.liftwRequests // 0')
             LIFTW_FAIL=$(echo "$BODY" | jq -r '.metrics.donors.liftwFails // 0')
@@ -80,6 +81,7 @@ jobs:
           📊 <b>Активность по разделам:</b>
           🎬 Фильмы: ${MOVIES} | 📺 Сериалы: ${SERIES}
           📻 Радио: ${RADIO} | 📺 ТВ: ${TV}
+          🍓 18+ (Адалт): ${ADULT}
 
           📡 <b>Диагностика доноров:</b>
           🏎 <b>Liftw (Плеер 1):</b> ${LIFTW_REQ} зап. | ${LIFTW_SUCCESS_PCT}% успех

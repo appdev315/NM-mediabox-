@@ -9,11 +9,13 @@ import React from 'react';
 import ExoClickNativeAd from '../components/ExoClickNativeAd';
 import { ExoClickBanner18 } from '../components/ExoClickBanner18';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
+import { trackOpen } from '../utils/analytics';
 
 
 
 const CATEGORIES = [
   { id: '', label: 'All Categories / Все категории' },
+  { id: 'popular', label: '🔥 Popular / Популярное' },
   { id: 'milf', label: 'MILF' },
   { id: 'teen', label: 'Teens' },
   { id: 'japanese', label: 'Japanese' },
@@ -182,6 +184,7 @@ export function Adult() {
   useEffect(() => {
     if (hasAccess && ageConfirmed) {
       loadVideos(initialCategoryRef.current, 0);
+      trackOpen('adult_catalog', initialCategoryRef.current || 'all', 'catalog');
     } else {
       setLoading(false);
     }
@@ -230,8 +233,10 @@ export function Adult() {
     e.preventDefault();
     (document.activeElement as HTMLElement)?.blur();
     if (hasAccess) {
+      const activeTag = query || country || category;
+      trackOpen('adult_catalog', activeTag || 'search', 'search');
       setPage(0);
-      loadVideos(query || country || category, 0, false);
+      loadVideos(activeTag, 0, false);
     }
   };
 
@@ -242,6 +247,7 @@ export function Adult() {
     setQuery('');
     setPage(0);
     if (hasAccess) {
+      trackOpen('adult_catalog', val || 'all', 'category');
       if (val === '') {
         const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
         loadVideos(randomCat, 0, false);
@@ -258,6 +264,7 @@ export function Adult() {
     setQuery('');
     setPage(0);
     if (hasAccess) {
+      trackOpen('adult_catalog', val || 'all', 'country');
       loadVideos(val, 0, false);
     }
   };

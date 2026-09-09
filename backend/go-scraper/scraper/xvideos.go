@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"scraper/types"
@@ -22,17 +23,69 @@ var (
 )
 
 func SearchXvideos(ctx context.Context, query string, page int) []types.Video {
-	// 1. High-speed primary provider: RedTube Public API
-	rtVideos := searchRedtube(ctx, query, page)
-	if len(rtVideos) > 0 {
-		return rtVideos
+	cleanQ := strings.TrimSpace(strings.ToLower(query))
+	if cleanQ == "популярное" || cleanQ == "популярный" || cleanQ == "популярные" || cleanQ == "" {
+		cleanQ = "popular"
 	}
 
-	// 2. Secondary provider: XVideos scraper
+	// 1. Parallel fetch from RedTube and Eporner with 4s timeout
+	subCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	var (
+		rtVideos []types.Video
+		epVideos []types.Video
+		wg       sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		rtVideos = searchRedtube(subCtx, cleanQ, page)
+	}()
+	go func() {
+		defer wg.Done()
+		epVideos = searchEporner(subCtx, cleanQ, page)
+	}()
+	wg.Wait()
+
+	// 2. Interleave results round-robin (RedTube, Eporner, RedTube, Eporner...)
+	mixed := interleaveVideos(rtVideos, epVideos)
+	if len(mixed) > 0 {
+		return mixed
+	}
+
+	// 3. Fallback to XVideos HTML scraper if both APIs returned no results
+	return searchXvideosHtml(ctx, cleanQ, page)
+}
+
+func interleaveVideos(lists ...[]types.Video) []types.Video {
+	maxLen := 0
+	for _, list := range lists {
+		if len(list) > maxLen {
+			maxLen = len(list)
+		}
+	}
+	var result []types.Video
+	seen := make(map[string]bool)
+	for i := 0; i < maxLen; i++ {
+		for _, list := range lists {
+			if i < len(list) {
+				v := list[i]
+				if !seen[v.ID] && v.ID != "" && v.Title != "" {
+					seen[v.ID] = true
+					result = append(result, v)
+				}
+			}
+		}
+	}
+	return result
+}
+
+func searchXvideosHtml(ctx context.Context, cleanQ string, page int) []types.Video {
 	client := GetHTTPClient(5 * time.Second)
 	domains := []string{"www.xvideos.com", "www.xvideos2.com", "www.xvideos3.com", "www.xv-ru.com", "www.xvideos.es"}
 
-	cleanQ := strings.TrimSpace(strings.ToLower(query))
 	tagQ := strings.ReplaceAll(cleanQ, " ", "-")
 
 	for _, domain := range domains {
@@ -183,6 +236,67 @@ func searchRedtube(ctx context.Context, query string, page int) []types.Video {
 				Title:    v.Title,
 				Poster:   thumb,
 				Duration: v.Duration,
+				Type:     "adult",
+				Href:     v.URL,
+			})
+		}
+	}
+	return results
+}
+
+type epornerSearchResponse struct {
+	Count  int `json:"count"`
+	Videos []struct {
+		ID           string `json:"id"`
+		Title        string `json:"title"`
+		LengthMin    string `json:"length_min"`
+		DefaultThumb struct {
+			SRC string `json:"src"`
+		} `json:"default_thumb"`
+		URL string `json:"url"`
+	} `json:"videos"`
+}
+
+func searchEporner(ctx context.Context, query string, page int) []types.Video {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		q = "popular"
+	}
+	apiUrl := fmt.Sprintf("https://www.eporner.com/api/v2/video/search/?query=%s&per_page=30&page=%d&thumbsize=medium&format=json", url.QueryEscape(q), page+1)
+	client := &http.Client{Timeout: 6 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	res, err := client.Do(req)
+	if err != nil || res == nil || res.StatusCode != 200 {
+		if res != nil {
+			res.Body.Close()
+		}
+		return nil
+	}
+	defer res.Body.Close()
+
+	var data epornerSearchResponse
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		return nil
+	}
+
+	var results []types.Video
+	for _, v := range data.Videos {
+		if v.ID != "" && v.Title != "" {
+			thumb := v.DefaultThumb.SRC
+			duration := v.LengthMin
+			if !strings.Contains(duration, "min") && !strings.Contains(duration, ":") {
+				duration += " min"
+			}
+			results = append(results, types.Video{
+				ID:       "ep_" + v.ID,
+				Title:    v.Title,
+				Poster:   thumb,
+				Duration: duration,
 				Type:     "adult",
 				Href:     v.URL,
 			})

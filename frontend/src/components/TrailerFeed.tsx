@@ -92,11 +92,13 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   const { t, language } = useLanguage();
   const { fetchTrailerFeed } = useApi();
 
+  const isTelegram = Boolean(WebApp?.initData);
+  const showFloatingClose = isModal && !isTelegram;
+
   const [trailers, setTrailers] = useState<TrailerFeedItem[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
   const [favoriteMap, setFavoriteMap] = useState<Record<number, boolean>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -277,6 +279,19 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeIndex, scrollToIndex, isModal, onClose]);
 
+  // Synchronize Telegram WebApp native BackButton when modal is open
+  useEffect(() => {
+    if (!isModal || !onClose) return;
+    if (isTelegram && WebApp?.BackButton) {
+      WebApp.BackButton.show();
+      WebApp.BackButton.onClick(onClose);
+      return () => {
+        WebApp.BackButton.offClick(onClose);
+        WebApp.BackButton.hide();
+      };
+    }
+  }, [isModal, onClose, isTelegram]);
+
   // Toggle favorite
   const handleToggleFavorite = (item: TrailerFeedItem) => {
     const favType = item.mediaType === 'tv' ? 'series' : 'movie';
@@ -341,14 +356,17 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     if (isModal) {
       return (
         <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-          <button
-            onClick={onClose}
-            className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
-            title="Закрыть"
-            aria-label="Закрыть"
-          >
-            ✕
-          </button>
+          {showFloatingClose && (
+            <button
+              onClick={onClose}
+              style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
+              className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+              title={t('close') || 'Закрыть'}
+              aria-label={t('close') || 'Закрыть'}
+            >
+              ✕
+            </button>
+          )}
           {loadingView}
         </div>
       );
@@ -377,14 +395,17 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     if (isModal) {
       return (
         <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-          <button
-            onClick={onClose}
-            className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md cursor-pointer"
-            title="Закрыть"
-            aria-label="Закрыть"
-          >
-            ✕
-          </button>
+          {showFloatingClose && (
+            <button
+              onClick={onClose}
+              style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
+              className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+              title={t('close') || 'Закрыть'}
+              aria-label={t('close') || 'Закрыть'}
+            >
+              ✕
+            </button>
+          )}
           {emptyView}
         </div>
       );
@@ -460,7 +481,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                   <div className="relative w-full flex-1 bg-black overflow-hidden">
                     {isActive ? (
                       <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1`}
+                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=1&playsinline=1&rel=0&controls=1`}
                         title={`Trailer for ${item.title}`}
                         className="w-full h-full border-0 absolute inset-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -482,20 +503,6 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                           ▶
                         </div>
                       </div>
-                    )}
-
-                    {/* Floating Sound Toggle Pill */}
-                    {isActive && (
-                      <button
-                        onClick={() => {
-                          setIsMuted(prev => !prev);
-                          if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-                        }}
-                        className="absolute top-4 left-4 z-30 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95 shadow-lg cursor-pointer"
-                      >
-                        <span>{isMuted ? '🔇' : '🔊'}</span>
-                        <span>{isMuted ? (t('trailerSoundOff') || 'Без звука') : (t('trailerSoundOn') || 'Звук')}</span>
-                      </button>
                     )}
 
                     {/* Right Side Action Bar (Reels Style) */}
@@ -583,15 +590,18 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   if (isModal) {
     return (
       <div className="fixed inset-0 z-50 bg-black/98 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-        {/* Floating Close Button */}
-        <button
-          onClick={onClose}
-          className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-black/80 hover:bg-gray-800 text-white flex items-center justify-center text-xl font-bold border border-white/20 shadow-2xl transition-transform active:scale-90 backdrop-blur-md"
-          title="Закрыть"
-          aria-label="Закрыть"
-        >
-          ✕
-        </button>
+        {/* Floating Close Button: shown only in mobile browser / iOS PWA / desktop (Telegram uses native BackButton) */}
+        {showFloatingClose && (
+          <button
+            onClick={onClose}
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: '16px' }}
+            className="fixed z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-lg font-bold border border-white/20 shadow-2xl backdrop-blur-md active:scale-90 transition-transform cursor-pointer"
+            title={t('close') || 'Закрыть'}
+            aria-label={t('close') || 'Закрыть'}
+          >
+            ✕
+          </button>
+        )}
         {content}
       </div>
     );

@@ -489,6 +489,12 @@ export function useApi() {
 
   const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
+      if (genreId === 'trending') {
+        const data = await tmdbFetch('/trending/movie/day', { page });
+        return (data.results || [])
+          .filter((item: TMDBMovie) => !!item.poster_path)
+          .map((item: TMDBMovie) => mapTMDB(item, 'movie'));
+      }
       const params: any = { page, sort_by: sortBy };
       if (sortBy === 'vote_average.desc') {
         params['vote_count.gte'] = 300;
@@ -506,6 +512,12 @@ export function useApi() {
 
   const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
+      if (genreId === 'trending') {
+        const data = await tmdbFetch('/trending/tv/day', { page });
+        return (data.results || [])
+          .filter((item: TMDBMovie) => !!item.poster_path)
+          .map((item: TMDBMovie) => mapTMDB(item, 'series'));
+      }
       const params: any = { page, sort_by: sortBy };
       if (sortBy === 'vote_average.desc') {
         params['vote_count.gte'] = 150;
