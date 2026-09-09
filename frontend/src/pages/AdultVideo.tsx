@@ -132,7 +132,7 @@ export function AdultVideo() {
           <div className="mt-8">
             <h2 className="text-lg font-bold mb-4">{t('recommendations')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
-              {relatedVideos.map((v, idx) => {
+              {relatedVideos.map((v) => {
                 if (v.id === id) return null; // Skip current video
                 return (
                   <React.Fragment key={v.id}>
