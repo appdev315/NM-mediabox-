@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { Player } from '../components/Player';
-import { BannerAd } from '../components/BannerAd';
 import { Header } from '../components/Header';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
+import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
@@ -126,27 +126,43 @@ export function AdultVideo() {
         {relatedVideos.length > 0 && (
           <div className="mt-8">
             <h2 className="text-lg font-bold mb-4">{t('recommendations')}</h2>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
               {relatedVideos.map((v, idx) => {
                 if (v.id === id) return null; // Skip current video
                 return (
                   <React.Fragment key={v.id}>
                     <div 
-                      className="cursor-pointer active:scale-95 transition-transform"
+                      className="cursor-pointer"
                       onClick={() => navigate(`/adult/${v.id}`, { state: location.state })}
                     >
-                      <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-sm">
-                        <img src={v.poster} className="w-full h-full object-cover" alt="" />
-                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                      <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
+                        <img 
+                          src={v.poster} 
+                          className="w-full h-full object-cover" 
+                          alt="" 
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            const src = img.src;
+                            if (src.includes('thumb-cdn77.xvideos-cdn.com')) {
+                              img.src = src.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
+                            } else if (src.includes('thumbs-gcore.xvideos-cdn.com')) {
+                              img.src = src.replace('thumbs-gcore.xvideos-cdn.com', 'static-ss.xvideos-cdn.com');
+                            } else {
+                              img.onerror = null;
+                              img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
+                            }
+                          }}
+                        />
+                        <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
                           {v.duration}
                         </div>
                       </div>
-                      <p className="text-sm font-semibold line-clamp-2 leading-snug">{v.title}</p>
+                      <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                     </div>
-                    {idx === 9 && (
-                      <div className="col-span-full w-full my-2">
-                        <BannerAd variant="wide" />
-                      </div>
+                    {idx === 7 && (
+                      <AdsterraNativeAd />
                     )}
                   </React.Fragment>
                 );
