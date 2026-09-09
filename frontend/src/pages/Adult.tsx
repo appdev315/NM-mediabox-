@@ -4,9 +4,7 @@ import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
-import { BannerAd } from '../components/BannerAd';
 import React from 'react';
-import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
@@ -314,11 +312,6 @@ export function Adult() {
 
   return (
     <div className="px-3 sm:px-4 pb-20 pt-16 sm:pt-16">
-      {/* Top Banner to Telegram Bot */}
-      <div className="mb-4">
-        <BannerAd variant="wide" type="telegram" />
-      </div>
-
       <div className="flex items-center gap-3 mb-3">
         <h1 className="text-xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>
@@ -412,9 +405,6 @@ export function Adult() {
                   </div>
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
-                {(idx + 1) % 12 === 0 && (
-                  <AdsterraNativeAd />
-                )}
               </React.Fragment>
             ))}
           </div>
