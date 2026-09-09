@@ -96,6 +96,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
   const [favoriteMap, setFavoriteMap] = useState<Record<number, boolean>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -459,7 +460,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                   <div className="relative w-full flex-1 bg-black overflow-hidden">
                     {isActive ? (
                       <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=0&playsinline=1&rel=0&controls=1`}
+                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1`}
                         title={`Trailer for ${item.title}`}
                         className="w-full h-full border-0 absolute inset-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -481,6 +482,20 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                           ▶
                         </div>
                       </div>
+                    )}
+
+                    {/* Floating Sound Toggle Pill */}
+                    {isActive && (
+                      <button
+                        onClick={() => {
+                          setIsMuted(prev => !prev);
+                          if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                        }}
+                        className="absolute top-4 left-4 z-30 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95 shadow-lg cursor-pointer"
+                      >
+                        <span>{isMuted ? '🔇' : '🔊'}</span>
+                        <span>{isMuted ? (t('trailerSoundOff') || 'Без звука') : (t('trailerSoundOn') || 'Звук')}</span>
+                      </button>
                     )}
 
                     {/* Right Side Action Bar (Reels Style) */}

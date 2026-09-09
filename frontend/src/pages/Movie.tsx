@@ -136,6 +136,7 @@ export function Movie() {
     return ['1'];
   }, [liftwEpisodes, activeSeason, sortedSeasons, movie?.seasons]);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [showAudioHint, setShowAudioHint] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
@@ -323,6 +324,47 @@ export function Movie() {
       return () => clearTimeout(timer);
     }
   }, [iframeUrl]);
+
+  // Audio language switch hint (shown once per session for 15s on movie/series start)
+  useEffect(() => {
+    if (!iframeUrl) return;
+
+    try {
+      const alreadyShown = sessionStorage.getItem('mb_audio_hint_shown');
+      if (!alreadyShown) {
+        setShowAudioHint(true);
+        sessionStorage.setItem('mb_audio_hint_shown', 'true');
+
+        const timer = setTimeout(() => {
+          setShowAudioHint(false);
+        }, 15000);
+
+        return () => clearTimeout(timer);
+      }
+    } catch (_) {}
+  }, [iframeUrl]);
+
+  // Hide audio language hint when entering fullscreen
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFullscreen = Boolean(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      if (isFullscreen) {
+        setShowAudioHint(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     let interval: any;
@@ -1118,30 +1160,51 @@ export function Movie() {
             </div>
           )}
           {(isExtracting || iframeUrl) && (
-            <div id="video-player" className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black mt-2 shadow-xl mb-8 flex items-center justify-center">
-            {isExtracting ? (
-              <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
-                <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
-                  <div 
-                    className="h-full bg-blue-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                    style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
-                  />
+            <div className="relative w-full md:w-[80%] mx-auto mt-2 mb-8">
+              {/* Audio language hint pointing to gear in iframe top-right */}
+              {showAudioHint && !isExtracting && iframeUrl && (
+                <div
+                  onClick={() => setShowAudioHint(false)}
+                  className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-2xl border border-white/20 backdrop-blur-md animate-bounce cursor-pointer select-none max-w-[calc(100%-16px)]"
+                  title="Нажмите, чтобы скрыть"
+                >
+                  <span className="truncate">🎧 {t('audioLanguageHint') || 'Переключи язык аудио здесь'}</span>
+                  <span className="text-amber-300 text-sm sm:text-base font-black shrink-0">↘️</span>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setShowAudioHint(false); }}
+                    className="ml-1 text-white/70 hover:text-white text-xs font-bold p-0.5 shrink-0 cursor-pointer"
+                    aria-label="Закрыть"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <p className="text-blue-400 text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</p>
+              )}
+
+              <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-xl flex items-center justify-center">
+                {isExtracting ? (
+                  <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
+                    <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                        style={{ width: `${Math.min(100, Math.max(0, loadingProgress))}%` }}
+                      />
+                    </div>
+                    <p className="text-blue-400 text-xs font-bold tracking-wider uppercase animate-pulse">{t('loading')} {Math.round(loadingProgress)}%</p>
+                  </div>
+                ) : iframeUrl ? (
+                  <div className="w-full h-full flex flex-col relative group">
+                    <div className="flex-1 w-full h-full">
+                      <Player 
+                        iframeUrl={iframeUrl} 
+                        initialTimecode={savedTimecode || undefined} 
+                        mediaId={id} 
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            ) : iframeUrl ? (
-              <div className="w-full h-full flex flex-col relative group">
-                <div className="flex-1 w-full h-full">
-                  <Player 
-                    iframeUrl={iframeUrl} 
-                    initialTimecode={savedTimecode || undefined} 
-                    mediaId={id} 
-                  />
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
+            </div>
+          )}
         </div>
 
         {/* TV Series Seasons and Episodes UI (Only in Watch Mode) */}
