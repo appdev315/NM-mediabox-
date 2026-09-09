@@ -411,7 +411,7 @@ export function Home() {
                   onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
                 >
                   <option value="">{t('allGenres')}</option>
-                  <option value="trending">{language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular'}</option>
+                  <option value="trending">{t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular')}</option>
                   {genres.map(g => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}

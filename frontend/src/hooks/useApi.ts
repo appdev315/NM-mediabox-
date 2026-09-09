@@ -613,9 +613,9 @@ export function useApi() {
     }
   }, [tmdbFetch]);
 
-  const fetchRecommendations = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
+  const fetchRecommendations = useCallback(async (id: string | number, type: 'movie' | 'tv', page: number = 1) => {
     try {
-      const data = await tmdbFetch(`/${type}/${id}/recommendations`);
+      const data = await tmdbFetch(`/${type}/${id}/recommendations`, { page });
       return (data?.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
     } catch (err: any) {
       console.error('TMDB API Error:', err);

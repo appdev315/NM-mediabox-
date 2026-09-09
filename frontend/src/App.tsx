@@ -27,11 +27,12 @@ import { trackVisit } from './utils/analytics';
 
 function NetworkBanner() {
   const { isOnline } = useNetworkStatus();
+  const { t } = useLanguage();
   if (isOnline) return null;
 
   return (
     <div className="bg-amber-600 text-white text-xs font-semibold text-center py-1 px-3 w-full z-50 sticky top-0">
-      📡 Соединение частично отсутствует — используется локальный кэш
+      {t('offlineBanner') || '📡 Connection partially unavailable — using local cache'}
     </div>
   );
 }

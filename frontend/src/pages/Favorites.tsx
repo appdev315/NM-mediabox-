@@ -5,7 +5,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { Header } from '../components/Header';
-import { BannerAd } from '../components/BannerAd';
 import { WebApp } from '../telegram';
 import React from 'react';
 
@@ -268,7 +267,7 @@ export function Favorites() {
                 <button 
                   className="absolute top-2 right-2 w-7 h-7 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-xs z-20 active:scale-95"
                   onClick={(e) => removeItem(e, item.id, type)}
-                  title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
+                  title={mode === 'favorites' ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('removeFromHistory') || 'Удалить из истории')}
                 >
                   ✕
                 </button>
@@ -277,11 +276,6 @@ export function Favorites() {
                 <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
               </div>
             </div>
-            {(idx + 1) % 15 === 0 && (
-              <div className="col-span-full w-full my-2">
-                <BannerAd variant="wide" type={(idx + 1) % 30 === 0 ? "mainbot" : "telegram"} />
-              </div>
-            )}
           </React.Fragment>
         ))}
       </div>
@@ -351,7 +345,7 @@ export function Favorites() {
                 <button 
                   className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
                   onClick={(e) => removeItem(e, item.id, type)}
-                  title={mode === 'favorites' ? 'Удалить из избранного' : 'Удалить из истории'}
+                  title={mode === 'favorites' ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('removeFromHistory') || 'Удалить из истории')}
                 >
                   ✕
                 </button>

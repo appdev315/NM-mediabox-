@@ -92,7 +92,7 @@ export const translations = {
   "contentUnavailable": "Контент временно недоступен", "contentUnavailableDesc": "Фильм не найден на доступных источниках. Попробуйте позже или выберите другой фильм.", "retry": "Повторить",
   "reportToDev": "Отправить уведомление разработчику", "reportSending": "Отправка...", "reportSent": "Уведомление отправлено разработчику", "chooseAnother": "Выбрать другой фильм",
   "unreleasedMovie": "Фильм ещё не вышел в кинотеатрах", "premiereDate": "Премьера", "watchTrailerOfficial": "Смотреть трейлер", "inProductionDesc": "Фильм находится на стадии производства. Официальный трейлер доступен ниже.",
-  "trailersTab": "Что глянуть?", "watchMovie": "Смотреть фильм", "watchSeries": "Смотреть сериал", "trailerSoundOn": "Звук", "trailerSoundOff": "Без звука", "audioLanguageHint": "Переключи язык аудио здесь", "nextTrailer": "Следующий", "prevTrailer": "Предыдущий", "watchAll": "Смотреть все"},
+  "trailersTab": "Что глянуть?", "watchMovie": "Смотреть фильм", "watchSeries": "Смотреть сериал", "trailerSoundOn": "Звук", "trailerSoundOff": "Без звука", "audioLanguageHint": "Переключи язык аудио здесь", "nextTrailer": "Следующий", "prevTrailer": "Предыдущий", "watchAll": "Смотреть все", "moreMovies": "Больше фильмов", "showLess": "Свернуть", "clickToHide": "Нажмите, чтобы скрыть", "removeFromHistory": "Удалить из истории", "offlineBanner": "📡 Соединение частично отсутствует — используется локальный кэш", "trending": "🔥 Популярное"},
   'en-US': {"iosInstallTitle": "Install on iPhone & iPad", "iosStep1": "In Safari, tap the Share button (box with arrow up) at the bottom", "iosStep2": "Scroll down and select \"Add to Home Screen\"", "iosStep3": "Tap \"Add\" in the top right corner", "gotIt": "Got it", "bannerMainBot": "Free movies right in your telegram", "bannerTelegram": "Secret room in tg", "bannerAdult": "Secret 18+ Section", "secretRoomTab": "Secret Room 🍓", "secretRoomRulesTitle": "3 Rules of the Secret Room:", "secretRoomRule1": "1. The first rule of the secret room — do not tell anyone about the secret room.", "secretRoomRule2": "2. The second rule of the secret room — do not tell anyone about the first rule of the secret room.", "secretRoomRule3": "3. The third rule of the secret room — I promise to subscribe to the TG bot )", "secretRoomWarning": "By clicking 'I Confirm', you acknowledge that you are at least 18 years of age and take full legal responsibility for viewing adult content. You agree not to distribute this content to minors.", "secretRoomConfirm": "✅ I Confirm", "secretRoomLeave": "❌ Leave Page", 
   "movies": "Movies",
   "series": "TV Shows",
@@ -181,7 +181,7 @@ export const translations = {
   "contentUnavailable": "Content temporarily unavailable", "contentUnavailableDesc": "Movie not found on available sources. Try again later or choose a different movie.", "retry": "Retry",
   "reportToDev": "Report to Developer", "reportSending": "Sending...", "reportSent": "Report sent to developer", "chooseAnother": "Choose another movie",
   "unreleasedMovie": "Movie not yet released in theaters", "premiereDate": "Premiere", "watchTrailerOfficial": "Watch Trailer", "inProductionDesc": "The movie is currently in production. The official trailer is available below.",
-  "trailersTab": "What to watch?", "watchMovie": "Watch Movie", "watchSeries": "Watch Series", "trailerSoundOn": "Sound On", "trailerSoundOff": "Sound Off", "audioLanguageHint": "Switch audio language here", "nextTrailer": "Next", "prevTrailer": "Previous", "watchAll": "Watch All"}
+  "trailersTab": "What to watch?", "watchMovie": "Watch Movie", "watchSeries": "Watch Series", "trailerSoundOn": "Sound On", "trailerSoundOff": "Sound Off", "audioLanguageHint": "Switch audio language here", "nextTrailer": "Next", "prevTrailer": "Previous", "watchAll": "Watch All", "moreMovies": "More Movies", "showLess": "Show Less", "clickToHide": "Click to hide", "removeFromHistory": "Remove from history", "offlineBanner": "📡 Connection partially unavailable — using local cache", "trending": "🔥 Popular"}
 };
 
 // Auto-fill missing translations with English for new languages
@@ -251,7 +251,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = (key: TranslationKey) => {
-    return (extendedTranslations as any)[language]?.[key] || translations['ru-RU'][key];
+    const langDict = (extendedTranslations as any)[language];
+    if (langDict && langDict[key]) return langDict[key];
+    if (language !== 'ru-RU' && (translations['en-US'] as any)[key]) return (translations['en-US'] as any)[key];
+    return translations['ru-RU'][key] || '';
   };
 
   return (

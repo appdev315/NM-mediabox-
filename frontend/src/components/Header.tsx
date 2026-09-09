@@ -89,7 +89,7 @@ export function Header() {
                 setIsOpen(false);
               }}
               className="h-10 px-3 rounded-full shadow-xl border border-white/10 flex items-center gap-1.5 transition-transform active:scale-95 bg-gray-800 hover:bg-gray-700 text-white font-semibold text-xs tracking-wide"
-              aria-label="Выбор языка"
+              aria-label={t('language') || 'Language'}
             >
               <span className="text-sm">{currentLang.flag}</span>
               <span>{currentLang.label}</span>
@@ -135,7 +135,7 @@ export function Header() {
                 setIsLangOpen(false);
               }}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-full shadow-xl border border-white/10 flex items-center justify-center transition-transform active:scale-95 bg-gray-800 text-white hover:bg-gray-700"
-              aria-label="Меню"
+              aria-label={t('menu') || 'Menu'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {isOpen ? (

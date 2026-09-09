@@ -116,6 +116,10 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     setPage(1);
     setActiveIndex(0);
 
+    const watchdog = setTimeout(() => {
+      if (isMounted) setInitialLoading(false);
+    }, 4000);
+
     fetchTrailerFeed(1)
       .then(items => {
         if (!isMounted) return;
@@ -152,13 +156,15 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
         console.error('Failed to load initial trailer feed:', err);
       })
       .finally(() => {
+        clearTimeout(watchdog);
         if (isMounted) setInitialLoading(false);
       });
 
     return () => {
       isMounted = false;
+      clearTimeout(watchdog);
     };
-  }, [fetchTrailerFeed, language]);
+  }, [fetchTrailerFeed, language, initialTrailerId, initialIndex]);
 
   // Load next page
   const loadMoreTrailers = useCallback(async () => {
@@ -481,7 +487,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                   <div className="relative w-full flex-1 bg-black overflow-hidden">
                     {isActive ? (
                       <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${item.trailerKey}?autoplay=1&mute=1&playsinline=1&rel=0&controls=1`}
+                        src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&playsinline=1&rel=0&controls=1`}
                         title={`Trailer for ${item.title}`}
                         className="w-full h-full border-0 absolute inset-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -493,15 +499,12 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                           setActiveIndex(index);
                           scrollToIndex(index);
                         }}
-                        className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center flex items-center justify-center transition-transform hover:scale-105 duration-300"
+                        className="w-full h-full absolute inset-0 cursor-pointer bg-cover bg-center transition-transform hover:scale-105 duration-300"
                         style={{
                           backgroundImage: `url(${item.backdrop || item.poster})`,
                         }}
                       >
-                        <div className="absolute inset-0 bg-black/40" />
-                        <div className="w-16 h-16 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-2xl shadow-2xl pl-1 animate-pulse border border-white/20">
-                          ▶
-                        </div>
+                        <div className="absolute inset-0 bg-black/30" />
                       </div>
                     )}
 
@@ -512,7 +515,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
                         onClick={() => handleWatchMovie(item)}
                         className="w-12 h-12 rounded-full flex flex-col items-center justify-center bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-2xl shadow-blue-600/50 border border-white/30 transition-transform active:scale-90"
                         title={item.mediaType === 'tv' ? (t('watchSeries') || 'Смотреть сериал') : (t('watchMovie') || 'Смотреть фильм')}
-                        aria-label="Смотреть фильм или сериал"
+                        aria-label={item.mediaType === 'tv' ? (t('watchSeries') || 'Смотреть сериал') : (t('watchMovie') || 'Смотреть фильм')}
                       >
                         <span className="text-xl pl-0.5">▶️</span>
                       </button>

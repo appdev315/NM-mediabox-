@@ -31,6 +31,9 @@ export function Movie() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recPage, setRecPage] = useState(1);
+  const [loadingMoreRecs, setLoadingMoreRecs] = useState(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState(true);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
@@ -179,7 +182,7 @@ export function Movie() {
   const [showAllCast, setShowAllCast] = useState(false);
   const allCast = useMemo(() => movie?.credits?.cast || [], [movie?.credits?.cast]);
   const cast = useMemo(() => showAllCast ? allCast.slice(0, 15) : allCast.slice(0, 6), [allCast, showAllCast]);
-  const displayedRecommendations = useMemo(() => recommendations.slice(0, 8), [recommendations]);
+  const displayedRecommendations = recommendations;
   const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
   const isUnreleased = useMemo(() => Boolean(
     movie?.isUpcoming || 
@@ -429,9 +432,13 @@ export function Movie() {
         }).catch(() => {});
 
         // Fetch recommendations in background without blocking stream prewarm
-        fetchRecommendations(id, resolvedType).then(recs => {
+        setRecPage(1);
+        setHasMoreRecs(true);
+        setLoadingMoreRecs(false);
+        fetchRecommendations(id, resolvedType, 1).then(recs => {
           if (isMounted) {
             setRecommendations(recs || []);
+            if (!recs || recs.length < 10) setHasMoreRecs(false);
           }
         }).catch(() => {});
       } catch (err) {
@@ -446,6 +453,33 @@ export function Movie() {
       isMounted = false;
     };
   }, [id, queryType, fetchMovieDetails, fetchRecommendations]);
+
+  const handleLoadMoreRecommendations = async () => {
+    if (loadingMoreRecs || !hasMoreRecs || !id) return;
+    setLoadingMoreRecs(true);
+    const nextPage = recPage + 1;
+    try {
+      const nextRecs = await fetchRecommendations(id, mediaType, nextPage);
+      if (!nextRecs || nextRecs.length === 0) {
+        setHasMoreRecs(false);
+      } else {
+        setRecommendations(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const unique = nextRecs.filter((p: any) => !existingIds.has(p.id));
+          if (unique.length === 0) {
+            setHasMoreRecs(false);
+            return prev;
+          }
+          return [...prev, ...unique];
+        });
+        setRecPage(nextPage);
+      }
+    } catch (_) {
+      setHasMoreRecs(false);
+    } finally {
+      setLoadingMoreRecs(false);
+    }
+  };
 
   // Trigger ad when navigating to movie
   useEffect(() => {
@@ -1086,23 +1120,34 @@ export function Movie() {
         {!isExtracting && !iframeUrl && recommendations.length > 0 && (
           <div className="relative border-t border-white/10 pt-4 mb-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-bold text-xl">{t('recommendations')}</h2>
-              {WebApp.platform === 'unknown' && (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
-                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              <div className="flex items-center gap-2.5">
+                <h2 className="font-bold text-xl">{t('recommendations')}</h2>
+                {hasMoreRecs && (
+                  <button
+                    onClick={handleLoadMoreRecommendations}
+                    disabled={loadingMoreRecs}
+                    className="text-xs font-bold px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all border border-white/10 text-blue-400 hover:text-blue-300 disabled:opacity-50 cursor-pointer"
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    {loadingMoreRecs ? '...' : `+ ${t('moreMovies') || 'Больше фильмов'}`}
                   </button>
-                  <button 
-                    onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
-                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+                  aria-label="Previous"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button 
+                  onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+                  aria-label="Next"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
             </div>
             <div ref={scrollRef} className="flex overflow-x-auto gap-4 pt-1 pb-6 snap-x scrollbar-thin">
               {displayedRecommendations.map((rec) => (
@@ -1129,6 +1174,20 @@ export function Movie() {
                   <p className="text-xs sm:text-sm mt-2 font-semibold truncate px-1 pb-1">{rec.title}</p>
                 </div>
               ))}
+              {hasMoreRecs && (
+                <div 
+                  onClick={handleLoadMoreRecommendations}
+                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] aspect-[2/3] snap-start cursor-pointer active:scale-95 transition-transform rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 flex flex-col items-center justify-center text-center p-3 gap-2 shrink-0 select-none shadow-sm"
+                  title={t('moreMovies') || 'Больше фильмов'}
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-lg">
+                    {loadingMoreRecs ? <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /> : '➕'}
+                  </div>
+                  <span className="text-xs font-bold text-white leading-tight">
+                    {t('moreMovies') || 'Больше фильмов'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1168,15 +1227,15 @@ export function Movie() {
               {showAudioHint && !isExtracting && iframeUrl && (
                 <div
                   onClick={() => setShowAudioHint(false)}
-                  className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-lg border border-white/20 cursor-pointer select-none max-w-[calc(100%-16px)]"
-                  title="Нажмите, чтобы скрыть"
+                  className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-lg border border-white/20 cursor-pointer select-none max-w-[calc(100%-16px)] animate-pulse"
+                  title={t('clickToHide') || 'Нажмите, чтобы скрыть'}
                 >
                   <span className="truncate">🎧 {t('audioLanguageHint') || 'Переключи язык аудио здесь'}</span>
                   <span className="text-amber-300 text-sm sm:text-base font-black shrink-0">↘️</span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); setShowAudioHint(false); }}
                     className="ml-1 text-white/70 hover:text-white text-xs font-bold p-0.5 shrink-0 cursor-pointer"
-                    aria-label="Закрыть"
+                    aria-label={t('close') || 'Закрыть'}
                   >
                     ✕
                   </button>
@@ -1271,7 +1330,7 @@ export function Movie() {
                   onClick={() => setShowAllCast(prev => !prev)}
                   className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                 >
-                  {showAllCast ? (language === 'ru-RU' ? 'Свернуть' : 'Show less') : `${t('showMore')} (${allCast.length})`}
+                  {showAllCast ? (t('showLess') || 'Свернуть') : `${t('showMore')} (${allCast.length})`}
                 </button>
               )}
             </div>
