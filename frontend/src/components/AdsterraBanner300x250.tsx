@@ -1,44 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 
-const SingleAdsterraBanner: React.FC = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-
-    const conf = document.createElement('script');
-    conf.type = 'text/javascript';
-    conf.innerHTML = `
-      atOptions = {
-        'key' : 'e6118425b43ea5b0ff7aa13e8dbd4c3a',
-        'format' : 'iframe',
-        'height' : 250,
-        'width' : 300,
-        'params' : {}
-      };
-    `;
-
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = 'https://www.highrevenueformat.com/e6118425b43ea5b0ff7aa13e8dbd4c3a/invoke.js';
-
-    containerRef.current.appendChild(conf);
-    containerRef.current.appendChild(script);
-
-    return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
-      }
-    };
-  }, []);
-
+const SingleAdsterraBanner: React.FC<{ id?: string }> = ({ id = '0' }) => {
   return (
     <div 
-      ref={containerRef} 
       style={{ width: '300px', height: '250px', maxWidth: '100%', flexShrink: 0 }} 
-      className="flex justify-center items-center rounded-xl overflow-hidden shadow-sm"
-    />
+      className="flex justify-center items-center rounded-xl overflow-hidden shadow-sm bg-transparent"
+    >
+      <iframe
+        src={`/adsterra-banner.html?v=1&slot=${id}`}
+        width="300"
+        height="250"
+        scrolling="no"
+        frameBorder="0"
+        title={`adsterra-banner-${id}`}
+        style={{ width: '300px', height: '250px', border: 'none', overflow: 'hidden' }}
+      />
+    </div>
   );
 };
 
@@ -53,7 +30,7 @@ export const AdsterraBanner300x250: React.FC = () => {
   return (
     <div className="w-full flex justify-center items-center gap-4 sm:gap-6 my-3 flex-wrap overflow-hidden min-h-[250px]">
       {Array.from({ length: count }).map((_, idx) => (
-        <SingleAdsterraBanner key={idx} />
+        <SingleAdsterraBanner key={idx} id={String(idx)} />
       ))}
     </div>
   );

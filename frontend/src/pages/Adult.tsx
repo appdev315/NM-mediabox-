@@ -410,7 +410,7 @@ export function Adult() {
                   </div>
                   <p className="text-sm font-semibold line-clamp-2 leading-snug break-words">{v.title}</p>
                 </div>
-                {(idx + 1) % 12 === 0 && (
+                {(idx + 1) % 16 === 0 && (
                   <AdsterraNativeAd />
                 )}
               </React.Fragment>
