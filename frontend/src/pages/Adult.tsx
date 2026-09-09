@@ -331,7 +331,9 @@ export function Adult() {
           onChange={handleCategoryChange}
         >
           {CATEGORIES.map(c => (
-            <option key={c.id} value={c.id}>{c.label}</option>
+            <option key={c.id} value={c.id}>
+              {c.id === '' ? t('allCategories') : (c.id === 'popular' ? t('popularCategory') : c.label)}
+            </option>
           ))}
         </select>
 
@@ -373,7 +375,7 @@ export function Adult() {
 
 
       {loading && !isLoadingMore ? (
-        <div className="flex justify-center py-20 opacity-50 font-medium">Loading...</div>
+        <div className="flex justify-center py-20 opacity-50 font-medium">{t('loading')}</div>
       ) : (
         <>
           <AdsterraBanner300x250 enableSlotAnimation={true} />

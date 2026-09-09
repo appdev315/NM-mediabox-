@@ -83,11 +83,11 @@ export function AdultVideo() {
   }, [id, location.state, fetchAdultStream, fetchAdultSearch]);
 
   if (loading) {
-    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">Loading video...</div>;
+    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loadingVideo')}</div>;
   }
 
   if (!details || (!details.iframe && !details.mp4)) {
-    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">Video not found or removed</div>;
+    return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('videoNotFound')}</div>;
   }
 
   return (
@@ -99,7 +99,7 @@ export function AdultVideo() {
         </div>
 
         <div className="flex items-center gap-3 mb-6">
-          <h1 className="text-xl font-bold">Private Collection 🍓</h1>
+          <h1 className="text-xl font-bold">{t('privateCollection')} 🍓</h1>
         </div>
         
         <div id="video-player-container">
@@ -120,7 +120,7 @@ export function AdultVideo() {
         </div>
         
         <p className="text-sm opacity-70 leading-relaxed mb-4">
-          This content is provided securely. Remember that screen recording might be blocked by your device for protected content.
+          {t('securePlaybackNotice')}
         </p>
         
         <div className="mb-8">
@@ -181,19 +181,44 @@ export function AdultVideo() {
                   }
                 }}
               >
-                <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-gradient-to-br from-zinc-800 via-zinc-900 to-[#121216] border border-white/10 flex flex-col items-center justify-center transition-all duration-200 active:scale-95 group-hover:border-amber-400/60 shadow-md">
-                  <div className="w-11 h-11 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl select-none">↩️</span>
+                <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-gradient-to-br from-zinc-950 via-[#18101a] to-black border border-pink-500/30 group-hover:border-pink-500/80 shadow-lg flex flex-col items-center justify-center transition-all duration-200 active:scale-95">
+                  {/* Adult-themed kiss background */}
+                  <img 
+                    src="/kiss-bg.png" 
+                    alt="" 
+                    className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:opacity-50 transition-opacity duration-300 pointer-events-none select-none" 
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/35 pointer-events-none" />
+
+                  {/* Volumetric 3D return symbol */}
+                  <div className="relative z-10 flex flex-col items-center justify-center">
+                    <div className="relative flex items-center justify-center transition-transform duration-200 group-hover:scale-110 active:scale-90">
+                      <span 
+                        className="text-4xl sm:text-5xl select-none leading-none inline-block filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.9)]"
+                        style={{ textShadow: '0 1px 0 #ffffff, 0 2px 0 #f472b6, 0 3px 0 #db2777, 0 4px 0 #9d174d, 0 6px 10px rgba(0,0,0,0.85)' }}
+                      >
+                        ↩️
+                      </span>
+                    </div>
+                    <span className="mt-2 text-xs sm:text-sm font-black text-white tracking-wide uppercase px-2 text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] line-clamp-1">
+                      {location.state?.category ? `«${location.state.category}»` : t('backToCatalog')}
+                    </span>
                   </div>
-                  <span className="text-xs sm:text-sm font-extrabold text-white text-center px-2 line-clamp-1">
-                    {location.state?.category ? `«${location.state.category}»` : 'В каталог'}
-                  </span>
-                  <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-amber-400 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                    Назад
+
+                  {/* Top-Right Badge: Adult Theme */}
+                  <div className="absolute top-1.5 right-1.5 bg-pink-950/85 border border-pink-500/50 text-pink-300 text-[9px] font-black px-1.5 py-0.5 rounded shadow z-10 select-none">
+                    🍓 18+
+                  </div>
+
+                  {/* Bottom-Right Badge: Back Label */}
+                  <div className="absolute bottom-1.5 right-1.5 bg-black/85 border border-white/10 text-pink-400 text-[10px] font-bold px-1.5 py-0.5 rounded-md z-10">
+                    {t('back')}
                   </div>
                 </div>
-                <p className="text-sm font-semibold line-clamp-2 leading-snug break-words text-amber-400/90 group-hover:text-amber-300">
-                  ← Вернуться к списку
+
+                <p className="text-sm font-semibold line-clamp-2 leading-snug break-words text-pink-400/90 group-hover:text-pink-300 transition-colors">
+                  {t('returnToList')}
                 </p>
               </div>
             </div>

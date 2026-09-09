@@ -40,7 +40,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
           </span>
           {variant !== 'wide' && (
             <span className="text-xs bg-black/50 px-2 py-1 rounded-md text-white/90 text-center mt-2 font-medium">
-              Реклама
+              {t('adBadge')}
             </span>
           )}
         </div>
@@ -48,7 +48,7 @@ export const BannerAd: React.FC<{ variant?: 'tall' | 'wide', type?: 'telegram' |
       
       {/* Bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black via-black/80 to-transparent z-10">
-        <h3 className={`font-bold text-sm text-white truncate text-center ${type === 'telegram' ? 'text-blue-400' : 'text-red-400'}`}>Перейти</h3>
+        <h3 className={`font-bold text-sm text-white truncate text-center ${type === 'telegram' ? 'text-blue-400' : 'text-red-400'}`}>{t('openBanner')}</h3>
       </div>
     </div>
   );
