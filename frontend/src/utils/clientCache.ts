@@ -38,7 +38,7 @@ function getDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-// Background sync from IndexedDB into memoryCache on startup
+// Background sync from IndexedDB into memoryCache on startup (critical keys only, capped to 20 to prevent RAM bloating)
 async function initIndexedDBCache(): Promise<void> {
   try {
     const db = await getDB();
@@ -46,15 +46,20 @@ async function initIndexedDBCache(): Promise<void> {
     const store = tx.objectStore(STORE_NAME);
     const request = store.openCursor();
     const now = Date.now();
+    let loadedCount = 0;
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result as IDBCursorWithValue;
-      if (cursor) {
+      if (cursor && loadedCount < 20) {
         const key = cursor.key as string;
         const entry = cursor.value as CacheEntry<any>;
         if (entry && entry.expiry && now < entry.expiry) {
-          if (!memoryCache.has(key)) {
-            memoryCache.set(key, entry);
+          // Hydrate only critical instant-load keys (home, genres, trending)
+          if (key.includes('home') || key.includes('genres') || key.includes('trending')) {
+            if (!memoryCache.has(key)) {
+              memoryCache.set(key, entry);
+              loadedCount++;
+            }
           }
         }
         cursor.continue();
@@ -104,13 +109,15 @@ async function idbRemove(fullKey: string): Promise<void> {
   } catch (e) {}
 }
 
-const MAX_MEMORY_ENTRIES = 500;
+const MAX_MEMORY_ENTRIES = 60;
 
 function enforceMemoryLRU(): void {
-  if (memoryCache.size > MAX_MEMORY_ENTRIES) {
+  while (memoryCache.size > MAX_MEMORY_ENTRIES) {
     const oldestKey = memoryCache.keys().next().value;
     if (oldestKey) {
       memoryCache.delete(oldestKey);
+    } else {
+      break;
     }
   }
 }

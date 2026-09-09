@@ -376,7 +376,7 @@ export function Movie() {
           year: d?.year || '',
           type: resolvedType,
           original_title: d?.original_title || '',
-          title_ru: language === 'ru-RU' ? (d?.title || '') : '',
+          title_ru: (d as any)?.title_ru || (language === 'ru-RU' ? (d?.title || '') : ''),
         }, language).then(streamData => {
           if (streamData && isMounted && streamData.episodes) {
             setLiftwEpisodes(streamData.episodes);
@@ -472,7 +472,7 @@ export function Movie() {
       };
 
       const originalTitle = (movie as any)?.original_title || (movie as any)?.original_name || '';
-      const ruTitle = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
+      const ruTitle = (movie as any)?.title_ru || (language === 'ru-RU' ? ((movie as any)?.title || (movie as any)?.name) : '') || queryParams.title;
 
       // Parallel fetch: Liftw + Anwap
       const liftwQuery = new URLSearchParams({
@@ -664,16 +664,22 @@ export function Movie() {
         const timeoutId = setTimeout(() => timeoutCtrl.abort(), 7000);
         try {
           const titlesToTry: string[] = [];
-          const ru = (movie as any)?.title_ru || (movie as any)?.title || (movie as any)?.name || queryParams.title;
-          const orig = (movie as any)?.original_title || (movie as any)?.original_name || queryParams.original_title;
-          if (ru) titlesToTry.push(ru.trim());
-          if (orig && orig.trim() !== ru?.trim()) titlesToTry.push(orig.trim());
-          if (queryParams.title && !titlesToTry.includes(queryParams.title.trim())) titlesToTry.push(queryParams.title.trim());
+          const ru = ((movie as any)?.title_ru || '').trim();
+          const orig = ((movie as any)?.original_title || (movie as any)?.original_name || queryParams.original_title || '').trim();
+          const localized = ((movie as any)?.title || (movie as any)?.name || queryParams.title || '').trim();
+
+          // Priority 1 for Anwap (Russian tracker): Russian title
+          if (ru) titlesToTry.push(ru);
+          // Priority 2: Original title (crucial for French, Spanish, Italian, Asian cinema)
+          if (orig && !titlesToTry.includes(orig)) titlesToTry.push(orig);
+          // Priority 3: Localized / English title
+          if (localized && !titlesToTry.includes(localized)) titlesToTry.push(localized);
 
           let foundUrl = '';
           for (const candTitle of titlesToTry) {
             try {
-              const res = await fetchWithRetry(`${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(candTitle)}`, {
+              const anwapUrl = `${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(candTitle)}&tmdb=${encodeURIComponent(queryParams.tmdb || '')}&title_ru=${encodeURIComponent(ru)}&original_title=${encodeURIComponent(orig)}`;
+              const res = await fetchWithRetry(anwapUrl, {
                 maxRetries: 1,
                 baseDelayMs: 250,
                 maxDelayMs: 800,

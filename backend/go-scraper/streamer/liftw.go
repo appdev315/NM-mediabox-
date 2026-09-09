@@ -260,8 +260,8 @@ func fetchLiftwData(ctx context.Context, targetUrl string) (*http.Response, stri
 }
 
 func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {
-	searchLimit := 4
-	if len(candidates) < 4 {
+	searchLimit := 8
+	if len(candidates) < 8 {
 		searchLimit = len(candidates)
 	}
 	if searchLimit == 0 {

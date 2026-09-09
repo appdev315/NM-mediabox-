@@ -50,10 +50,19 @@ self.addEventListener('fetch', (event) => {
     return; // Pass through to browser network directly without SW Interception
   }
 
-  // 2. Stale-While-Revalidate strategy for TMDB API, Poster Images, and App Assets
+  // 2. Bypass heavy image binary blobs from CacheStorage to prevent SW process memory bloat.
+  // The browser's native HTTP disk cache manages images efficiently without duplicating blobs in RAM.
+  if (
+    url.hostname === 'image.tmdb.org' ||
+    url.pathname.includes('/image') ||
+    event.request.destination === 'image'
+  ) {
+    return;
+  }
+
+  // 3. Stale-While-Revalidate strategy for App Assets and lightweight JSON endpoints
   const isTargetAsset = 
     url.origin === location.origin || 
-    url.hostname === 'image.tmdb.org' ||
     url.pathname.includes('/tmdb/') ||
     url.pathname.includes('/api/');
 

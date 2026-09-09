@@ -11,6 +11,7 @@ interface PlayerProps {
 
 export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [mirrorIndex, setMirrorIndex] = useState(0);
@@ -205,6 +206,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
       }
+      // Force immediate WebKit / Blink video pipeline teardown and GPU memory release
+      if (iframeRef.current) {
+        try {
+          iframeRef.current.src = 'about:blank';
+        } catch (_) {}
+      }
     };
   }, []);
 
@@ -220,6 +227,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
       </div>
 
       <iframe 
+        ref={iframeRef}
         id="video-iframe"
         key={sourceKey}
         src={currentUrl}

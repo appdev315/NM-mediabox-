@@ -20,6 +20,7 @@ export interface TMDBMovie {
   title?: string;
   name?: string;
   original_title?: string;
+  title_ru?: string;
   poster_path?: string;
   overview?: string;
   release_date?: string;
@@ -380,10 +381,15 @@ export function useApi() {
     const releaseTimestamp = rawDate ? new Date(rawDate).getTime() : 0;
     const isUpcoming = Boolean(releaseTimestamp > 0 && releaseTimestamp > Date.now());
 
+    // Resolve Russian title: from TMDB translations or localized title or item.title_ru
+    const ruTrans = item.translations?.translations?.find((t: any) => t.iso_639_1 === 'ru');
+    const titleRu = ruTrans?.data?.title || ruTrans?.data?.name || item.title_ru || (language === 'ru-RU' ? (item.title || item.name) : '') || '';
+
     return {
       id: item.id,
       title: item.title || item.name || item.original_title || 'Без названия',
       original_title: item.original_title || item.original_name || '',
+      title_ru: titleRu,
       poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
       backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w1280') : '',
       description: item.overview || '',
@@ -532,7 +538,7 @@ export function useApi() {
 
     return withLoading(async () => {
       try {
-        const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
+        const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
 
         const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
         clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
@@ -541,7 +547,7 @@ export function useApi() {
         // Fallback: If 404 with movie type, try tv (series) type, and vice versa
         const altType = type === 'movie' ? 'tv' : 'movie';
         try {
-          const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
+          const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
           const altResult = mapTMDB(altData, altType === 'tv' ? 'series' : 'movie');
           const altCacheKey = `movie_details_v2_${altType}_${id}_${language}`;
           clientCache.set(altCacheKey, altResult, 86400);

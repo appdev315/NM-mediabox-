@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -24,10 +25,33 @@ var (
 	}
 	anwapCache sync.Map
 
-	reFilmLink = regexp.MustCompile(`(?i)<a[^>]+href="(/films/\d+)"[^>]*>([\s\S]*?)</a>`)
-	reOrtified = regexp.MustCompile(`(?i)(https?://api\.ortified\.ws/embed/[^"'\s>]+)`)
-	reStream   = regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
+	reFilmLink   = regexp.MustCompile(`(?i)<a[^>]+href="(/films/\d+)"[^>]*>([\s\S]*?)</a>`)
+	reOrtified   = regexp.MustCompile(`(?i)(https?://api\.ortified\.ws/embed/[^"'\s>]+)`)
+	reStream     = regexp.MustCompile(`href="(/films/load/[0-9a-fA-F]+/\d+/\d+)"`)
+	htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
+
+	diacriticReplacer = strings.NewReplacer(
+		"á", "a", "à", "a", "â", "a", "ä", "a", "ã", "a", "å", "a",
+		"é", "e", "è", "e", "ê", "e", "ë", "e",
+		"í", "i", "ì", "i", "î", "i", "ï", "i",
+		"ó", "o", "ò", "o", "ô", "o", "ö", "o", "õ", "o", "ø", "o",
+		"ú", "u", "ù", "u", "û", "u", "ü", "u",
+		"ñ", "n", "ç", "c", "ý", "y", "ÿ", "y",
+		"Á", "a", "À", "a", "Â", "a", "Ä", "a",
+		"É", "e", "È", "e", "Ê", "e", "Ë", "e",
+		"Í", "i", "Ì", "i", "Î", "i", "Ï", "i",
+		"Ó", "o", "Ò", "o", "Ô", "o", "Ö", "o",
+		"Ú", "u", "Ù", "u", "Û", "u", "Ü", "u",
+		"Ñ", "n", "Ç", "c",
+	)
 )
+
+func cleanAnwapString(s string) string {
+	s = html.UnescapeString(s)
+	s = htmlTagRegex.ReplaceAllString(s, " ")
+	s = diacriticReplacer.Replace(s)
+	return normString(s)
+}
 
 type cacheAnwapEntry struct {
 	res *AnwapResult
@@ -88,13 +112,13 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 		return "", fmt.Errorf("no movie link found")
 	}
 
-	normQuery := normString(title)
+	normQuery := cleanAnwapString(title)
 	var chosenPath string
 
 	for _, m := range allMatches {
 		linkPath := m[1]
-		linkText := normString(m[2])
-		if linkText != "" && (strings.Contains(linkText, normQuery) || strings.Contains(normQuery, linkText) || linkText == normQuery) {
+		linkText := cleanAnwapString(m[2])
+		if linkText != "" && normQuery != "" && (strings.Contains(linkText, normQuery) || strings.Contains(normQuery, linkText) || linkText == normQuery) {
 			chosenPath = linkPath
 			break
 		}
@@ -168,12 +192,47 @@ func fetchFromMirror(ctx context.Context, mirror string, client *http.Client, ti
 	return "", fmt.Errorf("no direct stream link found on detail page")
 }
 
-func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
-	if title == "" {
-		return nil, fmt.Errorf("title required")
+func queryMirrorsForTitle(ctx context.Context, client *http.Client, cand string) string {
+	type resChanStruct struct {
+		url string
+		err error
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	ch := make(chan resChanStruct, len(anwapMirrors))
+	for _, mirror := range anwapMirrors {
+		go func(m string) {
+			u, err := fetchFromMirror(reqCtx, m, client, cand)
+			ch <- resChanStruct{url: u, err: err}
+		}(mirror)
 	}
 
-	cacheKey := strings.ToLower(strings.TrimSpace(title))
+	for i := 0; i < len(anwapMirrors); i++ {
+		res := <-ch
+		if res.err == nil && res.url != "" {
+			cancel()
+			return res.url
+		}
+	}
+	return ""
+}
+
+func ResolveAnwap(ctx context.Context, title, titleRu, originalTitle, tmdb string) (*AnwapResult, error) {
+	if title == "" && titleRu == "" && originalTitle == "" && tmdb == "" {
+		return nil, fmt.Errorf("title or metadata required")
+	}
+
+	cacheKey := fmt.Sprintf("%s|%s|%s|%s", strings.TrimSpace(title), strings.TrimSpace(titleRu), strings.TrimSpace(originalTitle), strings.TrimSpace(tmdb))
+	tmdbKey := ""
+	if tmdb != "" {
+		tmdbKey = "anwap_tmdb:" + tmdb
+		if cached, ok := anwapCache.Load(tmdbKey); ok {
+			if entry, okEntry := cached.(cacheAnwapEntry); okEntry && time.Now().Before(entry.exp) {
+				return entry.res, nil
+			}
+		}
+	}
 	if cached, ok := anwapCache.Load(cacheKey); ok {
 		if entry, okEntry := cached.(cacheAnwapEntry); okEntry {
 			if time.Now().Before(entry.exp) && (strings.HasPrefix(entry.res.URL, "http") && (!strings.Contains(entry.res.URL, "/films/") || strings.Contains(entry.res.URL, "/films/load/"))) {
@@ -183,32 +242,90 @@ func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 		}
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-
 	client := &http.Client{Timeout: 3 * time.Second}
 
-	// Backend Mirror Carousel: Query live mirrors concurrently
-	type resChanStruct struct {
-		url string
-		err error
+	var candidates []string
+	if titleRu != "" {
+		candidates = append(candidates, strings.TrimSpace(titleRu))
 	}
-	ch := make(chan resChanStruct, len(anwapMirrors))
-
-	for _, mirror := range anwapMirrors {
-		go func(m string) {
-			u, err := fetchFromMirror(reqCtx, m, client, title)
-			ch <- resChanStruct{url: u, err: err}
-		}(mirror)
+	if originalTitle != "" && originalTitle != titleRu {
+		candidates = append(candidates, strings.TrimSpace(originalTitle))
+	}
+	if title != "" && title != titleRu && title != originalTitle {
+		candidates = append(candidates, strings.TrimSpace(title))
+	}
+	candidates = uniqueStrings(candidates)
+	if len(candidates) == 0 && title != "" {
+		candidates = []string{strings.TrimSpace(title)}
 	}
 
 	var foundUrl string
-	for i := 0; i < len(anwapMirrors); i++ {
-		res := <-ch
-		if res.err == nil && res.url != "" {
-			foundUrl = res.url
-			cancel() // Cancel pending mirror requests once a valid stream is found
+	for _, cand := range candidates {
+		if cand == "" {
+			continue
+		}
+		if u := queryMirrorsForTitle(ctx, client, cand); u != "" {
+			foundUrl = u
 			break
+		}
+	}
+
+	// Fallback: If not found and TMDB ID provided, query TMDB translations & alt titles
+	if foundUrl == "" && tmdb != "" {
+		for _, mediaType := range []string{"movie", "tv"} {
+			tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", mediaType, tmdb, getTMDBApiKey())
+			req, rErr := http.NewRequestWithContext(ctx, "GET", tmdbUrl, nil)
+			if rErr == nil {
+				resp, err := client.Do(req)
+				if err == nil && resp != nil {
+					if resp.StatusCode == 200 {
+						var tData TMDBResponse
+						if err := json.NewDecoder(resp.Body).Decode(&tData); err == nil {
+							var moreCands []string
+							if tData.Title != "" {
+								moreCands = append(moreCands, strings.TrimSpace(tData.Title))
+							}
+							if tData.Name != "" {
+								moreCands = append(moreCands, strings.TrimSpace(tData.Name))
+							}
+							for _, tr := range tData.Translations.Translations {
+								if tr.Data.Title != "" {
+									moreCands = append(moreCands, strings.TrimSpace(tr.Data.Title))
+								}
+								if tr.Data.Name != "" {
+									moreCands = append(moreCands, strings.TrimSpace(tr.Data.Name))
+								}
+							}
+							for _, alt := range tData.AlternativeTitles.Results {
+								if alt.Title != "" {
+									moreCands = append(moreCands, strings.TrimSpace(alt.Title))
+								}
+							}
+							for _, alt := range tData.AlternativeTitles.Titles {
+								if alt.Title != "" {
+									moreCands = append(moreCands, strings.TrimSpace(alt.Title))
+								}
+							}
+							moreCands = uniqueStrings(moreCands)
+							moreCands = sortCandidates(moreCands)
+
+							for _, cand := range moreCands {
+								if cand == "" {
+									continue
+								}
+								if u := queryMirrorsForTitle(ctx, client, cand); u != "" {
+									foundUrl = u
+									break
+								}
+							}
+						}
+					}
+					resp.Body.Close()
+				}
+			}
+			if foundUrl != "" {
+				break
+			}
 		}
 	}
 
@@ -221,6 +338,9 @@ func ResolveAnwap(ctx context.Context, title string) (*AnwapResult, error) {
 		Name: "anwap",
 	}
 	anwapCache.Store(cacheKey, cacheAnwapEntry{res: res, exp: time.Now().Add(1 * time.Hour)})
+	if tmdbKey != "" {
+		anwapCache.Store(tmdbKey, cacheAnwapEntry{res: res, exp: time.Now().Add(1 * time.Hour)})
+	}
 
 	return res, nil
 }
@@ -229,13 +349,17 @@ func AnwapApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	title := r.URL.Query().Get("title")
-	if title == "" {
+	titleRu := r.URL.Query().Get("title_ru")
+	originalTitle := r.URL.Query().Get("original_title")
+	tmdb := r.URL.Query().Get("tmdb")
+
+	if title == "" && titleRu == "" && tmdb == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Title parameter is required"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Title or TMDB parameter is required"})
 		return
 	}
 
-	res, err := ResolveAnwap(r.Context(), title)
+	res, err := ResolveAnwap(r.Context(), title, titleRu, originalTitle, tmdb)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})

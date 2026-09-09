@@ -149,6 +149,8 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
 /* Lightweight card tap feedback (no GPU-heavy ::after or hover transforms) */
 .card-hover {
   will-change: auto;
+  content-visibility: auto;
+  contain-intrinsic-size: 160px 240px;
 }
 
 /* Animations */
