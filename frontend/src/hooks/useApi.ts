@@ -738,8 +738,7 @@ export function useApi() {
   }, [language, tmdbFetch, withLoading]);
 
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
-    const cleanQuery = (query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
-    if (!cleanQuery) return [];
+    const cleanQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120)) || 'popular';
 
     const cacheKey = `adult_search_${cleanQuery}_${pageNum}`;
     const cached = clientCache.get<any[]>(cacheKey);

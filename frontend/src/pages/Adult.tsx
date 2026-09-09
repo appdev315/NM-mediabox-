@@ -46,86 +46,86 @@ const CATEGORIES = [
 ];
 
 const ADULT_COUNTRIES = [
-  { id: '', labelRu: 'Все страны 🌐', labelEn: 'All Countries 🌐' },
-  { id: 'australian', labelRu: '🇦🇺 Австралия', labelEn: '🇦🇺 Australia' },
-  { id: 'austrian', labelRu: '🇦🇹 Австрия', labelEn: '🇦🇹 Austria' },
-  { id: 'azerbaijan', labelRu: '🇦🇿 Азербайджан', labelEn: '🇦🇿 Azerbaijan' },
-  { id: 'argentina', labelRu: '🇦🇷 Аргентина', labelEn: '🇦🇷 Argentina' },
-  { id: 'afghanistan', labelRu: '🇦🇫 Афганистан', labelEn: '🇦🇫 Afghanistan' },
-  { id: 'bangladesh', labelRu: '🇧🇩 Бангладеш', labelEn: '🇧🇩 Bangladesh' },
-  { id: 'belgian', labelRu: '🇧🇪 Бельгия', labelEn: '🇧🇪 Belgium' },
-  { id: 'bulgarian', labelRu: '🇧🇬 Болгария', labelEn: '🇧🇬 Bulgaria' },
-  { id: 'bolivia', labelRu: '🇧🇴 Боливия', labelEn: '🇧🇴 Bolivia' },
-  { id: 'brazilian', labelRu: '🇧🇷 Бразилия', labelEn: '🇧🇷 Brazil' },
-  { id: 'british', labelRu: '🇬🇧 Великобритания', labelEn: '🇬🇧 United Kingdom' },
-  { id: 'hungarian', labelRu: '🇭🇺 Венгрия', labelEn: '🇭🇺 Hungary' },
-  { id: 'venezuela', labelRu: '🇻🇪 Венесуэла', labelEn: '🇻🇪 Venezuela' },
-  { id: 'vietnamese', labelRu: '🇻🇳 Вьетнам', labelEn: '🇻🇳 Vietnam' },
-  { id: 'guatemala', labelRu: '🇬🇹 Гватемала', labelEn: '🇬🇹 Guatemala' },
-  { id: 'german', labelRu: '🇩🇪 Германия', labelEn: '🇩🇪 Germany' },
-  { id: 'hong kong', labelRu: '🇭🇰 Гонконг', labelEn: '🇭🇰 Hong Kong' },
-  { id: 'greek', labelRu: '🇬🇷 Греция', labelEn: '🇬🇷 Greece' },
-  { id: 'georgian', labelRu: '🇬🇪 Грузия', labelEn: '🇬🇪 Georgia' },
-  { id: 'danish', labelRu: '🇩🇰 Дания', labelEn: '🇩🇰 Denmark' },
-  { id: 'dominican', labelRu: '🇩🇴 Доминиканская Республика', labelEn: '🇩🇴 Dominican Republic' },
-  { id: 'egyptian', labelRu: '🇪🇬 Египет', labelEn: '🇪🇬 Egypt' },
-  { id: 'israeli', labelRu: '🇮🇱 Израиль', labelEn: '🇮🇱 Israel' },
-  { id: 'indian', labelRu: '🇮🇳 Индия', labelEn: '🇮🇳 India' },
-  { id: 'indonesian', labelRu: '🇮🇩 Индонезия', labelEn: '🇮🇩 Indonesia' },
-  { id: 'jordan', labelRu: '🇯🇴 Иордания', labelEn: '🇯🇴 Jordan' },
-  { id: 'iraq', labelRu: '🇮🇶 Ирак', labelEn: '🇮🇶 Iraq' },
-  { id: 'irish', labelRu: '🇮🇪 Ирландия', labelEn: '🇮🇪 Ireland' },
-  { id: 'iceland', labelRu: '🇮🇸 Исландия', labelEn: '🇮🇸 Iceland' },
-  { id: 'spanish', labelRu: '🇪🇸 Испания', labelEn: '🇪🇸 Spain' },
-  { id: 'italian', labelRu: '🇮🇹 Италия', labelEn: '🇮🇹 Italy' },
-  { id: 'cambodia', labelRu: '🇰🇭 Камбоджа', labelEn: '🇰🇭 Cambodia' },
-  { id: 'cameroon', labelRu: '🇨🇲 Камерун', labelEn: '🇨🇲 Cameroon' },
-  { id: 'canadian', labelRu: '🇨🇦 Канада', labelEn: '🇨🇦 Canada' },
-  { id: 'qatar', labelRu: '🇶🇦 Катар', labelEn: '🇶🇦 Qatar' },
-  { id: 'kenya', labelRu: '🇰🇪 Кения', labelEn: '🇰🇪 Kenya' },
-  { id: 'cyprus', labelRu: '🇨🇾 Кипр', labelEn: '🇨🇾 Cyprus' },
-  { id: 'chinese', labelRu: '🇨🇳 Китай', labelEn: '🇨🇳 China' },
-  { id: 'colombian', labelRu: '🇨🇴 Колумбия', labelEn: '🇨🇴 Colombia' },
-  { id: 'laos', labelRu: '🇱🇦 Лаос', labelEn: '🇱🇦 Laos' },
-  { id: 'latvian', labelRu: '🇱🇻 Латвия', labelEn: '🇱🇻 Latvia' },
-  { id: 'lebanon', labelRu: '🇱🇧 Ливан', labelEn: '🇱🇧 Lebanon' },
-  { id: 'malaysian', labelRu: '🇲🇾 Малайзия', labelEn: '🇲🇾 Malaysia' },
-  { id: 'malta', labelRu: '🇲🇹 Мальта', labelEn: '🇲🇹 Malta' },
-  { id: 'moroccan', labelRu: '🇲🇦 Марокко', labelEn: '🇲🇦 Morocco' },
-  { id: 'mexican', labelRu: '🇲🇽 Мексика', labelEn: '🇲🇽 Mexico' },
-  { id: 'moldova', labelRu: '🇲🇩 Молдова', labelEn: '🇲🇩 Moldova' },
-  { id: 'myanmar', labelRu: '🇲🇲 Мьянма', labelEn: '🇲🇲 Myanmar' },
-  { id: 'nigerian', labelRu: '🇳🇬 Нигерия', labelEn: '🇳🇬 Nigeria' },
-  { id: 'dutch', labelRu: '🇳🇱 Нидерланды', labelEn: '🇳🇱 Netherlands' },
-  { id: 'new zealand', labelRu: '🇳🇿 Новая Зеландия', labelEn: '🇳🇿 New Zealand' },
-  { id: 'norwegian', labelRu: '🇳🇴 Норвегия', labelEn: '🇳🇴 Norway' },
-  { id: 'pakistani', labelRu: '🇵🇰 Пакистан', labelEn: '🇵🇰 Pakistan' },
-  { id: 'peruvian', labelRu: '🇵🇪 Перу', labelEn: '🇵🇪 Peru' },
-  { id: 'polish', labelRu: '🇵🇱 Польша', labelEn: '🇵🇱 Poland' },
-  { id: 'portuguese', labelRu: '🇵🇹 Португалия', labelEn: '🇵🇹 Portugal' },
-  { id: 'korean', labelRu: '🇰🇷 Республика Корея', labelEn: '🇰🇷 South Korea' },
-  { id: 'singapore', labelRu: '🇸🇬 Сингапур', labelEn: '🇸🇬 Singapore' },
-  { id: 'russian', labelRu: '🇷🇺 Россия', labelEn: '🇷🇺 Russia' },
-  { id: 'romanian', labelRu: '🇷🇴 Румыния', labelEn: '🇷🇴 Romania' },
-  { id: 'senegal', labelRu: '🇸🇳 Сенегал', labelEn: '🇸🇳 Senegal' },
-  { id: 'serbian', labelRu: '🇷🇸 Сербия', labelEn: '🇷🇸 Serbia' },
-  { id: 'slovakia', labelRu: '🇸🇰 Словакия', labelEn: '🇸🇰 Slovakia' },
-  { id: 'american', labelRu: '🇺🇸 США', labelEn: '🇺🇸 USA' },
-  { id: 'thai', labelRu: '🇹🇭 Таиланд', labelEn: '🇹🇭 Thailand' },
-  { id: 'taiwanese', labelRu: '🇹🇼 Тайвань', labelEn: '🇹🇼 Taiwan' },
-  { id: 'tunisia', labelRu: '🇹🇳 Тунис', labelEn: '🇹🇳 Tunisia' },
-  { id: 'ukrainian', labelRu: '🇺🇦 Украина', labelEn: '🇺🇦 Ukraine' },
-  { id: 'filipina', labelRu: '🇵🇭 Филиппины', labelEn: '🇵🇭 Philippines' },
-  { id: 'finnish', labelRu: '🇫🇮 Финляндия', labelEn: '🇫🇮 Finland' },
-  { id: 'french', labelRu: '🇫🇷 Франция', labelEn: '🇫🇷 France' },
-  { id: 'czech', labelRu: '🇨🇿 Чешская Республика', labelEn: '🇨🇿 Czech Republic' },
-  { id: 'chilean', labelRu: '🇨🇱 Чили', labelEn: '🇨🇱 Chile' },
-  { id: 'swiss', labelRu: '🇨🇭 Швейцария', labelEn: '🇨🇭 Switzerland' },
-  { id: 'swedish', labelRu: '🇸🇪 Швеция', labelEn: '🇸🇪 Sweden' },
-  { id: 'sri lanka', labelRu: '🇱🇰 Шри-Ланка', labelEn: '🇱🇰 Sri Lanka' },
-  { id: 'ecuador', labelRu: '🇪🇨 Эквадор', labelEn: '🇪🇨 Ecuador' },
-  { id: 'south africa', labelRu: '🇿🇦 Южная Африка', labelEn: '🇿🇦 South Africa' },
-  { id: 'japanese', labelRu: '🇯🇵 Япония', labelEn: '🇯🇵 Japan' }
+  { id: '', labelRu: 'Все страны', labelEn: 'All Countries' },
+  { id: 'australian', labelRu: 'Австралия', labelEn: 'Australia' },
+  { id: 'austrian', labelRu: 'Австрия', labelEn: 'Austria' },
+  { id: 'azerbaijan', labelRu: 'Азербайджан', labelEn: 'Azerbaijan' },
+  { id: 'argentina', labelRu: 'Аргентина', labelEn: 'Argentina' },
+  { id: 'afghanistan', labelRu: 'Афганистан', labelEn: 'Afghanistan' },
+  { id: 'bangladesh', labelRu: 'Бангладеш', labelEn: 'Bangladesh' },
+  { id: 'belgian', labelRu: 'Бельгия', labelEn: 'Belgium' },
+  { id: 'bulgarian', labelRu: 'Болгария', labelEn: 'Bulgaria' },
+  { id: 'bolivia', labelRu: 'Боливия', labelEn: 'Bolivia' },
+  { id: 'brazilian', labelRu: 'Бразилия', labelEn: 'Brazil' },
+  { id: 'british', labelRu: 'Великобритания', labelEn: 'United Kingdom' },
+  { id: 'hungarian', labelRu: 'Венгрия', labelEn: 'Hungary' },
+  { id: 'venezuela', labelRu: 'Венесуэла', labelEn: 'Venezuela' },
+  { id: 'vietnamese', labelRu: 'Вьетнам', labelEn: 'Vietnam' },
+  { id: 'guatemala', labelRu: 'Гватемала', labelEn: 'Guatemala' },
+  { id: 'german', labelRu: 'Германия', labelEn: 'Germany' },
+  { id: 'hong kong', labelRu: 'Гонконг', labelEn: 'Hong Kong' },
+  { id: 'greek', labelRu: 'Греция', labelEn: 'Greece' },
+  { id: 'georgian', labelRu: 'Грузия', labelEn: 'Georgia' },
+  { id: 'danish', labelRu: 'Дания', labelEn: 'Denmark' },
+  { id: 'dominican', labelRu: 'Доминиканская Республика', labelEn: 'Dominican Republic' },
+  { id: 'egyptian', labelRu: 'Египет', labelEn: 'Egypt' },
+  { id: 'israeli', labelRu: 'Израиль', labelEn: 'Israel' },
+  { id: 'indian', labelRu: 'Индия', labelEn: 'India' },
+  { id: 'indonesian', labelRu: 'Индонезия', labelEn: 'Indonesia' },
+  { id: 'jordan', labelRu: 'Иордания', labelEn: 'Jordan' },
+  { id: 'iraq', labelRu: 'Ирак', labelEn: 'Iraq' },
+  { id: 'irish', labelRu: 'Ирландия', labelEn: 'Ireland' },
+  { id: 'iceland', labelRu: 'Исландия', labelEn: 'Iceland' },
+  { id: 'spanish', labelRu: 'Испания', labelEn: 'Spain' },
+  { id: 'italian', labelRu: 'Италия', labelEn: 'Italy' },
+  { id: 'cambodia', labelRu: 'Камбоджа', labelEn: 'Cambodia' },
+  { id: 'cameroon', labelRu: 'Камерун', labelEn: 'Cameroon' },
+  { id: 'canadian', labelRu: 'Канада', labelEn: 'Canada' },
+  { id: 'qatar', labelRu: 'Катар', labelEn: 'Qatar' },
+  { id: 'kenya', labelRu: 'Кения', labelEn: 'Kenya' },
+  { id: 'cyprus', labelRu: 'Кипр', labelEn: 'Cyprus' },
+  { id: 'chinese', labelRu: 'Китай', labelEn: 'China' },
+  { id: 'colombian', labelRu: 'Колумбия', labelEn: 'Colombia' },
+  { id: 'laos', labelRu: 'Лаос', labelEn: 'Laos' },
+  { id: 'latvian', labelRu: 'Латвия', labelEn: 'Latvia' },
+  { id: 'lebanon', labelRu: 'Ливан', labelEn: 'Lebanon' },
+  { id: 'malaysian', labelRu: 'Малайзия', labelEn: 'Malaysia' },
+  { id: 'malta', labelRu: 'Мальта', labelEn: 'Malta' },
+  { id: 'moroccan', labelRu: 'Марокко', labelEn: 'Morocco' },
+  { id: 'mexican', labelRu: 'Мексика', labelEn: 'Mexico' },
+  { id: 'moldova', labelRu: 'Молдова', labelEn: 'Moldova' },
+  { id: 'myanmar', labelRu: 'Мьянма', labelEn: 'Myanmar' },
+  { id: 'nigerian', labelRu: 'Нигерия', labelEn: 'Nigeria' },
+  { id: 'dutch', labelRu: 'Нидерланды', labelEn: 'Netherlands' },
+  { id: 'new zealand', labelRu: 'Новая Зеландия', labelEn: 'New Zealand' },
+  { id: 'norwegian', labelRu: 'Норвегия', labelEn: 'Norway' },
+  { id: 'pakistani', labelRu: 'Пакистан', labelEn: 'Pakistan' },
+  { id: 'peruvian', labelRu: 'Перу', labelEn: 'Peru' },
+  { id: 'polish', labelRu: 'Польша', labelEn: 'Poland' },
+  { id: 'portuguese', labelRu: 'Португалия', labelEn: 'Portugal' },
+  { id: 'korean', labelRu: 'Республика Корея', labelEn: 'South Korea' },
+  { id: 'singapore', labelRu: 'Сингапур', labelEn: 'Singapore' },
+  { id: 'russian', labelRu: 'Россия', labelEn: 'Russia' },
+  { id: 'romanian', labelRu: 'Румыния', labelEn: 'Romania' },
+  { id: 'senegal', labelRu: 'Сенегал', labelEn: 'Senegal' },
+  { id: 'serbian', labelRu: 'Сербия', labelEn: 'Serbia' },
+  { id: 'slovakia', labelRu: 'Словакия', labelEn: 'Slovakia' },
+  { id: 'american', labelRu: 'США', labelEn: 'USA' },
+  { id: 'thai', labelRu: 'Таиланд', labelEn: 'Thailand' },
+  { id: 'taiwanese', labelRu: 'Тайвань', labelEn: 'Taiwan' },
+  { id: 'tunisia', labelRu: 'Тунис', labelEn: 'Tunisia' },
+  { id: 'ukrainian', labelRu: 'Украина', labelEn: 'Ukraine' },
+  { id: 'filipina', labelRu: 'Филиппины', labelEn: 'Philippines' },
+  { id: 'finnish', labelRu: 'Финляндия', labelEn: 'Finland' },
+  { id: 'french', labelRu: 'Франция', labelEn: 'France' },
+  { id: 'czech', labelRu: 'Чешская Республика', labelEn: 'Czech Republic' },
+  { id: 'chilean', labelRu: 'Чили', labelEn: 'Chile' },
+  { id: 'swiss', labelRu: 'Швейцария', labelEn: 'Switzerland' },
+  { id: 'swedish', labelRu: 'Швеция', labelEn: 'Sweden' },
+  { id: 'sri lanka', labelRu: 'Шри-Ланка', labelEn: 'Sri Lanka' },
+  { id: 'ecuador', labelRu: 'Эквадор', labelEn: 'Ecuador' },
+  { id: 'south africa', labelRu: 'Южная Африка', labelEn: 'South Africa' },
+  { id: 'japanese', labelRu: 'Япония', labelEn: 'Japan' }
 ];
 
 export function Adult() {
@@ -137,11 +137,8 @@ export function Adult() {
   const [query, setQuery] = useState('');
   const [country, setCountry] = useState('');
   
-  // Start with a random category initially
-  const [category, setCategory] = useState(() => {
-    const randomIndex = 1 + Math.floor(Math.random() * (CATEGORIES.length - 1));
-    return CATEGORIES[randomIndex].id;
-  });
+  // Default to popular category
+  const [category, setCategory] = useState('popular');
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isRu = language === 'ru-RU';
@@ -247,13 +244,8 @@ export function Adult() {
     setQuery('');
     setPage(0);
     if (hasAccess) {
-      trackOpen('adult_catalog', val || 'all', 'category');
-      if (val === '') {
-        const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-        loadVideos(randomCat, 0, false);
-      } else {
-        loadVideos(val, 0, false);
-      }
+      trackOpen('adult_catalog', val || 'popular', 'category');
+      loadVideos(val || 'popular', 0, false);
     }
   };
 
@@ -293,7 +285,7 @@ export function Adult() {
               setAgeConfirmed(true);
               localStorage.setItem('age_confirmed', 'true');
               setPage(0);
-              loadVideos(category, 0);
+              loadVideos(category || 'popular', 0);
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
