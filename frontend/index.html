@@ -39,7 +39,7 @@
 
       // 2. Watchdog: Auto-heal PWA blank screen from stale chunk hashes or failed network (Strict 1-attempt guard against loops)
       (function() {
-        var MAX_WAIT_MS = 3000;
+        var MAX_WAIT_MS = 8000;
         var ATTEMPT_KEY = 'mb_pwa_heal_attempts';
         var attempts = Number(sessionStorage.getItem(ATTEMPT_KEY) || '0');
 

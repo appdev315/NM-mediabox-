@@ -3,7 +3,7 @@ import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
 
-export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://backend.app-dev315.workers.dev/api';
+export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
 
 // In-flight request deduplication map to prevent redundant parallel network calls
