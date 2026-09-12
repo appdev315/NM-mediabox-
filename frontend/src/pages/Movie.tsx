@@ -42,6 +42,8 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+  const activeSeasonRef = useRef<string>('');
+  const activeEpisodeRef = useRef<string>('');
 
   // Validate media type
   const queryType = searchParams.get('type');
@@ -299,8 +301,11 @@ export function Movie() {
   }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
 
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
+    activeSeasonRef.current = season;
+    activeEpisodeRef.current = episode;
     setActiveSeason(season);
     setActiveEpisode(episode);
+    userSelectedRef.current = true;
 
     setIframeUrl(prev => {
       if (!prev) return prev;
@@ -317,11 +322,27 @@ export function Movie() {
       }
     });
 
+    setSources(prevSources =>
+      prevSources.map(s => {
+        if (s.isLiftw || s.name === 'player1') {
+          try {
+            const u = new URL(s.url);
+            u.searchParams.set('season', season);
+            u.searchParams.set('episode', episode);
+            return { ...s, url: u.toString() };
+          } catch (_) {
+            return s;
+          }
+        }
+        return s;
+      })
+    );
+
     const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
     if (iframe && iframe.contentWindow) {
       try {
         const iframeOrigin = new URL(iframe.src).origin;
-        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season), episode: parseInt(episode) }, iframeOrigin);
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season, 10), episode: parseInt(episode, 10) }, iframeOrigin);
       } catch (_) {}
     }
   };
@@ -404,6 +425,10 @@ export function Movie() {
       setIsExtracting(false);
       setContentUnavailable(false);
       setMovie(null);
+      setActiveSeason('');
+      setActiveEpisode('');
+      activeSeasonRef.current = '';
+      activeEpisodeRef.current = '';
       userSelectedRef.current = false;
       try {
         const initialType = (queryType === 'series' || queryType === 'tv') ? 'tv' : 'movie';
@@ -590,10 +615,20 @@ export function Movie() {
         
         // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
         if (foundSources.liftw) {
+          let liftwUrl = foundSources.liftw.url;
+          if (activeSeasonRef.current || activeEpisodeRef.current) {
+            try {
+              const u = new URL(liftwUrl);
+              if (activeSeasonRef.current) u.searchParams.set('season', activeSeasonRef.current);
+              if (activeEpisodeRef.current) u.searchParams.set('episode', activeEpisodeRef.current);
+              liftwUrl = u.toString();
+              foundSources.liftw.url = liftwUrl;
+            } catch (_) {}
+          }
           combined.push({
             name: 'player1',
             label: t('player1') || 'Плеер 1',
-            url: foundSources.liftw.url,
+            url: liftwUrl,
             isLiftw: true
           });
         }
@@ -614,7 +649,7 @@ export function Movie() {
           // Priority 1: If Liftw (1080p) is found, it is ALWAYS the preferred player.
           // Never preemptively mount backup player (Anwap) while Liftw is still resolving!
           if (foundSources.liftw) {
-            const preferredUrl = foundSources.liftw.url;
+            const preferredUrl = combined[0]?.url || foundSources.liftw.url;
             if (!userSelectedRef.current) {
               setIframeUrl(preferredUrl);
             } else {
@@ -691,8 +726,8 @@ export function Movie() {
           // If the user already selected a specific season/episode, ensure the initial URL reflects it
           let initialUrl = liftwData.iframe;
           if (mediaType === 'tv') {
-            const targetSeason = activeSeason || (sortedSeasons[0] || '1');
-            const targetEpisode = activeEpisode || (sortedEpisodes[0] || '1');
+            const targetSeason = activeSeasonRef.current || activeSeason || (sortedSeasons[0] || '1');
+            const targetEpisode = activeEpisodeRef.current || activeEpisode || (sortedEpisodes[0] || '1');
             try {
               const u = new URL(initialUrl);
               u.searchParams.set('season', targetSeason);
@@ -713,12 +748,15 @@ export function Movie() {
             });
             const firstSeason = initSortedSeasons[0] || '1';
 
+            const effectiveSeason = activeSeasonRef.current || activeSeason || firstSeason;
             setActiveSeason(prevSeason => {
               if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
+              if (activeSeasonRef.current && liftwData.episodes[activeSeasonRef.current]) return activeSeasonRef.current;
               return firstSeason;
             });
             setActiveEpisode(prevEp => {
-              const targetSeason = firstSeason;
+              const currentSeason = activeSeasonRef.current || effectiveSeason;
+              const targetSeason = (currentSeason && liftwData.episodes[currentSeason]) ? currentSeason : firstSeason;
               const eps = Array.isArray(liftwData.episodes[targetSeason]) ? liftwData.episodes[targetSeason] : [];
               const sortedInitEps = eps.slice().sort((a: any, b: any) => {
                 const numA = parseInt(String(a), 10);
@@ -726,7 +764,8 @@ export function Movie() {
                 if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
                 return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
               });
-              if (prevEp && sortedInitEps.includes(prevEp)) return prevEp;
+              const preferredEp = activeEpisodeRef.current || prevEp;
+              if (preferredEp && sortedInitEps.includes(preferredEp)) return preferredEp;
               return sortedInitEps[0] || '1';
             });
           }

@@ -10,7 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 
 export function Profile() {
 
-  const { t, language, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
 
   const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
@@ -64,37 +64,8 @@ export function Profile() {
       {/* Settings Section */}
       <div className="p-4 rounded-2xl shadow-sm flex flex-col gap-4" style={{ backgroundColor: 'var(--hint-color)' }}>
         
-        {/* Language Selector */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">🌍</span>
-            <h2 className="font-bold text-md">{t('language')}</h2>
-          </div>
-          <div className="relative">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as any)}
-              className="w-full appearance-none bg-black/10 dark:bg-white/5 rounded-lg p-3 text-sm font-medium outline-none border border-transparent focus:border-[var(--button-color)] transition-colors"
-              style={{ color: 'var(--text-color)' }}
-            >
-              <option value="ru-RU">🇷🇺 Русский (RU)</option>
-              <option value="en-US">🇺🇸 English (US)</option>
-              <option value="ko-KR">🇰🇷 한국어 (KR)</option>
-              <option value="id-ID">🇮🇩 Bahasa Indonesia (ID)</option>
-              <option value="hi-IN">🇮🇳 हिन्दी (IN)</option>
-              <option value="fa-IR">🇮🇷 فارسی (IR)</option>
-              <option value="es-ES">🇪🇸 Español (ES)</option>
-              <option value="de-DE">🇩🇪 Deutsch (DE)</option>
-              <option value="fr-FR">🇫🇷 Français (FR)</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4" style={{ color: 'var(--text-color)' }}>
-              <svg className="fill-current h-4 w-4 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-            </div>
-          </div>
-        </div>
-
         {/* Theme Segmented Control */}
-        <div className="flex flex-col gap-2 mt-2">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🎨</span>
             <h2 className="font-bold text-md">{t('theme')}</h2>

@@ -137,6 +137,20 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
     }
+    // Synchronize series episode position with embedded playlist
+    try {
+      if (iframeRef.current && iframeRef.current.contentWindow && /^https?:\/\//i.test(currentUrl)) {
+        const parsed = new URL(currentUrl);
+        const s = parsed.searchParams.get('season');
+        const e = parsed.searchParams.get('episode');
+        if (s && e) {
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: parseInt(s, 10), episode: parseInt(e, 10) },
+            parsed.origin
+          );
+        }
+      }
+    } catch (_) {}
   };
 
   // Power-Optimized WakeLock Lifecycle Management
