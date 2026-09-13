@@ -18,7 +18,7 @@ const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default:
 const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
 
 import { ThemeProvider } from './context/ThemeContext';
-import { HomeStateProvider } from './context/HomeStateContext';
+import { HomeStateProvider, useHomeState } from './context/HomeStateContext';
 import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
@@ -89,18 +89,26 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
 function HardwareBackButtonHandler() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { selectedGenre, setSelectedGenre, selectedCountry, setSelectedCountry, searchQuery, setSearchQuery, isSearching } = useHomeState();
 
   // Telegram WebApp BackButton sync
   useEffect(() => {
     try {
       if (WebApp && WebApp.BackButton) {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
-        if (isRoot) {
+        const hasActiveFilter = (location.pathname === '/' || location.pathname === '/movies') && 
+          (Boolean(selectedGenre) || Boolean(selectedCountry) || Boolean(searchQuery) || isSearching);
+
+        if (isRoot && !hasActiveFilter) {
           WebApp.BackButton.hide();
         } else {
           WebApp.BackButton.show();
           const handleBack = () => {
-            if (window.history.length > 1) {
+            if (hasActiveFilter) {
+              setSelectedGenre('');
+              setSelectedCountry('');
+              setSearchQuery('');
+            } else if (window.history.length > 1) {
               navigate(-1);
             } else {
               navigate(location.pathname.startsWith('/adult') ? '/adult' : '/');
@@ -115,7 +123,7 @@ function HardwareBackButtonHandler() {
     } catch (e) {
       console.warn('[BackButton] WebApp BackButton error:', e);
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, selectedGenre, selectedCountry, searchQuery, isSearching, setSelectedGenre, setSelectedCountry, setSearchQuery]);
 
   // Capacitor Android hardware back button
   useEffect(() => {
@@ -123,7 +131,14 @@ function HardwareBackButtonHandler() {
     try {
       CapacitorApp.addListener('backButton', ({ canGoBack }) => {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
-        if (isRoot) {
+        const hasActiveFilter = (location.pathname === '/' || location.pathname === '/movies') && 
+          (Boolean(selectedGenre) || Boolean(selectedCountry) || Boolean(searchQuery) || isSearching);
+
+        if (hasActiveFilter) {
+          setSelectedGenre('');
+          setSelectedCountry('');
+          setSearchQuery('');
+        } else if (isRoot) {
           CapacitorApp.exitApp();
         } else if (canGoBack) {
           navigate(-1);
@@ -142,7 +157,7 @@ function HardwareBackButtonHandler() {
         listenerHandle.remove();
       }
     };
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, selectedGenre, selectedCountry, searchQuery, isSearching, setSelectedGenre, setSelectedCountry, setSearchQuery]);
 
   return null;
 }

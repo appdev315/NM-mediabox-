@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
@@ -128,6 +128,7 @@ const ADULT_COUNTRIES = [
 
 export function Adult() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, language } = useLanguage();
   const { fetchAdultSearch } = useApi();
   const [videos, setVideos] = useState<any[]>([]);
@@ -135,8 +136,9 @@ export function Adult() {
   const [query, setQuery] = useState('');
   const [country, setCountry] = useState('');
   
-  // Default to popular category
-  const [category, setCategory] = useState('popular');
+  // Initialize from location state if returning from video or default to popular
+  const initialCategory = (location.state as any)?.category || 'popular';
+  const [category, setCategory] = useState(initialCategory);
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isRu = language === 'ru-RU';
@@ -182,12 +184,12 @@ export function Adult() {
 
   useEffect(() => {
     if (hasAccess && ageConfirmed) {
-      loadVideos('popular', 0, false, true);
-      trackOpen('adult_catalog', 'popular', 'catalog');
+      loadVideos(category, 0, false, category === 'popular');
+      trackOpen('adult_catalog', category, 'catalog');
     } else {
       setLoading(false);
     }
-  }, [hasAccess, ageConfirmed, loadVideos]);
+  }, [hasAccess, ageConfirmed, loadVideos, category]);
 
   const loadMore = useCallback(() => {
     if (loading || isLoadingMore || !hasAccess || !ageConfirmed) return;
@@ -355,7 +357,6 @@ export function Adult() {
           }}
           onBlur={() => {
             requestAnimationFrame(() => {
-              window.scrollTo(0, 0);
               triggerViewportExpand();
             });
           }}

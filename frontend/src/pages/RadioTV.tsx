@@ -785,7 +785,6 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }}
         onBlur={() => {
           requestAnimationFrame(() => {
-            window.scrollTo(0, 0);
             triggerViewportExpand();
           });
         }}

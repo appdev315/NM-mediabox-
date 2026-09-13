@@ -64,22 +64,6 @@ export function FloatingTitle() {
     }
   }, [triggerPostAd, navigate, isAdultApp]);
 
-  // Handle Telegram native back button
-  useEffect(() => {
-    if (isTelegram) {
-      if (!isMainRoute) {
-        WebApp.BackButton.show();
-        WebApp.BackButton.onClick(handleBackNavigation);
-        return () => {
-          WebApp.BackButton.offClick(handleBackNavigation);
-          WebApp.BackButton.hide();
-        };
-      } else {
-        WebApp.BackButton.hide();
-      }
-    }
-  }, [isMainRoute, isTelegram, handleBackNavigation]);
-
   if (isMainRoute) {
     // Hide the title/return button in 18+ app on main pages
     if (isAdultApp) {

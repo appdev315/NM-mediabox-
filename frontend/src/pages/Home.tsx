@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
@@ -124,6 +124,25 @@ export function Home() {
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
+
+  const currentFilterLabel = useMemo(() => {
+    if (selectedGenre) {
+      if (selectedGenre === 'trending') return t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular');
+      const gMatch = genres.find(g => String(g.id) === String(selectedGenre));
+      if (gMatch) return gMatch.name;
+      const sMatch = homeSections.find(s => String(s.genreId) === String(selectedGenre) || String(s.id) === String(selectedGenre));
+      if (sMatch) return sMatch.name;
+      return t('allGenres');
+    }
+    if (selectedCountry) {
+      const cMatch = countriesList.find(c => c.code === selectedCountry);
+      if (cMatch) return `${cMatch.flag} ${cMatch.name[language] || cMatch.name['en-US']}`;
+    }
+    if (sortBy === 'vote_average.desc') {
+      return '⭐ Top IMDb';
+    }
+    return '';
+  }, [selectedGenre, selectedCountry, sortBy, genres, homeSections, language, t]);
 
   useEffect(() => {
     setSearchInput(searchQuery);
@@ -391,7 +410,6 @@ export function Home() {
               }}
               onBlur={() => {
                 requestAnimationFrame(() => {
-                  window.scrollTo(0, 0);
                   triggerViewportExpand();
                 });
               }}
@@ -471,24 +489,25 @@ export function Home() {
                 <div key={section.id} className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20">
                   <div className="flex items-center mb-4 pb-3 border-b border-white/10">
                     <button
-                      onClick={() => {
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-                        if (section.genreId) {
-                          setSelectedGenre(section.genreId);
-                        } else if (section.id === 'trending') {
-                          setSelectedGenre('trending');
+                        const targetGenre = section.genreId || (section.id === 'trending' ? 'trending' : String(section.id || ''));
+                        if (targetGenre) {
+                          setSelectedGenre(targetGenre);
+                          setPage(1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }
-                        setPage(1);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       className="group inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/10 hover:bg-blue-600/20 border border-white/15 hover:border-blue-500/40 text-left transition-all active:scale-[0.96] shadow-sm hover:shadow-md cursor-pointer"
                       title={section.genreId ? `${section.name} — ${t('showMore') || 'Показать еще'}` : section.name}
                     >
-                      <span className="w-2 h-4 sm:w-2.5 sm:h-5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm transition-transform group-hover:scale-110"></span>
-                      <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                      <span className="w-2 h-4 sm:w-2.5 sm:h-5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm transition-transform group-hover:scale-110 shrink-0"></span>
+                      <span className="text-base sm:text-lg font-extrabold tracking-tight text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
                         <span>{section.name}</span>
                         <span className="text-sm sm:text-base text-gray-400 group-hover:text-blue-300 group-hover:translate-x-0.5 transition-all font-bold">›</span>
-                      </h2>
+                      </span>
                     </button>
                   </div>
 
@@ -516,17 +535,49 @@ export function Home() {
             </div>
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full animate-fade-in">
-              {items.map((item, idx) => (
-                <MovieCard
-                  key={`${item.id}_${item.type || activeTab}_${idx}`}
-                  item={item}
-                  mediaType={activeTab === 'series' ? 'series' : 'movie'}
-                  selectedCountry={selectedCountry}
-                  comingSoonText={t('comingSoon') || 'Скоро...'}
-                  onNavigate={handleNavigate}
-                />
-              ))}
+            <div className="w-full animate-fade-in space-y-4">
+              {(selectedGenre || selectedCountry || sortBy === 'vote_average.desc') && !isSearching && (
+                <div className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-neutral-900/80 border border-white/10 shadow-md">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-2.5 h-6 sm:h-7 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm shrink-0"></span>
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-wider font-black text-blue-400 opacity-90 leading-none mb-1">
+                        {selectedGenre ? (t('categoryBadge') || 'Категория') : selectedCountry ? (t('allCountries') || 'Страна') : 'Рейтинг'}
+                      </p>
+                      <h2 className="text-base sm:text-lg font-black text-white truncate">
+                        {currentFilterLabel}
+                      </h2>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                      setSelectedGenre('');
+                      setSelectedCountry('');
+                      setSortBy('popularity.desc');
+                      setPage(1);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold text-white transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border border-white/10"
+                  >
+                    <span>←</span>
+                    <span>{t('allCategories') || 'Все категории'}</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
+                {items.map((item, idx) => (
+                  <MovieCard
+                    key={`${item.id}_${item.type || activeTab}_${idx}`}
+                    item={item}
+                    mediaType={activeTab === 'series' ? 'series' : 'movie'}
+                    selectedCountry={selectedCountry}
+                    comingSoonText={t('comingSoon') || 'Скоро...'}
+                    onNavigate={handleNavigate}
+                  />
+                ))}
+              </div>
             </div>
           )}
           
