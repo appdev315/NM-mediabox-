@@ -202,77 +202,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [stop]);
 
-  const togglePlayPause = useCallback(() => {
-    if (!isAudioMasterRef.current) {
-      try {
-        broadcastChannelRef.current?.postMessage({
-          type: 'COMMAND_TOGGLE',
-          senderId: tabIdRef.current
-        });
-      } catch (_) {}
-      setIsPlaying(prev => !prev);
-      return;
-    }
-
-    const audio = audioRef.current;
-    const track = currentTrackRef.current;
-    if (!audio || !track) return;
-
-    if (isPlayingRef.current) {
-      isUserPausedRef.current = true;
-      isPausedByDeviceRef.current = false;
-      audio.pause();
-      // Suspend Web Audio keep-alive when paused so speaker icon turns off
-      if (audioContextRef.current && audioContextRef.current.state === 'running') {
-        audioContextRef.current.suspend().catch(() => {});
-      }
-      setIsPlaying(false);
-      setIsBuffering(false);
-      syncToPeers(track, false, false);
-    } else {
-      isUserPausedRef.current = false;
-      isPausedByDeviceRef.current = false;
-      setIsBuffering(true);
-      ensureAudioContextKeepAlive();
-
-      if (track.type === 'radio') {
-        const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-        if (isHls && hlsRef.current) {
-          hlsRef.current.startLoad();
-          audio.play().then(() => {
-            setIsPlaying(true);
-            setIsBuffering(false);
-            syncToPeers(track, true, false);
-          }).catch(() => {
-            setIsBuffering(false);
-          });
-        } else {
-          // Reconnect to live edge upon unpause to avoid dead TCP socket
-          const rawUrl = track.originalUrl || track.url;
-          const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
-          const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-          audio.src = freshUrl;
-          audio.load();
-          audio.play().then(() => {
-            setIsPlaying(true);
-            setIsBuffering(false);
-            syncToPeers(track, true, false);
-          }).catch(() => {
-            setIsBuffering(false);
-          });
-        }
-      } else {
-        audio.play().then(() => {
-          setIsPlaying(true);
-          setIsBuffering(false);
-          syncToPeers(track, true, false);
-        }).catch(() => {
-          setIsBuffering(false);
-        });
-      }
-    }
-  }, [ensureAudioContextKeepAlive, syncToPeers]);
-
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
     const audio = audioRef.current;
@@ -323,7 +252,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         });
       } else {
         audio.src = freshUrl;
-        audio.load();
         audio.play().then(() => {
           isReconnectingRef.current = false;
           setIsBuffering(false);
@@ -334,6 +262,81 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     }, backoffMs);
   }, []);
+
+  const togglePlayPause = useCallback(() => {
+    if (!isAudioMasterRef.current) {
+      try {
+        broadcastChannelRef.current?.postMessage({
+          type: 'COMMAND_TOGGLE',
+          senderId: tabIdRef.current
+        });
+      } catch (_) {}
+      setIsPlaying(prev => !prev);
+      return;
+    }
+
+    const audio = audioRef.current;
+    const track = currentTrackRef.current;
+    if (!audio || !track) return;
+
+    if (isPlayingRef.current) {
+      isUserPausedRef.current = true;
+      isPausedByDeviceRef.current = false;
+      audio.pause();
+      // Suspend Web Audio keep-alive when paused so speaker icon turns off
+      if (audioContextRef.current && audioContextRef.current.state === 'running') {
+        audioContextRef.current.suspend().catch(() => {});
+      }
+      setIsPlaying(false);
+      setIsBuffering(false);
+      syncToPeers(track, false, false);
+    } else {
+      isUserPausedRef.current = false;
+      isPausedByDeviceRef.current = false;
+      setIsBuffering(true);
+      ensureAudioContextKeepAlive();
+
+      if (track.type === 'radio') {
+        const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+        if (isHls && hlsRef.current) {
+          hlsRef.current.startLoad();
+          audio.play().then(() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            syncToPeers(track, true, false);
+          }).catch((err) => {
+            console.warn('[Radio] Unpause HLS play failed, attempting reconnect:', err);
+            setIsBuffering(false);
+            attemptReconnect('unpause hls play failed');
+          });
+        } else {
+          // Reconnect to live edge upon unpause to avoid dead TCP socket
+          const rawUrl = track.originalUrl || track.url;
+          const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
+          const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+          audio.src = freshUrl;
+          // Avoid audio.load() right before audio.play() in Safari to prevent AbortError
+          audio.play().then(() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            syncToPeers(track, true, false);
+          }).catch((err) => {
+            console.warn('[Radio] Unpause stream play failed, attempting reconnect:', err);
+            setIsBuffering(false);
+            attemptReconnect('unpause stream play failed');
+          });
+        }
+      } else {
+        audio.play().then(() => {
+          setIsPlaying(true);
+          setIsBuffering(false);
+          syncToPeers(track, true, false);
+        }).catch(() => {
+          setIsBuffering(false);
+        });
+      }
+    }
+  }, [ensureAudioContextKeepAlive, syncToPeers, attemptReconnect]);
 
   const playTrack = useCallback(async (track: Track) => {
     // If same track, toggle play/pause
@@ -446,44 +449,25 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setIsPlaying(true);
   }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive, syncToPeers]);
 
-  // MediaSession v2 handler (Live stream status & background lockscreen)
+  // MediaSession Action Handlers: Persistent remote commands for iOS Lockscreen / Control Center / Desktop
   useEffect(() => {
-    if (!('mediaSession' in navigator) || !currentTrack) return;
-
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: currentTrack.title,
-      artist: currentTrack.artist,
-      artwork: currentTrack.coverUrl ? [
-        { src: currentTrack.coverUrl, sizes: '96x96', type: 'image/png' },
-        { src: currentTrack.coverUrl, sizes: '256x256', type: 'image/png' },
-        { src: currentTrack.coverUrl, sizes: '512x512', type: 'image/png' }
-      ] : []
-    });
+    if (!('mediaSession' in navigator)) return;
 
     try {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-      if ('setPositionState' in navigator.mediaSession) {
-        navigator.mediaSession.setPositionState({
-          duration: 0,
-          position: 0,
-          playbackRate: 1
-        });
-      }
-    } catch (_) {
-      // Ignore unsupported browser variations
-    }
-
-    navigator.mediaSession.setActionHandler('play', () => {
-      if (!isPlayingRef.current) {
-        togglePlayPause();
-      }
-    });
-    navigator.mediaSession.setActionHandler('pause', () => {
-      if (isPlayingRef.current) {
-        togglePlayPause();
-      }
-    });
-    navigator.mediaSession.setActionHandler('stop', () => stop());
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (!isPlayingRef.current) {
+          togglePlayPause();
+        }
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (isPlayingRef.current) {
+          togglePlayPause();
+        }
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        stop();
+      });
+    } catch (_) {}
 
     return () => {
       if ('mediaSession' in navigator) {
@@ -494,7 +478,65 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         } catch (_) {}
       }
     };
-  }, [currentTrack, isPlaying, stop, togglePlayPause]);
+  }, [togglePlayPause, stop]);
+
+  // MediaSession Metadata: Updates station info & artwork when current track changes
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (!currentTrack) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch (_) {}
+      return;
+    }
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        artwork: currentTrack.coverUrl ? [
+          { src: currentTrack.coverUrl, sizes: '96x96', type: 'image/png' },
+          { src: currentTrack.coverUrl, sizes: '256x256', type: 'image/png' },
+          { src: currentTrack.coverUrl, sizes: '512x512', type: 'image/png' }
+        ] : []
+      });
+    } catch (_) {}
+  }, [currentTrack]);
+
+  // MediaSession Playback State: Reflects playing/paused state on lockscreen without killing the widget
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+
+    try {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+      // CRITICAL FOR IOS LOCKSCREEN RETENTION:
+      // Never pass duration: 0 to setPositionState!
+      // In iOS Safari / WebKit, passing duration: 0 informs the OS that playback has finished,
+      // which causes iOS MediaRemote to immediately dismiss the lockscreen widget ~1s after pause.
+      if ('setPositionState' in navigator.mediaSession) {
+        if (currentTrack.type === 'radio') {
+          // For live streams, omit position state so iOS displays native "LIVE" indicator
+          try {
+            navigator.mediaSession.setPositionState();
+          } catch (_) {}
+        } else {
+          const audio = audioRef.current;
+          if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+            navigator.mediaSession.setPositionState({
+              duration: audio.duration,
+              position: Math.min(audio.currentTime, audio.duration),
+              playbackRate: isPlaying ? 1 : 0
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore unsupported browser variations
+    }
+  }, [isPlaying, currentTrack]);
 
   // Watchdog Heartbeat: Periodically inspect currentTime to auto-heal frozen streams
   useEffect(() => {
