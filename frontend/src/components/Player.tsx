@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { WebApp } from '../telegram';
 
 interface PlayerProps {
@@ -7,14 +7,23 @@ interface PlayerProps {
   initialTimecode?: number;
   mediaId?: string | number;
   onReady?: () => void;
+  season?: string;
+  episode?: string;
+  onEpisodeChange?: (season: string, episode: string) => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, episode, onEpisodeChange }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [mirrorIndex, setMirrorIndex] = useState(0);
+
+  // Latest season and episode references for background execution without stale closures
+  const seasonRef = useRef(season);
+  const episodeRef = useRef(episode);
+  useEffect(() => { seasonRef.current = season; }, [season]);
+  useEffect(() => { episodeRef.current = episode; }, [episode]);
 
   // Determine provider type
   const provider = useMemo(() => {
@@ -63,15 +72,15 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
 
   const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
 
-  // Compute stable sourceKey based on origin + pathname + season/episode (ignoring timecode/start/mirror noise)
+  // CRITICAL: Stable sourceKey based strictly on origin + pathname.
+  // Must NEVER include season/episode, otherwise React destroys the iframe on every episode switch,
+  // resetting playback to Season 1 Episode 1 and triggering browser Autoplay blocks!
   const sourceKey = useMemo(() => {
     try {
       const url = new URL(rawUrl);
-      const s = url.searchParams.get('season') || '';
-      const e = url.searchParams.get('episode') || '';
-      return `${url.origin}${url.pathname}${s || e ? `?s=${s}&e=${e}` : ''}`;
+      return `${url.origin}${url.pathname}`;
     } catch (_) {
-      return rawUrl.split('#')[0];
+      return rawUrl.split(/[?#]/)[0];
     }
   }, [rawUrl]);
 
@@ -84,13 +93,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     initialTimecodeRef.current = initialTimecode;
   }
 
-  // Append restored timecode parameter when mounting initial player
+  // Base iframe URL stripped of season/episode/timecode query mutations to prevent browser iframe reload
   const currentUrl = useMemo(() => {
     if (!rawUrl || !/^https?:\/\//i.test(rawUrl.trim())) {
       return 'about:blank';
     }
     const timecode = initialTimecodeRef.current;
-    let cleanUrl = rawUrl.replace(/[?&](start|t)=\d+/g, '').replace(/#t=\d+/g, '');
+    let cleanUrl = rawUrl
+      .replace(/[?&](start|t)=\d+/g, '')
+      .replace(/[?&](season|episode)=\d+/g, '')
+      .replace(/#t=\d+/g, '');
     if (cleanUrl.includes('?&')) cleanUrl = cleanUrl.replace('?&', '?');
     if (cleanUrl.endsWith('?')) cleanUrl = cleanUrl.slice(0, -1);
 
@@ -101,6 +113,56 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
     }
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
+
+  // Send playlist go command to the embedded video player
+  const sendPlaylistGo = useCallback((targetSeason?: string, targetEpisode?: string) => {
+    const s = targetSeason || seasonRef.current;
+    const e = targetEpisode || episodeRef.current;
+    if (!s && !e) return;
+
+    try {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        const sNum = parseInt(s || '1', 10);
+        const eNum = parseInt(e || '1', 10);
+        const eStr = String(e || '1');
+        // Dispatch with wildcard origin '*' so any subdomain/redirect inside zenithjs receives it
+        iframeRef.current.contentWindow.postMessage(
+          { event: 'playlist go', season: sNum, episode: eNum },
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          { event: 'playlist go', season: sNum, episode: eStr },
+          '*'
+        );
+      }
+    } catch (_) {}
+  }, []);
+
+  // Listen for episode changes inside the embedded player (e.g. Next Episode button)
+  useEffect(() => {
+    const handlePlayerMessage = (event: MessageEvent) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!data || typeof data !== 'object') return;
+
+        if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
+          const s = String(data.season || '1');
+          const e = String(data.episode || '1');
+          onEpisodeChange?.(s, e);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('message', handlePlayerMessage);
+    return () => window.removeEventListener('message', handlePlayerMessage);
+  }, [onEpisodeChange]);
+
+  // When season or episode props change, immediately switch episode via postMessage without reloading iframe
+  useEffect(() => {
+    if (season || episode) {
+      sendPlaylistGo(season, episode);
+    }
+  }, [season, episode, sendPlaylistGo]);
 
   // Fallback timer: Force show iframe after 2s even if onLoad doesn't fire (crucial for WebViews)
   useEffect(() => {
@@ -137,20 +199,19 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady }: PlayerP
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
     }
-    // Synchronize series episode position with embedded playlist
-    try {
-      if (iframeRef.current && iframeRef.current.contentWindow && /^https?:\/\//i.test(currentUrl)) {
-        const parsed = new URL(currentUrl);
-        const s = parsed.searchParams.get('season');
-        const e = parsed.searchParams.get('episode');
-        if (s && e) {
-          iframeRef.current.contentWindow.postMessage(
-            { event: 'playlist go', season: parseInt(s, 10), episode: parseInt(e, 10) },
-            parsed.origin
-          );
-        }
-      }
-    } catch (_) {}
+
+    // Resilient initial sync: Send playlist go immediately and across retry intervals
+    // to account for player.js asynchronous execution inside the iframe
+    if (season || episode) {
+      sendPlaylistGo(season, episode);
+
+      const retryDelays = [200, 500, 1000, 1800, 2600];
+      retryDelays.forEach(delay => {
+        setTimeout(() => {
+          sendPlaylistGo(season, episode);
+        }, delay);
+      });
+    }
   };
 
   // Power-Optimized WakeLock Lifecycle Management

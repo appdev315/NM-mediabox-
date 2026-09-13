@@ -307,42 +307,15 @@ export function Movie() {
     setActiveEpisode(episode);
     userSelectedRef.current = true;
 
-    setIframeUrl(prev => {
-      if (!prev) return prev;
-      try {
-        const urlObj = new URL(prev);
-        urlObj.searchParams.set('season', season);
-        urlObj.searchParams.set('episode', episode);
-        return urlObj.toString();
-      } catch (_) {
-        if (prev.includes('season=')) {
-          return prev.replace(/season=\d+/, `season=${season}`).replace(/episode=\d+/, `episode=${episode}`);
-        }
-        return `${prev}${prev.includes('?') ? '&' : '?'}season=${season}&episode=${episode}`;
-      }
-    });
-
-    setSources(prevSources =>
-      prevSources.map(s => {
-        if (s.isLiftw || s.name === 'player1') {
-          try {
-            const u = new URL(s.url);
-            u.searchParams.set('season', season);
-            u.searchParams.set('episode', episode);
-            return { ...s, url: u.toString() };
-          } catch (_) {
-            return s;
-          }
-        }
-        return s;
-      })
-    );
-
+    // Send playlist switch command directly to the player without reloading the iframe!
     const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
     if (iframe && iframe.contentWindow) {
       try {
-        const iframeOrigin = new URL(iframe.src).origin;
-        iframe.contentWindow.postMessage({ event: 'playlist go', season: parseInt(season, 10), episode: parseInt(episode, 10) }, iframeOrigin);
+        const sNum = parseInt(season, 10);
+        const eNum = parseInt(episode, 10);
+        const eStr = String(episode);
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eNum }, '*');
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eStr }, '*');
       } catch (_) {}
     }
   };
@@ -614,17 +587,9 @@ export function Movie() {
         const combined: any[] = [];
         
         // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
+        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
         if (foundSources.liftw) {
-          let liftwUrl = foundSources.liftw.url;
-          if (activeSeasonRef.current || activeEpisodeRef.current) {
-            try {
-              const u = new URL(liftwUrl);
-              if (activeSeasonRef.current) u.searchParams.set('season', activeSeasonRef.current);
-              if (activeEpisodeRef.current) u.searchParams.set('episode', activeEpisodeRef.current);
-              liftwUrl = u.toString();
-              foundSources.liftw.url = liftwUrl;
-            } catch (_) {}
-          }
+          const liftwUrl = foundSources.liftw.url;
           combined.push({
             name: 'player1',
             label: t('player1') || 'Плеер 1',
@@ -723,19 +688,7 @@ export function Movie() {
         }
 
         if (liftwData && liftwData.iframe) {
-          // If the user already selected a specific season/episode, ensure the initial URL reflects it
-          let initialUrl = liftwData.iframe;
-          if (mediaType === 'tv') {
-            const targetSeason = activeSeasonRef.current || activeSeason || (sortedSeasons[0] || '1');
-            const targetEpisode = activeEpisodeRef.current || activeEpisode || (sortedEpisodes[0] || '1');
-            try {
-              const u = new URL(initialUrl);
-              u.searchParams.set('season', targetSeason);
-              u.searchParams.set('episode', targetEpisode);
-              initialUrl = u.toString();
-            } catch (_) {}
-          }
-
+          const initialUrl = liftwData.iframe;
           foundSources.liftw = { name: 'player1', url: initialUrl, isLiftw: true };
           
           if (liftwData.episodes) {
@@ -1296,6 +1249,14 @@ export function Movie() {
                         iframeUrl={iframeUrl} 
                         initialTimecode={savedTimecode || undefined} 
                         mediaId={id} 
+                        season={activeSeason || sortedSeasons[0] || '1'}
+                        episode={activeEpisode || sortedEpisodes[0] || '1'}
+                        onEpisodeChange={(s, e) => {
+                          activeSeasonRef.current = s;
+                          activeEpisodeRef.current = e;
+                          setActiveSeason(s);
+                          setActiveEpisode(e);
+                        }}
                       />
                     </div>
                   </div>
