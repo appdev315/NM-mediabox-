@@ -223,6 +223,15 @@ export default function App() {
     WebApp.expand();
     trackVisit();
 
+    // PWA Launch Queue consumer: when user clicks desktop shortcut/icon while app is open,
+    // the OS brings this window to focus without destroying audio context or triggering full reloads.
+    if ('launchQueue' in window && 'setConsumer' in (window as any).launchQueue) {
+      (window as any).launchQueue.setConsumer((launchParams: any) => {
+        console.debug('[PWA] launchQueue consumer triggered with targetURL:', launchParams?.targetURL);
+        window.dispatchEvent(new CustomEvent('pwa-window-focused'));
+      });
+    }
+
     try {
       if (WebApp.setBackgroundColor) WebApp.setBackgroundColor('#17212b');
       if (WebApp.setHeaderColor) WebApp.setHeaderColor('#17212b');

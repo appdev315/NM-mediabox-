@@ -24,6 +24,17 @@ interface AudioPlayerContextType {
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
+const AUDIO_STORAGE_KEY = 'mb_active_audio_state';
+
+interface AudioSyncMessage {
+  type: 'STATE_SYNC' | 'COMMAND_TOGGLE' | 'COMMAND_STOP' | 'PING_MASTER' | 'PONG_MASTER';
+  track?: Track | null;
+  isPlaying?: boolean;
+  isBuffering?: boolean;
+  masterId?: string;
+  senderId: string;
+}
+
 // Dynamic Network Information helper with enhanced buffering for unstable mobile connections
 const getOptimalBufferConfig = () => {
   const conn = (navigator as any).connection;
@@ -55,11 +66,44 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
 
+  // Multi-window & PWA identity refs
+  const tabIdRef = useRef(`tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+  const isAudioMasterRef = useRef(false);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
   // Refs to always hold the latest state — avoids stale closures
   const isPlayingRef = useRef(isPlaying);
   const currentTrackRef = useRef(currentTrack);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+
+  // Sync state to other windows/PWA clients via BroadcastChannel and LocalStorage
+  const syncToPeers = useCallback((track: Track | null, playing: boolean, buffering: boolean) => {
+    try {
+      if (track && playing) {
+        localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({
+          track,
+          isPlaying: playing,
+          isBuffering: buffering,
+          masterId: tabIdRef.current,
+          updatedAt: Date.now()
+        }));
+      } else if (!track) {
+        localStorage.removeItem(AUDIO_STORAGE_KEY);
+      }
+    } catch (_) {}
+
+    try {
+      broadcastChannelRef.current?.postMessage({
+        type: 'STATE_SYNC',
+        track,
+        isPlaying: playing,
+        isBuffering: buffering,
+        masterId: tabIdRef.current,
+        senderId: tabIdRef.current
+      });
+    } catch (_) {}
+  }, []);
 
   // Mobile Keep-Alive: Inaudible 20Hz Web Audio oscillator prevents OS suspension during active playback
   const ensureAudioContextKeepAlive = useCallback(() => {
@@ -88,8 +132,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   // Stable callbacks that read from refs instead of captured state
   const stop = useCallback(() => {
+    if (!isAudioMasterRef.current) {
+      try {
+        broadcastChannelRef.current?.postMessage({
+          type: 'COMMAND_STOP',
+          senderId: tabIdRef.current
+        });
+      } catch (_) {}
+      setIsPlaying(false);
+      setIsBuffering(false);
+      setCurrentTrack(null);
+      return;
+    }
+
     isUserPausedRef.current = true;
     isPausedByDeviceRef.current = false;
+    isAudioMasterRef.current = false;
+    syncToPeers(null, false, false);
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -131,15 +191,29 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setIsPlaying(false);
     setIsBuffering(false);
     setCurrentTrack(null);
-  }, []);
+  }, [syncToPeers]);
 
   useEffect(() => {
     return () => {
-      stop();
+      // Only tear down audio on unmount if this window is the active audio master
+      if (isAudioMasterRef.current) {
+        stop();
+      }
     };
   }, [stop]);
 
   const togglePlayPause = useCallback(() => {
+    if (!isAudioMasterRef.current) {
+      try {
+        broadcastChannelRef.current?.postMessage({
+          type: 'COMMAND_TOGGLE',
+          senderId: tabIdRef.current
+        });
+      } catch (_) {}
+      setIsPlaying(prev => !prev);
+      return;
+    }
+
     const audio = audioRef.current;
     const track = currentTrackRef.current;
     if (!audio || !track) return;
@@ -154,6 +228,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
       setIsPlaying(false);
       setIsBuffering(false);
+      syncToPeers(track, false, false);
     } else {
       isUserPausedRef.current = false;
       isPausedByDeviceRef.current = false;
@@ -167,6 +242,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           audio.play().then(() => {
             setIsPlaying(true);
             setIsBuffering(false);
+            syncToPeers(track, true, false);
           }).catch(() => {
             setIsBuffering(false);
           });
@@ -180,6 +256,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           audio.play().then(() => {
             setIsPlaying(true);
             setIsBuffering(false);
+            syncToPeers(track, true, false);
           }).catch(() => {
             setIsBuffering(false);
           });
@@ -188,12 +265,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         audio.play().then(() => {
           setIsPlaying(true);
           setIsBuffering(false);
+          syncToPeers(track, true, false);
         }).catch(() => {
           setIsBuffering(false);
         });
       }
     }
-  }, [ensureAudioContextKeepAlive]);
+  }, [ensureAudioContextKeepAlive, syncToPeers]);
 
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
@@ -258,14 +336,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playTrack = useCallback(async (track: Track) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
     // If same track, toggle play/pause
     if (currentTrackRef.current?.id === track.id) {
       togglePlayPause();
       return;
     }
+
+    // Stop playback in any other open window/tab to prevent dual streams
+    try {
+      broadcastChannelRef.current?.postMessage({
+        type: 'COMMAND_STOP',
+        senderId: tabIdRef.current
+      });
+    } catch (_) {}
+
+    isAudioMasterRef.current = true;
+
+    const audio = audioRef.current;
+    if (!audio) return;
 
     // New track
     ensureAudioContextKeepAlive();
@@ -282,6 +370,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     setCurrentTrack(track);
     setIsBuffering(true);
+    syncToPeers(track, true, true);
 
     // Clean up previous Hls instance
     if (hlsRef.current) {
@@ -349,9 +438,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    audio.play().catch(() => setIsBuffering(false));
+    audio.play().then(() => {
+      setIsPlaying(true);
+      setIsBuffering(false);
+      syncToPeers(track, true, false);
+    }).catch(() => setIsBuffering(false));
     setIsPlaying(true);
-  }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive]);
+  }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive, syncToPeers]);
 
   // MediaSession v2 handler (Live stream status & background lockscreen)
   useEffect(() => {
@@ -443,7 +536,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Background visibility & Tab Focus recovery
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
-      if (!document.hidden && isPlayingRef.current && !isUserPausedRef.current) {
+      if (isAudioMasterRef.current && !document.hidden && isPlayingRef.current && !isUserPausedRef.current) {
         ensureAudioContextKeepAlive();
         const audio = audioRef.current;
         if (audio && audio.paused && !isPausedByDeviceRef.current) {
@@ -451,6 +544,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             attemptReconnect('tab visible resume');
           });
         }
+      } else if (!isAudioMasterRef.current && !document.hidden) {
+        // When a non-master tab gains focus, refresh its peer state
+        broadcastChannelRef.current?.postMessage({
+          type: 'PING_MASTER',
+          senderId: tabIdRef.current
+        });
       }
     };
 
@@ -461,6 +560,99 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
+  }, [ensureAudioContextKeepAlive, attemptReconnect]);
+
+  // Cross-Window Audio Synchronization via BroadcastChannel & LocalStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+    const channel = new BroadcastChannel('mb_audio_bus');
+    broadcastChannelRef.current = channel;
+
+    channel.onmessage = (event: MessageEvent<AudioSyncMessage>) => {
+      const msg = event.data;
+      if (!msg || msg.senderId === tabIdRef.current) return;
+
+      if (msg.type === 'PING_MASTER') {
+        if (isAudioMasterRef.current && currentTrackRef.current) {
+          channel.postMessage({
+            type: 'PONG_MASTER',
+            track: currentTrackRef.current,
+            isPlaying: isPlayingRef.current,
+            isBuffering: false,
+            masterId: tabIdRef.current,
+            senderId: tabIdRef.current
+          });
+        }
+      } else if (msg.type === 'PONG_MASTER' || msg.type === 'STATE_SYNC') {
+        if (!isAudioMasterRef.current) {
+          if (msg.track) {
+            setCurrentTrack(msg.track);
+            setIsPlaying(Boolean(msg.isPlaying));
+            setIsBuffering(Boolean(msg.isBuffering));
+          } else {
+            setCurrentTrack(null);
+            setIsPlaying(false);
+            setIsBuffering(false);
+          }
+        }
+      } else if (msg.type === 'COMMAND_TOGGLE') {
+        if (isAudioMasterRef.current) {
+          togglePlayPause();
+        }
+      } else if (msg.type === 'COMMAND_STOP') {
+        if (isAudioMasterRef.current) {
+          stop();
+        } else {
+          setCurrentTrack(null);
+          setIsPlaying(false);
+          setIsBuffering(false);
+        }
+      }
+    };
+
+    // Load active track snapshot from localStorage on boot
+    try {
+      const saved = localStorage.getItem(AUDIO_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.track && Date.now() - (parsed.updatedAt || 0) < 6 * 60 * 60 * 1000) {
+          setCurrentTrack(parsed.track);
+          setIsPlaying(Boolean(parsed.isPlaying));
+        }
+      }
+    } catch (_) {}
+
+    // Ping any existing master window (e.g. running radio in background)
+    channel.postMessage({
+      type: 'PING_MASTER',
+      senderId: tabIdRef.current
+    });
+
+    return () => {
+      channel.close();
+      broadcastChannelRef.current = null;
+    };
+  }, [stop, togglePlayPause]);
+
+  // Resume or reaffirm audio when PWA window is focused via launchQueue or visibility change
+  useEffect(() => {
+    const handlePwaFocus = () => {
+      ensureAudioContextKeepAlive();
+      if (isAudioMasterRef.current && isPlayingRef.current) {
+        const audio = audioRef.current;
+        if (audio && audio.paused && !isPausedByDeviceRef.current && !isUserPausedRef.current) {
+          audio.play().catch(() => attemptReconnect('pwa focus auto-resume'));
+        }
+      } else if (!isAudioMasterRef.current) {
+        broadcastChannelRef.current?.postMessage({
+          type: 'PING_MASTER',
+          senderId: tabIdRef.current
+        });
+      }
+    };
+
+    window.addEventListener('pwa-window-focused', handlePwaFocus);
+    return () => window.removeEventListener('pwa-window-focused', handlePwaFocus);
   }, [ensureAudioContextKeepAlive, attemptReconnect]);
 
   // Handle native audio events
@@ -480,6 +672,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
       stalledCountRef.current = 0;
+      if (isAudioMasterRef.current && currentTrackRef.current) {
+        syncToPeers(currentTrackRef.current, true, false);
+      }
     };
 
     const onCanPlay = () => {
@@ -493,6 +688,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPause = () => {
       if (isUserPausedRef.current) {
         setIsPlaying(false);
+        if (isAudioMasterRef.current && currentTrackRef.current) {
+          syncToPeers(currentTrackRef.current, false, false);
+        }
       } else {
         // Stream interrupted by server, network blip, or buffer underrun
         console.warn('[Audio] Stream paused unexpectedly (server disconnect or buffer underrun), auto-reconnecting...');
