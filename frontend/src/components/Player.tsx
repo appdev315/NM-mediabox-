@@ -38,6 +38,8 @@ export function Player({
 
   const [useIframeFallback, setUseIframeFallback] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const iframeLoadedRef = useRef(iframeLoaded);
+  useEffect(() => { iframeLoadedRef.current = iframeLoaded; }, [iframeLoaded]);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [mirrorIndex, setMirrorIndex] = useState(0);
@@ -151,6 +153,17 @@ export function Player({
     let isDestroyed = false;
     setVideoLoaded(false);
 
+    let startupWatchdog: any = setTimeout(() => {
+      if (!isDestroyed) {
+        console.warn('[Player] HLS startup watchdog timed out (10s), falling back to iframe');
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+        setUseIframeFallback(true);
+      }
+    }, 10000);
+
     const initPlayer = async () => {
       try {
         const { default: HlsClass } = await import('hls.js');
@@ -180,6 +193,10 @@ export function Player({
 
           hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
             if (isDestroyed) return;
+            if (startupWatchdog) {
+              clearTimeout(startupWatchdog);
+              startupWatchdog = null;
+            }
             setVideoLoaded(true);
             onReady?.();
             const startSec = initialTimecodeRef.current;
@@ -196,9 +213,22 @@ export function Player({
             }
           });
 
+          let fatalErrorCount = 0;
           hls.on(HlsClass.Events.ERROR, (_event, data) => {
             if (isDestroyed) return;
             if (data.fatal) {
+              fatalErrorCount++;
+              if (fatalErrorCount >= 3) {
+                console.error('[Player] Fatal HLS errors exceeded limit (>=3), falling back to iframe:', data.details);
+                if (startupWatchdog) {
+                  clearTimeout(startupWatchdog);
+                  startupWatchdog = null;
+                }
+                hls.destroy();
+                hlsRef.current = null;
+                setUseIframeFallback(true);
+                return;
+              }
               switch (data.type) {
                 case HlsClass.ErrorTypes.NETWORK_ERROR:
                   console.warn('[Player] HLS network error, recovering...', data.details);
@@ -210,6 +240,10 @@ export function Player({
                   break;
                 default:
                   console.error('[Player] Unrecoverable HLS error, falling back to iframe:', data.details);
+                  if (startupWatchdog) {
+                    clearTimeout(startupWatchdog);
+                    startupWatchdog = null;
+                  }
                   hls.destroy();
                   hlsRef.current = null;
                   setUseIframeFallback(true);
@@ -222,6 +256,10 @@ export function Player({
           video.src = directHls;
           const onLoadedMetadata = () => {
             if (isDestroyed) return;
+            if (startupWatchdog) {
+              clearTimeout(startupWatchdog);
+              startupWatchdog = null;
+            }
             setVideoLoaded(true);
             onReady?.();
             const startSec = initialTimecodeRef.current;
@@ -233,16 +271,28 @@ export function Player({
           const onError = () => {
             if (isDestroyed) return;
             console.warn('[Player] Native video error, falling back to iframe');
+            if (startupWatchdog) {
+              clearTimeout(startupWatchdog);
+              startupWatchdog = null;
+            }
             setUseIframeFallback(true);
           };
 
           video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
           video.addEventListener('error', onError, { once: true });
         } else {
+          if (startupWatchdog) {
+            clearTimeout(startupWatchdog);
+            startupWatchdog = null;
+          }
           setUseIframeFallback(true);
         }
       } catch (err) {
         console.error('[Player] Failed to load HLS engine, falling back to iframe:', err);
+        if (startupWatchdog) {
+          clearTimeout(startupWatchdog);
+          startupWatchdog = null;
+        }
         setUseIframeFallback(true);
       }
     };
@@ -251,6 +301,10 @@ export function Player({
 
     return () => {
       isDestroyed = true;
+      if (startupWatchdog) {
+        clearTimeout(startupWatchdog);
+        startupWatchdog = null;
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -368,7 +422,7 @@ export function Player({
     let sentinelTimer: any = null;
     if (activeMirrors.length > 1) {
       sentinelTimer = setTimeout(() => {
-        if (!iframeLoaded) {
+        if (!iframeLoadedRef.current) {
           const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
           setMirrorIndex(nextIdx);
         }
@@ -379,7 +433,7 @@ export function Player({
       clearTimeout(fallbackTimer);
       if (sentinelTimer) clearTimeout(sentinelTimer);
     };
-  }, [currentUrl, mirrorIndex, activeMirrors, onReady, iframeLoaded]);
+  }, [currentUrl, mirrorIndex, activeMirrors]);
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
