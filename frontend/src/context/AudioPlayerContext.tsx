@@ -18,7 +18,7 @@ interface AudioPlayerContextType {
   isBuffering: boolean;
   playTrack: (track: Track) => void;
   togglePlayPause: () => void;
-  stop: () => void;
+  stop: (fromRemote?: boolean | unknown) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
@@ -120,18 +120,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Stable callbacks that read from refs instead of captured state
-  const stop = useCallback(() => {
+  const stop = useCallback((fromRemote: boolean | unknown = false) => {
+    const isRemote = fromRemote === true;
     isUserPausedRef.current = true;
     isPausedByDeviceRef.current = false;
     isAudioMasterRef.current = false;
 
-    // 1. Broadcast stop command to any other active windows
-    try {
-      broadcastChannelRef.current?.postMessage({
-        type: 'COMMAND_STOP',
-        senderId: tabIdRef.current
-      });
-    } catch (_) {}
+    // 1. Broadcast stop command to any other active windows ONLY if initiated locally (prevents ping-pong loop)
+    if (!isRemote) {
+      try {
+        broadcastChannelRef.current?.postMessage({
+          type: 'COMMAND_STOP',
+          senderId: tabIdRef.current
+        });
+      } catch (_) {}
+    }
 
     // 2. Unconditionally cancel any active reconnect timers
     if (reconnectTimeoutRef.current) {
@@ -727,7 +730,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           togglePlayPause();
         }
       } else if (msg.type === 'COMMAND_STOP') {
-        stop();
+        stop(true);
       }
     };
 
