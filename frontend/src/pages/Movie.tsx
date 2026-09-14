@@ -403,6 +403,8 @@ export function Movie() {
     let isMounted = true;
     
     const loadData = async () => {
+      // Immediately stop any active background radio when navigating to a movie or series
+      stopAudio();
       setIframeUrl(null);
       setSources([]);
       setIsExtracting(false);
@@ -1280,8 +1282,8 @@ export function Movie() {
                         iframeUrl={iframeUrl} 
                         initialTimecode={savedTimecode || undefined} 
                         mediaId={id} 
-                        season={activeSeason || sortedSeasons[0] || '1'}
-                        episode={activeEpisode || sortedEpisodes[0] || '1'}
+                        season={mediaType === 'tv' ? (activeSeason || sortedSeasons[0] || '1') : undefined}
+                        episode={mediaType === 'tv' ? (activeEpisode || sortedEpisodes[0] || '1') : undefined}
                         onEpisodeChange={(s, e) => {
                           activeSeasonRef.current = s;
                           activeEpisodeRef.current = e;

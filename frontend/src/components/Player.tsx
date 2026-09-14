@@ -157,9 +157,22 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [onEpisodeChange]);
 
-  // When season or episode props change, immediately switch episode via postMessage without reloading iframe
+  const isInitialMountRef = useRef(true);
+  const prevSeasonRef = useRef(season);
+  const prevEpisodeRef = useRef(episode);
+
+  // When season or episode props change after initial mount, switch episode via postMessage without reloading iframe
   useEffect(() => {
-    if (season || episode) {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevSeasonRef.current = season;
+      prevEpisodeRef.current = episode;
+      return;
+    }
+
+    if ((season && season !== prevSeasonRef.current) || (episode && episode !== prevEpisodeRef.current)) {
+      prevSeasonRef.current = season;
+      prevEpisodeRef.current = episode;
       sendPlaylistGo(season, episode);
     }
   }, [season, episode, sendPlaylistGo]);
@@ -198,19 +211,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         const parsed = new URL(currentUrl);
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
-    }
-
-    // Resilient initial sync: Send playlist go immediately and across retry intervals
-    // to account for player.js asynchronous execution inside the iframe
-    if (season || episode) {
-      sendPlaylistGo(season, episode);
-
-      const retryDelays = [200, 500, 1000, 1800, 2600];
-      retryDelays.forEach(delay => {
-        setTimeout(() => {
-          sendPlaylistGo(season, episode);
-        }, delay);
-      });
     }
   };
 

@@ -79,22 +79,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
 
-  // Sync state to other windows/PWA clients via BroadcastChannel and LocalStorage
+  // Sync state to other active windows via in-memory BroadcastChannel
   const syncToPeers = useCallback((track: Track | null, playing: boolean, buffering: boolean) => {
-    try {
-      if (track && playing) {
-        localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({
-          track,
-          isPlaying: playing,
-          isBuffering: buffering,
-          masterId: tabIdRef.current,
-          updatedAt: Date.now()
-        }));
-      } else if (!track) {
-        localStorage.removeItem(AUDIO_STORAGE_KEY);
-      }
-    } catch (_) {}
-
     try {
       broadcastChannelRef.current?.postMessage({
         type: 'STATE_SYNC',
@@ -108,7 +94,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Mobile Keep-Alive: Inaudible 20Hz Web Audio oscillator prevents OS suspension during active playback
-  const ensureAudioContextKeepAlive = useCallback(() => {
+  const ensureAudioContextKeepAlive = useCallback((force = false) => {
+    if (!force && (!isPlayingRef.current || !currentTrackRef.current)) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
@@ -134,32 +121,31 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   // Stable callbacks that read from refs instead of captured state
   const stop = useCallback(() => {
-    if (!isAudioMasterRef.current) {
-      try {
-        broadcastChannelRef.current?.postMessage({
-          type: 'COMMAND_STOP',
-          senderId: tabIdRef.current
-        });
-      } catch (_) {}
-      setIsPlaying(false);
-      setIsBuffering(false);
-      setCurrentTrack(null);
-      return;
-    }
-
     isUserPausedRef.current = true;
     isPausedByDeviceRef.current = false;
     isAudioMasterRef.current = false;
-    syncToPeers(null, false, false);
 
+    // 1. Broadcast stop command to any other active windows
+    try {
+      broadcastChannelRef.current?.postMessage({
+        type: 'COMMAND_STOP',
+        senderId: tabIdRef.current
+      });
+    } catch (_) {}
+
+    // 2. Unconditionally cancel any active reconnect timers
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+
+    // 3. Unconditionally destroy HLS instance if active
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+
+    // 4. Unconditionally pause, clear src, and unload the audio element
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -167,7 +153,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    // Clean up Web Audio keep-alive oscillator to immediately release soundcard & remove browser tab speaker icon
+    // 5. Clean up Web Audio keep-alive oscillator to immediately release soundcard & tab speaker icon
     if (oscillatorRef.current) {
       try {
         oscillatorRef.current.stop();
@@ -182,7 +168,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audioContextRef.current = null;
     }
 
-    // Release system MediaSession lock
+    // 6. Release system MediaSession lock
     if ('mediaSession' in navigator) {
       try {
         navigator.mediaSession.playbackState = 'none';
@@ -190,10 +176,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       } catch (_) {}
     }
 
+    // 7. Clear all React state
     setIsPlaying(false);
     setIsBuffering(false);
     setCurrentTrack(null);
-  }, [syncToPeers]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -740,26 +727,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           togglePlayPause();
         }
       } else if (msg.type === 'COMMAND_STOP') {
-        if (isAudioMasterRef.current) {
-          stop();
-        } else {
-          setCurrentTrack(null);
-          setIsPlaying(false);
-          setIsBuffering(false);
-        }
+        stop();
       }
     };
 
-    // Load active track snapshot from localStorage on boot
+    // Clean up any legacy lingering audio state from localStorage to ensure total silence on boot
     try {
-      const saved = localStorage.getItem(AUDIO_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.track && Date.now() - (parsed.updatedAt || 0) < 6 * 60 * 60 * 1000) {
-          setCurrentTrack(parsed.track);
-          setIsPlaying(Boolean(parsed.isPlaying));
-        }
-      }
+      localStorage.removeItem(AUDIO_STORAGE_KEY);
     } catch (_) {}
 
     // Ping any existing master window (e.g. running radio in background)
@@ -777,8 +751,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Resume or reaffirm audio when PWA window is focused via launchQueue or visibility change
   useEffect(() => {
     const handlePwaFocus = () => {
-      ensureAudioContextKeepAlive();
       if (isAudioMasterRef.current && isPlayingRef.current) {
+        ensureAudioContextKeepAlive();
         const audio = audioRef.current;
         if (audio && audio.paused && !isPausedByDeviceRef.current && !isUserPausedRef.current) {
           audio.play().catch(() => attemptReconnect('pwa focus auto-resume'));
