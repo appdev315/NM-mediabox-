@@ -1,22 +1,45 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import type Hls from 'hls.js';
 import { WebApp } from '../telegram';
 
 interface PlayerProps {
   iframeUrl: string;
+  directHls?: string;
+  subtitles?: { src: string; label: string }[];
   mirrors?: string[];
   initialTimecode?: number;
   mediaId?: string | number;
   onReady?: () => void;
+  onTimeUpdate?: (currentTime: number) => void;
   season?: string;
   episode?: string;
   onEpisodeChange?: (season: string, episode: string) => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, episode, onEpisodeChange }: PlayerProps) {
+export function Player({
+  iframeUrl,
+  directHls,
+  subtitles,
+  mirrors,
+  initialTimecode,
+  onReady,
+  onTimeUpdate,
+  season,
+  episode,
+  onEpisodeChange
+}: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const wakeLockRef = useRef<any>(null);
+  const stalledWatchdogRef = useRef<any>(null);
+  const lastSavedTimeRef = useRef<number>(0);
+
+  const [useIframeFallback, setUseIframeFallback] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [mirrorIndex, setMirrorIndex] = useState(0);
 
   // Latest season and episode references for background execution without stale closures
@@ -73,8 +96,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
   const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
 
   // CRITICAL: Stable sourceKey based strictly on origin + pathname.
-  // Must NEVER include season/episode, otherwise React destroys the iframe on every episode switch,
-  // resetting playback to Season 1 Episode 1 and triggering browser Autoplay blocks!
   const sourceKey = useMemo(() => {
     try {
       const url = new URL(rawUrl);
@@ -114,7 +135,167 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Send playlist go command to the embedded video player
+  // Direct HLS engine initialization
+  useEffect(() => {
+    if (!directHls || useIframeFallback) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    let isDestroyed = false;
+    setVideoLoaded(false);
+
+    const initPlayer = async () => {
+      try {
+        const { default: HlsClass } = await import('hls.js');
+        if (isDestroyed) return;
+
+        if (HlsClass.isSupported()) {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+          }
+
+          const hls = new HlsClass({
+            startLevel: 0, // Force lowest level for first chunk -> instant start (<200ms)
+            autoStartLoad: true,
+            capLevelToPlayerSize: true,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            maxBufferSize: 60 * 1000 * 1000,
+            nudgeOffset: 0.1, // Auto skip PTS micro-gaps
+            nudgeMaxRetry: 5,
+            enableWorker: true,
+          });
+          hlsRef.current = hls;
+
+          hls.loadSource(directHls);
+          hls.attachMedia(video);
+
+          hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+            if (isDestroyed) return;
+            setVideoLoaded(true);
+            onReady?.();
+            const startSec = initialTimecodeRef.current;
+            if (startSec && startSec > 5) {
+              video.currentTime = Math.floor(startSec);
+            }
+            video.play().catch(() => {});
+          });
+
+          // Uncap quality after first fragment is buffered
+          hls.on(HlsClass.Events.FRAG_BUFFERED, () => {
+            if (hls.autoLevelEnabled === false && hls.currentLevel === 0) {
+              hls.currentLevel = -1; // Auto adaptation takes over smoothly
+            }
+          });
+
+          hls.on(HlsClass.Events.ERROR, (_event, data) => {
+            if (isDestroyed) return;
+            if (data.fatal) {
+              switch (data.type) {
+                case HlsClass.ErrorTypes.NETWORK_ERROR:
+                  console.warn('[Player] HLS network error, recovering...', data.details);
+                  hls.startLoad();
+                  break;
+                case HlsClass.ErrorTypes.MEDIA_ERROR:
+                  console.warn('[Player] HLS media error, recovering...', data.details);
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('[Player] Unrecoverable HLS error, falling back to iframe:', data.details);
+                  hls.destroy();
+                  hlsRef.current = null;
+                  setUseIframeFallback(true);
+                  break;
+              }
+            }
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native Safari / iOS WebKit HLS
+          video.src = directHls;
+          const onLoadedMetadata = () => {
+            if (isDestroyed) return;
+            setVideoLoaded(true);
+            onReady?.();
+            const startSec = initialTimecodeRef.current;
+            if (startSec && startSec > 5) {
+              video.currentTime = Math.floor(startSec);
+            }
+            video.play().catch(() => {});
+          };
+          const onError = () => {
+            if (isDestroyed) return;
+            console.warn('[Player] Native video error, falling back to iframe');
+            setUseIframeFallback(true);
+          };
+
+          video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+          video.addEventListener('error', onError, { once: true });
+        } else {
+          setUseIframeFallback(true);
+        }
+      } catch (err) {
+        console.error('[Player] Failed to load HLS engine, falling back to iframe:', err);
+        setUseIframeFallback(true);
+      }
+    };
+
+    initPlayer();
+
+    return () => {
+      isDestroyed = true;
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (stalledWatchdogRef.current) {
+        clearTimeout(stalledWatchdogRef.current);
+        stalledWatchdogRef.current = null;
+      }
+    };
+  }, [directHls, useIframeFallback, onReady]);
+
+  // Active PTS micro-gap watchdog: if video is active and stalls/buffers >1.2s, nudge forward 0.08s
+  const handleWaitingOrStalled = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.paused || video.ended) return;
+    setIsBuffering(true);
+
+    if (stalledWatchdogRef.current) clearTimeout(stalledWatchdogRef.current);
+    stalledWatchdogRef.current = setTimeout(() => {
+      if (video && !video.paused && !video.ended && video.readyState < 3) {
+        console.log('[Player] PTS gap watchdog: nudging +0.08s across discontinuity');
+        video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 0.08);
+      }
+    }, 1200);
+  }, []);
+
+  const handlePlaying = useCallback(() => {
+    setIsBuffering(false);
+    if (stalledWatchdogRef.current) {
+      clearTimeout(stalledWatchdogRef.current);
+      stalledWatchdogRef.current = null;
+    }
+  }, []);
+
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const nowSec = Math.floor(video.currentTime);
+    if (nowSec > 0 && Math.abs(nowSec - lastSavedTimeRef.current) >= 4) {
+      lastSavedTimeRef.current = nowSec;
+      onTimeUpdate?.(nowSec);
+    }
+  }, [onTimeUpdate]);
+
+  // Send playlist go command to the embedded video player (for iframe mode)
   const sendPlaylistGo = useCallback((targetSeason?: string, targetEpisode?: string) => {
     const s = targetSeason || seasonRef.current;
     const e = targetEpisode || episodeRef.current;
@@ -125,7 +306,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         const sNum = parseInt(s || '1', 10);
         const eNum = parseInt(e || '1', 10);
         const eStr = String(e || '1');
-        // Dispatch with wildcard origin '*' so any subdomain/redirect inside zenithjs receives it
         iframeRef.current.contentWindow.postMessage(
           { event: 'playlist go', season: sNum, episode: eNum },
           '*'
@@ -138,7 +318,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     } catch (_) {}
   }, []);
 
-  // Listen for episode changes inside the embedded player (e.g. Next Episode button)
+  // Listen for episode changes inside the embedded player (for iframe mode)
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
@@ -161,7 +341,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
   const prevSeasonRef = useRef(season);
   const prevEpisodeRef = useRef(episode);
 
-  // When season or episode props change after initial mount, switch episode via postMessage without reloading iframe
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
@@ -177,7 +356,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     }
   }, [season, episode, sendPlaylistGo]);
 
-  // Fallback timer: Force show iframe after 2s even if onLoad doesn't fire (crucial for WebViews)
+  // Fallback timer for iframe
   useEffect(() => {
     setIframeLoaded(false);
 
@@ -186,7 +365,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       onReady?.();
     }, 2000);
 
-    // Auto-Fallback Sentinel for Adult multi-mirrors
     let sentinelTimer: any = null;
     if (activeMirrors.length > 1) {
       sentinelTimer = setTimeout(() => {
@@ -201,7 +379,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       clearTimeout(fallbackTimer);
       if (sentinelTimer) clearTimeout(sentinelTimer);
     };
-  }, [currentUrl, mirrorIndex, activeMirrors]);
+  }, [currentUrl, mirrorIndex, activeMirrors, onReady, iframeLoaded]);
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
@@ -213,6 +391,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       } catch (e) {}
     }
   };
+
+  const isLoaded = directHls && !useIframeFallback ? videoLoaded : iframeLoaded;
 
   // Power-Optimized WakeLock Lifecycle Management
   useEffect(() => {
@@ -226,7 +406,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     };
 
     const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && document.visibilityState === 'visible' && document.hasFocus() && iframeLoaded) {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible' && document.hasFocus() && isLoaded) {
         try {
           if (!wakeLockRef.current) {
             wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
@@ -235,13 +415,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       }
     };
 
-    if (iframeLoaded) {
+    if (isLoaded) {
       requestWakeLock();
     }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && document.hasFocus()) {
-        if (iframeLoaded) requestWakeLock();
+        if (isLoaded) requestWakeLock();
       } else {
         releaseWakeLock();
       }
@@ -252,7 +432,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     };
 
     const handleFocus = () => {
-      if (iframeLoaded && document.visibilityState === 'visible') {
+      if (isLoaded && document.visibilityState === 'visible') {
         requestWakeLock();
       }
     };
@@ -267,8 +447,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       window.removeEventListener('focus', handleFocus);
       releaseWakeLock();
     };
-  }, [iframeLoaded]);
-
+  }, [isLoaded]);
 
   useEffect(() => {
     WebApp.expand();
@@ -286,40 +465,93 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
       }
-      // Force immediate WebKit / Blink video pipeline teardown and GPU memory release
       if (iframeRef.current) {
         try {
           iframeRef.current.src = 'about:blank';
+        } catch (_) {}
+      }
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
         } catch (_) {}
       }
     };
   }, []);
 
   const isSafeUrl = typeof currentUrl === 'string' && /^https?:\/\//i.test(currentUrl);
-  if (!isSafeUrl) {
+  if (!isSafeUrl && (!directHls || useIframeFallback)) {
     return null;
   }
 
+  const isUsingDirect = Boolean(directHls && !useIframeFallback);
+
   return (
     <div ref={wrapperRef} className="player-wrapper relative overflow-hidden bg-black flex justify-center items-center group/player" style={{ width: '100%', aspectRatio: '16/9' }}>
-      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-300 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-300 pointer-events-none ${isLoaded && !isBuffering ? 'opacity-0' : 'opacity-100'}`}>
         <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
       </div>
 
-      <iframe 
-        ref={iframeRef}
-        id="video-iframe"
-        key={sourceKey}
-        src={currentUrl}
-        onLoad={handleIframeLoad}
-        className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
-        loading="eager"
-        referrerPolicy="no-referrer"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-        allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
-        allowFullScreen
-        style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
-      />
+      {directHls && (
+        <button
+          type="button"
+          onClick={() => setUseIframeFallback(prev => !prev)}
+          className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-black/70 hover:bg-black/90 backdrop-blur-md text-xs rounded-full border border-white/15 transition-opacity opacity-0 group-hover/player:opacity-100 cursor-pointer shadow-lg select-none"
+          title={useIframeFallback ? 'Переключиться на быстрый нативный поток (HLS)' : 'Переключиться на плеер-донор (iframe)'}
+        >
+          {isUsingDirect ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-300 font-medium">Прямой HLS</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-amber-300 font-medium">Плеер-донор</span>
+            </>
+          )}
+        </button>
+      )}
+
+      {isUsingDirect ? (
+        <video
+          ref={videoRef}
+          className={`w-full h-full object-contain z-20 transition-opacity duration-300 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          controls
+          playsInline
+          preload="auto"
+          onWaiting={handleWaitingOrStalled}
+          onStalled={handleWaitingOrStalled}
+          onPlaying={handlePlaying}
+          onTimeUpdate={handleTimeUpdate}
+        >
+          {subtitles?.map((sub, idx) => (
+            <track
+              key={sub.src || idx}
+              kind="subtitles"
+              src={sub.src}
+              srcLang={sub.label?.toLowerCase().includes('рус') ? 'ru' : 'en'}
+              label={sub.label || `Субтитры ${idx + 1}`}
+            />
+          ))}
+        </video>
+      ) : (
+        <iframe 
+          ref={iframeRef}
+          id="video-iframe"
+          key={sourceKey}
+          src={currentUrl}
+          onLoad={handleIframeLoad}
+          className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
+          loading="eager"
+          referrerPolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+          allowFullScreen
+          style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
+        />
+      )}
     </div>
   );
 }

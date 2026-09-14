@@ -40,6 +40,8 @@ export function Movie() {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
+  const [liftwDirectStreams, setLiftwDirectStreams] = useState<any>(null);
+  const [liftwSubtitles, setLiftwSubtitles] = useState<any[]>([]);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const activeSeasonRef = useRef<string>('');
@@ -145,6 +147,22 @@ export function Movie() {
     }
     return ['1'];
   }, [liftwEpisodes, activeSeason, sortedSeasons, movie?.seasons]);
+
+  const activeDirectHls = useMemo(() => {
+    const isCurrentSourceLiftw = sources.find(s => s.url === iframeUrl)?.isLiftw !== false;
+    if (!isCurrentSourceLiftw || !liftwDirectStreams) return undefined;
+
+    if (liftwDirectStreams.hls) {
+      return liftwDirectStreams.hls;
+    }
+    if (liftwDirectStreams.streams) {
+      const s = String(activeSeason || sortedSeasons[0] || '1');
+      const e = String(activeEpisode || sortedEpisodes[0] || '1');
+      return liftwDirectStreams.streams[s]?.[e]?.hls;
+    }
+    return undefined;
+  }, [sources, iframeUrl, liftwDirectStreams, activeSeason, sortedSeasons, activeEpisode, sortedEpisodes]);
+
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [showAudioHint, setShowAudioHint] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
@@ -711,6 +729,16 @@ export function Movie() {
           const initialUrl = liftwData.iframe;
           foundSources.liftw = { name: 'player1', url: initialUrl, isLiftw: true };
           
+          if (liftwData.hls || liftwData.streams) {
+            setLiftwDirectStreams({
+              hls: liftwData.hls,
+              streams: liftwData.streams,
+            });
+          }
+          if (liftwData.subtitles && Array.isArray(liftwData.subtitles)) {
+            setLiftwSubtitles(liftwData.subtitles);
+          }
+
           if (liftwData.episodes) {
             setLiftwEpisodes(liftwData.episodes);
             const initSortedSeasons = Object.keys(liftwData.episodes).sort((a, b) => {
@@ -1280,10 +1308,17 @@ export function Movie() {
                     <div className="flex-1 w-full h-full">
                       <Player 
                         iframeUrl={iframeUrl} 
+                        directHls={activeDirectHls}
+                        subtitles={liftwSubtitles}
                         initialTimecode={savedTimecode || undefined} 
                         mediaId={id} 
                         season={mediaType === 'tv' ? (activeSeason || sortedSeasons[0] || '1') : undefined}
                         episode={mediaType === 'tv' ? (activeEpisode || sortedEpisodes[0] || '1') : undefined}
+                        onTimeUpdate={(time) => {
+                          if (currentMediaKey) {
+                            saveTimecode(currentMediaKey, time);
+                          }
+                        }}
                         onEpisodeChange={(s, e) => {
                           activeSeasonRef.current = s;
                           activeEpisodeRef.current = e;

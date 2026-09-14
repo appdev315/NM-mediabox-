@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -180,6 +181,61 @@ func uniqueStrings(input []string) []string {
 		}
 	}
 	return u
+}
+
+func expandTitleVariants(cands []string) []string {
+	var res []string
+	seen := make(map[string]bool)
+	rePlus := regexp.MustCompile(`(?i)plus`)
+	reRu := regexp.MustCompile(`(?i)плюс`)
+
+	for _, c := range cands {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		if !seen[c] {
+			seen[c] = true
+			res = append(res, c)
+		}
+		if strings.Contains(c, "+") {
+			withPlusRu := strings.TrimSpace(strings.ReplaceAll(c, "+", " плюс"))
+			if withPlusRu != "" && !seen[withPlusRu] {
+				seen[withPlusRu] = true
+				res = append(res, withPlusRu)
+			}
+			withPlusEn := strings.TrimSpace(strings.ReplaceAll(c, "+", " plus"))
+			if withPlusEn != "" && !seen[withPlusEn] {
+				seen[withPlusEn] = true
+				res = append(res, withPlusEn)
+			}
+		}
+		if strings.Contains(strings.ToLower(c), "plus") {
+			withRu := strings.TrimSpace(rePlus.ReplaceAllString(c, "плюс"))
+			if withRu != "" && !seen[withRu] {
+				seen[withRu] = true
+				res = append(res, withRu)
+			}
+			withSign := strings.TrimSpace(rePlus.ReplaceAllString(c, "+"))
+			if withSign != "" && !seen[withSign] {
+				seen[withSign] = true
+				res = append(res, withSign)
+			}
+		}
+		if strings.Contains(strings.ToLower(c), "плюс") {
+			withEn := strings.TrimSpace(reRu.ReplaceAllString(c, "plus"))
+			if withEn != "" && !seen[withEn] {
+				seen[withEn] = true
+				res = append(res, withEn)
+			}
+			withSign := strings.TrimSpace(reRu.ReplaceAllString(c, "+"))
+			if withSign != "" && !seen[withSign] {
+				seen[withSign] = true
+				res = append(res, withSign)
+			}
+		}
+	}
+	return res
 }
 
 func sortCandidates(cands []string) []string {
@@ -383,6 +439,118 @@ func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear 
 	return bestMatch
 }
 
+var (
+	lokTokenRegex = regexp.MustCompile(`var\s+lok\s*=\s*1\s*,\s*([a-zA-Z0-9_]+)\s*=\s*"([^"]+)"`)
+	hlsRegex      = regexp.MustCompile(`\bhls\s*:\s*"([^"]+)"`)
+	ccRegex       = regexp.MustCompile(`\bcc\s*:\s*(\[.*?\])\s*,\s*\n`)
+	audioRegex    = regexp.MustCompile(`\baudio\s*:\s*(\{.*?\})\s*,\s*\n`)
+)
+
+type liftwEpDirect struct {
+	Episode  int         `json:"episode"`
+	Hls      string      `json:"hls"`
+	Title    string      `json:"title"`
+	Duration float64     `json:"duration"`
+	Cc       interface{} `json:"cc"`
+	Audio    struct {
+		Names []string `json:"names"`
+	} `json:"audio"`
+}
+
+type liftwSeasonDirect struct {
+	Season   int             `json:"season"`
+	Episodes []liftwEpDirect `json:"episodes"`
+}
+
+func extractDirectStreamsFromHtml(html string) (string, map[string]map[string]interface{}, []map[string]string, []string) {
+	var token string
+	if m := lokTokenRegex.FindStringSubmatch(html); len(m) > 2 {
+		token = m[2]
+	}
+
+	idx := strings.Index(html, "seasons:[")
+	if idx != -1 {
+		depth := 0
+		endIdx := idx + 8
+		for i := idx + 8; i < len(html); i++ {
+			if html[i] == '[' {
+				depth++
+			} else if html[i] == ']' {
+				depth--
+				if depth == 0 {
+					endIdx = i + 1
+					break
+				}
+			}
+		}
+		var seasons []liftwSeasonDirect
+		if err := json.Unmarshal([]byte(html[idx+8:endIdx]), &seasons); err == nil {
+			streams := make(map[string]map[string]interface{})
+			for _, s := range seasons {
+				sKey := strconv.Itoa(s.Season)
+				streams[sKey] = make(map[string]interface{})
+				for _, ep := range s.Episodes {
+					eKey := strconv.Itoa(ep.Episode)
+					hls := ep.Hls
+					if hls != "" && token != "" {
+						hls = hls + "&" + token
+					}
+					streams[sKey][eKey] = map[string]interface{}{
+						"hls":      hls,
+						"title":    ep.Title,
+						"duration": ep.Duration,
+						"cc":       ep.Cc,
+						"audio":    ep.Audio.Names,
+					}
+				}
+			}
+			return "", streams, nil, nil
+		}
+	}
+
+	if m := hlsRegex.FindStringSubmatch(html); len(m) > 1 {
+		hls := m[1]
+		if token != "" {
+			hls = hls + "&" + token
+		}
+		var subtitles []map[string]string
+		if mCc := ccRegex.FindStringSubmatch(html); len(mCc) > 1 {
+			var ccList []struct {
+				Name string `json:"name"`
+				Url  string `json:"url"`
+			}
+			if err := json.Unmarshal([]byte(mCc[1]), &ccList); err == nil {
+				for _, item := range ccList {
+					if item.Url != "" {
+						label := item.Name
+						if label == "" {
+							label = "Субтитры"
+						}
+						subtitles = append(subtitles, map[string]string{
+							"src":   item.Url,
+							"label": label,
+						})
+					}
+				}
+			}
+		}
+
+		var audioTracks []string
+		if mAudio := audioRegex.FindStringSubmatch(html); len(mAudio) > 1 {
+			var aObj struct {
+				Names []string `json:"names"`
+			}
+			if err := json.Unmarshal([]byte(mAudio[1]), &aObj); err == nil {
+				audioTracks = aObj.Names
+			}
+		}
+
+		return hls, nil, subtitles, audioTracks
+	}
+
+	return "", nil, nil, nil
+}
+
 // ResolveLiftw resolves a streaming path for a movie/series and caches it.
 // If bypassCache is true, it ignores the cache and forces a fresh query.
 func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, originalTitle string, bypassCache bool) ([]byte, error) {
@@ -456,7 +624,7 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 		if originalTitle != "" && originalTitle != title {
 			candidates = append(candidates, strings.TrimSpace(originalTitle))
 		}
-		candidates = uniqueStrings(candidates)
+		candidates = expandTitleVariants(uniqueStrings(candidates))
 
 		validTypesMap := make(map[int]bool)
 		if isSeries {
@@ -523,7 +691,7 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 					res.Body.Close()
 				}
 			}
-			candidates = uniqueStrings(candidates)
+			candidates = expandTitleVariants(uniqueStrings(candidates))
 			candidates = sortCandidates(candidates)
 			
 			// Search all candidates with Cyrillic prioritized
@@ -568,6 +736,31 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 		}
 		if info.Episodes != nil {
 			response["episodes"] = info.Episodes
+		}
+
+		if info.IframeURI != "" {
+			embedCtx, embedCancel := context.WithTimeout(resolveCtx, 3500*time.Millisecond)
+			embedRes, _, embedErr := fetchLiftwData(embedCtx, info.IframeURI)
+			if embedErr == nil && embedRes != nil {
+				embedBytes, _ := io.ReadAll(embedRes.Body)
+				embedRes.Body.Close()
+				if len(embedBytes) > 0 {
+					hls, streams, subs, audios := extractDirectStreamsFromHtml(string(embedBytes))
+					if hls != "" {
+						response["hls"] = hls
+					}
+					if len(streams) > 0 {
+						response["streams"] = streams
+					}
+					if len(subs) > 0 {
+						response["subtitles"] = subs
+					}
+					if len(audios) > 0 {
+						response["audioTracks"] = audios
+					}
+				}
+			}
+			embedCancel()
 		}
 
 		responseBytes, err := json.Marshal(response)

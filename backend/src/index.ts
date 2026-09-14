@@ -519,6 +519,35 @@ function matchesWords(itemWords: string[], candWords: string[]): boolean {
   return false;
 }
 
+function expandTitleVariants(titles: string[]): string[] {
+  const result = new Set<string>();
+  for (const t of titles) {
+    const clean = t.trim();
+    if (!clean) continue;
+    result.add(clean);
+
+    if (clean.includes('+')) {
+      const withPlusRu = clean.replace(/\+/g, ' плюс').replace(/\s+/g, ' ').trim();
+      const withPlusEn = clean.replace(/\+/g, ' plus').replace(/\s+/g, ' ').trim();
+      if (withPlusRu) result.add(withPlusRu);
+      if (withPlusEn) result.add(withPlusEn);
+    }
+    if (/plus/i.test(clean)) {
+      const withRu = clean.replace(/plus/gi, 'плюс').replace(/\s+/g, ' ').trim();
+      const withSign = clean.replace(/plus/gi, '+').replace(/\s+/g, ' ').trim();
+      if (withRu) result.add(withRu);
+      if (withSign) result.add(withSign);
+    }
+    if (/плюс/i.test(clean)) {
+      const withEn = clean.replace(/плюс/gi, 'plus').replace(/\s+/g, ' ').trim();
+      const withSign = clean.replace(/плюс/gi, '+').replace(/\s+/g, ' ').trim();
+      if (withEn) result.add(withEn);
+      if (withSign) result.add(withSign);
+    }
+  }
+  return Array.from(result);
+}
+
 const LIFTW_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
@@ -526,6 +555,85 @@ const LIFTW_HEADERS = {
   'Referer': 'https://liftw.ws/',
   'Origin': 'https://liftw.ws',
 };
+
+function extractDirectStreams(html: string): {
+  hls?: string;
+  streams?: Record<string, Record<string, { hls: string; title?: string; duration?: number; cc?: any[]; audio?: string[] }>>;
+  subtitles?: { src: string; label: string }[];
+  audioTracks?: string[];
+} {
+  try {
+    let token = '';
+    const mVar = html.match(/var\s+lok\s*=\s*1\s*,\s*([a-zA-Z0-9_]+)\s*=\s*\"([^\"]+)\"/);
+    if (mVar) token = mVar[2];
+
+    const idx = html.indexOf('seasons:[');
+    if (idx !== -1) {
+      let depth = 0;
+      let endIdx = idx + 8;
+      for (let i = idx + 8; i < html.length; i++) {
+        if (html[i] === '[') depth++;
+        else if (html[i] === ']') {
+          depth--;
+          if (depth === 0) {
+            endIdx = i + 1;
+            break;
+          }
+        }
+      }
+      const seasons = JSON.parse(html.substring(idx + 8, endIdx));
+      const streams: Record<string, Record<string, any>> = {};
+      for (const s of seasons) {
+        const sNum = String(s.season);
+        streams[sNum] = {};
+        for (const ep of (s.episodes || [])) {
+          const eNum = String(ep.episode);
+          let hls = ep.hls || '';
+          if (hls && token) hls = hls + '&' + token;
+          streams[sNum][eNum] = {
+            hls,
+            title: ep.title || '',
+            duration: ep.duration || 0,
+            cc: ep.cc || [],
+            audio: ep.audio?.names || []
+          };
+        }
+      }
+      return { streams };
+    }
+
+    const mHls = html.match(/\bhls\s*:\s*\"([^\"]+)\"/);
+    if (mHls) {
+      let hls = mHls[1];
+      if (token) hls = hls + '&' + token;
+
+      const subtitles: { src: string; label: string }[] = [];
+      const mCc = html.match(/\bcc\s*:\s*(\[.*?\])\s*,\s*\n/);
+      if (mCc) {
+        try {
+          const ccList = JSON.parse(mCc[1]);
+          for (const item of ccList) {
+            if (item.url) subtitles.push({ src: item.url, label: item.name || 'Субтитры' });
+          }
+        } catch (_) {}
+      }
+
+      let audioTracks: string[] = [];
+      const mAudio = html.match(/\baudio\s*:\s*(\{.*?\})\s*,\s*\n/);
+      if (mAudio) {
+        try {
+          const aObj = JSON.parse(mAudio[1]);
+          if (Array.isArray(aObj.names)) audioTracks = aObj.names;
+        } catch (_) {}
+      }
+
+      return { hls, subtitles, audioTracks };
+    }
+  } catch (err) {
+    console.error('[Liftw] Failed to extract direct streams:', err);
+  }
+  return {};
+}
 
 const getTmdbKey = (c: Context): string => {
   return (c.env as any)?.TMDB_API_KEY || ((globalThis as any).process?.env?.TMDB_API_KEY as string) || '';
@@ -593,7 +701,7 @@ app.get('/api/liftw', async (c: Context) => {
   const targetYear = parseInt(yearStr, 10) || 0;
 
   const rawCandidates = [title, titleRu, originalTitle].map(s => s.trim()).filter(Boolean);
-  const candidates = Array.from(new Set(rawCandidates));
+  const candidates = expandTitleVariants(Array.from(new Set(rawCandidates)));
 
   const searchCandidates = async (candList: string[], strictType = true): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
     const list = candList.slice(0, 8);
@@ -708,7 +816,7 @@ app.get('/api/liftw', async (c: Context) => {
 
         const cyr = moreCands.filter(s => /[а-яёА-ЯЁ]/.test(s));
         const lat = moreCands.filter(s => !/[а-яёА-ЯЁ]/.test(s));
-        const uniqueMore = Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s));
+        const uniqueMore = expandTitleVariants(Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s)));
 
         matchedItem = await searchCandidates(uniqueMore, true);
         if (matchedItem) {
@@ -787,9 +895,43 @@ app.get('/api/liftw', async (c: Context) => {
       result.episodes = info.episodes;
     }
 
+    if (info.iframe_uri) {
+      try {
+        const embedRes = await fetch(info.iframe_uri, {
+          headers: LIFTW_HEADERS,
+          signal: AbortSignal.timeout(3500),
+        });
+        if (embedRes.ok) {
+          const embedHtml = await embedRes.text();
+          const extracted = extractDirectStreams(embedHtml);
+          if (extracted.hls) result.hls = extracted.hls;
+          if (extracted.streams) result.streams = extracted.streams;
+          if (extracted.subtitles && extracted.subtitles.length > 0) result.subtitles = extracted.subtitles;
+          if (extracted.audioTracks && extracted.audioTracks.length > 0) result.audioTracks = extracted.audioTracks;
+        }
+      } catch (err) {
+        console.warn('[Liftw] Non-fatal: embed direct stream fetch timed out or failed:', err);
+      }
+    }
+
     // If stream was recovered via fallback cascade, record auto_fixed incident
     if (healNote) {
       recordIncident('fallback_recovery', 'auto_fixed', healNote);
+    }
+
+    // Auto-heal resolution: If previously marked as unresolved, mark prior incidents for this tmdb_id as auto_fixed
+    if (c.env.DB && tmdb) {
+      c.executionCtx.waitUntil((async () => {
+        try {
+          await c.env.DB.prepare(
+            `UPDATE parsing_incidents 
+             SET status = 'auto_fixed', heal_note = ? 
+             WHERE tmdb_id = ? AND status = 'unresolved'`
+          ).bind(healNote || 'Stream live on donor', tmdb).run();
+        } catch (e) {
+          console.error('[Sysadmin] Failed to auto-fix prior incidents:', e);
+        }
+      })());
     }
 
     const isTv = canonicalType === 'tv';
