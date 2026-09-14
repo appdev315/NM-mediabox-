@@ -134,6 +134,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [tvError, setTvError] = useState(false);
   const [tvLoading, setTvLoading] = useState(false);
   const inFlightControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const { playTrack, currentTrack, stop } = useAudioPlayer();
   const { t } = useLanguage();
@@ -148,28 +149,55 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
     const ctrl = new AbortController();
     inFlightControllerRef.current = ctrl;
+    const currentRequestId = ++requestIdRef.current;
 
-    // Attempt to load from non-blocking clientCache first
-    const cachedRadio = clientCache.get<Station[]>(`cache_radio_${country}_src${radioSource}`);
-    const cachedTv = clientCache.get<Station[]>(`cache_tv_${country}_src${tvSource}`);
-    let hasCache = false;
+    const radioCacheKey = `cache_radio_${country}_src${radioSource}`;
+    const tvCacheKey = `cache_tv_${country}_src${tvSource}`;
 
-    if (cachedRadio && Array.isArray(cachedRadio) && cachedRadio.length > 0) {
-      setStations(cachedRadio);
-      hasCache = true;
+    // 1. Synchronous check (RAM / localStorage)
+    const cachedRadio = clientCache.get<Station[]>(radioCacheKey);
+    const cachedTv = clientCache.get<Station[]>(tvCacheKey);
+    const hasRadioCache = Boolean(cachedRadio && Array.isArray(cachedRadio) && cachedRadio.length > 0);
+    const hasTvCache = Boolean(cachedTv && Array.isArray(cachedTv) && cachedTv.length > 0);
+
+    if (hasRadioCache) {
+      setStations(cachedRadio!);
     } else {
       setStations([]);
     }
-    
-    if (cachedTv && Array.isArray(cachedTv) && cachedTv.length > 0) {
-      setTvChannels(cachedTv);
-      hasCache = true;
+
+    if (hasTvCache) {
+      setTvChannels(cachedTv!);
     } else {
       setTvChannels([]);
     }
 
-    if (!hasCache) {
+    // 2. Fast non-blocking disk read from IndexedDB (5-30ms) if either missed in RAM
+    if (!hasRadioCache || !hasTvCache) {
       setLoading(true);
+
+      Promise.all([
+        hasRadioCache ? Promise.resolve(cachedRadio) : clientCache.getAsync<Station[]>(radioCacheKey),
+        hasTvCache ? Promise.resolve(cachedTv) : clientCache.getAsync<Station[]>(tvCacheKey)
+      ]).then(([idbRadio, idbTv]) => {
+        // Race condition guard: ignore if aborted or if user switched country/source in the meantime
+        if (ctrl.signal.aborted || requestIdRef.current !== currentRequestId) return;
+
+        let anyHit = false;
+        if (!hasRadioCache && idbRadio && Array.isArray(idbRadio) && idbRadio.length > 0) {
+          setStations(idbRadio);
+          anyHit = true;
+        }
+        if (!hasTvCache && idbTv && Array.isArray(idbTv) && idbTv.length > 0) {
+          setTvChannels(idbTv);
+          anyHit = true;
+        }
+        if (anyHit) {
+          setLoading(false);
+        }
+      }).catch(() => {
+        // Gracefully ignore IndexedDB errors (e.g. private mode)
+      });
     } else {
       setLoading(false); // Instantly show cache, still fetch in background
     }
@@ -258,6 +286,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
           }
         }
       }
+
+      if (signal?.aborted) return;
 
       if (parsed.length > 0) {
         setStations(parsed);
@@ -426,6 +456,8 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         tvCountryRef.current = country;
       }
 
+      if (signal?.aborted) return;
+
       if (parsedTv.length > 0) {
         setTvChannels(parsedTv);
         clientCache.set(`cache_tv_${country}_src${tvSource}`, parsedTv, 172800);
@@ -433,7 +465,9 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     } catch (e) {
       console.error("Failed to fetch TV", e);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 

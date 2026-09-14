@@ -93,6 +93,21 @@ async function initIndexedDBCache(): Promise<void> {
   } catch (e) {}
 }
 
+async function idbGet<T>(fullKey: string): Promise<CacheEntry<T> | null> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(fullKey);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
 async function idbSet(fullKey: string, entry: CacheEntry<any>): Promise<void> {
   try {
     const db = await getDB();
@@ -150,6 +165,55 @@ export const clientCache = {
           return entry.data as T;
         } else {
           localStorage.removeItem(fullKey);
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  },
+
+  async getAsync<T>(key: string): Promise<T | null> {
+    const fullKey = CACHE_PREFIX + key;
+    const now = Date.now();
+
+    // 1. Instant check in memory map (0ms Main Thread overhead)
+    if (memoryCache.has(fullKey)) {
+      const entry = memoryCache.get(fullKey)!;
+      if (now < entry.expiry) {
+        memoryCache.delete(fullKey);
+        memoryCache.set(fullKey, entry);
+        return entry.data as T;
+      }
+      memoryCache.delete(fullKey);
+      idbRemove(fullKey);
+      return null;
+    }
+
+    // 2. Synchronous fallback from localStorage
+    try {
+      const fallbackStored = localStorage.getItem(fullKey);
+      if (fallbackStored) {
+        const entry: CacheEntry<T> = JSON.parse(fallbackStored);
+        if (now < entry.expiry) {
+          enforceMemoryLRU();
+          memoryCache.set(fullKey, entry);
+          return entry.data as T;
+        } else {
+          localStorage.removeItem(fullKey);
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fast non-blocking read directly from IndexedDB disk (5-30ms)
+    try {
+      const entry = await idbGet<T>(fullKey);
+      if (entry && entry.expiry) {
+        if (now < entry.expiry) {
+          enforceMemoryLRU();
+          memoryCache.set(fullKey, entry);
+          return entry.data;
+        } else {
+          idbRemove(fullKey);
         }
       }
     } catch (_) {}
