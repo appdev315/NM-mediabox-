@@ -32,7 +32,19 @@
         });
       }
 
-      // 2. Watchdog: Auto-heal PWA blank screen from stale chunk hashes or failed network (Strict 1-attempt guard against loops)
+      // 2. Global transparent fallback for blocked TMDB images in Russia if SW is cold/inactive
+      window.addEventListener('error', function(e) {
+        var target = e.target;
+        if (target && target.tagName === 'IMG' && target.src && target.src.indexOf('image.tmdb.org') !== -1 && !target.dataset.fallback) {
+          target.dataset.fallback = 'true';
+          var match = target.src.match(/\/t\/p\/[^\/]+\/.+$/);
+          if (match) {
+            target.src = 'https://api.media-box.xyz/api/image?path=' + match[0];
+          }
+        }
+      }, true);
+
+      // 3. Watchdog: Auto-heal PWA blank screen from stale chunk hashes or failed network (Strict 1-attempt guard against loops)
       (function() {
         var MAX_WAIT_MS = 8000;
         var ATTEMPT_KEY = 'mb_pwa_heal_attempts';

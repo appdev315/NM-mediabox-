@@ -9,10 +9,11 @@ export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https:
 // In-flight request deduplication map to prevent redundant parallel network calls
 const inFlightRequests = new Map<string, Promise<any>>();
 
-// TMDB Edge Image Proxy helper (bypasses ISP blocks in Russia & caches on Cloudflare Edge)
-export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w300' | 'w342' | 'w500' | 'w780' | 'w1280' = 'w342') => {
+// TMDB Image helper (direct-first with SW/capturing fallback to Edge proxy)
+export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w342' | 'w780' = 'w342') => {
   if (!path) return '';
-  return `${CF_API_BASE}/image?path=/t/p/${size}${path.startsWith('/') ? path : '/' + path}`;
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  return `https://image.tmdb.org/t/p/${size}${cleanPath}`;
 };
 
 export interface TMDBMovie {
@@ -700,7 +701,7 @@ export function useApi() {
         biography: data.biography || '',
         birthday: data.birthday || '',
         place_of_birth: data.place_of_birth || '',
-        profile_path: data.profile_path ? getTmdbImageUrl(data.profile_path, 'w300') : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Photo',
+        profile_path: data.profile_path ? getTmdbImageUrl(data.profile_path, 'w185') : 'https://placehold.co/185x278/242f3d/ffffff?text=No+Photo',
         knownFor
       };
       clientCache.set(cacheKey, result, 86400); // 24 Hours TTL

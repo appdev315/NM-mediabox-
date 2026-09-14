@@ -1,5 +1,10 @@
-const CACHE_NAME = 'mediabox-v6';
+const CACHE_NAME = 'mediabox-v7';
+const IMG_CACHE_NAME = 'mediabox-img-v1';
+const MAX_CACHED_IMAGES = 250;
 const OFFLINE_FALLBACK = '/index.html';
+const PROXY_IMAGE_BASE = 'https://api.media-box.xyz/api/image';
+
+let isTmdbBlocked = false;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -15,7 +20,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== IMG_CACHE_NAME) {
             return caches.delete(key);
           }
         })
@@ -24,6 +29,17 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
+
+async function trimCache(cacheName, maxItems) {
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length > maxItems) {
+      const itemsToDelete = keys.slice(0, keys.length - maxItems);
+      await Promise.all(itemsToDelete.map((key) => cache.delete(key)));
+    }
+  } catch (_) {}
+}
 
 // Single-Instance Window Focus Support for PWA launches
 self.addEventListener('message', (event) => {
@@ -65,12 +81,72 @@ self.addEventListener('fetch', (event) => {
     return; // Direct network pass-through
   }
 
-  // 2. Bypass heavy image binary blobs from CacheStorage
+  // 2. Dedicated On-Device Image Caching (Cache-First + Direct-First with Proxy Fallback)
   if (
     url.hostname === 'image.tmdb.org' ||
-    url.pathname.includes('/image') ||
+    url.pathname.includes('/api/image') ||
     event.request.destination === 'image'
   ) {
+    event.respondWith(
+      caches.open(IMG_CACHE_NAME).then(async (imgCache) => {
+        // A. Check device CacheStorage (0ms disk hit, 0 Worker requests)
+        const cached = await imgCache.match(event.request);
+        if (cached) {
+          return cached;
+        }
+
+        // B. Network Resolution: Direct-First with Fast Fallback to Edge Proxy
+        let response = null;
+
+        if (url.hostname === 'image.tmdb.org') {
+          if (!isTmdbBlocked) {
+            try {
+              // Direct TMDB attempt with 2.5s timeout (prevents hanging on ISP blackholes in Russia)
+              const directRes = await fetch(event.request.clone(), {
+                signal: AbortSignal.timeout(2500)
+              });
+              if (directRes && directRes.status === 200) {
+                response = directRes;
+              } else {
+                isTmdbBlocked = true;
+              }
+            } catch (_) {
+              isTmdbBlocked = true;
+            }
+          }
+
+          // Fallback to Cloudflare Edge Proxy if direct TMDB is blocked or timed out
+          if (!response) {
+            try {
+              const proxyUrl = `${PROXY_IMAGE_BASE}?path=${encodeURIComponent(url.pathname)}`;
+              const proxyRes = await fetch(proxyUrl);
+              if (proxyRes && proxyRes.status === 200) {
+                response = proxyRes;
+              }
+            } catch (_) {}
+          }
+        } else {
+          // Direct fetch for /api/image or other image assets
+          try {
+            const res = await fetch(event.request);
+            if (res && res.status === 200) {
+              response = res;
+            }
+          } catch (_) {}
+        }
+
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          imgCache.put(event.request, clone).then(() => {
+            trimCache(IMG_CACHE_NAME, MAX_CACHED_IMAGES);
+          }).catch(() => {});
+          return response;
+        }
+
+        // Final fallback to direct network fetch if proxy failed
+        return response || fetch(event.request);
+      })
+    );
     return;
   }
 
