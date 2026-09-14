@@ -1,10 +1,40 @@
+import { useState, useEffect } from 'react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { favoritesManager } from '../utils/favoritesManager';
+import { WebApp } from '../telegram';
 
 export function GlobalAudioPlayer() {
   const { currentTrack, isPlaying, isBuffering, togglePlayPause, stop } = useAudioPlayer();
+  const [isFav, setIsFav] = useState(false);
 
+  useEffect(() => {
+    if (currentTrack?.id) {
+      setIsFav(favoritesManager.isFavorite('radio', currentTrack.id));
+    }
+  }, [currentTrack?.id]);
 
   if (!currentTrack) return null;
+
+  const toggleFavorite = () => {
+    if (!currentTrack) return;
+    if (isFav) {
+      favoritesManager.remove('radio', currentTrack.id);
+      setIsFav(false);
+    } else {
+      favoritesManager.add('radio', {
+        id: currentTrack.id,
+        name: currentTrack.title,
+        url: currentTrack.url,
+        logo: currentTrack.coverUrl,
+        group: currentTrack.artist,
+        type: 'radio'
+      });
+      setIsFav(true);
+    }
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('light');
+    } catch (_) {}
+  };
 
   return (
     <div
@@ -41,6 +71,18 @@ export function GlobalAudioPlayer() {
 
       {/* Controls */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Favorite */}
+        <button
+          onClick={toggleFavorite}
+          className="w-8 h-8 flex items-center justify-center rounded-full text-base transition-transform active:scale-125"
+          style={{
+            backgroundColor: isFav ? 'rgba(234, 179, 8, 0.2)' : 'transparent',
+            color: isFav ? '#eab308' : 'var(--text-color)',
+          }}
+          title={isFav ? 'Удалить из избранного' : 'В избранное'}
+        >
+          {isFav ? '★' : '☆'}
+        </button>
 
         {/* Prev (Play/Pause) */}
         <button

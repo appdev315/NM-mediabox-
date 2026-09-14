@@ -4,12 +4,20 @@ import { tgAuthMiddleware } from './middleware/auth';
 
 type Bindings = {
   DB: D1Database;
-  CACHE?: KVNamespace;
   TELEGRAM_BOT_TOKEN: string;
   BOT_TOKEN_MAIN?: string;
   BOT_TOKEN?: string;
   ALLOWED_ORIGIN?: string;
   TMDB_API_KEY?: string;
+  HF_BACKEND_URL?: string;
+  ADMIN_API_KEY?: string;
+};
+
+const verifyAdminAuth = (c: Context): boolean => {
+  const authHeader = c.req.header('Authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const secret = (c.env as Bindings).ADMIN_API_KEY || 'mb_admin_sec_2026';
+  return Boolean(token && token === secret);
 };
 
 type Variables = {
@@ -214,6 +222,128 @@ function formatCountry(code?: string): string {
   }
 });
 
+// --- AUTONOMOUS SYSADMIN & DIAGNOSTICS ---
+app.get('/api/admin/incidents', async (c: Context) => {
+  if (!verifyAdminAuth(c)) {
+    return c.json({ error: 'Unauthorized: valid Bearer ADMIN_API_KEY required' }, 401);
+  }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+
+  const rawSince = Number(c.req.query('windowHours')) || 3;
+  const since = Math.min(Math.max(1, Math.floor(rawSince)), 168);
+
+  try {
+    const totalRow = (await c.env.DB.prepare(
+      `SELECT COUNT(*) as total,
+              SUM(CASE WHEN status = 'auto_fixed' THEN 1 ELSE 0 END) as auto_fixed,
+              SUM(CASE WHEN status = 'unresolved' THEN 1 ELSE 0 END) as unresolved,
+              SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
+       FROM parsing_incidents WHERE ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first()) as { total?: number; auto_fixed?: number; unresolved?: number; pending?: number } | null;
+
+    const total = totalRow?.total || 0;
+    const autoFixed = totalRow?.auto_fixed || 0;
+    const unresolved = totalRow?.unresolved || 0;
+    const pending = totalRow?.pending || 0;
+    const fixRate = total > 0 ? Number(((autoFixed / total) * 100).toFixed(1)) : 100.0;
+
+    const topUnresolved = (await c.env.DB.prepare(
+      `SELECT title, content_type, fail_type, heal_note, COUNT(*) as cnt
+       FROM parsing_incidents
+       WHERE ts >= datetime('now', ?) AND status = 'unresolved'
+       GROUP BY title, content_type, fail_type
+       ORDER BY cnt DESC LIMIT 5`
+    ).bind(`-${since} hours`).all()) as { results?: { title: string; content_type: string; fail_type: string; heal_note: string; cnt: number }[] };
+
+    return c.json({
+      windowHours: since,
+      total,
+      autoFixed,
+      unresolved,
+      pending,
+      fixRate,
+      topUnresolved: topUnresolved.results || []
+    }, 200, {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    });
+  } catch (err: any) {
+    console.error('[Sysadmin] Failed to fetch incidents stats:', err);
+    return c.json({ error: 'Failed to fetch incidents stats' }, 500);
+  }
+});
+
+// --- ADMIN CACHE PURGE & HF SYNC ---
+app.post('/api/cache/purge', async (c: Context) => {
+  if (!verifyAdminAuth(c)) {
+    return c.json({ error: 'Unauthorized: valid Bearer ADMIN_API_KEY required' }, 401);
+  }
+
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch (_) {}
+
+  const tmdb = String(body.tmdb || c.req.query('tmdb') || '');
+  const type = String(body.type || c.req.query('type') || 'movie');
+  const title = String(body.title || c.req.query('title') || '');
+  const year = String(body.year || c.req.query('year') || '');
+
+  if (!tmdb && !title) {
+    return c.json({ error: 'tmdb or title is required for cache purge' }, 400);
+  }
+
+  const canonicalType = (type === 'tv' || type === 'series') ? 'tv' : 'movie';
+  const edgeCache = (caches as any).default;
+  const parsedUrl = new URL(c.req.url);
+
+  const purgedUrls: string[] = [];
+
+  // 1. Purge canonical Edge cache
+  if (tmdb) {
+    const canonicalUrl = `${parsedUrl.origin}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`;
+    try {
+      await edgeCache.delete(new Request(canonicalUrl, { method: 'GET' }));
+      purgedUrls.push(canonicalUrl);
+    } catch (_) {}
+  }
+
+  // 2. Purge title-based legacy Edge cache if title provided
+  if (title) {
+    const titleUrl = `${parsedUrl.origin}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(year)}&type=${canonicalType}`;
+    try {
+      await edgeCache.delete(new Request(titleUrl, { method: 'GET' }));
+      purgedUrls.push(titleUrl);
+    } catch (_) {}
+  }
+
+  // 3. Ping HuggingFace microservice to purge its in-memory Go cache
+  const hfBase = (c.env as Bindings).HF_BACKEND_URL || 'https://evro90-nm6.hf.space';
+  const hfParams = new URLSearchParams({
+    tmdb: tmdb || '',
+    type: canonicalType,
+    title: title || '',
+    year: year || '',
+    bypass_cache: 'true'
+  });
+  c.executionCtx.waitUntil((async () => {
+    try {
+      await fetch(`${hfBase}/liftw?${hfParams.toString()}`, {
+        signal: AbortSignal.timeout(4000)
+      });
+    } catch (_) {}
+  })());
+
+  return c.json({
+    success: true,
+    purgedUrls,
+    message: 'Edge cache invalidated and HF microservice sync triggered'
+  }, 200, {
+    'Cache-Control': 'no-store, no-cache, must-revalidate'
+  });
+});
+
 app.post('/api/user/favorites', async (c: Context) => {
   const user = c.get('tgUser');
   if (!user) {
@@ -402,36 +532,46 @@ app.get('/api/liftw', async (c: Context) => {
     return c.json({ error: 'Title is required' }, 400);
   }
 
-  // 1. Check Cloudflare Edge Cache API for instant 0ms edge response
+  const canonicalType = (vType === 'tv' || vType === 'series') ? 'tv' : 'movie';
+  const parsedUrl = new URL(c.req.url);
+
+  // 1. Canonical Edge Cache Key (language-agnostic: strictly tmdb + canonicalType when tmdb exists)
+  const canonicalUrl = tmdb 
+    ? `${parsedUrl.origin}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`
+    : `${parsedUrl.origin}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(yearStr)}&type=${canonicalType}`;
+
+  const legacyCacheParams = new URLSearchParams();
+  if (tmdb) legacyCacheParams.set('tmdb', tmdb);
+  if (title) legacyCacheParams.set('title', normString(title));
+  if (yearStr) legacyCacheParams.set('year', yearStr);
+  legacyCacheParams.set('type', vType);
+  if (titleRu) legacyCacheParams.set('title_ru', normString(titleRu));
+  legacyCacheParams.sort();
+  const legacyKeyUrl = `${parsedUrl.origin}/api/liftw?${legacyCacheParams.toString()}`;
+
+  const cacheReq = new Request(canonicalUrl, { method: 'GET' });
+  const edgeCache = (caches as any).default;
+
   if (!bypassCache) {
     try {
-      const edgeCache = (caches as any).default;
-      const cachedResponse = await edgeCache.match(new Request(c.req.url, c.req.raw));
+      const cachedResponse = await edgeCache.match(cacheReq);
       if (cachedResponse) {
         return cachedResponse;
       }
-    } catch (_) {}
-  }
-
-  const tmdbKey = tmdb ? `liftw_tmdb_${tmdb}_${vType}` : '';
-  const cacheKey = `liftw_v3_${normString(title)}_${yearStr}_${vType}_${tmdb}_${normString(titleRu)}`;
-  if (!bypassCache && c.env.CACHE) {
-    try {
-      if (tmdbKey) {
-        const cached = await c.env.CACHE.get(tmdbKey, 'json');
-        if (cached) {
-          return c.json(cached, 200, {
-            'Cache-Control': 'public, max-age=10800, s-maxage=21600',
-            'Access-Control-Allow-Origin': '*',
-          });
+      // Dual check legacy key during migration period
+      if (canonicalUrl !== legacyKeyUrl) {
+        const legacyCached = await edgeCache.match(new Request(legacyKeyUrl, { method: 'GET' }));
+        if (legacyCached) {
+          return legacyCached;
         }
       }
-      const cached = await c.env.CACHE.get(cacheKey, 'json');
-      if (cached) {
-        return c.json(cached, 200, {
-          'Cache-Control': 'public, max-age=10800, s-maxage=21600',
-          'Access-Control-Allow-Origin': '*',
-        });
+    } catch (_) {}
+  } else {
+    // Dual delete on cache bypass
+    try {
+      c.executionCtx.waitUntil(edgeCache.delete(cacheReq));
+      if (canonicalUrl !== legacyKeyUrl) {
+        c.executionCtx.waitUntil(edgeCache.delete(new Request(legacyKeyUrl, { method: 'GET' })));
       }
     } catch (_) {}
   }
@@ -520,11 +660,12 @@ app.get('/api/liftw', async (c: Context) => {
 
   // Step 1: Search direct candidates (strict type)
   let matchedItem = await searchCandidates(candidates, true);
+  let healNote = '';
 
   // Step 2: Fallback to TMDB Alternative Titles & Translations
   if (!matchedItem && tmdb) {
     try {
-      const tmdbType = isSeries ? 'tv' : 'movie';
+      const tmdbType = canonicalType === 'tv' ? 'tv' : 'movie';
       const tmdbKey = getTmdbKey(c);
       const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${tmdbKey}&append_to_response=alternative_titles,translations`;
       const tmdbRes = await fetch(tmdbUrl, { signal: AbortSignal.timeout(4000) });
@@ -552,9 +693,14 @@ app.get('/api/liftw', async (c: Context) => {
         const uniqueMore = Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s));
 
         matchedItem = await searchCandidates(uniqueMore, true);
-        if (!matchedItem) {
+        if (matchedItem) {
+          healNote = 'TMDB alt titles (strict)';
+        } else {
           // If still not matched with strict types, try relaxed types for alternative titles
           matchedItem = await searchCandidates(uniqueMore, false);
+          if (matchedItem) {
+            healNote = 'TMDB alt titles (relaxed)';
+          }
         }
       }
     } catch (_) {}
@@ -563,10 +709,32 @@ app.get('/api/liftw', async (c: Context) => {
   // Step 3: Fallback across all content types (e.g. movie classified as docu-series/show on Liftw)
   if (!matchedItem) {
     matchedItem = await searchCandidates(candidates, false);
+    if (matchedItem) {
+      healNote = 'Content type relaxed fallback';
+    }
   }
 
+  // Autonomous Sysadmin Incident logger (non-blocking via executionCtx)
+  const recordIncident = (failType: string, status: string, note?: string) => {
+    if (!c.env.DB) return;
+    c.executionCtx.waitUntil((async () => {
+      try {
+        await c.env.DB.prepare(
+          `INSERT INTO parsing_incidents (tmdb_id, title, year, content_type, donor, fail_type, status, heal_note)
+           VALUES (?, ?, ?, ?, 'liftw', ?, ?, ?)`
+        ).bind(tmdb || null, title, yearStr || null, canonicalType, failType, status, note || null).run();
+      } catch (e) {
+        console.error('[Sysadmin] Failed to record incident:', e);
+      }
+    })());
+  };
+
   if (!matchedItem) {
-    return c.json({ error: 'exact match not found on liftw' }, 404);
+    recordIncident('not_found', 'unresolved', 'Exhausted direct, alt titles, and relaxed search');
+    return c.json({ error: 'exact match not found on liftw' }, 404, {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Access-Control-Allow-Origin': '*',
+    });
   }
 
   try {
@@ -575,10 +743,22 @@ app.get('/api/liftw', async (c: Context) => {
       signal: AbortSignal.timeout(7000),
     });
     if (!infoRes.ok) {
-      return c.json({ error: 'failed to fetch liftw stream info' }, 502);
+      recordIncident('http_502', 'unresolved', `Liftw info HTTP ${infoRes.status}`);
+      return c.json({ error: 'failed to fetch liftw stream info' }, 502, {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Access-Control-Allow-Origin': '*',
+      });
     }
     const info = await infoRes.json() as { id: number; type: number; name: string; iframe_uri: string; episodes?: any };
     
+    if (!info.iframe_uri) {
+      recordIncident('empty_iframe', 'unresolved', 'Liftw returned empty iframe_uri');
+      return c.json({ error: 'liftw stream has no active player' }, 404, {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Access-Control-Allow-Origin': '*',
+      });
+    }
+
     const result: Record<string, any> = {
       liftwId: info.id,
       liftwType: info.type,
@@ -589,33 +769,33 @@ app.get('/api/liftw', async (c: Context) => {
       result.episodes = info.episodes;
     }
 
-    if (c.env.CACHE) {
-      try {
-        const jsonStr = JSON.stringify(result);
-        await c.env.CACHE.put(cacheKey, jsonStr, { expirationTtl: 10800 }); // 3 hours
-        if (tmdbKey) {
-          await c.env.CACHE.put(tmdbKey, jsonStr, { expirationTtl: 10800 });
-        }
-      } catch (_) {}
+    // If stream was recovered via fallback cascade, record auto_fixed incident
+    if (healNote) {
+      recordIncident('fallback_recovery', 'auto_fixed', healNote);
     }
 
-    const resHeaders = {
-      'Cache-Control': 'public, max-age=10800, s-maxage=21600',
+    const isTv = canonicalType === 'tv';
+    const cacheTtl = isTv ? 86400 : 2592000; // 1 day for TV, 30 days for Movies (no immutable)
+
+    const resHeaders: Record<string, string> = {
+      'Cache-Control': `public, max-age=${cacheTtl}, s-maxage=${cacheTtl}`,
       'Access-Control-Allow-Origin': '*',
     };
 
     const response = c.json(result, 200, resHeaders);
 
-    if (!bypassCache) {
-      try {
-        const edgeCache = (caches as any).default;
-        c.executionCtx.waitUntil(edgeCache.put(new Request(c.req.url, c.req.raw), response.clone()));
-      } catch (_) {}
-    }
+    // Only cache verified valid streams on Cloudflare Edge
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
 
     return response;
   } catch (err: any) {
-    return c.json({ error: err?.message || 'failed to resolve stream' }, 500);
+    recordIncident('timeout', 'unresolved', err?.message || 'stream resolve error');
+    return c.json({ error: err?.message || 'failed to resolve stream' }, 500, {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Access-Control-Allow-Origin': '*',
+    });
   }
 });
 
@@ -733,19 +913,18 @@ app.get('/api/tmdb/*', async (c: Context) => {
 app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
   const lang = c.req.query('lang') || 'ru-RU';
-  const kvKey = `feed_home_v1_${type}_${lang}`;
+  const edgeCache = (caches as any).default;
+  const cacheReq = new Request(c.req.url, { method: 'GET' });
 
-  if (c.env.CACHE) {
-    try {
-      const cached = await c.env.CACHE.get(kvKey);
-      if (cached) {
-        return c.json(JSON.parse(cached), 200, {
-          'Cache-Control': 'public, max-age=1800, s-maxage=43200',
-        });
-      }
-    } catch (_) {}
-  }
+  // 1. Unlimited Cloudflare Edge Cache check (0 writes to KV)
+  try {
+    const cachedResponse = await edgeCache.match(cacheReq);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+  } catch (_) {}
 
+  // 2. TMDB Key fallback and fetch
   const TMDB_KEY = getTmdbKey(c);
   const TMDB_BASE = 'https://api.themoviedb.org/3';
 
@@ -817,15 +996,15 @@ app.get('/api/feed/home', async (c: Context) => {
       genres: genreResults.filter(g => g.rawResults && g.rawResults.length > 0),
     };
 
-    if (c.env.CACHE) {
-      try {
-        await c.env.CACHE.put(kvKey, JSON.stringify(payload), { expirationTtl: 43200 }); // 12 hours
-      } catch (_) {}
-    }
-
-    return c.json(payload, 200, {
+    const response = c.json(payload, 200, {
       'Cache-Control': 'public, max-age=1800, s-maxage=43200',
     });
+
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+
+    return response;
   } catch (err: any) {
     return c.json({ error: err?.message || 'failed to load home feed' }, 500);
   }

@@ -10,15 +10,10 @@
 			"database_name": "mediabox"
 		}
 	],
-	"kv_namespaces": [
-		{
-			"binding": "CACHE",
-			"id": "326949ce4a9f41b9bbf5476dd4549431"
-		}
-	],
 	"vars": {
 		"HF_BACKEND_URL": "https://evro90-nm6.hf.space",
-		"TMDB_API_KEY": "cd5b69242e715dc87d65957d7460eba2"
+		"TMDB_API_KEY": "cd5b69242e715dc87d65957d7460eba2",
+		"ADMIN_API_KEY": "mb_admin_sec_2026"
 	}
 	// To create the D1 database, run:
 	// npx wrangler d1 create mediabox

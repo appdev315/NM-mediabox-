@@ -391,12 +391,17 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 	if tmdb != "" {
 		canonicalType := "movie"
 		if vType == "tv" || vType == "series" {
-			canonicalType = "series"
+			canonicalType = "tv"
 		}
 		tmdbKey = fmt.Sprintf("tmdb:%s:%s", tmdb, canonicalType)
 	}
 	
-	if !bypassCache {
+	if bypassCache {
+		liftwCache.Delete(cacheKey)
+		if tmdbKey != "" {
+			liftwCache.Delete(tmdbKey)
+		}
+	} else {
 		// 1. Check canonical TMDB key first (shared with cache warmer)
 		if tmdbKey != "" {
 			if val, ok := liftwCache.Load(tmdbKey); ok {

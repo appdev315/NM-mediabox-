@@ -50,12 +50,12 @@ async function initIndexedDBCache(): Promise<void> {
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result as IDBCursorWithValue;
-      if (cursor && loadedCount < 20) {
+      if (cursor && loadedCount < 30) {
         const key = cursor.key as string;
         const entry = cursor.value as CacheEntry<any>;
         if (entry && entry.expiry && now < entry.expiry) {
-          // Hydrate only critical instant-load keys (home, genres, trending)
-          if (key.includes('home') || key.includes('genres') || key.includes('trending')) {
+          // Hydrate critical instant-load keys (home, genres, trending, and recent streams)
+          if (key.includes('home') || key.includes('genres') || key.includes('trending') || key.includes('liftw_')) {
             if (!memoryCache.has(key)) {
               memoryCache.set(key, entry);
               loadedCount++;
@@ -140,7 +140,7 @@ export const clientCache = {
       idbRemove(fullKey);
     }
 
-    // 2. Synchronous instant fallback for critical home feeds before IndexedDB async cursor finishes
+    // 2. Synchronous instant fallback for critical home feeds and streams before IndexedDB async cursor finishes
     try {
       const fallbackStored = localStorage.getItem(fullKey);
       if (fallbackStored) {
@@ -166,14 +166,41 @@ export const clientCache = {
     enforceMemoryLRU();
     memoryCache.set(fullKey, entry);
 
-    // 2. Synchronous mirror for critical home feeds (instant 0ms hydration on F5)
+    // 2. Synchronous mirror for critical feeds and compact stream descriptors (instant 0ms hydration on F5)
     if (key.includes('home') || key.includes('genres') || key.includes('trending') || key.includes('feed')) {
       try {
         localStorage.setItem(fullKey, JSON.stringify(entry));
       } catch (_) {}
+    } else if (key.includes('liftw_')) {
+      try {
+        // Guard against localStorage 5MB quota: strip massive episodes tree, mirror only compact playback descriptor
+        const streamData = data as any;
+        const compactData = streamData && typeof streamData === 'object' ? {
+          iframe: streamData.iframe,
+          liftwId: streamData.liftwId,
+          liftwType: streamData.liftwType,
+          name: streamData.name,
+        } : data;
+        const compactEntry: CacheEntry<any> = { data: compactData, expiry };
+        localStorage.setItem(fullKey, JSON.stringify(compactEntry));
+
+        // Enforce max 10 stream entries in localStorage to prevent storage pressure
+        const streamKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const lk = localStorage.key(i);
+          if (lk && lk.startsWith(CACHE_PREFIX) && lk.includes('liftw_')) {
+            streamKeys.push(lk);
+          }
+        }
+        if (streamKeys.length > 10) {
+          for (let i = 0; i < streamKeys.length - 10; i++) {
+            localStorage.removeItem(streamKeys[i]);
+          }
+        }
+      } catch (_) {}
     }
 
-    // 3. Persistent IndexedDB Tier (async background write)
+    // 3. Persistent IndexedDB Tier (async background write - stores complete object including full episodes tree)
     idbSet(fullKey, entry);
   },
 
@@ -181,6 +208,9 @@ export const clientCache = {
     const fullKey = CACHE_PREFIX + key;
     memoryCache.delete(fullKey);
     idbRemove(fullKey);
+    try {
+      localStorage.removeItem(fullKey);
+    } catch (_) {}
   },
 
   clearExpired(): void {

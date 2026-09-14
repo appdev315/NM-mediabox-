@@ -283,9 +283,16 @@ export function Favorites() {
   };
 
   const renderRadioTvList = (type: 'radio' | 'tv') => {
-    const list = mode === 'favorites'
+    const brokenIds: string[] = (() => {
+      try {
+        const saved = localStorage.getItem('broken_radio_stations');
+        return saved ? JSON.parse(saved) : [];
+      } catch (_) { return []; }
+    })();
+    const rawList = mode === 'favorites'
       ? (type === 'radio' ? favRadio : favTv)
       : (type === 'radio' ? historyRadio : historyTv);
+    const list = type === 'radio' ? rawList.filter((item: any) => !brokenIds.includes(item.id)) : rawList;
 
     if (list.length === 0) {
       return (

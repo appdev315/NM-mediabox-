@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -9,6 +9,7 @@ import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
+import { favoritesManager } from '../utils/favoritesManager';
 
 // Get backend URL from environment or use default
 
@@ -81,6 +82,53 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(50);
+  const [brokenNotice, setBrokenNotice] = useState<string | null>(null);
+  const [brokenStationIds, setBrokenStationIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('broken_radio_stations');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch (_) {}
+    return new Set();
+  });
+
+  const [favIds, setFavIds] = useState<Set<string>>(() => {
+    try {
+      const list = favoritesManager.getLocal(activeTab);
+      return new Set(list.map((i: any) => String(i.id)));
+    } catch (_) {
+      return new Set();
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const list = favoritesManager.getLocal(activeTab);
+      setFavIds(new Set(list.map((i: any) => String(i.id))));
+    } catch (_) {}
+  }, [activeTab]);
+
+  const toggleFavorite = (item: Station, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const itemId = String(item.id);
+    const isFav = favIds.has(itemId);
+    if (isFav) {
+      favoritesManager.remove(activeTab, item.id);
+      setFavIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    } else {
+      favoritesManager.add(activeTab, item);
+      setFavIds(prev => new Set(prev).add(itemId));
+    }
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('light');
+    } catch (_) {}
+  };
 
   const [activeTvChannel, setActiveTvChannel] = useState<Station | null>(null);
   const [tvError, setTvError] = useState(false);
@@ -389,7 +437,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
   };
 
-  const handlePlayRadio = (station: Station) => {
+  const handlePlayRadio = useCallback((station: Station) => {
     // If a TV channel is playing, stop it
     setActiveTvChannel(null);
 
@@ -420,7 +468,52 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [playTrack]);
+
+  // Listen to station failure events from AudioPlayerContext to dynamically hide broken streams
+  useEffect(() => {
+    const handleStationBroken = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string; title: string; url: string }>;
+      const brokenId = customEvent.detail?.id;
+      const title = customEvent.detail?.title || '';
+      if (!brokenId) return;
+
+      console.warn(`[Radio] Station reported broken: ${title} (${brokenId})`);
+      setBrokenStationIds(prev => {
+        const next = new Set(prev);
+        next.add(brokenId);
+        try {
+          localStorage.setItem('broken_radio_stations', JSON.stringify(Array.from(next)));
+        } catch (_) {}
+        return next;
+      });
+
+      if (title) {
+        setBrokenNotice(`Станция «${title}» временно недоступна и скрыта`);
+        setTimeout(() => setBrokenNotice(null), 4500);
+      }
+
+      // Auto-advance to next working station if broken station is currently active
+      if (currentTrack?.id === brokenId) {
+        setStations(currentStations => {
+          const working = currentStations.filter(s => s.id !== brokenId && !brokenStationIds.has(s.id));
+          if (working.length > 0) {
+            const currentIndex = currentStations.findIndex(s => s.id === brokenId);
+            const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % working.length : 0;
+            const nextStation = working[nextIndex] || working[0];
+            if (nextStation) {
+              console.log(`[Radio] Auto-advancing to working station: ${nextStation.name}`);
+              handlePlayRadio(nextStation);
+            }
+          }
+          return currentStations;
+        });
+      }
+    };
+
+    window.addEventListener('radio-station-broken', handleStationBroken);
+    return () => window.removeEventListener('radio-station-broken', handleStationBroken);
+  }, [brokenStationIds, currentTrack, handlePlayRadio]);
 
   const handlePlayTv = (channel: Station) => {
     // Stop global audio when TV plays
@@ -706,7 +799,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTvChannel, activeTab]);
 
-  const listToRender = useMemo(() => activeTab === 'radio' ? stations : tvChannels, [activeTab, stations, tvChannels]);
+  const listToRender = useMemo(() => {
+    if (activeTab === 'radio') {
+      return stations.filter(s => !brokenStationIds.has(s.id));
+    }
+    return tvChannels;
+  }, [activeTab, stations, tvChannels, brokenStationIds]);
+
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return listToRender;
@@ -716,6 +815,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Broken station notice */}
+      {brokenNotice && activeTab === 'radio' && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-semibold text-center animate-in fade-in duration-200">
+          ⚠️ {brokenNotice}
+        </div>
+      )}
+
       {/* TV Warning */}
       {showTvWarning && activeTab === 'tv' && (
         <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm font-medium text-center animate-pulse">
@@ -879,6 +985,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                       borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.1))'
                     }}
                   >
+                    <button
+                      onClick={(e) => toggleFavorite(item, e)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-xs transition-transform active:scale-125 z-10"
+                      style={{
+                        backgroundColor: favIds.has(String(item.id)) ? 'rgba(234, 179, 8, 0.25)' : 'rgba(0, 0, 0, 0.25)',
+                        color: favIds.has(String(item.id)) ? '#eab308' : 'rgba(255, 255, 255, 0.45)',
+                      }}
+                      title={favIds.has(String(item.id)) ? 'Удалить из избранного' : 'Добавить в избранное'}
+                    >
+                      {favIds.has(String(item.id)) ? '★' : '☆'}
+                    </button>
 
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm mt-1">
                       {item.logo ? (

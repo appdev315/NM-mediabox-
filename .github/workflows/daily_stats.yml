@@ -144,13 +144,55 @@ jobs:
           echo -e "$ANALYTICS_BLOCK" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+      - name: Fetch Sysadmin Incidents (Cloudflare D1)
+        id: fetch_incidents
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_API_KEY || 'mb_admin_sec_2026' }}
+        run: |
+          INC_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${ADMIN_KEY}" "https://backend.app-dev315.workers.dev/api/admin/incidents?windowHours=3")
+          INC_HTTP=$(echo "$INC_RESP" | tail -n1)
+          INC_BODY=$(echo "$INC_RESP" | sed '$d')
+
+          if [ "$INC_HTTP" -ne 200 ]; then
+            echo "INCIDENTS_BLOCK=" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          TOTAL_INC=$(echo "$INC_BODY" | jq -r '.total // 0')
+          AUTO_FIXED=$(echo "$INC_BODY" | jq -r '.autoFixed // 0')
+          UNRESOLVED=$(echo "$INC_BODY" | jq -r '.unresolved // 0')
+          FIX_RATE=$(echo "$INC_BODY" | jq -r '.fixRate // 100')
+
+          UNRESOLVED_LIST=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            ITITLE=$(echo "$line" | jq -r '.title' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            ITYPE=$(echo "$line" | jq -r '.content_type')
+            IFAIL=$(echo "$line" | jq -r '.fail_type')
+            ICNT=$(echo "$line" | jq -r '.cnt')
+            UNRESOLVED_LIST="${UNRESOLVED_LIST}\n  • ${ITITLE} (${ITYPE}) — ${IFAIL} (${ICNT}x)"
+          done < <(echo "$INC_BODY" | jq -c '.topUnresolved[]?' | head -5)
+
+          if [ "$TOTAL_INC" -gt 0 ]; then
+            QUEUE_STR="\n\n⏳ <b>Не найдено на донорах:</b>${UNRESOLVED_LIST:-"\n  Нет"}"
+          else
+            QUEUE_STR=""
+          fi
+
+          INCIDENTS_BLOCK="\n\n🤖 <b>Системный администратор (за 3 часа):</b>\n🔍 Сбоев парсинга: <b>${TOTAL_INC}</b>\n🛠 Автоматически исправлено: <b>${AUTO_FIXED} (${FIX_RATE}%)</b>\n⚠️ Нерешенных: <b>${UNRESOLVED}</b>${QUEUE_STR}"
+
+          echo "INCIDENTS_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$INCIDENTS_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
       - name: Send Telegram Notification
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          MESSAGE="${ERROR_MSG:-$STATS_MSG}${ANALYTICS_BLOCK}"
+          MESSAGE="${ERROR_MSG:-$STATS_MSG}${ANALYTICS_BLOCK}${INCIDENTS_BLOCK}"
           TARGET_CHAT="${CHAT_ID:-484803732}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg chat_id "$TARGET_CHAT" --arg text "$MESSAGE" '{chat_id: $chat_id, parse_mode: "HTML", text: $text}')"
+

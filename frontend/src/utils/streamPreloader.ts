@@ -79,7 +79,8 @@ export function prewarmStream(
       });
 
       if (data && data.iframe) {
-        clientCache.set(streamCacheKey, data, 7200); // 2 hours TTL
+        const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies
+        clientCache.set(streamCacheKey, data, ttlSeconds);
       }
       return data;
     } catch (_) {

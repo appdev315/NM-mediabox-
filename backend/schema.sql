@@ -43,3 +43,21 @@ CREATE TABLE IF NOT EXISTS history (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (telegram_id, item_id, type)
 );
+
+-- Parsing Incidents tracked by Autonomous Sysadmin
+CREATE TABLE IF NOT EXISTS parsing_incidents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tmdb_id TEXT,
+  title TEXT NOT NULL,
+  year TEXT,
+  content_type TEXT DEFAULT 'movie',
+  donor TEXT DEFAULT 'liftw',
+  fail_type TEXT NOT NULL, -- 'not_found', 'timeout', 'empty_iframe', 'http_502'
+  status TEXT DEFAULT 'pending', -- 'pending', 'auto_fixed', 'unresolved'
+  heal_note TEXT,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_ts ON parsing_incidents(ts);
+CREATE INDEX IF NOT EXISTS idx_incidents_tmdb ON parsing_incidents(tmdb_id);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON parsing_incidents(status);
+

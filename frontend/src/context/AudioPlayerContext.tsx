@@ -65,6 +65,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
+  const isRefreshingSrcRef = useRef(false);
+  const lastPauseTimeRef = useRef(0);
 
   // Multi-window & PWA identity refs
   const tabIdRef = useRef(`tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
@@ -208,6 +210,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current) return;
     if (isReconnectingRef.current) return;
 
+    if (reconnectAttemptRef.current >= 6) {
+      console.warn(`[Radio] Station ${track.title} marked offline after 6 failed attempts.`);
+      setIsBuffering(false);
+      setIsPlaying(false);
+      isReconnectingRef.current = false;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('radio-station-broken', {
+          detail: {
+            id: track.id,
+            title: track.title,
+            url: track.url,
+            originalUrl: track.originalUrl
+          }
+        }));
+      }
+      return;
+    }
+
     isReconnectingRef.current = true;
     reconnectAttemptRef.current++;
     setIsBuffering(true);
@@ -228,11 +248,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Prioritize direct station CDN for attempts 1-4.
-      // Only switch to Go proxy if direct stream fails 4+ consecutive times.
+      // Prioritize direct station CDN for attempts 1-3.
+      // Switch to Go proxy if direct stream fails 4+ consecutive times.
       const rawUrl = track.originalUrl || track.url;
       let targetUrl = rawUrl;
-      if (reconnectAttemptRef.current >= 5 && !targetUrl.includes('/proxy')) {
+      if (reconnectAttemptRef.current >= 4 && !targetUrl.includes('/proxy')) {
         targetUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(rawUrl)}`;
       }
 
@@ -249,15 +269,47 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           setIsPlaying(true);
         }).catch(() => {
           isReconnectingRef.current = false;
+          if (reconnectAttemptRef.current >= 6) {
+            setIsBuffering(false);
+            setIsPlaying(false);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('radio-station-broken', {
+                detail: {
+                  id: track.id,
+                  title: track.title,
+                  url: track.url,
+                  originalUrl: track.originalUrl
+                }
+              }));
+            }
+          }
         });
       } else {
+        isRefreshingSrcRef.current = true;
         audio.src = freshUrl;
         audio.play().then(() => {
           isReconnectingRef.current = false;
           setIsBuffering(false);
           setIsPlaying(true);
-        }).catch(() => {
+        }).catch((err) => {
+          console.warn('[Radio] Reconnect play failed:', err);
           isReconnectingRef.current = false;
+          if (reconnectAttemptRef.current >= 6) {
+            setIsBuffering(false);
+            setIsPlaying(false);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('radio-station-broken', {
+                detail: {
+                  id: track.id,
+                  title: track.title,
+                  url: track.url,
+                  originalUrl: track.originalUrl
+                }
+              }));
+            }
+          }
+        }).finally(() => {
+          isRefreshingSrcRef.current = false;
         });
       }
     }, backoffMs);
@@ -281,6 +333,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     if (isPlayingRef.current) {
       isUserPausedRef.current = true;
+      lastPauseTimeRef.current = Date.now();
       isPausedByDeviceRef.current = false;
       audio.pause();
       // Suspend Web Audio keep-alive when paused so speaker icon turns off
@@ -310,21 +363,56 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             attemptReconnect('unpause hls play failed');
           });
         } else {
-          // Reconnect to live edge upon unpause to avoid dead TCP socket
-          const rawUrl = track.originalUrl || track.url;
-          const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
-          const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-          audio.src = freshUrl;
-          // Avoid audio.load() right before audio.play() in Safari to prevent AbortError
-          audio.play().then(() => {
-            setIsPlaying(true);
-            setIsBuffering(false);
-            syncToPeers(track, true, false);
-          }).catch((err) => {
-            console.warn('[Radio] Unpause stream play failed, attempting reconnect:', err);
-            setIsBuffering(false);
-            attemptReconnect('unpause stream play failed');
-          });
+          // Mobile Optimization (iOS Safari / PWA / Android):
+          // If paused recently (< 60s) and audio element already has src,
+          // resume directly using audio.play() without resetting src.
+          // This preserves the synchronous user touch gesture and prevents AbortError / autoplay blocks.
+          const pauseDuration = Date.now() - (lastPauseTimeRef.current || 0);
+          const canResumeDirectly = Boolean(audio.src) && pauseDuration < 60000;
+
+          if (canResumeDirectly) {
+            audio.play().then(() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+              syncToPeers(track, true, false);
+            }).catch((err) => {
+              console.warn('[Radio] Direct unpause failed, refreshing stream URL:', err);
+              // Fallback to fresh edge if stream socket was closed by server
+              const rawUrl = track.originalUrl || track.url;
+              const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
+              const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+              isRefreshingSrcRef.current = true;
+              audio.src = freshUrl;
+              audio.play().then(() => {
+                setIsPlaying(true);
+                setIsBuffering(false);
+                syncToPeers(track, true, false);
+              }).catch((e2) => {
+                console.warn('[Radio] Refresh unpause play failed:', e2);
+                setIsBuffering(false);
+                attemptReconnect('unpause stream play failed');
+              }).finally(() => {
+                isRefreshingSrcRef.current = false;
+              });
+            });
+          } else {
+            const rawUrl = track.originalUrl || track.url;
+            const baseUrl = rawUrl.split('&_t=')[0].split('?_t=')[0];
+            const freshUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+            isRefreshingSrcRef.current = true;
+            audio.src = freshUrl;
+            audio.play().then(() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+              syncToPeers(track, true, false);
+            }).catch((err) => {
+              console.warn('[Radio] Unpause stream play failed, attempting reconnect:', err);
+              setIsBuffering(false);
+              attemptReconnect('unpause stream play failed');
+            }).finally(() => {
+              isRefreshingSrcRef.current = false;
+            });
+          }
         }
       } else {
         audio.play().then(() => {
@@ -388,7 +476,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+        isRefreshingSrcRef.current = true;
         audio.src = url;
+        isRefreshingSrcRef.current = false;
       } else {
         const { default: HlsClass } = await import('hls.js');
         if (HlsClass.isSupported()) {
@@ -432,20 +522,28 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             }
           });
         } else {
+          isRefreshingSrcRef.current = true;
           audio.src = url;
           audio.load();
+          isRefreshingSrcRef.current = false;
         }
       }
     } else {
+      isRefreshingSrcRef.current = true;
       audio.src = url;
       audio.load();
+      isRefreshingSrcRef.current = false;
     }
 
     audio.play().then(() => {
       setIsPlaying(true);
       setIsBuffering(false);
       syncToPeers(track, true, false);
-    }).catch(() => setIsBuffering(false));
+    }).catch((err) => {
+      console.warn('[Audio] playTrack error, delegating to attemptReconnect:', err);
+      setIsBuffering(false);
+      attemptReconnect('playTrack play error');
+    });
     setIsPlaying(true);
   }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive, syncToPeers]);
 
@@ -728,7 +826,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onPause = () => {
-      if (isUserPausedRef.current) {
+      if (isUserPausedRef.current || isRefreshingSrcRef.current) {
         setIsPlaying(false);
         if (isAudioMasterRef.current && currentTrackRef.current) {
           syncToPeers(currentTrackRef.current, false, false);

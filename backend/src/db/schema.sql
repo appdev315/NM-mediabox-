@@ -54,3 +54,21 @@ CREATE TABLE IF NOT EXISTS analytics_events (
 CREATE INDEX IF NOT EXISTS idx_analytics_ts ON analytics_events(ts);
 CREATE INDEX IF NOT EXISTS idx_analytics_country ON analytics_events(country);
 CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type);
+
+-- Parsing Incidents tracked by Autonomous Sysadmin
+CREATE TABLE IF NOT EXISTS parsing_incidents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tmdb_id TEXT,
+  title TEXT NOT NULL,
+  year TEXT,
+  content_type TEXT DEFAULT 'movie',
+  donor TEXT DEFAULT 'liftw',
+  fail_type TEXT NOT NULL, -- 'not_found', 'timeout', 'empty_iframe', 'http_502'
+  status TEXT DEFAULT 'pending', -- 'pending', 'auto_fixed', 'unresolved'
+  heal_note TEXT,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_ts ON parsing_incidents(ts);
+CREATE INDEX IF NOT EXISTS idx_incidents_tmdb ON parsing_incidents(tmdb_id);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON parsing_incidents(status);
+

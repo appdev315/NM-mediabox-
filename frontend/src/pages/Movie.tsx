@@ -44,6 +44,7 @@ export function Movie() {
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const activeSeasonRef = useRef<string>('');
   const activeEpisodeRef = useRef<string>('');
+  const isHealingRef = useRef<boolean>(false);
 
   // Validate media type
   const queryType = searchParams.get('type');
@@ -65,10 +66,11 @@ export function Movie() {
   }, []);
 
   useEffect(() => {
+    isHealingRef.current = false;
     if (movie?.id) {
       setIsFavorite(favoritesManager.isFavorite(favType, movie.id));
     }
-  }, [movie?.id, favType]);
+  }, [movie?.id, favType, id]);
 
   const handleToggleFavorite = () => {
     if (!movie?.id) return;
@@ -284,11 +286,19 @@ export function Movie() {
           (typeof data.error === 'string' && data.error.toLowerCase().includes('not found'));
 
         if (isFatalNotFound && iframeUrl === sources[0]?.url) {
-          console.log('[PlayerFallback] Fatal stream not-found signal received, switching to backup...');
+          console.log('[PlayerFallback] Fatal stream not-found signal received, purging dead stream from cache and triggering self-healing...');
+          if (id) {
+            clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
+          }
           if (sources.length > 1 && sources[1]?.url) {
             setIframeUrl(sources[1].url);
           } else {
             setContentUnavailable(true);
+          }
+
+          if (!isHealingRef.current) {
+            isHealingRef.current = true;
+            handleWatch(true);
           }
         }
       } catch (e) {
@@ -564,6 +574,9 @@ export function Movie() {
         original_title: originalTitle
       });
       if (forceRefresh) {
+        if (id) {
+          clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
+        }
         liftwQuery.append('bypass_cache', 'true');
       }
 
@@ -641,6 +654,10 @@ export function Movie() {
 
         // Instant 0ms read from client cache
         let liftwData: any = !forceRefresh ? clientCache.get<any>(streamCacheKey) : null;
+        if (liftwData && !liftwData.iframe) {
+          clientCache.remove(streamCacheKey);
+          liftwData = null;
+        }
 
         // If not cached, connect to in-flight prewarm stream if running
         if (!liftwData && !forceRefresh && inFlightStreamMap.has(streamCacheKey)) {
@@ -680,7 +697,8 @@ export function Movie() {
             });
 
             if (liftwData && liftwData.iframe) {
-              clientCache.set(streamCacheKey, liftwData, 7200); // 2 hours client cache
+              const streamTtl = mediaType === 'tv' ? 86400 : 2592000; // 1 day TV, 30 days Movies
+              clientCache.set(streamCacheKey, liftwData, streamTtl);
             }
           } catch (e) {
             console.error("Liftw fetch failed", e);
@@ -1005,6 +1023,19 @@ export function Movie() {
               {t('contentUnavailableDesc') || 'Фильм не найден на доступных источниках. Сообщите нам, и мы оперативно проверим.'}
             </p>
             <div className="flex flex-col items-center gap-3 pt-2">
+              <button
+                onClick={() => {
+                  if (id) {
+                    clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
+                  }
+                  handleWatch(true);
+                }}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow flex items-center justify-center gap-2 cursor-pointer border border-blue-500/30 hover:border-blue-500/60"
+                style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+              >
+                🔄 {t('retry') || 'Обновить и повторить поиск'}
+              </button>
+
               <button
                 onClick={handleReportMissing}
                 disabled={isReporting || isReported}
