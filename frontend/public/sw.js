@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mediabox-v3';
+const CACHE_NAME = 'mediabox-v4';
 const OFFLINE_FALLBACK = '/index.html';
 
 self.addEventListener('install', (event) => {
