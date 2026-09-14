@@ -32,7 +32,7 @@
         });
       }
 
-      // 2. Global transparent fallback for blocked TMDB images in Russia if SW is cold/inactive
+      // 2. Global transparent fallback for images when SW is cold/inactive or CDN fails
       window.addEventListener('error', function(e) {
         var target = e.target;
         if (target && target.tagName === 'IMG' && target.src && target.src.indexOf('image.tmdb.org') !== -1 && !target.dataset.fallback) {

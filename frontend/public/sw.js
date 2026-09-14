@@ -4,8 +4,6 @@ const MAX_CACHED_IMAGES = 250;
 const OFFLINE_FALLBACK = '/index.html';
 const PROXY_IMAGE_BASE = 'https://api.media-box.xyz/api/image';
 
-let isTmdbBlocked = false;
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -81,7 +79,7 @@ self.addEventListener('fetch', (event) => {
     return; // Direct network pass-through
   }
 
-  // 2. Dedicated On-Device Image Caching (Cache-First + Direct-First with Proxy Fallback)
+  // 2. Dedicated Image Caching: Direct-First with Proxy Fallback on Failure
   if (
     url.hostname === 'image.tmdb.org' ||
     url.pathname.includes('/api/image') ||
@@ -95,32 +93,24 @@ self.addEventListener('fetch', (event) => {
           return cached;
         }
 
-        // B. Network Resolution: Direct-First with Fast Fallback to Edge Proxy
+        // B. Direct-First with Proxy Fallback on network failure
         let response = null;
 
         if (url.hostname === 'image.tmdb.org') {
-          if (!isTmdbBlocked) {
-            try {
-              // Direct TMDB attempt with 2.5s timeout (prevents hanging on ISP blackholes in Russia)
-              const directRes = await fetch(event.request.clone(), {
-                signal: AbortSignal.timeout(2500)
-              });
-              if (directRes && directRes.status === 200) {
-                response = directRes;
-              } else {
-                isTmdbBlocked = true;
-              }
-            } catch (_) {
-              isTmdbBlocked = true;
+          try {
+            // Direct CDN attempt
+            const directRes = await fetch(event.request);
+            if (directRes && (directRes.ok || directRes.type === 'opaque')) {
+              response = directRes;
             }
-          }
+          } catch (_) {}
 
-          // Fallback to Cloudflare Edge Proxy if direct TMDB is blocked or timed out
+          // Fallback to Edge Proxy if direct attempt failed
           if (!response) {
             try {
               const proxyUrl = `${PROXY_IMAGE_BASE}?path=${encodeURIComponent(url.pathname)}`;
               const proxyRes = await fetch(proxyUrl);
-              if (proxyRes && proxyRes.status === 200) {
+              if (proxyRes && (proxyRes.ok || proxyRes.type === 'opaque')) {
                 response = proxyRes;
               }
             } catch (_) {}
@@ -129,13 +119,13 @@ self.addEventListener('fetch', (event) => {
           // Direct fetch for /api/image or other image assets
           try {
             const res = await fetch(event.request);
-            if (res && res.status === 200) {
+            if (res && (res.ok || res.type === 'opaque')) {
               response = res;
             }
           } catch (_) {}
         }
 
-        if (response && response.status === 200) {
+        if (response && (response.ok || response.type === 'opaque')) {
           const clone = response.clone();
           imgCache.put(event.request, clone).then(() => {
             trimCache(IMG_CACHE_NAME, MAX_CACHED_IMAGES);
@@ -143,7 +133,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        // Final fallback to direct network fetch if proxy failed
+        // Final fallback if both failed
         return response || fetch(event.request);
       })
     );

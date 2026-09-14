@@ -200,6 +200,18 @@ function formatCountry(code?: string): string {
   return upper;
 }
 
+    // D1 Auto-Retention Policy: Clean up rows older than 30 days asynchronously in background
+    if (c.env.DB && c.executionCtx?.waitUntil) {
+      c.executionCtx.waitUntil((async () => {
+        try {
+          await c.env.DB.batch([
+            c.env.DB.prepare("DELETE FROM analytics_events WHERE ts < datetime('now', '-30 days')"),
+            c.env.DB.prepare("DELETE FROM parsing_incidents WHERE ts < datetime('now', '-30 days')")
+          ]);
+        } catch (_) {}
+      })());
+    }
+
     return c.json({
       windowHours: since,
       active: {
@@ -668,7 +680,13 @@ app.get('/api/liftw', async (c: Context) => {
       const tmdbType = canonicalType === 'tv' ? 'tv' : 'movie';
       const tmdbKey = getTmdbKey(c);
       const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${tmdbKey}&append_to_response=alternative_titles,translations`;
-      const tmdbRes = await fetch(tmdbUrl, { signal: AbortSignal.timeout(4000) });
+      const tmdbRes = await fetch(tmdbUrl, {
+        signal: AbortSignal.timeout(4000),
+        cf: {
+          cacheTtl: 2592000,
+          cacheEverything: true,
+        },
+      } as any);
       if (tmdbRes.ok) {
         const tData = await tmdbRes.json() as any;
         const moreCands: string[] = [];
@@ -846,7 +864,7 @@ app.get('/api/image', async (c: Context) => {
   }
 });
 
-// --- TMDB EDGE API PROXY (Bypasses ISP blocks in Russia & caches on Cloudflare Edge) ---
+// --- TMDB EDGE API PROXY (Edge Caching & Global Fallback) ---
 app.get('/api/tmdb/*', async (c: Context) => {
   const url = new URL(c.req.url);
   // Extract endpoint path after /api/tmdb
