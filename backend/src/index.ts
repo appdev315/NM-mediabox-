@@ -556,85 +556,6 @@ const LIFTW_HEADERS = {
   'Origin': 'https://liftw.ws',
 };
 
-function extractDirectStreams(html: string): {
-  hls?: string;
-  streams?: Record<string, Record<string, { hls: string; title?: string; duration?: number; cc?: any[]; audio?: string[] }>>;
-  subtitles?: { src: string; label: string }[];
-  audioTracks?: string[];
-} {
-  try {
-    let token = '';
-    const mVar = html.match(/var\s+lok\s*=\s*1\s*,\s*([a-zA-Z0-9_]+)\s*=\s*\"([^\"]+)\"/);
-    if (mVar) token = mVar[2];
-
-    const idx = html.indexOf('seasons:[');
-    if (idx !== -1) {
-      let depth = 0;
-      let endIdx = idx + 8;
-      for (let i = idx + 8; i < html.length; i++) {
-        if (html[i] === '[') depth++;
-        else if (html[i] === ']') {
-          depth--;
-          if (depth === 0) {
-            endIdx = i + 1;
-            break;
-          }
-        }
-      }
-      const seasons = JSON.parse(html.substring(idx + 8, endIdx));
-      const streams: Record<string, Record<string, any>> = {};
-      for (const s of seasons) {
-        const sNum = String(s.season);
-        streams[sNum] = {};
-        for (const ep of (s.episodes || [])) {
-          const eNum = String(ep.episode);
-          let hls = ep.hls || '';
-          if (hls && token) hls = hls + '&' + token;
-          streams[sNum][eNum] = {
-            hls,
-            title: ep.title || '',
-            duration: ep.duration || 0,
-            cc: ep.cc || [],
-            audio: ep.audio?.names || []
-          };
-        }
-      }
-      return { streams };
-    }
-
-    const mHls = html.match(/\bhls\s*:\s*\"([^\"]+)\"/);
-    if (mHls) {
-      let hls = mHls[1];
-      if (token) hls = hls + '&' + token;
-
-      const subtitles: { src: string; label: string }[] = [];
-      const mCc = html.match(/\bcc\s*:\s*(\[.*?\])\s*,\s*\n/);
-      if (mCc) {
-        try {
-          const ccList = JSON.parse(mCc[1]);
-          for (const item of ccList) {
-            if (item.url) subtitles.push({ src: item.url, label: item.name || 'Субтитры' });
-          }
-        } catch (_) {}
-      }
-
-      let audioTracks: string[] = [];
-      const mAudio = html.match(/\baudio\s*:\s*(\{.*?\})\s*,\s*\n/);
-      if (mAudio) {
-        try {
-          const aObj = JSON.parse(mAudio[1]);
-          if (Array.isArray(aObj.names)) audioTracks = aObj.names;
-        } catch (_) {}
-      }
-
-      return { hls, subtitles, audioTracks };
-    }
-  } catch (err) {
-    console.error('[Liftw] Failed to extract direct streams:', err);
-  }
-  return {};
-}
-
 const getTmdbKey = (c: Context): string => {
   return (c.env as any)?.TMDB_API_KEY || ((globalThis as any).process?.env?.TMDB_API_KEY as string) || '';
 };
@@ -893,25 +814,6 @@ app.get('/api/liftw', async (c: Context) => {
     };
     if (info.episodes) {
       result.episodes = info.episodes;
-    }
-
-    if (info.iframe_uri) {
-      try {
-        const embedRes = await fetch(info.iframe_uri, {
-          headers: LIFTW_HEADERS,
-          signal: AbortSignal.timeout(3500),
-        });
-        if (embedRes.ok) {
-          const embedHtml = await embedRes.text();
-          const extracted = extractDirectStreams(embedHtml);
-          if (extracted.hls) result.hls = extracted.hls;
-          if (extracted.streams) result.streams = extracted.streams;
-          if (extracted.subtitles && extracted.subtitles.length > 0) result.subtitles = extracted.subtitles;
-          if (extracted.audioTracks && extracted.audioTracks.length > 0) result.audioTracks = extracted.audioTracks;
-        }
-      } catch (err) {
-        console.warn('[Liftw] Non-fatal: embed direct stream fetch timed out or failed:', err);
-      }
     }
 
     // If stream was recovered via fallback cascade, record auto_fixed incident
