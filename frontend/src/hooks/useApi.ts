@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
+import { getAvailability } from '../utils/availability';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
@@ -189,6 +190,49 @@ function preserveCaseReplace(text: string, re: RegExp, targetWord: string): stri
   });
 }
 
+const RU_TO_EN_MAP: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh', з: 'z',
+  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
+  с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh',
+  щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+};
+
+/**
+ * Deterministic RU→EN transliteration for an extra search variant
+ * (user typed Cyrillic, donor/TMDB entry is Latin-only).
+ */
+export function transliterateRuToEn(text: string): string {
+  return (text || '').split('').map((ch) => {
+    const lower = ch.toLowerCase();
+    const mapped = RU_TO_EN_MAP[lower];
+    if (mapped === undefined) return ch;
+    if (ch !== lower && mapped.length > 0) {
+      return mapped[0].toUpperCase() + mapped.slice(1);
+    }
+    return mapped;
+  }).join('');
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = Math.min(a.length, 48);
+  const n = Math.min(b.length, 48);
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array<number>(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let cur = new Array<number>(n + 1);
+    cur[0] = i;
+    const ca = a.charCodeAt(i - 1);
+    for (let j = 1; j <= n; j++) {
+      const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
 /**
  * Generates orthographic search variants to seamlessly bridge E and Ё.
  */
@@ -270,6 +314,16 @@ export function rankSearchResults(items: TMDBMovie[], query: string): TMDBMovie[
     scoreA += matchCountA * 200;
     scoreB += matchCountB * 200;
 
+    // Typo tolerance (0 requests): small bonus when nothing else matched
+    if (matchCountA === 0 && normQ.length >= 3 && normA.length >= 3) {
+      const d = levenshtein(normQ, normA);
+      scoreA += d <= 2 ? 120 : d === 3 ? 60 : 0;
+    }
+    if (matchCountB === 0 && normQ.length >= 3 && normB.length >= 3) {
+      const d = levenshtein(normQ, normB);
+      scoreB += d <= 2 ? 120 : d === 3 ? 60 : 0;
+    }
+
     return scoreB - scoreA;
   });
 }
@@ -315,7 +369,7 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600) => {
+  const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
     const targetLanguage = (params.language as string) || language;
     searchParams.append('language', targetLanguage);
@@ -338,7 +392,11 @@ export function useApi() {
     }
 
     const executeFetch = async (retryCount = 0): Promise<any> => {
+      let forwardAbort: (() => void) | undefined;
       try {
+        if (signal?.aborted) {
+          throw new DOMException('Request aborted', 'AbortError');
+        }
         const fetchViaCFProxy = async (signal?: AbortSignal) => {
           const url = `${CF_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
           const response = await fetch(url, { signal });
@@ -366,6 +424,12 @@ export function useApi() {
         let data;
         const cfCtrl = new AbortController();
         const hfCtrl = new AbortController();
+        // Forward external cancellation (e.g. stale live-search) to both proxies
+        forwardAbort = () => {
+          try { cfCtrl.abort(); } catch (_) {}
+          try { hfCtrl.abort(); } catch (_) {}
+        };
+        signal?.addEventListener('abort', forwardAbort, { once: true });
 
         // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
         // Instant failover: If CF fails (4xx/5xx/network error), query HF immediately (0ms delay).
@@ -398,11 +462,16 @@ export function useApi() {
           data = await fetchViaHFProxy();
         }
 
-        if (data) {
+        if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
+        if (data && !signal?.aborted) {
           clientCache.set(cacheKey, data, ttlSeconds);
         }
         return data;
       } catch (err) {
+        if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
+        if (signal?.aborted || (err as any)?.name === 'AbortError') {
+          throw err;
+        }
         if (retryCount < 1) {
           await new Promise(r => setTimeout(r, 600));
           return executeFetch(retryCount + 1);
@@ -483,20 +552,29 @@ export function useApi() {
     });
   }, [tmdbFetch, withLoading]);
 
-  const searchContent = useCallback(async (rawQuery: string) => {
+  const searchContent = useCallback(async (rawQuery: string, signal?: AbortSignal) => {
     const { title, year } = parseSearchQuery(rawQuery);
     const cleanTitle = title.slice(0, 120);
     if (!cleanTitle) return [];
+    if (signal?.aborted) return [];
 
     return withLoading(async () => {
-      const searchVariants = generateSearchVariants(cleanTitle);
+      // Extra cheap client-side variants: punctuation strip + RU→EN translit
+      const extraVariants: string[] = [];
+      const strippedPunct = cleanTitle.replace(/[^a-zа-яё0-9\s]/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+      if (strippedPunct && strippedPunct !== cleanTitle) extraVariants.push(strippedPunct);
+      if (/[а-яё]/i.test(cleanTitle) && !/[a-z]/i.test(cleanTitle)) {
+        const tr = transliterateRuToEn(cleanTitle);
+        if (tr && tr !== cleanTitle) extraVariants.push(tr);
+      }
+      const searchVariants = Array.from(new Set([...generateSearchVariants(cleanTitle), ...extraVariants]));
 
       const fetchBatch = async (queries: string[], yearFilter?: string) => {
         const promises = queries.map(async (q) => {
           const params: Record<string, string | number> = { query: q };
           if (yearFilter) params.year = yearFilter;
           try {
-            const data = await tmdbFetch('/search/multi', params);
+            const data = await tmdbFetch('/search/multi', params, 3600, signal);
             const items: TMDBMovie[] = [];
             for (const item of (data?.results || [])) {
               if (item.media_type === 'person') {
@@ -537,12 +615,12 @@ export function useApi() {
       let results = await fetchBatch(searchVariants, year);
 
       // 2. Fallback: if 0 results and year was attached, retry variants without year restriction
-      if (results.length === 0 && year) {
+      if (results.length === 0 && year && !signal?.aborted) {
         results = await fetchBatch(searchVariants);
       }
 
       // 3. Fallback: if 0 results and title contains actor phrase like "фильм с <актером>" or "<название> с <актером>"
-      if (results.length === 0) {
+      if (results.length === 0 && !signal?.aborted) {
         const actorMatch = cleanTitle.match(/^(.*)\s+(?:с|со|with)\s+([а-яёa-z\s]+)$/i);
         if (actorMatch && actorMatch[1].trim().length >= 2) {
           const strippedTitle = actorMatch[1].trim();
@@ -555,7 +633,7 @@ export function useApi() {
       }
 
       // 4. Fallback: if 0 results, strip descriptive media prefixes ("фильм", "сериал", "кино")
-      if (results.length === 0) {
+      if (results.length === 0 && !signal?.aborted) {
         const strippedPrefix = cleanTitle.replace(/^(?:фильм|сериал|кино|мультфильм|аниме)\s+/i, '').trim();
         if (strippedPrefix && strippedPrefix !== cleanTitle) {
           const prefixVariants = generateSearchVariants(strippedPrefix);
@@ -567,7 +645,7 @@ export function useApi() {
       }
 
       // 5. Fallback: if 0 results and query had multiple words, try distinctive keywords
-      if (results.length === 0) {
+      if (results.length === 0 && !signal?.aborted) {
         const words = cleanTitle.replace(/[^a-zа-я0-9]/gi, ' ').trim().split(/\s+/).filter(w => w.length >= 4);
         for (const word of words) {
           const wordVariants = generateSearchVariants(word);
@@ -581,13 +659,25 @@ export function useApi() {
 
       // 6. Fallback: if still 0 results and normalized raw differed from cleanTitle, try raw query
       const normalizedRaw = (rawQuery || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 120);
-      if (results.length === 0 && normalizedRaw !== cleanTitle) {
+      if (results.length === 0 && normalizedRaw !== cleanTitle && !signal?.aborted) {
         const rawResults = await fetchBatch([normalizedRaw]);
         results = rawResults;
       }
 
+      if (signal?.aborted) {
+        throw new DOMException('Search aborted', 'AbortError');
+      }
+
       // 5. Intelligent relevance ranking: exact title match > starts-with > popularity & votes
       const ranked = rankSearchResults(results, cleanTitle);
+
+      // 6. Availability-first ordering (0 requests): known player first,
+      // unknown keeps relevance order, known missing sinks but stays visible
+      const availScore = (m: TMDBMovie) => {
+        const s = getAvailability(m.media_type === 'tv' ? 'series' : 'movie', (m as any).id);
+        return s === 'available' ? 0 : s === 'missing' ? 2 : 1;
+      };
+      ranked.sort((a, b) => availScore(a) - availScore(b));
 
       return ranked.map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
     });

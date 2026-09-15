@@ -126,6 +126,15 @@ export function Home() {
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
+  // Live search: debounce timer + abort for stale requests
+  const searchDebounceRef = useRef<any>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      try { searchAbortRef.current?.abort(); } catch (_) {}
+    };
+  }, []);
 
   const currentFilterLabel = useMemo(() => {
     if (selectedGenre) {
@@ -227,8 +236,20 @@ export function Home() {
         }
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
-          const results = await searchContent(searchQuery);
-          setItems(results);
+          // Cancel stale live-search request before starting a new one
+          try { searchAbortRef.current?.abort(); } catch (_) {}
+          const ctrl = new AbortController();
+          searchAbortRef.current = ctrl;
+          try {
+            const results = await searchContent(searchQuery, ctrl.signal);
+            if (!ctrl.signal.aborted) setItems(results);
+          } catch (err: any) {
+            // Stale (aborted) searches are silently ignored
+            if (!ctrl.signal.aborted) {
+              console.error('Failed to search content', err);
+              setItems([]);
+            }
+          }
         } else if (selectedGenre || selectedCountry || sortBy === 'vote_average.desc' || page > 1) {
           setIsSearching(false);
           const results = activeTab === 'movie' 
@@ -303,12 +324,33 @@ export function Home() {
     triggerAd();
   };
 
-  const handleSearchSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const sanitized = searchInput.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
+  const submitSearch = (raw: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const sanitized = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
     setSearchInput(sanitized);
     setSearchQuery(sanitized);
     setPage(1);
+  };
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    submitSearch(searchInput);
+  };
+
+  // Live search: debounce typing (min 2 chars), instant clear on empty
+  const handleSearchInputChange = (val: string) => {
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const trimmed = val.trim();
+    if (trimmed === '') {
+      setSearchQuery('');
+      setPage(1);
+      return;
+    }
+    if (trimmed.length < 2) return;
+    searchDebounceRef.current = setTimeout(() => {
+      submitSearch(val);
+    }, 450);
   };
 
   const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string) => {
@@ -381,12 +423,7 @@ export function Home() {
               value={searchInput}
               maxLength={120}
               onChange={(e) => {
-                const val = e.target.value;
-                setSearchInput(val);
-                if (val === '') {
-                  setSearchQuery('');
-                  setPage(1);
-                }
+                handleSearchInputChange(e.target.value);
               }}
               onPaste={(e) => {
                 const pastedText = e.clipboardData.getData('text');
