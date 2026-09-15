@@ -18,6 +18,7 @@ import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
+import { getAvailability, setAvailability } from '../utils/availability';
 
 export function Movie() {
   const { id } = useParams();
@@ -667,7 +668,15 @@ export function Movie() {
           liftwData = await inFlightStreamMap.get(streamCacheKey);
         }
 
-        if (!liftwData) {
+        // Fresh negative signal (missing ≤2h): skip network unless user forces retry
+        const freshMiss = !forceRefresh && !liftwData && getAvailability(mediaType, id) === 'missing';
+
+        if (!liftwData && !freshMiss) {
+          let sawDefinitiveMiss = false;
+          const tapDefinitive = (res: any) => {
+            if (res && !res.iframe) sawDefinitiveMiss = true;
+            return res;
+          };
           const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
             const timeoutCtrl = new AbortController();
             const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
@@ -689,8 +698,8 @@ export function Movie() {
 
           try {
             // Parallel race: Query Cloudflare Edge and HF microservice simultaneously with 8s safe timeout
-            const cfPromise = tryFetchLiftw(CF_API_BASE, 8000);
-            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 8000);
+            const cfPromise = tryFetchLiftw(CF_API_BASE, 8000).then(tapDefinitive);
+            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 8000).then(tapDefinitive);
 
             liftwData = await Promise.any([
               cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
@@ -702,6 +711,9 @@ export function Movie() {
             if (liftwData && liftwData.iframe) {
               const streamTtl = mediaType === 'tv' ? 86400 : 2592000; // 1 day TV, 30 days Movies
               clientCache.set(streamCacheKey, liftwData, streamTtl);
+              if (id) setAvailability(mediaType, id, 'available');
+            } else if (sawDefinitiveMiss) {
+              if (id) setAvailability(mediaType, id, 'missing');
             }
           } catch (e) {
             console.error("Liftw fetch failed", e);

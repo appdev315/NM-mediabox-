@@ -1,6 +1,7 @@
 import { CF_API_BASE, EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from './clientCache';
 import { fetchWithRetry } from './fetchWithRetry';
+import { getAvailability, setAvailability } from './availability';
 
 // Map of active in-flight stream promises shared across card clicks and Movie.tsx
 export const inFlightStreamMap = new Map<string, Promise<any>>();
@@ -36,6 +37,11 @@ export function prewarmStream(
     return Promise.resolve(cached);
   }
 
+  // 1b. Fresh negative signal (missing ≤2h): skip network, no extra load
+  if (getAvailability(resolvedType, id) === 'missing') {
+    return Promise.resolve(null);
+  }
+
   // 2. Reuse active in-flight request if already kicked off
   if (inFlightStreamMap.has(streamCacheKey)) {
     return inFlightStreamMap.get(streamCacheKey)!;
@@ -58,18 +64,26 @@ export function prewarmStream(
 
   const promise = (async () => {
     try {
+      // Tracks whether at least one backend answered definitively
+      // (HTTP-level response without iframe = missing; throw/timeout = transient)
+      let sawDefinitiveMiss = false;
+      const tapDefinitive = (res: any) => {
+        if (res && !res.iframe) sawDefinitiveMiss = true;
+        return res;
+      };
+
       // Parallel race between Cloudflare Edge and Express backup
       const cfPromise = fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, {
         maxRetries: 1,
         baseDelayMs: 200,
         maxDelayMs: 600,
-      }).then(r => r.ok ? r.json() : null).catch(() => null);
+      }).then(r => r.ok ? r.json() : null).catch(() => null).then(tapDefinitive);
 
       const hfPromise = fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, {
         maxRetries: 1,
         baseDelayMs: 200,
         maxDelayMs: 600,
-      }).then(r => r.ok ? r.json() : null).catch(() => null);
+      }).then(r => r.ok ? r.json() : null).catch(() => null).then(tapDefinitive);
 
       const data = await Promise.any([
         cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
@@ -81,6 +95,10 @@ export function prewarmStream(
       if (data && data.iframe) {
         const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies
         clientCache.set(streamCacheKey, data, ttlSeconds);
+        setAvailability(resolvedType, id, 'available');
+      } else if (sawDefinitiveMiss) {
+        // Negative cache (2h): repeat opens skip network until expiry or manual retry
+        setAvailability(resolvedType, id, 'missing');
       }
       return data;
     } catch (_) {
