@@ -8,7 +8,7 @@ interface AnalyticsPayload {
   item_id?: string;
 }
 
-const FLUSH_INTERVAL_MS = 2 * 1000;
+const FLUSH_INTERVAL_MS = 25 * 1000;
 const MAX_BATCH = 15;
 
 let queue: AnalyticsPayload[] = [];
@@ -94,11 +94,13 @@ export function track(event_type: string, payload: Partial<AnalyticsPayload> = {
 }
 
 export function trackVisit() {
-  track('visit', {}, true);
+  // Batched: flushed every FLUSH_INTERVAL_MS or on page hide/close
+  track('visit');
 }
 
 export function trackOpen(item_type: string, item_title: string, item_id?: string) {
-  track('open', { item_type, item_title, item_id }, true);
+  // Batched: flushed every FLUSH_INTERVAL_MS or on page hide/close
+  track('open', { item_type, item_title, item_id });
 }
 
 if (typeof window !== 'undefined') {
