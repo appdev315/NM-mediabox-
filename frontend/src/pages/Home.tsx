@@ -524,8 +524,14 @@ export function Home() {
           {/* MODE 1: Categorized Home Feed (12 cards per genre section in distinct framed containers) */}
           {isCategorizedMode ? (
             <div className="space-y-4 w-full">
-              {homeSections.map((section: any, sIdx: number) => (
-                <div key={section.id} className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20">
+              {homeSections.map((section: any, sIdx: number) => {
+                const hasAd = sIdx < 2;
+                return (
+                <div 
+                  key={section.id} 
+                  className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20"
+                  style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 380px' }}
+                >
                   <div className="flex items-center mb-4 pb-3 border-b border-white/10">
                     <button
                       type="button"
@@ -552,7 +558,7 @@ export function Home() {
 
                   {/* 12-Card Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
-                    {section.items.slice(0, 11).map((item: any, idx: number) => (
+                    {section.items.slice(0, hasAd ? 11 : 12).map((item: any, idx: number) => (
                       <MovieCard
                         key={`${item.id}_${item.type || activeTab}_${idx}`}
                         item={item}
@@ -562,7 +568,7 @@ export function Home() {
                         onNavigate={handleNavigate}
                       />
                     ))}
-                    <AdsterraNativeCard sectionId={String(section.id || section.genreId || 'cat')} />
+                    {hasAd && <AdsterraNativeCard sectionId={String(section.id || section.genreId || 'cat')} />}
                   </div>
                   {sIdx === 1 && (
                     <div className="my-6">
@@ -570,7 +576,7 @@ export function Home() {
                     </div>
                   )}
                 </div>
-              ))}
+              );})}
             </div>
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */

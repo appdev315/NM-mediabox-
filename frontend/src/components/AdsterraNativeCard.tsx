@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 
@@ -9,8 +9,32 @@ interface AdsterraNativeCardProps {
 export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionId = 'default' }) => {
   const { t } = useLanguage();
   const [adBlocked, setAdBlocked] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '150px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
     // Quick check if iframe load or profitableratecpmnetwork is blocked
     const timer = setTimeout(() => {
       if (typeof window !== 'undefined' && !(window as any).canRunAds && (window as any).isAdBlockActive) {
@@ -18,7 +42,7 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isVisible]);
 
   const handleBotClick = () => {
     const botUrl = 'https://t.me/moviemaniakbot';
@@ -35,6 +59,7 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
   if (adBlocked) {
     return (
       <div
+        ref={cardRef}
         onClick={handleBotClick}
         className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
       >
@@ -55,7 +80,7 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
   }
 
   return (
-    <div className="flex flex-col gap-2 relative z-10 rounded-xl group">
+    <div ref={cardRef} className="flex flex-col gap-2 relative z-10 rounded-xl group">
       <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-[#18181b] border border-white/10 group-hover:border-blue-500/40 transition-colors">
         {/* Ad Tag Badge */}
         <div className="absolute top-2 right-2 z-20 pointer-events-none">
@@ -64,14 +89,20 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
           </span>
         </div>
 
-        {/* Isolated Adsterra Native Iframe */}
-        <iframe
-          src={`/adsterra-native-card.html?v=1&slot=${encodeURIComponent(sectionId)}`}
-          className="w-full h-full border-none overflow-hidden block"
-          scrolling="no"
-          title={`native-ad-${sectionId}`}
-          style={{ width: '100%', height: '100%', border: 'none' }}
-        />
+        {/* Isolated Adsterra Native Iframe mounted lazily */}
+        {isVisible ? (
+          <iframe
+            src={`/adsterra-native-card.html?v=1&slot=${encodeURIComponent(sectionId)}`}
+            className="w-full h-full border-none overflow-hidden block"
+            scrolling="no"
+            title={`native-ad-${sectionId}`}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-[#141416]">
+            <span className="text-xl opacity-20">🍿</span>
+          </div>
+        )}
       </div>
 
       {/* Footer hint */}

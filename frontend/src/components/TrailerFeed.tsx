@@ -180,7 +180,8 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
           const existingIds = new Set(prev.map(p => p.id));
           const unique = nextItems.filter(p => !existingIds.has(p.id));
           const prioritized = prioritizeUnviewedTrailers(unique, initialTrailerId === undefined);
-          return [...prev, ...prioritized];
+          const combined = [...prev, ...prioritized];
+          return combined.length > 60 ? combined.slice(combined.length - 60) : combined;
         });
         setPage(nextPage);
 
@@ -251,6 +252,11 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
     return () => {
       if (scrollRafRef.current !== null) {
         cancelAnimationFrame(scrollRafRef.current);
+      }
+      if (containerRef.current) {
+        containerRef.current.querySelectorAll('iframe').forEach(f => {
+          try { f.src = 'about:blank'; } catch (_) {}
+        });
       }
     };
   }, []);

@@ -38,7 +38,7 @@ function getDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-// Background sync from IndexedDB into memoryCache on startup (critical keys only, capped to 20 to prevent RAM bloating)
+// Background sync from IndexedDB into memoryCache on startup (critical keys only, capped to 30 to prevent RAM bloating)
 async function initIndexedDBCache(): Promise<void> {
   try {
     const db = await getDB();
@@ -162,6 +162,7 @@ export const clientCache = {
         const entry: CacheEntry<T> = JSON.parse(fallbackStored);
         if (now < entry.expiry) {
           memoryCache.set(fullKey, entry);
+          enforceMemoryLRU();
           return entry.data as T;
         } else {
           localStorage.removeItem(fullKey);
