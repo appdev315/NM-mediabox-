@@ -18,7 +18,8 @@ import { trackOpen } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
-import { getAvailability, setAvailability } from '../utils/availability';
+import { getAvailability, setAvailability, useAvailabilityVersion } from '../utils/availability';
+import { AvailBadge } from '../components/AvailBadge';
 
 export function Movie() {
   const { id } = useParams();
@@ -191,7 +192,16 @@ export function Movie() {
   const [showAllCast, setShowAllCast] = useState(false);
   const allCast = useMemo(() => movie?.credits?.cast || [], [movie?.credits?.cast]);
   const cast = useMemo(() => showAllCast ? allCast.slice(0, 15) : allCast.slice(0, 6), [allCast, showAllCast]);
-  const displayedRecommendations = recommendations;
+  const availVersion = useAvailabilityVersion();
+  // Available-first ordering (unknown stays in place, nothing hidden)
+  const displayedRecommendations = useMemo(() => {
+    const rank = (r: any) => {
+      const s = getAvailability(r?.type, r?.id);
+      return s === 'available' ? 0 : s === 'missing' ? 2 : 1;
+    };
+    return [...recommendations].sort((a, b) => rank(a) - rank(b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recommendations, availVersion]);
   const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
   const isUnreleased = useMemo(() => Boolean(
     movie?.isUpcoming || 
@@ -1038,6 +1048,18 @@ export function Movie() {
               {t('contentUnavailableDesc') || 'Фильм не найден на доступных источниках. Сообщите нам, и мы оперативно проверим.'}
             </p>
             <div className="flex flex-col items-center gap-3 pt-2">
+              {trailerVideo && (
+                <button
+                  onClick={() => {
+                    stopAudio();
+                    setShowTrailerModal(true);
+                  }}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow flex items-center justify-center gap-2 cursor-pointer"
+                  style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+                >
+                  ▶ {t('watchTrailerOfficial') || t('playTrailer') || 'Смотреть трейлер'}
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (id) {
@@ -1200,6 +1222,7 @@ export function Movie() {
                       loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <AvailBadge type={rec.type} id={rec.id} className="absolute top-1.5 left-1.5 z-20" />
                   </div>
                   <p className="text-xs sm:text-sm mt-2 font-semibold truncate px-1 pb-1">{rec.title}</p>
                 </div>

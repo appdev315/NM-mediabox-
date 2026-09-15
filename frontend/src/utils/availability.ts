@@ -26,6 +26,7 @@ const TTL_MS: Record<'available' | 'missing', number> = {
 const mem = new Map<string, AvailEntry>();
 const listeners = new Set<() => void>();
 let hydrated = false;
+let version = 0;
 
 function normType(type?: string): string {
   return type === 'series' || type === 'tv' ? 'tv' : 'movie';
@@ -36,6 +37,7 @@ function entryKey(type: string | number | undefined, id: string | number): strin
 }
 
 function emit(): void {
+  version++;
   listeners.forEach((l) => {
     try {
       l();
@@ -115,6 +117,12 @@ function subscribe(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+/** Global monotonic counter bumped on every status write. Use to re-sort lists. */
+export function useAvailabilityVersion(): number {
+  hydrate();
+  return useSyncExternalStore(subscribe, () => version);
 }
 
 /** Reactive availability status for badges and ranking. Never fetches. */

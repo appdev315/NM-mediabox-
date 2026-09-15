@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream } from '../utils/streamPreloader';
+import { AvailBadge } from '../components/AvailBadge';
 import { useLanguage, countriesList } from '../context/LanguageContext';
 import { useAdManager } from '../context/AdManager';
 import { Header } from '../components/Header';
@@ -68,6 +69,7 @@ const MovieCard = React.memo(function MovieCard({
             e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
           }}
         />
+        <AvailBadge type={targetMediaType} id={item.id} />
       </div>
       <div className="mt-1 px-1">
         <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>

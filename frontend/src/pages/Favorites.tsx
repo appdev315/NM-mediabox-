@@ -10,6 +10,7 @@ import React from 'react';
 
 import { favoritesManager } from '../utils/favoritesManager';
 import { prewarmStream } from '../utils/streamPreloader';
+import { AvailBadge } from '../components/AvailBadge';
 
 export function Favorites() {
   const { t } = useLanguage();
@@ -271,6 +272,7 @@ export function Favorites() {
                 >
                   ✕
                 </button>
+                <AvailBadge type={item.type || type} id={item.id} className="absolute top-2 left-2 z-20" />
               </div>
               <div className="mt-1">
                 <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words" style={{ color: 'var(--text-color)' }}>{item.title}</h3>
