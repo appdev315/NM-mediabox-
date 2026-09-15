@@ -114,11 +114,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Verified donor commands only: adFree (player-venom confirmAdListener)
-  // and playlist go (embed page). No other message names have handlers
-  // in the donor code — unverified commands are not sent.
-  // Called with no args, it reads live refs so late bursts never
-  // override a fresher user selection with stale mount-time values.
+  // Send verified donor commands: adFree (player-venom confirmAdListener),
+  // play, and playlist go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEpisode?: string) => {
     const s = targetSeason ?? seasonRef.current;
     const e = targetEpisode ?? episodeRef.current;
@@ -128,6 +125,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         // 1. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          { api: 'play' },
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          { event: 'play' },
           '*'
         );
 
@@ -173,27 +178,34 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
         }
-        if (data.event === 'playerReady' || data.event === 'adStart' || data.event === 'startWatching') {
+
+        // When donor signals playerReady, immediately dispatch activation command and stop timers
+        if (data.event === 'playerReady') {
+          sendPlayCommands();
           syncDoneRef.current = true;
+          clearSyncTimers();
+        } else if (data.event === 'adStart' || data.event === 'startWatching') {
+          syncDoneRef.current = true;
+          clearSyncTimers();
         }
       } catch (_) {}
     };
 
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [onEpisodeChange]);
+  }, [onEpisodeChange, sendPlayCommands, clearSyncTimers]);
 
-  // Track prop changes without commanding the player: selecting a
-  // season/episode must not load video. The single explicit trigger is
-  // Movie's episode choice (direct postMessage); the mount race below
-  // covers only the initial load.
+  // When season or episode props change, immediately switch episode via postMessage
   const prevSeasonRef = useRef(season);
   const prevEpisodeRef = useRef(episode);
 
   useEffect(() => {
-    prevSeasonRef.current = season;
-    prevEpisodeRef.current = episode;
-  }, [season, episode]);
+    if ((season && season !== prevSeasonRef.current) || (episode && episode !== prevEpisodeRef.current)) {
+      prevSeasonRef.current = season;
+      prevEpisodeRef.current = episode;
+      sendPlayCommands(season, episode);
+    }
+  }, [season, episode, sendPlayCommands]);
 
   // Cleanup pending sync bursts on unmount
   useEffect(() => {
@@ -358,8 +370,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="eager"
-        referrerPolicy="no-referrer"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        referrerPolicy="origin-when-cross-origin"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-popups-to-escape-sandbox"
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}

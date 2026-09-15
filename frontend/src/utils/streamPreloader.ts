@@ -72,25 +72,42 @@ export function prewarmStream(
         return res;
       };
 
-      // Parallel race between Cloudflare Edge and Express backup
-      const cfPromise = fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, {
-        maxRetries: 1,
-        baseDelayMs: 200,
-        maxDelayMs: 600,
-      }).then(r => r.ok ? r.json() : null).catch(() => null).then(tapDefinitive);
+      // 1. Query Cloudflare Edge Cache first (primary edge, 0 redundant backend hits)
+      let data: any = null;
+      try {
+        const cfRes = await fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, {
+          maxRetries: 1,
+          baseDelayMs: 200,
+          maxDelayMs: 600,
+          signal: AbortSignal.timeout(2500),
+        });
+        if (cfRes.ok) {
+          const cfJson = await cfRes.json();
+          tapDefinitive(cfJson);
+          if (cfJson && cfJson.iframe) {
+            data = cfJson;
+          }
+        }
+      } catch (_) {}
 
-      const hfPromise = fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, {
-        maxRetries: 1,
-        baseDelayMs: 200,
-        maxDelayMs: 600,
-      }).then(r => r.ok ? r.json() : null).catch(() => null).then(tapDefinitive);
-
-      const data = await Promise.any([
-        cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-        hfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-      ]).catch(async () => {
-        return (await cfPromise) || (await hfPromise);
-      });
+      // 2. Only if Cloudflare Edge missed or failed, fallback to Express microservice
+      if (!data && !sawDefinitiveMiss) {
+        try {
+          const hfRes = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, {
+            maxRetries: 1,
+            baseDelayMs: 200,
+            maxDelayMs: 600,
+            signal: AbortSignal.timeout(4000),
+          });
+          if (hfRes.ok) {
+            const hfJson = await hfRes.json();
+            tapDefinitive(hfJson);
+            if (hfJson && hfJson.iframe) {
+              data = hfJson;
+            }
+          }
+        } catch (_) {}
+      }
 
       if (data && data.iframe) {
         const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies

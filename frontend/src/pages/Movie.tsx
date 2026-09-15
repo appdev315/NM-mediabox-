@@ -722,16 +722,20 @@ export function Movie() {
           };
 
           try {
-            // Parallel race: Query Cloudflare Edge and HF microservice simultaneously with 8s safe timeout
-            const cfPromise = tryFetchLiftw(CF_API_BASE, 8000).then(tapDefinitive);
-            const hfPromise = tryFetchLiftw(EXPRESS_API_BASE, 8000).then(tapDefinitive);
+            // 1. Query Cloudflare Edge Cache first (primary edge, 0 redundant backend hits)
+            liftwData = await tryFetchLiftw(CF_API_BASE, 3000);
+            if (liftwData) tapDefinitive(liftwData);
 
-            liftwData = await Promise.any([
-              cfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-              hfPromise.then(res => (res && res.iframe ? res : Promise.reject())),
-            ]).catch(async () => {
-              return (await cfPromise) || (await hfPromise);
-            });
+            // 2. Fallback to Express microservice only if Cloudflare didn't return stream
+            if ((!liftwData || !liftwData.iframe) && !sawDefinitiveMiss) {
+              const hfData = await tryFetchLiftw(EXPRESS_API_BASE, 5000);
+              if (hfData) {
+                tapDefinitive(hfData);
+                if (hfData.iframe) {
+                  liftwData = hfData;
+                }
+              }
+            }
 
             if (liftwData && liftwData.iframe) {
               const streamTtl = mediaType === 'tv' ? 86400 : 2592000; // 1 day TV, 30 days Movies
@@ -755,30 +759,26 @@ export function Movie() {
               const numA = parseInt(a, 10);
               const numB = parseInt(b, 10);
               if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+              return a.localeCompare(b);
             });
             const firstSeason = initSortedSeasons[0] || '1';
+            const firstSeasonEpisodes = liftwData.episodes[firstSeason] || [];
+            const sortedFirstSeasonEps = firstSeasonEpisodes.slice().sort((a: string, b: string) => {
+              const numA = parseInt(a, 10);
+              const numB = parseInt(b, 10);
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.localeCompare(b);
+            });
+            const firstEpisode = sortedFirstSeasonEps[0] || '1';
 
-            const effectiveSeason = activeSeasonRef.current || activeSeason || firstSeason;
-            setActiveSeason(prevSeason => {
-              if (prevSeason && liftwData.episodes[prevSeason]) return prevSeason;
-              if (activeSeasonRef.current && liftwData.episodes[activeSeasonRef.current]) return activeSeasonRef.current;
-              return firstSeason;
-            });
-            setActiveEpisode(prevEp => {
-              const currentSeason = activeSeasonRef.current || effectiveSeason;
-              const targetSeason = (currentSeason && liftwData.episodes[currentSeason]) ? currentSeason : firstSeason;
-              const eps = Array.isArray(liftwData.episodes[targetSeason]) ? liftwData.episodes[targetSeason] : [];
-              const sortedInitEps = eps.slice().sort((a: any, b: any) => {
-                const numA = parseInt(String(a), 10);
-                const numB = parseInt(String(b), 10);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-              });
-              const preferredEp = activeEpisodeRef.current || prevEp;
-              if (preferredEp && sortedInitEps.includes(preferredEp)) return preferredEp;
-              return sortedInitEps[0] || '1';
-            });
+            if (!activeSeasonRef.current) {
+              setActiveSeason(firstSeason);
+              activeSeasonRef.current = firstSeason;
+            }
+            if (!activeEpisodeRef.current) {
+              setActiveEpisode(firstEpisode);
+              activeEpisodeRef.current = firstEpisode;
+            }
           }
 
           // Liftw source is Priority #1: Immediately render Player 1 and unblock UI
@@ -786,7 +786,7 @@ export function Movie() {
           setIsExtracting(false);
         }
       } catch (e) {
-        console.error("Liftw fetch error", e);
+        console.error("fetchLiftw error", e);
       }
     };
 
@@ -829,12 +829,12 @@ export function Movie() {
 
           if (foundUrl) {
             foundSources.anwap = [{ name: 'anwap', url: foundUrl, isLiftw: false }];
-            updateUI();
           }
         } catch (e) {
           console.error("Anwap fetch failed", e);
         } finally {
           clearTimeout(timeoutId);
+          anwapDone = true;
         }
       };
 
@@ -850,44 +850,32 @@ export function Movie() {
         }
       }, 10000);
 
-      // Fetch primary and secondary player sources in parallel without blocking UI
-      fetchLiftw().then(() => {
+      // Fetch primary player (Liftw). Only query backup player (Anwap) if Liftw has no stream.
+      fetchLiftw().then(async () => {
         if (!isMountedRef.current) return;
         updateUI();
         evaluateUIUnblock();
+
+        // Lazy fallback: only call Anwap if Liftw did not find a stream
+        if (!foundSources.liftw) {
+          await fetchAnwap();
+          if (!isMountedRef.current) return;
+          updateUI();
+        } else {
+          anwapDone = true;
+        }
       }).finally(() => {
         isLiftwDone = true;
-        if (!isMountedRef.current) return;
-        updateUI(); // Immediately trigger Anwap fallback if Liftw has no stream
-        if (isLiftwDone && anwapDone) {
-          if (extractDeadlineRef.current) {
-            clearTimeout(extractDeadlineRef.current);
-            extractDeadlineRef.current = null;
-          }
-          setIsExtracting(false);
-          if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-            setContentUnavailable(true);
-          }
-        }
-      });
-
-      fetchAnwap().then(() => {
-        if (!isMountedRef.current) return;
-        updateUI();
-        evaluateUIUnblock();
-      }).finally(() => {
         anwapDone = true;
         if (!isMountedRef.current) return;
-        updateUI(); // Immediately trigger UI update when Anwap resolves
-        if (isLiftwDone && anwapDone) {
-          if (extractDeadlineRef.current) {
-            clearTimeout(extractDeadlineRef.current);
-            extractDeadlineRef.current = null;
-          }
-          setIsExtracting(false);
-          if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-            setContentUnavailable(true);
-          }
+        updateUI();
+        if (extractDeadlineRef.current) {
+          clearTimeout(extractDeadlineRef.current);
+          extractDeadlineRef.current = null;
+        }
+        setIsExtracting(false);
+        if (foundSources.liftw === null && foundSources.anwap.length === 0) {
+          setContentUnavailable(true);
         }
       });
     } catch (err) {
