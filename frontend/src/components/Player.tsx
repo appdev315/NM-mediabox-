@@ -169,24 +169,17 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [onEpisodeChange]);
 
-  const isInitialMountRef = useRef(true);
+  // Track prop changes without commanding the player: selecting a
+  // season/episode must not load video. The single explicit triggers are
+  // the Play button in Movie (direct postMessage) and the initial onLoad
+  // command below. sendPlaylistGo stays as transport for those paths.
   const prevSeasonRef = useRef(season);
   const prevEpisodeRef = useRef(episode);
 
   useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      prevSeasonRef.current = season;
-      prevEpisodeRef.current = episode;
-      return;
-    }
-
-    if ((season && season !== prevSeasonRef.current) || (episode && episode !== prevEpisodeRef.current)) {
-      prevSeasonRef.current = season;
-      prevEpisodeRef.current = episode;
-      sendPlaylistGo(season, episode);
-    }
-  }, [season, episode, sendPlaylistGo]);
+    prevSeasonRef.current = season;
+    prevEpisodeRef.current = episode;
+  }, [season, episode]);
 
   // Fallback timer for iframe
   useEffect(() => {

@@ -322,14 +322,30 @@ export function Movie() {
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
 
+  // Selection only — no player commands here. Playback starts solely
+  // via the explicit Play button (playSelectedEpisode) or the initial
+  // onLoad command in Player, so browsing seasons never loads video.
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     activeSeasonRef.current = season;
     activeEpisodeRef.current = episode;
     setActiveSeason(season);
     setActiveEpisode(episode);
     userSelectedRef.current = true;
+  };
 
-    // Send playlist switch command directly to the player without reloading the iframe!
+  // Explicit user intent to play the currently selected season/episode.
+  // Returns true if the command reached the frame; if the iframe is not
+  // ready yet, Player's handleIframeLoad delivers the same current
+  // selection on load, so no pending queue is needed.
+  const playSelectedEpisode = (): boolean => {
+    const season = activeSeasonRef.current || activeSeason || sortedSeasons[0] || '1';
+    const eps = sortedEpisodes;
+    const episode = activeEpisodeRef.current || activeEpisode || eps[0] || '1';
+    activeSeasonRef.current = season;
+    activeEpisodeRef.current = episode;
+    setActiveSeason(season);
+    setActiveEpisode(episode);
+    userSelectedRef.current = true;
     const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
     if (iframe && iframe.contentWindow) {
       try {
@@ -338,8 +354,10 @@ export function Movie() {
         const eStr = String(episode);
         iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eNum }, '*');
         iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eStr }, '*');
+        return true;
       } catch (_) {}
     }
+    return false;
   };
 
   useEffect(() => {
@@ -1383,6 +1401,22 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
             </div>
+            {/* Explicit launch: selecting never loads video, only this button starts it */}
+            <button
+              onClick={() => {
+                try {
+                  WebApp?.HapticFeedback?.impactOccurred('medium');
+                } catch (_) {}
+                playSelectedEpisode();
+                setTimeout(() => {
+                  document.getElementById('video-player-container')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+              }}
+              className="w-full py-3.5 rounded-xl font-bold text-base transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+            >
+              ▶ {t('watch')} · {t('season')} {activeSeason || sortedSeasons[0] || '1'} · {t('episode')} {activeEpisode || sortedEpisodes[0] || '1'}
+            </button>
           </div>
         )}
 
