@@ -137,6 +137,19 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     } catch (_) {}
   }, []);
 
+  // Verified donor protocol (player-venom): {event:'adFree', free:true}
+  // skips the ad-confirm wait and triggers playback. Unknown players ignore it.
+  const sendAdFree = useCallback(() => {
+    try {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          { event: 'adFree', free: true },
+          '*'
+        );
+      }
+    } catch (_) {}
+  }, []);
+
   // Listen for episode changes inside the embedded player (e.g. Next Episode button)
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
@@ -208,6 +221,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         const parsed = new URL(currentUrl);
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
+    }
+    // Skip the donor's ad-confirm wait and trigger playback (verified protocol)
+    sendAdFree();
+    // Series only (movies pass season/episode as undefined): issue the initial
+    // episode command once the frame is ready. Single shot — no retry spam.
+    if (season || episode) {
+      sendPlaylistGo(season, episode);
     }
   };
 

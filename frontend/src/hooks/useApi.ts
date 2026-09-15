@@ -443,6 +443,13 @@ export function useApi() {
           }, 1500);
         });
 
+        // Hard ceiling: a blackholed network (no RST, hanging socket) must never
+        // hang the UI forever — abort both proxies so this fetch always settles.
+        const hardTimeoutId = setTimeout(() => {
+          try { cfCtrl.abort(); } catch (_) {}
+          try { hfCtrl.abort(); } catch (_) {}
+        }, 12000);
+
         try {
           data = await Promise.race([
             cfPromise.then(res => {
@@ -457,9 +464,21 @@ export function useApi() {
             }),
             speculativeHfPromise
           ]);
-        } catch (_) {
-          // Safety fallback with fresh AbortSignal
-          data = await fetchViaHFProxy();
+        } catch (raceErr) {
+          // External cancellation must not trigger a fresh network request
+          if (signal?.aborted) throw raceErr;
+          // Safety fallback with a bounded fresh signal (never hangs forever)
+          const fallbackCtrl = new AbortController();
+          const fallbackTimeout = setTimeout(() => {
+            try { fallbackCtrl.abort(); } catch (_) {}
+          }, 12000);
+          try {
+            data = await fetchViaHFProxy(fallbackCtrl.signal);
+          } finally {
+            clearTimeout(fallbackTimeout);
+          }
+        } finally {
+          clearTimeout(hardTimeoutId);
         }
 
         if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
