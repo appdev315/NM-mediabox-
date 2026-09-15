@@ -114,40 +114,51 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Send playlist go command to the embedded video player
-  const sendPlaylistGo = useCallback((targetSeason?: string, targetEpisode?: string) => {
-    const s = targetSeason || seasonRef.current;
-    const e = targetEpisode || episodeRef.current;
-    if (!s && !e) return;
+  // Verified donor commands only: adFree (player-venom confirmAdListener)
+  // and playlist go (embed page). No other message names have handlers
+  // in the donor code — unverified commands are not sent.
+  // Called with no args, it reads live refs so late bursts never
+  // override a fresher user selection with stale mount-time values.
+  const sendPlayCommands = useCallback((targetSeason?: string, targetEpisode?: string) => {
+    const s = targetSeason ?? seasonRef.current;
+    const e = targetEpisode ?? episodeRef.current;
 
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        const sNum = parseInt(s || '1', 10);
-        const eNum = parseInt(e || '1', 10);
-        const eStr = String(e || '1');
-        iframeRef.current.contentWindow.postMessage(
-          { event: 'playlist go', season: sNum, episode: eNum },
-          '*'
-        );
-        iframeRef.current.contentWindow.postMessage(
-          { event: 'playlist go', season: sNum, episode: eStr },
-          '*'
-        );
-      }
-    } catch (_) {}
-  }, []);
-
-  // Verified donor protocol (player-venom): {event:'adFree', free:true}
-  // skips the ad-confirm wait and triggers playback. Unknown players ignore it.
-  const sendAdFree = useCallback(() => {
-    try {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
+        // 1. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
           '*'
         );
+
+        // 2. For series: command target season and episode
+        if (s || e) {
+          const sNum = parseInt(s || '1', 10);
+          const eNum = parseInt(e || '1', 10);
+          const eStr = String(e || '1');
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: sNum, episode: eNum },
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: sNum, episode: eStr },
+            '*'
+          );
+        }
       }
     } catch (_) {}
+  }, []);
+
+  // Set once the donor signals readiness — stops the sync burst early.
+  // Donor reposts these events to parent (see listen-player.js).
+  const syncDoneRef = useRef(false);
+  const syncTimersRef = useRef<any[]>([]);
+
+  const clearSyncTimers = useCallback(() => {
+    syncTimersRef.current.forEach((t) => {
+      try { clearTimeout(t); } catch (_) {}
+    });
+    syncTimersRef.current = [];
   }, []);
 
   // Listen for episode changes inside the embedded player (e.g. Next Episode button)
@@ -162,6 +173,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
         }
+        if (data.event === 'playerReady' || data.event === 'adStart' || data.event === 'startWatching') {
+          syncDoneRef.current = true;
+        }
       } catch (_) {}
     };
 
@@ -170,9 +184,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
   }, [onEpisodeChange]);
 
   // Track prop changes without commanding the player: selecting a
-  // season/episode must not load video. The single explicit triggers are
-  // the Play button in Movie (direct postMessage) and the initial onLoad
-  // command below. sendPlaylistGo stays as transport for those paths.
+  // season/episode must not load video. The single explicit trigger is
+  // Movie's episode choice (direct postMessage); the mount race below
+  // covers only the initial load.
   const prevSeasonRef = useRef(season);
   const prevEpisodeRef = useRef(episode);
 
@@ -180,6 +194,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     prevSeasonRef.current = season;
     prevEpisodeRef.current = episode;
   }, [season, episode]);
+
+  // Cleanup pending sync bursts on unmount
+  useEffect(() => {
+    return () => {
+      syncTimersRef.current.forEach((t) => {
+        try { clearTimeout(t); } catch (_) {}
+      });
+      syncTimersRef.current = [];
+    };
+  }, []);
 
   // Fallback timer for iframe
   useEffect(() => {
@@ -215,13 +239,24 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
     }
-    // Skip the donor's ad-confirm wait and trigger playback (verified protocol)
-    sendAdFree();
-    // Series only (movies pass season/episode as undefined): issue the initial
-    // episode command once the frame is ready. Single shot — no retry spam.
-    if (season || episode) {
-      sendPlaylistGo(season, episode);
-    }
+
+    // Resilient sync window: player-venom scripts take 300-800ms to parse and
+    // register listeners inside the iframe, so a single onLoad shot can drop.
+    // Bounded burst (max 6, stops early on donor ready); no-arg calls read
+    // live refs, so a fresher user selection is never overridden by stale
+    // mount-time values.
+    clearSyncTimers();
+    syncDoneRef.current = false;
+    const fireSync = () => {
+      if (syncDoneRef.current) return;
+      sendPlayCommands();
+    };
+    fireSync();
+
+    const retryDelays = [200, 500, 1000, 1800, 2600];
+    retryDelays.forEach(delay => {
+      syncTimersRef.current.push(setTimeout(fireSync, delay));
+    });
   };
 
   // Power-Optimized WakeLock Lifecycle Management
