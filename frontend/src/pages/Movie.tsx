@@ -322,15 +322,37 @@ export function Movie() {
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
 
-  // Selection only — no player commands here. Playback starts solely
-  // via the explicit Play button (playSelectedEpisode) or the initial
-  // onLoad command in Player, so browsing seasons never loads video.
+  // Season browsing is silent — no player commands here, so opening a
+  // season never loads its first episode while the user is still choosing.
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     activeSeasonRef.current = season;
     activeEpisodeRef.current = episode;
     setActiveSeason(season);
     setActiveEpisode(episode);
     userSelectedRef.current = true;
+  };
+
+  // Single transport for the one explicit trigger: choosing an episode.
+  // The donor accepts the selection ONLY via this command (verified against
+  // the embed page code) — its native play button cannot receive it.
+  const postPlaylistGo = (season: string, episode: string): void => {
+    const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      try {
+        const sNum = parseInt(season, 10);
+        const eNum = parseInt(episode, 10);
+        const eStr = String(episode);
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eNum }, '*');
+        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eStr }, '*');
+      } catch (_) {}
+    }
+  };
+
+  // Episode choice is the launch trigger: exactly one command per choice.
+  const handleEpisodeSelect = (episode: string) => {
+    const season = activeSeason || sortedSeasons[0] || '1';
+    handleSeasonEpisodeChange(season, episode);
+    postPlaylistGo(season, episode);
   };
 
 
@@ -1363,7 +1385,7 @@ export function Movie() {
               <div className="flex-1 relative">
                 <select
                   value={activeEpisode || sortedEpisodes[0] || '1'}
-                  onChange={(e) => handleSeasonEpisodeChange(activeSeason || sortedSeasons[0] || '1', e.target.value)}
+                  onChange={(e) => handleEpisodeSelect(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
