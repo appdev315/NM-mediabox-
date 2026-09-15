@@ -114,56 +114,27 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Send verified donor commands: adFree (player-venom confirmAdListener),
-  // play, and playlist go (embed page).
-  const sendPlayCommands = useCallback((targetSeason?: string, targetEpisode?: string) => {
+  // Send playlist go command to the embedded video player for series episode navigation
+  const sendPlaylistGo = useCallback((targetSeason?: string, targetEpisode?: string) => {
     const s = targetSeason ?? seasonRef.current;
     const e = targetEpisode ?? episodeRef.current;
+    if (!s && !e) return;
 
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        // 1. Skip donor's VAST ad-wait and trigger instant playback
+        const sNum = parseInt(s || '1', 10);
+        const eNum = parseInt(e || '1', 10);
+        const eStr = String(e || '1');
         iframeRef.current.contentWindow.postMessage(
-          { event: 'adFree', free: true },
+          { event: 'playlist go', season: sNum, episode: eNum },
           '*'
         );
         iframeRef.current.contentWindow.postMessage(
-          { api: 'play' },
+          { event: 'playlist go', season: sNum, episode: eStr },
           '*'
         );
-        iframeRef.current.contentWindow.postMessage(
-          { event: 'play' },
-          '*'
-        );
-
-        // 2. For series: command target season and episode
-        if (s || e) {
-          const sNum = parseInt(s || '1', 10);
-          const eNum = parseInt(e || '1', 10);
-          const eStr = String(e || '1');
-          iframeRef.current.contentWindow.postMessage(
-            { event: 'playlist go', season: sNum, episode: eNum },
-            '*'
-          );
-          iframeRef.current.contentWindow.postMessage(
-            { event: 'playlist go', season: sNum, episode: eStr },
-            '*'
-          );
-        }
       }
     } catch (_) {}
-  }, []);
-
-  // Set once the donor signals readiness — stops the sync burst early.
-  // Donor reposts these events to parent (see listen-player.js).
-  const syncDoneRef = useRef(false);
-  const syncTimersRef = useRef<any[]>([]);
-
-  const clearSyncTimers = useCallback(() => {
-    syncTimersRef.current.forEach((t) => {
-      try { clearTimeout(t); } catch (_) {}
-    });
-    syncTimersRef.current = [];
   }, []);
 
   // Listen for episode changes inside the embedded player (e.g. Next Episode button)
@@ -178,44 +149,32 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
         }
-
-        // When donor signals playerReady, immediately dispatch activation command and stop timers
-        if (data.event === 'playerReady') {
-          sendPlayCommands();
-          syncDoneRef.current = true;
-          clearSyncTimers();
-        } else if (data.event === 'adStart' || data.event === 'startWatching') {
-          syncDoneRef.current = true;
-          clearSyncTimers();
-        }
       } catch (_) {}
     };
 
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [onEpisodeChange, sendPlayCommands, clearSyncTimers]);
+  }, [onEpisodeChange]);
 
-  // When season or episode props change, immediately switch episode via postMessage
+  const isInitialMountRef = useRef(true);
   const prevSeasonRef = useRef(season);
   const prevEpisodeRef = useRef(episode);
 
+  // When season or episode props change after initial mount, switch episode via postMessage
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevSeasonRef.current = season;
+      prevEpisodeRef.current = episode;
+      return;
+    }
+
     if ((season && season !== prevSeasonRef.current) || (episode && episode !== prevEpisodeRef.current)) {
       prevSeasonRef.current = season;
       prevEpisodeRef.current = episode;
-      sendPlayCommands(season, episode);
+      sendPlaylistGo(season, episode);
     }
-  }, [season, episode, sendPlayCommands]);
-
-  // Cleanup pending sync bursts on unmount
-  useEffect(() => {
-    return () => {
-      syncTimersRef.current.forEach((t) => {
-        try { clearTimeout(t); } catch (_) {}
-      });
-      syncTimersRef.current = [];
-    };
-  }, []);
+  }, [season, episode, sendPlaylistGo]);
 
   // Fallback timer for iframe
   useEffect(() => {
@@ -252,23 +211,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       } catch (e) {}
     }
 
-    // Resilient sync window: player-venom scripts take 300-800ms to parse and
-    // register listeners inside the iframe, so a single onLoad shot can drop.
-    // Bounded burst (max 6, stops early on donor ready); no-arg calls read
-    // live refs, so a fresher user selection is never overridden by stale
-    // mount-time values.
-    clearSyncTimers();
-    syncDoneRef.current = false;
-    const fireSync = () => {
-      if (syncDoneRef.current) return;
-      sendPlayCommands();
-    };
-    fireSync();
-
-    const retryDelays = [200, 500, 1000, 1800, 2600];
-    retryDelays.forEach(delay => {
-      syncTimersRef.current.push(setTimeout(fireSync, delay));
-    });
+    // Series only: sync episode if loaded with a specific season/episode selection
+    if (season || episode) {
+      sendPlaylistGo(season, episode);
+    }
   };
 
   // Power-Optimized WakeLock Lifecycle Management
@@ -370,8 +316,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="eager"
-        referrerPolicy="origin-when-cross-origin"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups allow-popups-to-escape-sandbox"
+        referrerPolicy="no-referrer"
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
         allowFullScreen
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
