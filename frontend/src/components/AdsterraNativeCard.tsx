@@ -19,14 +19,12 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
       return;
     }
 
+    // Bidirectional observer: load iframe on approach, unload when far off-screen to reclaim RAM
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
+        setIsVisible(entry.isIntersecting);
       },
-      { rootMargin: '150px' }
+      { rootMargin: '300px' }
     );
 
     observer.observe(el);

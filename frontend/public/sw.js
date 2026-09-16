@@ -1,6 +1,6 @@
 const CACHE_NAME = 'mediabox-v19';
 const IMG_CACHE_NAME = 'mediabox-img-v1';
-const MAX_CACHED_IMAGES = 80;
+const MAX_CACHED_IMAGES = 40;
 const OFFLINE_FALLBACK = '/index.html';
 const PROXY_IMAGE_BASE = 'https://api.media-box.xyz/api/image';
 

@@ -13,14 +13,12 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
       return;
     }
 
+    // Bidirectional: load on approach, unload when far off-screen to reclaim RAM
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
+        setIsVisible(entry.isIntersecting);
       },
-      { rootMargin: '250px' }
+      { rootMargin: '300px' }
     );
 
     observer.observe(el);

@@ -17,7 +17,7 @@ interface AvailEntry {
 }
 
 const LS_KEY = 'mb_avail_v1';
-const MAX_ENTRIES = 300;
+const MAX_ENTRIES = 150;
 const TTL_MS: Record<'available' | 'missing', number> = {
   available: 24 * 3600 * 1000, // 24h — aligns with positive stream cache reads
   missing: 2 * 3600 * 1000, // 2h — short negative cache, manual retry bypasses

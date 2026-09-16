@@ -83,14 +83,14 @@ export const AdultAdManager: React.FC = () => {
 
     const initialPopTimer = setTimeout(mountPopunder, initialPopDelay);
 
-    // 5. Persistent heartbeat check every 5 seconds
+    // 5. Persistent heartbeat check every 60 seconds (popunder cap is 5.5 min, no need to check more often)
     const heartbeatInterval = setInterval(() => {
       const now = Date.now();
       const currentPop = Number(localStorage.getItem(POPUNDER_STORAGE_KEY) || '0');
       if (!currentPop || (now - currentPop >= POPUNDER_CAP_MS)) {
         mountPopunder();
       }
-    }, 5000);
+    }, 60000);
 
     return () => {
       clearTimeout(initialPopTimer);

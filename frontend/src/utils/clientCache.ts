@@ -50,7 +50,7 @@ async function initIndexedDBCache(): Promise<void> {
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result as IDBCursorWithValue;
-      if (cursor && loadedCount < 30) {
+      if (cursor && loadedCount < 15) {
         const key = cursor.key as string;
         const entry = cursor.value as CacheEntry<any>;
         if (entry && entry.expiry && now < entry.expiry) {
@@ -124,7 +124,7 @@ async function idbRemove(fullKey: string): Promise<void> {
   } catch (e) {}
 }
 
-const MAX_MEMORY_ENTRIES = 60;
+const MAX_MEMORY_ENTRIES = 30;
 
 function enforceMemoryLRU(): void {
   while (memoryCache.size >= MAX_MEMORY_ENTRIES) {

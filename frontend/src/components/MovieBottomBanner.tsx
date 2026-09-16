@@ -30,14 +30,12 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
       setIsVisible(true);
       return;
     }
+    // Bidirectional: load on approach, unload when far off-screen to reclaim RAM
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
+        setIsVisible(entry.isIntersecting);
       },
-      { rootMargin: '200px' }
+      { rootMargin: '300px' }
     );
     observer.observe(el);
     return () => observer.disconnect();
