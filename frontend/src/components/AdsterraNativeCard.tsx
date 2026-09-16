@@ -44,15 +44,12 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
     return () => clearTimeout(timer);
   }, [isVisible]);
 
-  const handleBotClick = () => {
-    const botUrl = 'https://t.me/moviemaniakbot';
-    if (WebApp.platform !== 'unknown') {
-      WebApp.openTelegramLink(botUrl);
-      try {
-        WebApp.close?.();
-      } catch (_) {}
+  const handleSecretRoomClick = () => {
+    const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
+    if (WebApp?.openLink && WebApp.platform !== 'unknown') {
+      WebApp.openLink(adultSiteUrl);
     } else {
-      window.open(botUrl, '_blank', 'noopener,noreferrer');
+      window.open(adultSiteUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -60,20 +57,20 @@ export const AdsterraNativeCard: React.FC<AdsterraNativeCardProps> = ({ sectionI
     return (
       <div
         ref={cardRef}
-        onClick={handleBotClick}
+        onClick={handleSecretRoomClick}
         className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
       >
-        <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-gradient-to-br from-blue-900/60 to-purple-900/60 border border-blue-500/30 flex flex-col items-center justify-center p-3 text-center">
-          <span className="text-3xl mb-2">🍿</span>
+        <div className="relative overflow-hidden rounded-xl shadow-sm aspect-[2/3] bg-gradient-to-br from-red-950/80 to-purple-950/80 border border-red-500/30 flex flex-col items-center justify-center p-3 text-center">
+          <span className="text-3xl mb-2">🍓</span>
           <span className="text-xs font-bold text-white line-clamp-2">
-            {t('bannerMainBot') || 'Бесплатное кино в Telegram'}
+            {t('secretRoomTab') || 'Тайная комната 18+'}
           </span>
-          <span className="mt-3 text-[10px] bg-blue-500 text-white font-bold px-2 py-1 rounded-md">
+          <span className="mt-3 text-[10px] bg-red-600 text-white font-bold px-2.5 py-1 rounded-md shadow-md">
             {t('openBanner') || 'Перейти'}
           </span>
         </div>
-        <p className="text-[11px] font-bold text-center text-blue-400 truncate">
-          MediaBox Bot
+        <p className="text-[11px] font-bold text-center text-red-400 truncate">
+          Secret Room
         </p>
       </div>
     );

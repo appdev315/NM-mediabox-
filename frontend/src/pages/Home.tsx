@@ -341,18 +341,36 @@ export function Home() {
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const cacheKey = `categorized_home_v5_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const sanitizeSections = (secs: any[]) => {
+            return (secs || []).map((sec: any) => {
+              const seenIds = new Set<string>();
+              const seenTitles = new Set<string>();
+              const cleanItems = (sec.items || []).filter((item: any) => {
+                if (!item) return false;
+                const idKey = String(item.id);
+                const normTitle = (item.title || item.name || '').trim().toLowerCase();
+                if (seenIds.has(idKey)) return false;
+                if (normTitle && seenTitles.has(normTitle)) return false;
+                seenIds.add(idKey);
+                if (normTitle) seenTitles.add(normTitle);
+                return true;
+              });
+              return { ...sec, items: cleanItems };
+            });
+          };
+
+          const cacheKey = `categorized_home_v6_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
             // Instant 0ms render from client cache
-            setHomeSections(cachedSync);
+            setHomeSections(sanitizeSections(cachedSync));
             // Silent background update without triggering loading state
             fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
-              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(fresh);
+              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(sanitizeSections(fresh));
             });
           } else {
             const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
-            setHomeSections((sections as any[]) || []);
+            setHomeSections(sanitizeSections((sections as any[]) || []));
           }
         }
       } catch (err) {

@@ -94,9 +94,9 @@ export function AdultVideo() {
   return (
     <div className="pb-20">
       <div className="p-4 pt-20 sm:pt-24">
-        {/* Top Banner to Telegram Bot */}
+        {/* Top Banner to Secret Room */}
         <div className="mb-4">
-          <BannerAd variant="wide" type="telegram" />
+          <BannerAd variant="wide" type="adult" />
         </div>
 
         <div className="flex items-center gap-3 mb-6">

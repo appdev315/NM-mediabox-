@@ -563,6 +563,11 @@ export function useApi() {
       credits: item.credits || null,
       videos: item.videos || null,
       liftw_id: item.liftw_id || null,
+      last_episode_to_air: item.last_episode_to_air || null,
+      next_episode_to_air: item.next_episode_to_air || null,
+      status: item.status || '',
+      number_of_episodes: item.number_of_episodes || 0,
+      number_of_seasons: item.number_of_seasons || 0,
       isUpcoming
     };
   };
@@ -875,15 +880,21 @@ export function useApi() {
     });
   }, [tmdbFetch, withLoading, language]);
 
-  const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number) => {
+  const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number | string) => {
+    const cacheKey = `tmdb_season_details_${id}_s${seasonNumber}_${language}`;
+    const cached = clientCache.get(cacheKey);
+    if (cached) return cached;
     try {
       const data = await tmdbFetch(`/tv/${id}/season/${seasonNumber}`);
+      if (data) {
+        clientCache.set(cacheKey, data, 86400);
+      }
       return data;
     } catch (err: any) {
       console.error('TMDB API Error:', err);
       return null;
     }
-  }, [tmdbFetch]);
+  }, [tmdbFetch, language]);
 
   const fetchRecommendations = useCallback(async (id: string | number, type: 'movie' | 'tv', page: number = 1) => {
     try {
@@ -896,7 +907,7 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
-    const cacheKey = `categorized_home_v5_${type}_${language}`;
+    const cacheKey = `categorized_home_v6_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (!silent && cached) {
       return cached;
@@ -911,12 +922,27 @@ export function useApi() {
         if (cfFeedRes.ok) {
           const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
           if (Array.isArray(feedData?.trending) && Array.isArray(feedData?.genres) && feedData.genres.length > 0) {
-            const trendingItems = feedData.trending.map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+            const deduplicateMediaList = (list: any[]) => {
+              const seenIds = new Set<string>();
+              const seenTitles = new Set<string>();
+              return list.filter((item: any) => {
+                if (!item) return false;
+                const idKey = String(item.id);
+                const normTitle = (item.title || item.name || '').trim().toLowerCase();
+                if (seenIds.has(idKey)) return false;
+                if (normTitle && seenTitles.has(normTitle)) return false;
+                seenIds.add(idKey);
+                if (normTitle) seenTitles.add(normTitle);
+                return true;
+              });
+            };
+
+            const trendingItems = deduplicateMediaList(feedData.trending.map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie')));
             const genreSections = feedData.genres.map((g) => ({
               id: g.id,
               name: g.name,
               genreId: g.genreId,
-              items: (g.rawResults || []).map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie')),
+              items: deduplicateMediaList((g.rawResults || []).map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))),
             }));
 
             const sections = [
@@ -934,8 +960,23 @@ export function useApi() {
       }
 
       // 2. Resilient Fallback: Local parallel assembly if Cloudflare feed is temporarily unavailable
+      const deduplicateFallback = (list: any[]) => {
+        const seenIds = new Set<string>();
+        const seenTitles = new Set<string>();
+        return list.filter((item: any) => {
+          if (!item) return false;
+          const idKey = String(item.id);
+          const normTitle = (item.title || item.name || '').trim().toLowerCase();
+          if (seenIds.has(idKey)) return false;
+          if (normTitle && seenTitles.has(normTitle)) return false;
+          seenIds.add(idKey);
+          if (normTitle) seenTitles.add(normTitle);
+          return true;
+        });
+      };
+
       const trendingData = await tmdbFetch(`/trending/${type}/day`);
-      const trendingItems = (trendingData.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+      const trendingItems = deduplicateFallback((trendingData.results || []).slice(0, 16).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
 
       // Curated top 6 genres for resilient lightweight fallback (prevents 19-request connection storm on slow networks)
       const allGenres = type === 'movie' ? [
@@ -965,7 +1006,7 @@ export function useApi() {
               page: 1,
               sort_by: 'popularity.desc'
             });
-            const mapped = (data.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+            const mapped = deduplicateFallback((data.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
             return {
               id: String(g.id),
               name: g.name,

@@ -178,17 +178,17 @@ export function Profile() {
         
         <button 
           onClick={() => {
-            if (WebApp.platform !== 'unknown') {
-              WebApp.openTelegramLink('https://t.me/mediaboxxxbot');
-              WebApp.close();
+            const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
+            if (WebApp?.openLink && WebApp.platform !== 'unknown') {
+              WebApp.openLink(adultSiteUrl);
             } else {
-              window.open('https://t.me/mediaboxxxbot', '_blank', 'noopener,noreferrer');
+              window.open(adultSiteUrl, '_blank', 'noopener,noreferrer');
             }
           }}
           className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
           style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
         >
-          <span>🚀</span> {t('open18Bot') || 'Открыть 18+ Бота'}
+          <span>🍓</span> {t('goToSite') || 'Перейти на сайт'}
         </button>
       </div>
       {showDonationModal && (

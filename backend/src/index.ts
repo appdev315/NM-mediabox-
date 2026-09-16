@@ -503,7 +503,7 @@ function matchesWords(itemWords: string[], candWords: string[]): boolean {
   if (candWords.length === 0 || itemWords.length === 0) return false;
   if (candWords.length === 1) {
     const cw = candWords[0];
-    if (cw.length < 4) return false;
+    if (cw.length < 2) return false;
     return itemWords.includes(cw);
   }
   for (let i = 0; i <= itemWords.length - candWords.length; i++) {
@@ -525,6 +525,19 @@ function expandTitleVariants(titles: string[]): string[] {
     const clean = t.trim();
     if (!clean) continue;
     result.add(clean);
+
+    // Hyphenated titles: "Человек-паук" → "Человек паук", "Команда - А" → "Команда А"
+    if (clean.includes('-')) {
+      result.add(clean.replace(/-/g, ' ').replace(/\s+/g, ' ').trim());
+    }
+    // Colons: "Терминатор: Тёмные судьбы" → "Терминатор Тёмные судьбы"
+    if (clean.includes(':')) {
+      result.add(clean.replace(/:/g, '').replace(/\s+/g, ' ').trim());
+    }
+    // Guillemets & fancy quotes: «А» → А
+    if (/[«»\u201E\u201C\u201D\u201F]/.test(clean)) {
+      result.add(clean.replace(/[«»\u201E\u201C\u201D\u201F]/g, '').replace(/\s+/g, ' ').trim());
+    }
 
     if (clean.includes('+')) {
       const withPlusRu = clean.replace(/\+/g, ' плюс').replace(/\s+/g, ' ').trim();
@@ -1139,15 +1152,27 @@ app.get('/api/feed/home', async (c: Context) => {
       }
 
       const valid = results.filter(Boolean);
+      const seenIds = new Set<string>();
+      const seenTitles = new Set<string>();
+      const deduplicated = valid.filter((item: any) => {
+        const idKey = String(item.id);
+        const normTitle = (item.title || item.name || '').trim().toLowerCase();
+        if (seenIds.has(idKey)) return false;
+        if (normTitle && seenTitles.has(normTitle)) return false;
+        seenIds.add(idKey);
+        if (normTitle) seenTitles.add(normTitle);
+        return true;
+      });
+
       if (!lang.startsWith('ru')) {
         // Filter out Russian-only movies and series for English / international interface
-        return valid.filter((item: any) => {
+        return deduplicated.filter((item: any) => {
           const hasCyrillicOrigin = /[а-яА-ЯёЁ]/.test(item.original_title || item.original_name || '');
           const isRuLang = item.original_language === 'ru';
           return !hasCyrillicOrigin && !isRuLang;
         });
       }
-      return valid;
+      return deduplicated;
     };
 
     // 1. Fetch Trending / Popular directly from Liftw

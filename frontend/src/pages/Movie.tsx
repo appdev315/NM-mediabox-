@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
@@ -27,7 +27,7 @@ export function Movie() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, searchContent, loading } = useApi();
+  const { fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, searchContent, loading } = useApi();
   const { t, language } = useLanguage();
   const { stop: stopAudio } = useAudioPlayer();
   const { triggerMovieAd } = useAdManager();
@@ -43,6 +43,7 @@ export function Movie() {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
+  const [seasonEpisodesMeta, setSeasonEpisodesMeta] = useState<Record<string, { air_date?: string; name?: string }>>({});
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
   const [targetEpisode, setTargetEpisode] = useState<{ season: string; episode: string; token?: number } | null>(null);
@@ -123,12 +124,105 @@ export function Movie() {
     // Fallback to TMDB seasons metadata if available
     if (movie?.seasons && Array.isArray(movie.seasons)) {
       const valid: string[] = movie.seasons
-        .filter((s: any) => s.season_number > 0)
+        .filter((s: any) => {
+          if (s.season_number <= 0) return false;
+          if (s.air_date) {
+            const airTime = new Date(s.air_date).getTime();
+            if (airTime > Date.now() + 86400000) return false;
+          }
+          if (movie?.last_episode_to_air?.season_number && s.season_number > movie.last_episode_to_air.season_number) {
+            return false;
+          }
+          return true;
+        })
         .map((s: any) => String(s.season_number));
       if (valid.length > 0) return valid;
     }
     return ['1'];
-  }, [liftwEpisodes, movie?.seasons]);
+  }, [liftwEpisodes, movie?.seasons, movie?.last_episode_to_air]);
+
+  // Fetch TMDB episode details (air_date, names) for the active season
+  useEffect(() => {
+    if (!id || !isTvSeries) return;
+    const currentSeason = activeSeason || (sortedSeasons[0] || '1');
+    const sNum = parseInt(currentSeason, 10);
+    if (isNaN(sNum) || sNum <= 0) return;
+
+    let isSubscribed = true;
+    fetchSeasonDetails(id, sNum).then((data: any) => {
+      if (!isSubscribed || !data?.episodes) return;
+      const metaMap: Record<string, { air_date?: string; name?: string }> = {};
+      data.episodes.forEach((ep: any) => {
+        if (ep?.episode_number !== undefined) {
+          metaMap[String(ep.episode_number)] = {
+            air_date: ep.air_date || '',
+            name: ep.name || '',
+          };
+        }
+      });
+      setSeasonEpisodesMeta(metaMap);
+    }).catch(() => {});
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [id, isTvSeries, activeSeason, sortedSeasons, fetchSeasonDetails]);
+
+  const formatAirDate = useCallback((dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}.${month}.${year}`;
+    }
+    return dateStr;
+  }, []);
+
+  const getEpisodeReleaseStatus = useCallback((epNumberStr: string): { isReleased: boolean; releaseDate: string } => {
+    const epNum = parseInt(epNumberStr, 10);
+    const currentSeason = activeSeason || (sortedSeasons[0] || '1');
+    const curSeasonNum = parseInt(currentSeason, 10);
+
+    // 1. If player already has this episode available, it is definitely released and playable
+    if (liftwEpisodes?.[currentSeason] && Array.isArray(liftwEpisodes[currentSeason])) {
+      const hasEpInPlayer = liftwEpisodes[currentSeason].some((e: any) => String(e) === epNumberStr);
+      if (hasEpInPlayer) {
+        return { isReleased: true, releaseDate: '' };
+      }
+    }
+
+    // 2. Check metadata from TMDB season details
+    const meta = seasonEpisodesMeta[epNumberStr] || seasonEpisodesMeta[String(epNum)];
+    if (meta && meta.air_date) {
+      const airTime = new Date(meta.air_date).getTime();
+      const isPastOrToday = airTime <= Date.now() + 86400000;
+      return {
+        isReleased: isPastOrToday,
+        releaseDate: formatAirDate(meta.air_date),
+      };
+    }
+
+    // 3. Fallback: Check last_episode_to_air from TMDB
+    const lastAir = movie?.last_episode_to_air;
+    if (lastAir && typeof lastAir.season_number === 'number' && typeof lastAir.episode_number === 'number') {
+      if (curSeasonNum === lastAir.season_number) {
+        const isPast = epNum <= lastAir.episode_number;
+        let futureDate = '';
+        if (movie?.next_episode_to_air?.season_number === curSeasonNum && movie?.next_episode_to_air?.episode_number === epNum) {
+          futureDate = formatAirDate(movie.next_episode_to_air.air_date);
+        }
+        return { isReleased: isPast, releaseDate: futureDate };
+      } else if (curSeasonNum > lastAir.season_number) {
+        return { isReleased: false, releaseDate: '' };
+      }
+    }
+
+    if (movie?.status === 'Ended') {
+      return { isReleased: true, releaseDate: '' };
+    }
+
+    return { isReleased: true, releaseDate: '' };
+  }, [activeSeason, sortedSeasons, liftwEpisodes, seasonEpisodesMeta, movie?.last_episode_to_air, movie?.next_episode_to_air, movie?.status, formatAirDate]);
 
   const sortedEpisodes = useMemo<string[]>(() => {
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
@@ -140,6 +234,16 @@ export function Movie() {
         return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
       });
     }
+    // Fallback to TMDB season details if loaded
+    const metaKeys = Object.keys(seasonEpisodesMeta);
+    if (metaKeys.length > 0) {
+      return metaKeys.sort((a, b) => {
+        const numA = parseInt(a, 10);
+        const numB = parseInt(b, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+      });
+    }
     // Fallback to TMDB episode_count
     if (movie?.seasons && Array.isArray(movie.seasons)) {
       const sInfo = movie.seasons.find((s: any) => String(s.season_number) === currentSeason);
@@ -148,12 +252,13 @@ export function Movie() {
       }
     }
     return ['1'];
-  }, [liftwEpisodes, activeSeason, sortedSeasons, movie?.seasons]);
+  }, [liftwEpisodes, activeSeason, sortedSeasons, seasonEpisodesMeta, movie?.seasons]);
 
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [showAudioHint, setShowAudioHint] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const episodesScrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
@@ -1282,11 +1387,39 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
 
-              {/* Interactive Episode Chips (Click always triggers playback) */}
-              <div className="mt-1">
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {/* Interactive Episode Chips with Desktop Arrow Navigation */}
+              <div className="mt-1 relative group/ep">
+                {/* Left scroll arrow (desktop only) */}
+                <button
+                  type="button"
+                  onClick={() => { episodesScrollRef.current?.scrollBy({ left: -240, behavior: 'smooth' }); }}
+                  className="hidden md:flex absolute left-0 top-0 bottom-2 z-10 items-center justify-center w-8 bg-gradient-to-r from-[var(--bg-color)] via-[var(--bg-color)]/80 to-transparent opacity-0 group-hover/ep:opacity-100 transition-opacity cursor-pointer"
+                  aria-label="Scroll left"
+                >
+                  <span className="text-white/70 text-lg font-bold">◀</span>
+                </button>
+                <div ref={episodesScrollRef} className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none scroll-smooth md:px-8">
                   {sortedEpisodes.map((episode: string) => {
                     const isActive = (activeEpisode || sortedEpisodes[0] || '1') === episode;
+                    const { isReleased, releaseDate } = getEpisodeReleaseStatus(episode);
+
+                    if (!isReleased) {
+                      return (
+                        <button
+                          key={episode}
+                          type="button"
+                          disabled
+                          className="px-3.5 py-1.5 rounded-xl text-xs font-medium flex-shrink-0 opacity-55 cursor-not-allowed bg-white/5 text-gray-400 border border-white/10 flex flex-col items-center justify-center select-none min-w-[76px]"
+                          title={releaseDate ? `Премьера: ${releaseDate}` : (t('comingSoon') || 'Скоро')}
+                        >
+                          <span className="font-bold text-xs">{t('episode')} {episode}</span>
+                          <span className="text-[10px] text-amber-400/90 font-mono mt-0.5 tracking-tight font-semibold">
+                            {releaseDate || (t('comingSoon') || 'Скоро')}
+                          </span>
+                        </button>
+                      );
+                    }
+
                     return (
                       <button
                         key={episode}
@@ -1303,15 +1436,24 @@ export function Movie() {
                     );
                   })}
                 </div>
+                {/* Right scroll arrow (desktop only) */}
+                <button
+                  type="button"
+                  onClick={() => { episodesScrollRef.current?.scrollBy({ left: 240, behavior: 'smooth' }); }}
+                  className="hidden md:flex absolute right-0 top-0 bottom-2 z-10 items-center justify-center w-8 bg-gradient-to-l from-[var(--bg-color)] via-[var(--bg-color)]/80 to-transparent opacity-0 group-hover/ep:opacity-100 transition-opacity cursor-pointer"
+                  aria-label="Scroll right"
+                >
+                  <span className="text-white/70 text-lg font-bold">▶</span>
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Telegram Bot Banner (In watch mode, between player and cast) */}
+        {/* Secret Room Banner (In watch mode, between player and cast) */}
         {(isExtracting || iframeUrl) && (
           <div className="my-4">
-            <BannerAd variant="wide" type="mainbot" />
+            <BannerAd variant="wide" type="adult" />
           </div>
         )}
 
