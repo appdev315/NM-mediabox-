@@ -130,25 +130,49 @@ export function Movie() {
     return ['1'];
   }, [liftwEpisodes, movie?.seasons]);
 
-  const sortedEpisodes = useMemo<string[]>(() => {
+  // Set of episodes currently available on balancer CDN for active season
+  const availableEpisodesSet = useMemo<Set<string>>(() => {
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
     if (liftwEpisodes?.[currentSeason] && Array.isArray(liftwEpisodes[currentSeason])) {
-      return liftwEpisodes[currentSeason].slice().sort((a: string, b: string) => {
-        const numA = parseInt(String(a), 10);
-        const numB = parseInt(String(b), 10);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-      });
+      return new Set(liftwEpisodes[currentSeason].map((e: any) => String(e)));
     }
-    // Fallback to TMDB episode_count
+    return new Set<string>();
+  }, [liftwEpisodes, activeSeason, sortedSeasons]);
+
+  const sortedEpisodes = useMemo<string[]>(() => {
+    const currentSeason = activeSeason || (sortedSeasons[0] || '1');
+    const balancerEps = liftwEpisodes?.[currentSeason] && Array.isArray(liftwEpisodes[currentSeason])
+      ? liftwEpisodes[currentSeason].map((e: any) => String(e))
+      : [];
+
+    // Check if TMDB metadata defines more episodes for this season
+    let maxTmdbCount = 0;
     if (movie?.seasons && Array.isArray(movie.seasons)) {
       const sInfo = movie.seasons.find((s: any) => String(s.season_number) === currentSeason);
       if (sInfo && sInfo.episode_count > 0) {
-        return Array.from({ length: sInfo.episode_count }, (_, i) => String(i + 1));
+        maxTmdbCount = sInfo.episode_count;
       }
     }
-    return ['1'];
+
+    const allEpNumbers = new Set<number>();
+    balancerEps.forEach((e: string) => {
+      const n = parseInt(e, 10);
+      if (!isNaN(n) && n > 0) allEpNumbers.add(n);
+    });
+    for (let i = 1; i <= maxTmdbCount; i++) {
+      allEpNumbers.add(i);
+    }
+
+    if (allEpNumbers.size === 0) {
+      return balancerEps.length > 0 ? balancerEps : ['1'];
+    }
+
+    return Array.from(allEpNumbers)
+      .sort((a, b) => a - b)
+      .map(String);
   }, [liftwEpisodes, activeSeason, sortedSeasons, movie?.seasons]);
+
+  const [pendingEpisodeInfo, setPendingEpisodeInfo] = useState<{ season: string; episode: string } | null>(null);
 
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [showAudioHint, setShowAudioHint] = useState(false);
@@ -708,7 +732,8 @@ export function Movie() {
             }
 
             if (liftwData && liftwData.iframe) {
-              const streamTtl = mediaType === 'tv' ? 86400 : 2592000; // 1 day TV, 30 days Movies
+              const isOngoing = (movie as any)?.status === 'Returning Series' || (movie as any)?.in_production;
+              const streamTtl = mediaType === 'tv' ? (isOngoing ? 1800 : 86400) : 2592000; // 30m for ongoing TV, 24h for completed TV, 30d Movies
               clientCache.set(streamCacheKey, liftwData, streamTtl);
               if (id) setAvailability(mediaType, id, 'available');
             } else {
@@ -1266,6 +1291,9 @@ export function Movie() {
                     });
                     const defaultEpisode = sortedAvail[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
+                    userSelectedRef.current = true;
+                    setTargetEpisode({ season, episode: defaultEpisode, token: Date.now() });
+                    setPendingEpisodeInfo(null);
                   }}
                   className="w-full px-4 py-2.5 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
@@ -1279,27 +1307,84 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
 
-              {/* Interactive Episode Chips (Click always triggers playback) */}
+              {/* Interactive Episode Chips (Click always triggers playback or explains pending status) */}
               <div className="mt-1">
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
                   {sortedEpisodes.map((episode: string) => {
                     const isActive = (activeEpisode || sortedEpisodes[0] || '1') === episode;
+                    const isAvailable = availableEpisodesSet.size === 0 || availableEpisodesSet.has(episode);
+
                     return (
                       <button
                         key={episode}
                         type="button"
-                        onClick={() => handleEpisodeSelect(episode)}
-                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex-shrink-0 transition-all active:scale-95 cursor-pointer shadow-sm ${
-                          isActive
+                        onClick={() => {
+                          if (!isAvailable) {
+                            const season = activeSeason || sortedSeasons[0] || '1';
+                            setPendingEpisodeInfo({ season, episode });
+                            try {
+                              WebApp?.HapticFeedback?.notificationOccurred('warning');
+                            } catch (_) {}
+                          } else {
+                            setPendingEpisodeInfo(null);
+                            handleEpisodeSelect(episode);
+                          }
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex-shrink-0 transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5 ${
+                          isActive && isAvailable
                             ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-amber-500/20 shadow-md font-black scale-105'
-                            : 'bg-white/10 hover:bg-white/15 text-white/90 border border-white/10'
+                            : isAvailable
+                            ? 'bg-white/10 hover:bg-white/15 text-white/90 border border-white/10'
+                            : 'bg-white/5 hover:bg-white/10 text-white/40 border border-dashed border-white/15'
                         }`}
                       >
-                        {t('episode')} {episode}
+                        <span>{t('episode') || 'Серия'} {episode}</span>
+                        {!isAvailable && (
+                          <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            Скоро
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Pending Episode Notice Banner */}
+                {pendingEpisodeInfo && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-xs sm:text-sm text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-fadeIn">
+                    <div className="flex items-start gap-2">
+                      <span className="text-amber-400 text-base leading-none">⏳</span>
+                      <div>
+                        <p className="font-bold text-amber-300">
+                          {pendingEpisodeInfo.episode}-я серия {pendingEpisodeInfo.season}-го сезона ожидает озвучку
+                        </p>
+                        <p className="text-amber-200/70 text-[11px] mt-0.5">
+                          Серия вышла в эфир недавно. Русская озвучка от студий ещё готовится и станет доступна автоматически.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleWatch(true);
+                          setPendingEpisodeInfo(null);
+                        }}
+                        className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs cursor-pointer transition-all active:scale-95 shadow-sm"
+                      >
+                        {t('retry') || 'Проверить обновление'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingEpisodeInfo(null)}
+                        className="p-1 text-amber-400 hover:text-white transition-colors cursor-pointer"
+                        title="Закрыть"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

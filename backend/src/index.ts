@@ -642,7 +642,7 @@ app.get('/api/liftw', async (c: Context) => {
             info: info.info || null,
           };
           if (info.episodes) directResult.episodes = info.episodes;
-          const directCacheTtl = canonicalType === 'tv' ? 86400 : 2592000;
+          const directCacheTtl = canonicalType === 'tv' ? 1800 : 2592000; // 30m for TV (rapid ongoing episode pickup), 30d for Movies
           const directHeaders: Record<string, string> = {
             'Cache-Control': `public, max-age=${directCacheTtl}, s-maxage=${directCacheTtl}`,
             'Access-Control-Allow-Origin': '*',
@@ -877,7 +877,7 @@ app.get('/api/liftw', async (c: Context) => {
     }
 
     const isTv = canonicalType === 'tv';
-    const cacheTtl = isTv ? 86400 : 2592000; // 1 day for TV, 30 days for Movies (no immutable)
+    const cacheTtl = isTv ? 1800 : 2592000; // 30m for TV (rapid ongoing episode pickup), 30 days for Movies (no immutable)
 
     const resHeaders: Record<string, string> = {
       'Cache-Control': `public, max-age=${cacheTtl}, s-maxage=${cacheTtl}`,

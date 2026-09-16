@@ -144,6 +144,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             { event: 'playlist go', season: sNum, episode: eStr },
             '*'
           );
+          iframeRef.current.contentWindow.postMessage(
+            'playlist hooked play',
+            '*'
+          );
         }
       }
     } catch (_) {}
@@ -151,6 +155,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
   const syncDoneRef = useRef(false);
   const syncTimersRef = useRef<any[]>([]);
+  const currentTargetRef = useRef<{ season?: string; episode?: string }>({});
 
   const clearSyncTimers = useCallback(() => {
     syncTimersRef.current.forEach((t) => {
@@ -162,6 +167,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const startSyncBurst = useCallback((targetSeason?: string, targetEp?: string) => {
     clearSyncTimers();
     syncDoneRef.current = false;
+    currentTargetRef.current = { season: targetSeason, episode: targetEp };
     const fireSync = () => {
       if (syncDoneRef.current) return;
       sendPlayCommands(targetSeason, targetEp);
@@ -185,8 +191,20 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
+          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
+            if (s === currentTargetRef.current.season && e === currentTargetRef.current.episode) {
+              syncDoneRef.current = true;
+              clearSyncTimers();
+            }
+          }
         }
-        if (data.event === 'playerReady' || data.event === 'adStart' || data.event === 'startWatching') {
+        if (data.event === 'playerReady') {
+          if (!currentTargetRef.current.season) {
+            syncDoneRef.current = true;
+            clearSyncTimers();
+          }
+        }
+        if (data.event === 'adStart' || data.event === 'startWatching') {
           syncDoneRef.current = true;
           clearSyncTimers();
         }
