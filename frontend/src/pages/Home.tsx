@@ -21,7 +21,7 @@ interface MovieCardProps {
   mediaType: string;
   selectedCountry?: string;
   comingSoonText: string;
-  onNavigate: (id: string | number, mediaType: string, country?: string) => void;
+  onNavigate: (id: string | number, mediaType: string, country?: string, meta?: any) => void;
 }
 
 const MovieCard = React.memo(function MovieCard({
@@ -53,7 +53,11 @@ const MovieCard = React.memo(function MovieCard({
         e.stopPropagation();
         (document.activeElement as HTMLElement)?.blur();
         if (!item.isAdult) prewarmStream(item.id, item);
-        onNavigate(item.id, targetMediaType, selectedCountry);
+        onNavigate(item.id, targetMediaType, selectedCountry, {
+          title: item.title || item.name,
+          year: item.year,
+          liftw_id: item.liftw_id
+        });
       }}
       className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
     >
@@ -294,20 +298,16 @@ export function Home() {
           setIsSearching(false);
           if (selectedGenre === 'adult') {
             try {
-              const randPage1 = Math.floor(Math.random() * 6);
-              const randPage2 = (randPage1 + 1) % 6;
-              const [p1, p2] = await Promise.all([
-                fetchAdultSearch('popular', randPage1),
-                fetchAdultSearch('popular', randPage2),
-              ]);
-              const combined = [...(Array.isArray(p1) ? p1 : []), ...(Array.isArray(p2) ? p2 : [])];
+              const randPage = Math.floor(Math.random() * 4);
+              const data = await fetchAdultSearch('popular', randPage);
+              const list = Array.isArray(data) ? data : [];
               const seen = new Set();
-              const unique = combined.filter((v: any) => {
+              const unique = list.filter((v: any) => {
                 if (!v || !v.id || seen.has(v.id)) return false;
                 seen.add(v.id);
                 return true;
               });
-              const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 30);
+              const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 15);
               const adultItems = shuffled.map((v: any) => ({
                 id: v.id,
                 title: v.title,
@@ -431,13 +431,13 @@ export function Home() {
     }, 2200);
   };
 
-  const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string) => {
+  const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string, meta?: any) => {
     if (mediaType === 'adult') {
       navigate(`/adult/${id}`);
       return;
     }
     const countryQuery = country ? `&country=${country}` : '';
-    navigate(`/movie/${id}?type=${mediaType}${countryQuery}`);
+    navigate(`/movie/${id}?type=${mediaType}${countryQuery}`, { state: meta });
   }, [navigate]);
 
   const isCategorizedMode = !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !isSearching && page === 1;

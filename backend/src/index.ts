@@ -635,7 +635,11 @@ app.get('/api/liftw', async (c: Context) => {
             liftwId: info.id,
             liftwType: info.type,
             name: info.name,
+            origin_name: info.origin_name || '',
+            year: info.year || '',
+            poster: info.poster || '',
             iframe: info.iframe_uri,
+            info: info.info || null,
           };
           if (info.episodes) directResult.episodes = info.episodes;
           const directCacheTtl = canonicalType === 'tv' ? 86400 : 2592000;
@@ -1030,58 +1034,83 @@ app.get('/api/feed/home', async (c: Context) => {
   const liftwCategory = isTv ? 'series' : 'films';
 
   try {
-    // Helper to enrich a batch of Liftw items with TMDB localized metadata in parallel
+    // Clean title helper: strips alternative titles like "Бесстыжие / Бесстыдники" or "Shameless (US)"
+    const cleanSearchTitle = (str: string) => {
+      if (!str) return '';
+      return str.split('/')[0].replace(/\([^)]*\)/g, '').trim();
+    };
+
+    // Helper to enrich a batch of Liftw items with TMDB localized metadata with concurrency control
     const enrichBatch = async (items: any[]) => {
-      const enrichPromises = items.map(async (item: any) => {
-        const query = item.origin_name || item.name;
-        if (!query) return null;
+      const enrichItem = async (item: any) => {
+        if (!item) return null;
+        const originClean = cleanSearchTitle(item.origin_name || '');
+        const ruClean = cleanSearchTitle(item.name || '');
+        const queries = Array.from(new Set([originClean, ruClean].filter(Boolean)));
+        if (queries.length === 0) return null;
+
         const year = item.year || 0;
         const yearQuery = year > 0 ? (isTv ? `&first_air_date_year=${year}` : `&year=${year}`) : '';
-        const searchUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}${yearQuery}`;
-        
-        try {
-          let match: any = null;
-          const tmdbRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4500) });
-          if (tmdbRes.ok) {
-            const tmdbData = await tmdbRes.json() as any;
-            match = tmdbData.results?.[0];
-          }
 
-          // Elastic search: If strict year matching yielded 0 results, retry without year restriction
-          if (!match && yearQuery) {
-            const relaxedUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}`;
-            const relaxedRes = await fetch(relaxedUrl, { signal: AbortSignal.timeout(4000) });
-            if (relaxedRes.ok) {
-              const relaxedData = await relaxedRes.json() as any;
-              match = relaxedData.results?.[0];
+        let match: any = null;
+        for (const query of queries) {
+          try {
+            const searchUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}${yearQuery}`;
+            const tmdbRes = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
+            if (tmdbRes.ok) {
+              const tmdbData = await tmdbRes.json() as any;
+              if (tmdbData.results && tmdbData.results.length > 0) {
+                if (year > 0) {
+                  match = tmdbData.results.find((r: any) => {
+                    const rYear = parseInt((r.release_date || r.first_air_date || '').slice(0, 4), 10);
+                    return Math.abs(rYear - year) <= 1;
+                  }) || tmdbData.results[0];
+                } else {
+                  match = tmdbData.results[0];
+                }
+                if (match) break;
+              }
             }
-          }
 
-          if (match) {
-            return {
-              id: match.id,
-              title: match.title || match.name || item.name,
-              name: match.name || match.title || item.name,
-              original_title: match.original_title || match.original_name || item.origin_name,
-              original_name: match.original_name || match.original_title || item.origin_name,
-              original_language: match.original_language || '',
-              poster_path: match.poster_path || null,
-              poster: match.poster_path ? `${parsedUrl.origin}/api/image?path=/t/p/w500${match.poster_path}` : (item.poster || ''),
-              backdrop_path: match.backdrop_path || null,
-              vote_average: match.vote_average || item.imdb_rating || item.kp_rating || 0,
-              rating: match.vote_average || item.imdb_rating || item.kp_rating || 0,
-              release_date: match.release_date || match.first_air_date || (year ? `${year}-01-01` : ''),
-              year: year || (match.release_date || match.first_air_date || '').slice(0, 4),
-              overview: match.overview || '',
-              type: isTv ? 'series' : 'movie',
-              liftw_id: item.id,
-            };
-          }
-        } catch (_) {}
+            // Relaxed search without year constraint
+            if (!match && yearQuery) {
+              const relaxedUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}`;
+              const relaxedRes = await fetch(relaxedUrl, { signal: AbortSignal.timeout(3000) });
+              if (relaxedRes.ok) {
+                const relaxedData = await relaxedRes.json() as any;
+                if (relaxedData.results && relaxedData.results.length > 0) {
+                  match = relaxedData.results[0];
+                  if (match) break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
 
-        // Fallback: use Liftw item natively if TMDB match not found
+        if (match) {
+          return {
+            id: match.id,
+            title: match.title || match.name || item.name,
+            name: match.name || match.title || item.name,
+            original_title: match.original_title || match.original_name || item.origin_name,
+            original_name: match.original_name || match.original_title || item.origin_name,
+            original_language: match.original_language || '',
+            poster_path: match.poster_path || null,
+            poster: match.poster_path ? `${parsedUrl.origin}/api/image?path=/t/p/w500${match.poster_path}` : (item.poster || ''),
+            backdrop_path: match.backdrop_path || null,
+            vote_average: match.vote_average || item.imdb_rating || item.kp_rating || 0,
+            rating: match.vote_average || item.imdb_rating || item.kp_rating || 0,
+            release_date: match.release_date || match.first_air_date || (year ? `${year}-01-01` : ''),
+            year: year || (match.release_date || match.first_air_date || '').slice(0, 4),
+            overview: match.overview || '',
+            type: isTv ? 'series' : 'movie',
+            liftw_id: item.id,
+          };
+        }
+
+        // Fallback: prefix with liftw_ to prevent ID collision with TMDB IDs
         return {
-          id: item.id,
+          id: `liftw_${item.id}`,
           title: item.name,
           name: item.name,
           original_title: item.origin_name || item.name,
@@ -1097,19 +1126,28 @@ app.get('/api/feed/home', async (c: Context) => {
           overview: '',
           type: isTv ? 'series' : 'movie',
           liftw_id: item.id,
+          isLiftwOnly: true,
         };
-      });
+      };
 
-      const rawEnriched = (await Promise.all(enrichPromises)).filter(Boolean) as any[];
+      const results: any[] = [];
+      const chunkSize = 5;
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize);
+        const chunkResults = await Promise.all(chunk.map(enrichItem));
+        results.push(...chunkResults);
+      }
+
+      const valid = results.filter(Boolean);
       if (!lang.startsWith('ru')) {
         // Filter out Russian-only movies and series for English / international interface
-        return rawEnriched.filter((item: any) => {
+        return valid.filter((item: any) => {
           const hasCyrillicOrigin = /[а-яА-ЯёЁ]/.test(item.original_title || item.original_name || '');
           const isRuLang = item.original_language === 'ru';
           return !hasCyrillicOrigin && !isRuLang;
         });
       }
-      return rawEnriched;
+      return valid;
     };
 
     // 1. Fetch Trending / Popular directly from Liftw
@@ -1146,30 +1184,29 @@ app.get('/api/feed/home', async (c: Context) => {
       { id: '10749', name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance', liftwGenre: 'Мелодрама' },
     ];
 
-    const genreSections = await Promise.all(
-      genreCategories.map(async (cat) => {
-        try {
-          const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=20&sort=popular`, {
-            headers: LIFTW_HEADERS,
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!res.ok) return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
+    const genreSections: any[] = [];
+    for (const cat of genreCategories) {
+      try {
+        const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=16&sort=popular`, {
+          headers: LIFTW_HEADERS,
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
           const data = await res.json() as any[];
-          if (!Array.isArray(data) || data.length === 0) {
-            return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
+          if (Array.isArray(data) && data.length > 0) {
+            const enrichedResults = (await enrichBatch(data)).slice(0, 12);
+            if (enrichedResults.length > 0) {
+              genreSections.push({
+                id: cat.id,
+                name: cat.name,
+                genreId: cat.id,
+                rawResults: enrichedResults,
+              });
+            }
           }
-          const enrichedResults = (await enrichBatch(data)).slice(0, 12);
-          return {
-            id: cat.id,
-            name: cat.name,
-            genreId: cat.id,
-            rawResults: enrichedResults,
-          };
-        } catch (_) {
-          return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
         }
-      })
-    );
+      } catch (_) {}
+    }
 
     const payload = {
       trending: enrichedTrending,

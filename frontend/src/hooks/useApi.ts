@@ -765,12 +765,62 @@ export function useApi() {
     }
   }, [tmdbFetch]);
 
-  const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv') => {
+  const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv'): Promise<any> => {
     const cacheKey = `movie_details_v2_${type}_${id}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (cached) return cached;
 
     return withLoading(async () => {
+      // 1. If ID is a Liftw ID (prefixed with liftw_)
+      if (String(id).startsWith('liftw_')) {
+        const liftwId = String(id).replace('liftw_', '');
+        try {
+          const liftwRes = await fetch(`${CF_API_BASE}/liftw?liftwId=${encodeURIComponent(liftwId)}&type=${type}`);
+          if (liftwRes.ok) {
+            const lData = await liftwRes.json() as any;
+            if (lData) {
+              const cleanOrigin = (lData.origin_name || '').split('/')[0].replace(/\([^)]*\)/g, '').trim();
+              const cleanRu = (lData.name || '').split('/')[0].replace(/\([^)]*\)/g, '').trim();
+              const query = cleanOrigin || cleanRu;
+              const year = lData.year || 0;
+
+              if (query) {
+                try {
+                  const searchRes = await tmdbFetch(`/search/${type}`, { query, ...(year > 0 ? { year } : {}) });
+                  const bestMatch = searchRes?.results?.[0];
+                  if (bestMatch?.id) {
+                    return await fetchMovieDetails(bestMatch.id, type);
+                  }
+                } catch (_) {}
+              }
+
+              const liftwDetails = {
+                id: `liftw_${liftwId}`,
+                title: lData.name,
+                name: lData.name,
+                original_title: lData.origin_name || lData.name,
+                poster: lData.poster || '',
+                year: lData.year || '',
+                release_date: lData.year ? `${lData.year}-01-01` : '',
+                overview: lData.info?.description || '',
+                rating: lData.info?.imdb_rating || lData.info?.kp_rating || 0,
+                vote_average: lData.info?.imdb_rating || lData.info?.kp_rating || 0,
+                genres: (lData.info?.genre || []).map((g: string, idx: number) => ({ id: idx, name: g })),
+                cast: (lData.info?.actors || []).map((a: string, idx: number) => ({ id: idx, name: a })),
+                directors: (lData.info?.director || []).map((d: string, idx: number) => ({ id: idx, name: d })),
+                type: type === 'tv' ? 'series' : 'movie',
+                isLiftwOnly: true,
+                liftw_id: liftwId,
+                iframe: lData.iframe,
+                episodes: lData.episodes,
+              };
+              clientCache.set(cacheKey, liftwDetails, 86400);
+              return liftwDetails;
+            }
+          }
+        } catch (_) {}
+      }
+
       try {
         const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
 
@@ -957,19 +1007,56 @@ export function useApi() {
       return cached;
     }
 
-    const initData = WebApp?.initData || '';
-    const headers = { 
-      'Authorization': `tma ${initData}`,
-      'X-App-Client': 'mediabox-app',
-      'X-Client-Time': String(Date.now()),
-    };
-    const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(cleanQuery)}&page=${pageNum}`, { headers });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
-      clientCache.set(cacheKey, data, 3600);
-    }
-    return data;
+    // 1. Direct fast-path: Query Eporner open CDN API (CORS *, 100% uptime, zero 503)
+    try {
+      const epUrl = `https://www.eporner.com/api/v2/video/search/?query=${encodeURIComponent(cleanQuery)}&per_page=30&page=${pageNum + 1}&thumbsize=medium&format=json`;
+      const epRes = await fetch(epUrl, { signal: AbortSignal.timeout(4500) });
+      if (epRes.ok) {
+        const epData = await epRes.json() as any;
+        if (epData && Array.isArray(epData.videos) && epData.videos.length > 0) {
+          const results = epData.videos.map((v: any) => {
+            let duration = v.length_min || '';
+            if (duration && !duration.includes('min') && !duration.includes(':')) {
+              duration += ' min';
+            }
+            return {
+              id: `ep_${v.id}`,
+              title: v.title,
+              poster: v.default_thumb?.src || (Array.isArray(v.thumbs) && v.thumbs[0]?.src) || '',
+              duration,
+              type: 'adult',
+              isAdult: true,
+              href: v.url
+            };
+          });
+          clientCache.set(cacheKey, results, 3600);
+          return results;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Secondary fallback: Express / Go backend
+    try {
+      const initData = WebApp?.initData || '';
+      const headers = { 
+        'Authorization': `tma ${initData}`,
+        'X-App-Client': 'mediabox-app',
+        'X-Client-Time': String(Date.now()),
+      };
+      const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(cleanQuery)}&page=${pageNum}`, { 
+        headers,
+        signal: AbortSignal.timeout(4500)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          clientCache.set(cacheKey, data, 3600);
+          return data;
+        }
+      }
+    } catch (_) {}
+
+    return [];
   }, []);
 
   const fetchAdultStream = useCallback(async (id: string) => {
@@ -979,19 +1066,57 @@ export function useApi() {
       return cached;
     }
 
-    const initData = WebApp?.initData || '';
-    const headers = { 
-      'Authorization': `tma ${initData}`,
-      'X-App-Client': 'mediabox-app',
-      'X-Client-Time': String(Date.now()),
-    };
-    const res = await fetch(`${EXPRESS_API_BASE}/adult/details?id=${encodeURIComponent(id)}`, { headers });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data) {
-      clientCache.set(cacheKey, data, 3600);
+    // 1. Direct client embed generation for Eporner (ep_) and Redtube (rt_)
+    if (id.startsWith('ep_')) {
+      const epID = id.replace('ep_', '');
+      const embedUrl = `https://www.eporner.com/embed/${epID}/`;
+      const streamData = {
+        id,
+        iframe: embedUrl,
+        mirrors: [embedUrl],
+        title: 'Video',
+        type: 'adult'
+      };
+      clientCache.set(cacheKey, streamData, 3600);
+      return streamData;
     }
-    return data;
+
+    if (id.startsWith('rt_')) {
+      const rtID = id.replace('rt_', '');
+      const embedUrl = `https://embed.redtube.com/?id=${rtID}`;
+      const streamData = {
+        id,
+        iframe: embedUrl,
+        mirrors: [embedUrl],
+        title: 'Video',
+        type: 'adult'
+      };
+      clientCache.set(cacheKey, streamData, 3600);
+      return streamData;
+    }
+
+    // 2. Secondary fallback: Express / Go backend for legacy xvideos IDs
+    try {
+      const initData = WebApp?.initData || '';
+      const headers = { 
+        'Authorization': `tma ${initData}`,
+        'X-App-Client': 'mediabox-app',
+        'X-Client-Time': String(Date.now()),
+      };
+      const res = await fetch(`${EXPRESS_API_BASE}/adult/details?id=${encodeURIComponent(id)}`, { 
+        headers,
+        signal: AbortSignal.timeout(4500)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          clientCache.set(cacheKey, data, 3600);
+          return data;
+        }
+      }
+    } catch (_) {}
+
+    return null;
   }, []);
 
   const fetchTrailerFeed = useCallback(async (page: number = 1): Promise<TrailerFeedItem[]> => {

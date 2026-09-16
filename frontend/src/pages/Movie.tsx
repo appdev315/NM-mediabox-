@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
@@ -26,7 +26,8 @@ export function Movie() {
   useViewportExpand([id]);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, loading } = useApi();
+  const location = useLocation();
+  const { fetchMovieDetails, fetchPersonDetails, fetchRecommendations, searchContent, loading } = useApi();
   const { t, language } = useLanguage();
   const { stop: stopAudio } = useAudioPlayer();
   const { triggerMovieAd } = useAdManager();
@@ -431,9 +432,32 @@ export function Movie() {
       try {
         const initialType = (queryType === 'series' || queryType === 'tv') ? 'tv' : 'movie';
         const details = await fetchMovieDetails(id, initialType);
+        let d = details as any;
         if (!isMounted) return;
-        setMovie(details);
-        const d = details as any;
+
+        // Defensive guard: Detect severe title collision (e.g. Liftw ID collided with TMDB ID)
+        const expectedTitle = (location.state as any)?.title || '';
+        if (expectedTitle && d?.title && !d?.isLiftwOnly) {
+          const normExp = expectedTitle.toLowerCase().trim();
+          const normGot = (d.title || d.name || '').toLowerCase().trim();
+          const normOrig = (d.original_title || d.original_name || '').toLowerCase().trim();
+          const isMismatch = !normGot.includes(normExp) && !normExp.includes(normGot) &&
+                             !normOrig.includes(normExp) && !normExp.includes(normOrig);
+          if (isMismatch) {
+            try {
+              const correctedRes = await searchContent(expectedTitle);
+              const correctedMatch = correctedRes?.[0];
+              if (correctedMatch?.id && String(correctedMatch.id) !== String(d.id)) {
+                const correctedDetails = await fetchMovieDetails(correctedMatch.id, initialType);
+                if (correctedDetails && isMounted) {
+                  d = correctedDetails as any;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+
+        setMovie(d);
         const resolvedType = (d?.type === 'series' || d?.type === 'tv' || initialType === 'tv') ? 'tv' : 'movie';
         trackOpen(resolvedType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
 
