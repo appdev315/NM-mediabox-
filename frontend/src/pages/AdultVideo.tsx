@@ -7,6 +7,8 @@ import { AdultAdManager } from '../components/AdultAdManager';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BannerAd } from '../components/BannerAd';
+import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
+import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
@@ -122,6 +124,11 @@ export function AdultVideo() {
         <p className="text-sm opacity-70 leading-relaxed mb-4">
           {t('securePlaybackNotice')}
         </p>
+
+        {/* 300x250 Banner right below the player container */}
+        <div className="mb-8 flex justify-center">
+          <AdsterraBanner300x250 />
+        </div>
         
         <AdultAdManager />
 
@@ -167,6 +174,9 @@ export function AdultVideo() {
                   </React.Fragment>
                 );
               })}
+
+              {/* Native Banner before return card */}
+              <AdsterraNativeAd />
 
               {/* Return to Category / Previous Page Card */}
               <div 

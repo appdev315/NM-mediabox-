@@ -207,3 +207,11 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
 .word-stopped-bounce {
   animation: wordStopBounce 0.45s ease-out forwards;
 }
+
+/* Adsterra Social Bar bottom positioning (slides in from bottom above bottom nav) */
+iframe[src*="negotiatenapkin.com"],
+div[class*="at-custom"],
+div[id^="asg_"] {
+  top: auto !important;
+  bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+}

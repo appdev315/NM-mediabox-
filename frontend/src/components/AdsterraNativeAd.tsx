@@ -16,7 +16,7 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
     const script = document.createElement('script');
     script.async = true;
     script.setAttribute('data-cfasync', 'false');
-    script.src = 'https://pl31255646.profitableratecpmnetwork.com/3208ff608ab1302402523bc766aa65a2/invoke.js';
+    script.src = 'https://negotiatenapkin.com/3208ff608ab1302402523bc766aa65a2/invoke.js';
 
     containerRef.current.appendChild(targetDiv);
     containerRef.current.appendChild(script);
