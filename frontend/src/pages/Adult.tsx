@@ -13,7 +13,7 @@ import { trackOpen } from '../utils/analytics';
 
 const CATEGORIES = [
   { id: '', label: 'All Categories / Все категории' },
-  { id: 'popular', label: '🔥 Popular / Популярное' },
+  { id: 'popular', label: 'Popular / Популярное' },
   { id: 'milf', label: 'MILF' },
   { id: 'teen', label: 'Teens' },
   { id: 'japanese', label: 'Japanese' },
@@ -145,7 +145,13 @@ export function Adult() {
   
   const hasAccess = true;
 
-  const [ageConfirmed, setAgeConfirmed] = useState(() => localStorage.getItem('age_confirmed') === 'true');
+  const [ageConfirmed, setAgeConfirmed] = useState(() => {
+    if (typeof window !== 'undefined' && (window.location.search.includes('app=adult') || window.location.hostname === 'moviemaniak5555.xyz')) {
+      try { localStorage.setItem('age_confirmed', 'true'); } catch (_) {}
+      return true;
+    }
+    return localStorage.getItem('age_confirmed') === 'true';
+  });
 
   const loadVideos = useCallback(async (searchQuery: string, pageNum: number = 0, append: boolean = false, randomize: boolean = false) => {
     if (append) {
@@ -267,9 +273,9 @@ export function Adult() {
 
   if (hasAccess && !ageConfirmed) {
     return (
-      <div className="p-6 pt-20 flex flex-col items-center justify-center text-center min-h-[70vh]">
-        <div className="text-6xl mb-6">🔞</div>
-        <h1 className="text-2xl font-bold mb-4">🔞</h1>
+      <div className="px-4 py-12 flex flex-col items-center text-center max-w-md mx-auto min-h-screen">
+        <Header />
+        <h1 className="text-3xl font-extrabold mb-4 mt-8">18+</h1>
         <div className="opacity-70 mb-8 leading-relaxed text-sm text-left bg-black/10 p-4 rounded-xl border border-white/10 shadow-inner flex flex-col gap-3">
           <p>
             <strong>{t('secretRoomRulesTitle')}</strong><br/>

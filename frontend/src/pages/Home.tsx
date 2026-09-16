@@ -31,6 +31,7 @@ const MovieCard = React.memo(function MovieCard({
   comingSoonText,
   onNavigate,
 }: MovieCardProps) {
+  const { t } = useLanguage();
   if (!item || !item.id) return null;
   const targetMediaType = item.type || mediaType;
 
@@ -72,7 +73,7 @@ const MovieCard = React.memo(function MovieCard({
         {item.isAdult && (
           <div className="absolute top-2 left-2 z-20">
             <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-red-500/40">
-              🔞 18+
+              {t('adultCategory') || '18+'}
             </span>
           </div>
         )}
@@ -181,8 +182,8 @@ export function Home() {
 
   const currentFilterLabel = useMemo(() => {
     if (selectedGenre) {
-      if (selectedGenre === 'trending') return t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular');
-      if (selectedGenre === 'adult') return '🔞 18+';
+      if (selectedGenre === 'trending') return t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular');
+      if (selectedGenre === 'adult') return t('adultCategory') || '18+';
       const gMatch = genres.find(g => String(g.id) === String(selectedGenre));
       if (gMatch) return gMatch.name;
       const sMatch = homeSections.find(s => String(s.genreId) === String(selectedGenre) || String(s.id) === String(selectedGenre));
@@ -610,8 +611,8 @@ export function Home() {
                   onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
                 >
                   <option value="">{t('allGenres')}</option>
-                  <option value="trending">{t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular')}</option>
-                  <option value="adult">🔞 18+</option>
+                  <option value="trending">{t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular')}</option>
+                  <option value="adult">{t('adultCategory') || '18+'}</option>
                   {genres.map(g => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
@@ -772,17 +773,17 @@ export function Home() {
                     className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
                   >
                     <div className="relative overflow-hidden rounded-xl shadow-lg aspect-[2/3] bg-gradient-to-br from-red-600/90 via-pink-700/80 to-purple-900/90 border border-red-500/30 flex flex-col items-center justify-center p-3 text-white">
-                      <div className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
-                        🔞
+                      <div className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-sm font-black tracking-wider mb-2 shadow-inner group-hover:scale-110 transition-transform">
+                        {t('adultCategory') || '18+'}
                       </div>
                       <span className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">
-                        Ещё больше на сайте 18+
+                        {t('moreOnAdultSite') || 'Ещё больше на сайте 18+'}
                       </span>
                       <p className="text-[10px] opacity-80 mt-1 leading-tight">
-                        Тысячи эксклюзивных роликов
+                        {t('thousandsAdultVideos') || 'Тысячи эксклюзивных роликов'}
                       </p>
                       <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
-                        Перейти →
+                        {t('goToSite') || 'Перейти →'}
                       </div>
                     </div>
                   </div>

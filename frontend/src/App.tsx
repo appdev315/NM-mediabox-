@@ -13,7 +13,7 @@ import { Home } from './pages/Home';
 const Movie = lazy(() => import('./pages/Movie').then(m => ({ default: m.Movie })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Favorites = lazy(() => import('./pages/Favorites').then(m => ({ default: m.Favorites })));
-const Adult = lazy(() => import('./pages/Adult').then(m => ({ default: m.Adult })));
+import { Adult } from './pages/Adult';
 const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default: m.AdultVideo })));
 const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
 
@@ -238,6 +238,9 @@ export default function App() {
     } catch (e) {
       console.debug('[WebApp] Color config skipped:', e);
     }
+
+    const isTelegram = Boolean(WebApp?.platform && WebApp.platform !== 'unknown');
+    if (!isTelegram) return;
 
     let appViewportTimers: ReturnType<typeof setTimeout>[] = [];
 

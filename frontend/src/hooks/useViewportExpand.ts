@@ -3,15 +3,19 @@ import { WebApp } from '../telegram';
 
 export function triggerViewportExpand(): void {
   try {
+    const isTelegram = Boolean(WebApp?.platform && WebApp.platform !== 'unknown');
+    if (!isTelegram) return;
     if (WebApp && typeof WebApp.expand === 'function') {
       WebApp.expand();
     }
-    window.dispatchEvent(new Event('resize'));
   } catch (_) {}
 }
 
 export function useViewportExpand(deps: any[] = []): void {
   const runCascade = useCallback(() => {
+    const isTelegram = Boolean(WebApp?.platform && WebApp.platform !== 'unknown');
+    if (!isTelegram) return () => {};
+
     triggerViewportExpand();
 
     const isFullyExpanded = (): boolean => {

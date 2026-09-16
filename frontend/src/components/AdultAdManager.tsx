@@ -15,8 +15,26 @@ const POPUNDER_STORAGE_KEY = 'mb_adult_pop_ts';
 export const AdultAdManager: React.FC = () => {
   useEffect(() => {
     // 1. Social Bar bottom positioning enforcement (slide from bottom up)
+    const isAdElement = (el: HTMLElement): boolean => {
+      if (!el || !el.tagName) return false;
+      if (el.tagName === 'IFRAME') {
+        const src = el.getAttribute('src') || '';
+        return !src || src.includes('negotiatenapkin') || src.includes('adsterra');
+      }
+      const className = typeof el.className === 'string' ? el.className : '';
+      const id = typeof el.id === 'string' ? el.id : '';
+      return (
+        el.dataset?.adsterra === 'social-bar' ||
+        className.includes('at-') ||
+        className.includes('asg_') ||
+        id.includes('at-') ||
+        id.includes('asg_') ||
+        id.includes('container-3208ff608ab1302402523bc766aa65a2')
+      );
+    };
+
     const fixPositioning = (el: HTMLElement) => {
-      if (!el || !el.style) return;
+      if (!el || !el.style || !isAdElement(el)) return;
       const computed = window.getComputedStyle(el);
       if (computed.position === 'fixed' || el.style.position === 'fixed' || el.tagName === 'IFRAME') {
         el.style.setProperty('top', 'auto', 'important');
@@ -29,7 +47,7 @@ export const AdultAdManager: React.FC = () => {
         for (const node of m.addedNodes) {
           if (node instanceof HTMLElement) {
             fixPositioning(node);
-            const nested = node.querySelectorAll<HTMLElement>('iframe, div[style*="fixed"]');
+            const nested = node.querySelectorAll<HTMLElement>('iframe, div[class*="at-"], div[id*="asg_"]');
             nested.forEach(fixPositioning);
           }
         }
