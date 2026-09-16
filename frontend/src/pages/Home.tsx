@@ -761,7 +761,12 @@ export function Home() {
                   <div 
                     onClick={() => {
                       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
-                      window.open('https://moviemaniak5555.xyz/?app=adult', '_blank', 'noopener,noreferrer');
+                      const url = 'https://negotiatenapkin.com/an646prm?key=1594ed1b4a9553df503efd154edb9260';
+                      if (WebApp?.openLink) {
+                        WebApp.openLink(url);
+                      } else {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }
                     }}
                     className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
                   >

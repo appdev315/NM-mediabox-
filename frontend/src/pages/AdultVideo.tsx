@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
-import { Player } from '../components/Player';
 import { Header } from '../components/Header';
+import { Player } from '../components/Player';
+import { AdultAdManager } from '../components/AdultAdManager';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
 import { BannerAd } from '../components/BannerAd';
 import { trackOpen } from '../utils/analytics';
 
@@ -123,9 +123,7 @@ export function AdultVideo() {
           {t('securePlaybackNotice')}
         </p>
         
-        <div className="mb-8">
-          <AdsterraBanner300x250 />
-        </div>
+        <AdultAdManager />
 
         {/* Related Videos */}
         {relatedVideos.length > 0 && (
