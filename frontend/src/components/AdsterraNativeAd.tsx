@@ -2,10 +2,34 @@ import React, { useEffect, useRef, useState } from 'react';
 
 export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
 
+  // 1. Viewport observer: Only mount heavy ad scripts when user scrolls near the banner (250px margin)
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '250px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // 2. Load Adsterra Native script and container only once in proximity
+  useEffect(() => {
+    if (!isVisible || !containerRef.current) return;
     containerRef.current.innerHTML = '';
 
     const targetDiv = document.createElement('div');
@@ -27,7 +51,7 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
           setShowFallback(true);
         }
       }
-    }, 2500);
+    }, 3500);
 
     return () => {
       clearTimeout(fallbackTimer);
@@ -35,7 +59,7 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
         containerRef.current.innerHTML = '';
       }
     };
-  }, []);
+  }, [isVisible]);
 
   if (showFallback) {
     return null;
@@ -48,4 +72,5 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
     />
   );
 };
+
 

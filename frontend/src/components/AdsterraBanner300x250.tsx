@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WebApp } from '../telegram';
 
 interface SingleBannerProps {
@@ -12,6 +12,29 @@ const SLOT_SYMBOLS = ['7️⃣', '🍒', '💎', '🎰', '👑', '🍓', '7️�
 const SingleAdsterraBanner: React.FC<SingleBannerProps> = ({ id, animate, stopDelay }) => {
   const [stopped, setStopped] = useState(!animate);
   const [revealed, setRevealed] = useState(!animate);
+  const [isVisible, setIsVisible] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!animate) return;
@@ -35,19 +58,27 @@ const SingleAdsterraBanner: React.FC<SingleBannerProps> = ({ id, animate, stopDe
 
   return (
     <div 
+      ref={bannerRef}
       style={{ width: '300px', height: '250px', maxWidth: '100%', flexShrink: 0 }} 
       className={`relative flex justify-center items-center rounded-2xl overflow-hidden shadow-md bg-[#18181b] border border-amber-500/20 transition-all duration-300 ${stopped && animate ? 'slot-stopped-bounce border-amber-400/80' : ''}`}
     >
-      {/* Background Adsterra Iframe (Pre-mounted from t=0 for instant viewability) */}
-      <iframe
-        src={`/adsterra-banner.html?v=1&slot=${id}`}
-        width="300"
-        height="250"
-        scrolling="no"
-        frameBorder="0"
-        title={`adsterra-banner-${id}`}
-        style={{ width: '300px', height: '250px', border: 'none', overflow: 'hidden' }}
-      />
+      {/* Background Adsterra Iframe (Lazy-mounted upon viewport proximity) */}
+      {isVisible ? (
+        <iframe
+          src={`/adsterra-banner.html?v=1&slot=${id}`}
+          width="300"
+          height="250"
+          scrolling="no"
+          frameBorder="0"
+          loading="lazy"
+          title={`adsterra-banner-${id}`}
+          style={{ width: '300px', height: '250px', border: 'none', overflow: 'hidden' }}
+        />
+      ) : (
+        <div className="w-[300px] h-[250px] bg-[#141416] flex items-center justify-center">
+          <span className="text-2xl opacity-20">🍓</span>
+        </div>
+      )}
 
       {/* Slot Machine Overlay (Runs 1 time per session) */}
       {!revealed && (
