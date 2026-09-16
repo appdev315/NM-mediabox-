@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { WebApp } from '../telegram';
 
-const SOCIAL_BAR_SRC = 'https://negotiatenapkin.com/ff/f6/47/fff6478af4610b21f1c7b6ebfbff8cac.js';
-const POPUNDER_SRC = 'https://negotiatenapkin.com/05/75/89/057589b746ea2587e91f8217c30ff3e8.js';
+const SOCIAL_BAR_SRC = 'https://negotiatenapkin.com/ff/86/47/ff86478af4610b21f1c7b6ebf6ff8cac.js';
+const POPUNDER_SRC = 'https://negotiatenapkin.com/05/75/89/057589b246ea2587e91f8217c30ff3e8.js';
 const POPUNDER_CAP_MS = 8 * 60 * 60 * 1000; // 8 hours frequency capping
 const POPUNDER_STORAGE_KEY = 'mb_adult_pop_ts';
 

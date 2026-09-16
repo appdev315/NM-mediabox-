@@ -761,11 +761,19 @@ export function Home() {
                   <div 
                     onClick={() => {
                       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
-                      const url = 'https://negotiatenapkin.com/an646prm?key=1594ed1b4a9553df503efd154edb9260';
-                      if (WebApp?.openLink) {
-                        WebApp.openLink(url);
+                      const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
+                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594ed1b4a9553df503efd154edb9260';
+
+                      // 1. Open background smartlink in separate tab
+                      try {
+                        window.open(smartlinkUrl, '_blank', 'noopener,noreferrer');
+                      } catch (_) {}
+
+                      // 2. Direct user in main focus to adult catalog
+                      if (WebApp?.openLink && WebApp.platform !== 'unknown') {
+                        WebApp.openLink(adultSiteUrl);
                       } else {
-                        window.open(url, '_blank', 'noopener,noreferrer');
+                        window.location.href = adultSiteUrl;
                       }
                     }}
                     className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
@@ -783,10 +791,6 @@ export function Home() {
                       <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
                         Перейти →
                       </div>
-                    </div>
-                    <div className="mt-1 px-1">
-                      <h3 className="font-bold text-sm leading-tight text-red-400">Основной сайт 18+</h3>
-                      <p className="text-[11px] opacity-60">moviemaniak5555.xyz</p>
                     </div>
                   </div>
                 )}
