@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApi, type Genre } from '../hooks/useApi';
+import { useApi, type Genre, CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream } from '../utils/streamPreloader';
 import { AvailBadge } from '../components/AvailBadge';
@@ -35,15 +35,25 @@ const MovieCard = React.memo(function MovieCard({
   if (!item || !item.id) return null;
   const targetMediaType = item.type || mediaType;
 
+  const posterSrcSet = React.useMemo(() => {
+    if (!item.poster || typeof item.poster !== 'string') return undefined;
+    const match = item.poster.match(/\/t\/p\/[^\/]+(\/.+)$/);
+    if (!match) return undefined;
+    const cleanPath = match[1];
+    const isProxied = item.poster.includes('/api/image') || item.poster.includes('workers.dev');
+    const base = isProxied ? `${CF_API_BASE}/image?path=/t/p` : 'https://image.tmdb.org/t/p';
+    return `${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
+  }, [item.poster]);
+
   return (
     <div 
       onPointerDown={() => {
-        prewarmStream(item.id, item);
+        if (!item.isAdult) prewarmStream(item.id, item);
       }}
       onClick={(e) => {
         e.stopPropagation();
         (document.activeElement as HTMLElement)?.blur();
-        prewarmStream(item.id, item);
+        if (!item.isAdult) prewarmStream(item.id, item);
         onNavigate(item.id, targetMediaType, selectedCountry);
       }}
       className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl"
@@ -56,8 +66,17 @@ const MovieCard = React.memo(function MovieCard({
             </span>
           </div>
         )}
+        {item.isAdult && (
+          <div className="absolute top-2 left-2 z-20">
+            <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-red-500/40">
+              🔞 18+
+            </span>
+          </div>
+        )}
         <img 
           src={item.poster} 
+          srcSet={posterSrcSet}
+          sizes="(max-width: 640px) 170px, 342px"
           alt={item.title} 
           width={300}
           height={450}
@@ -65,11 +84,31 @@ const MovieCard = React.memo(function MovieCard({
           loading="lazy"
           decoding="async"
           onError={(e) => {
+            const currentSrc = e.currentTarget.src;
+            if (currentSrc && currentSrc.includes('image.tmdb.org') && !e.currentTarget.dataset.proxied) {
+              e.currentTarget.dataset.proxied = 'true';
+              const match = currentSrc.match(/\/t\/p\/[^\/]+\/.+$/);
+              if (match) {
+                e.currentTarget.src = `${CF_API_BASE}/image?path=${match[0]}`;
+                return;
+              }
+            }
+            if (currentSrc && currentSrc.includes('thumb-cdn77.xvideos-cdn.com')) {
+              e.currentTarget.src = currentSrc.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
+              return;
+            }
             e.currentTarget.onerror = null;
-            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
+            e.currentTarget.src = item.isAdult
+              ? 'https://placehold.co/400x300/242f3d/ffffff?text=18+'
+              : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
           }}
         />
-        <AvailBadge type={targetMediaType} id={item.id} />
+        {item.duration && (
+          <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md z-20">
+            {item.duration}
+          </div>
+        )}
+        {!item.isAdult && <AvailBadge type={targetMediaType} id={item.id} />}
       </div>
       <div className="mt-1 px-1">
         <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
@@ -95,7 +134,7 @@ const MovieCard = React.memo(function MovieCard({
 
 export function Home() {
   const navigate = useNavigate();
-  const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, loading } = useApi();
+  const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, fetchAdultSearch, loading } = useApi();
   const { language, t } = useLanguage();
   const { triggerAd } = useAdManager();
 
@@ -139,6 +178,7 @@ export function Home() {
   const currentFilterLabel = useMemo(() => {
     if (selectedGenre) {
       if (selectedGenre === 'trending') return t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular');
+      if (selectedGenre === 'adult') return '🔞 18+';
       const gMatch = genres.find(g => String(g.id) === String(selectedGenre));
       if (gMatch) return gMatch.name;
       const sMatch = homeSections.find(s => String(s.genreId) === String(selectedGenre) || String(s.id) === String(selectedGenre));
@@ -168,7 +208,7 @@ export function Home() {
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
     if (activeTab !== 'radio' && activeTab !== 'tv' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
-      const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+      const cacheKey = `categorized_home_v4_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
         setHomeSections(cached);
@@ -252,23 +292,54 @@ export function Home() {
           }
         } else if (selectedGenre || selectedCountry || sortBy === 'vote_average.desc' || page > 1) {
           setIsSearching(false);
-          const results = activeTab === 'movie' 
-            ? await fetchMovies(page, selectedGenre, selectedCountry, sortBy)
-            : await fetchSeries(page, selectedGenre, selectedCountry, sortBy);
-            
-          if (page === 1) {
-            setItems(results || []);
+          if (selectedGenre === 'adult') {
+            try {
+              const randPage1 = Math.floor(Math.random() * 6);
+              const randPage2 = (randPage1 + 1) % 6;
+              const [p1, p2] = await Promise.all([
+                fetchAdultSearch('popular', randPage1),
+                fetchAdultSearch('popular', randPage2),
+              ]);
+              const combined = [...(Array.isArray(p1) ? p1 : []), ...(Array.isArray(p2) ? p2 : [])];
+              const seen = new Set();
+              const unique = combined.filter((v: any) => {
+                if (!v || !v.id || seen.has(v.id)) return false;
+                seen.add(v.id);
+                return true;
+              });
+              const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 30);
+              const adultItems = shuffled.map((v: any) => ({
+                id: v.id,
+                title: v.title,
+                poster: v.poster,
+                type: 'adult',
+                duration: v.duration,
+                isAdult: true,
+              }));
+              setItems(adultItems);
+            } catch (err) {
+              console.error('Failed to load adult content', err);
+              setItems([]);
+            }
           } else {
-            setItems(prev => {
-              const existingIds = new Set(prev.map(i => i.id));
-              const newItems = (results || []).filter((i: any) => !existingIds.has(i.id));
-              return [...prev, ...newItems];
-            });
+            const results = activeTab === 'movie' 
+              ? await fetchMovies(page, selectedGenre, selectedCountry, sortBy)
+              : await fetchSeries(page, selectedGenre, selectedCountry, sortBy);
+              
+            if (page === 1) {
+              setItems(results || []);
+            } else {
+              setItems(prev => {
+                const existingIds = new Set(prev.map(i => i.id));
+                const newItems = (results || []).filter((i: any) => !existingIds.has(i.id));
+                return [...prev, ...newItems];
+              });
+            }
           }
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const cacheKey = `categorized_home_v3_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const cacheKey = `categorized_home_v4_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
             // Instant 0ms render from client cache
@@ -294,7 +365,7 @@ export function Home() {
   useEffect(() => {
     let ticking = false;
     const handleScroll = () => {
-      if (loading || isSearching || (!selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !searchQuery)) return;
+      if (loading || isSearching || selectedGenre === 'adult' || (!selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !searchQuery)) return;
       
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -337,6 +408,13 @@ export function Home() {
     submitSearch(searchInput);
   };
 
+  const handleClearSearch = () => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    setSearchInput('');
+    setSearchQuery('');
+    setPage(1);
+  };
+
   // Live search: debounce typing (min 2 chars), instant clear on empty
   const handleSearchInputChange = (val: string) => {
     setSearchInput(val);
@@ -350,10 +428,14 @@ export function Home() {
     if (trimmed.length < 2) return;
     searchDebounceRef.current = setTimeout(() => {
       submitSearch(val);
-    }, 450);
+    }, 2200);
   };
 
   const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string) => {
+    if (mediaType === 'adult') {
+      navigate(`/adult/${id}`);
+      return;
+    }
     const countryQuery = country ? `&country=${country}` : '';
     navigate(`/movie/${id}?type=${mediaType}${countryQuery}`);
   }, [navigate]);
@@ -367,6 +449,71 @@ export function Home() {
     >
       {/* Header & Profile */}
       <Header />
+
+      {/* Adaptive Search Bar directly under Header */}
+      <div className="mb-3 flex items-center">
+        <div 
+          className="relative flex items-center rounded-xl transition-[width] duration-200"
+          style={{ 
+            backgroundColor: 'var(--hint-color)', 
+            width: searchInput ? '100%' : '240px',
+            maxWidth: '100%'
+          }}
+        >
+          <span className="pl-3 pr-1 text-sm opacity-60 select-none">🔍</span>
+          <input 
+            type="text" 
+            placeholder={t('searchPlaceholder')} 
+            value={searchInput}
+            maxLength={120}
+            onChange={(e) => {
+              handleSearchInputChange(e.target.value);
+            }}
+            onPaste={(e) => {
+              const pastedText = e.clipboardData.getData('text');
+              if (pastedText && /[\r\n\t]/.test(pastedText)) {
+                e.preventDefault();
+                const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+                const currentVal = searchInput;
+                const target = e.target as HTMLInputElement;
+                const start = target.selectionStart || 0;
+                const end = target.selectionEnd || 0;
+                const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
+                setSearchInput(nextVal);
+                handleSearchInputChange(nextVal);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+                handleSearchSubmit();
+              } else if (e.key === 'Escape') {
+                (e.target as HTMLInputElement).blur();
+                handleClearSearch();
+              }
+            }}
+            onBlur={() => {
+              requestAnimationFrame(() => {
+                triggerViewportExpand();
+              });
+            }}
+            className="w-full py-2.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0"
+            style={{ color: 'var(--text-color)' }}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="pr-3 pl-1 text-xs opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: 'var(--text-color)' }}
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Top Leaderboard Banner (Adaptive 728x90 Desktop / 320x50 Mobile) */}
       <MovieBottomBanner className="my-2" slotId="home-top" />
@@ -416,54 +563,6 @@ export function Home() {
         </Suspense>
       ) : (
         <>
-          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 items-center">
-            <input 
-              type="text" 
-              placeholder={t('searchPlaceholder')} 
-              value={searchInput}
-              maxLength={120}
-              onChange={(e) => {
-                handleSearchInputChange(e.target.value);
-              }}
-              onPaste={(e) => {
-                const pastedText = e.clipboardData.getData('text');
-                if (pastedText && /[\r\n\t]/.test(pastedText)) {
-                  e.preventDefault();
-                  const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-                  const currentVal = searchInput;
-                  const target = e.target as HTMLInputElement;
-                  const start = target.selectionStart || 0;
-                  const end = target.selectionEnd || 0;
-                  const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
-                  setSearchInput(nextVal);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  (e.target as HTMLInputElement).blur();
-                  handleSearchSubmit();
-                } else if (e.key === 'Escape') {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              onBlur={() => {
-                requestAnimationFrame(() => {
-                  triggerViewportExpand();
-                });
-              }}
-              className="flex-1 p-3 rounded-xl outline-none font-medium border-none shadow-sm text-sm min-w-0"
-              style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-            />
-            <button
-              type="submit"
-              className="px-3.5 py-3 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0 active:scale-95 cursor-pointer whitespace-nowrap"
-              style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-            >
-              🔍 {t('searchBtn')}
-            </button>
-          </form>
-
           {/* Filters (hidden when searching) */}
           {!isSearching && (
             <div className="flex flex-col gap-2 mb-4">
@@ -477,6 +576,7 @@ export function Home() {
                 >
                   <option value="">{t('allGenres')}</option>
                   <option value="trending">{t('trending') || (language === 'ru-RU' ? '🔥 Популярное' : '🔥 Popular')}</option>
+                  <option value="adult">🔞 18+</option>
                   {genres.map(g => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
@@ -530,7 +630,7 @@ export function Home() {
                 <div 
                   key={section.id} 
                   className="w-full bg-neutral-900/60 dark:bg-gray-800/60 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-lg transition-all hover:border-white/20"
-                  style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 380px' }}
+                  style={sIdx === 0 ? undefined : { contentVisibility: 'auto', containIntrinsicSize: 'auto 1600px' }}
                 >
                   <div className="flex items-center mb-4 pb-3 border-b border-white/10">
                     <button
@@ -622,6 +722,34 @@ export function Home() {
                     onNavigate={handleNavigate}
                   />
                 ))}
+                {selectedGenre === 'adult' && (
+                  <div 
+                    onClick={() => {
+                      if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
+                      window.open('https://moviemaniak5555.xyz/?app=adult', '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
+                  >
+                    <div className="relative overflow-hidden rounded-xl shadow-lg aspect-[2/3] bg-gradient-to-br from-red-600/90 via-pink-700/80 to-purple-900/90 border border-red-500/30 flex flex-col items-center justify-center p-3 text-white">
+                      <div className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+                        🔞
+                      </div>
+                      <span className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">
+                        Ещё больше на сайте 18+
+                      </span>
+                      <p className="text-[10px] opacity-80 mt-1 leading-tight">
+                        Тысячи эксклюзивных роликов
+                      </p>
+                      <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
+                        Перейти →
+                      </div>
+                    </div>
+                    <div className="mt-1 px-1">
+                      <h3 className="font-bold text-sm leading-tight text-red-400">Основной сайт 18+</h3>
+                      <p className="text-[11px] opacity-60">moviemaniak5555.xyz</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

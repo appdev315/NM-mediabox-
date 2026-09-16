@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { WebApp } from '../telegram';
 
+export interface TargetEpisode {
+  season: string;
+  episode: string;
+  token?: number;
+}
+
 interface PlayerProps {
   iframeUrl: string;
   mirrors?: string[];
   initialTimecode?: number;
   mediaId?: string | number;
   onReady?: () => void;
-  season?: string;
-  episode?: string;
+  targetEpisode?: TargetEpisode | null;
   onEpisodeChange?: (season: string, episode: string) => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, episode, onEpisodeChange }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
@@ -20,12 +25,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
   const iframeLoadedRef = useRef(iframeLoaded);
   useEffect(() => { iframeLoadedRef.current = iframeLoaded; }, [iframeLoaded]);
   const [mirrorIndex, setMirrorIndex] = useState(0);
-
-  // Latest season and episode references for background execution without stale closures
-  const seasonRef = useRef(season);
-  const episodeRef = useRef(episode);
-  useEffect(() => { seasonRef.current = season; }, [season]);
-  useEffect(() => { episodeRef.current = episode; }, [episode]);
 
   // Determine provider type
   const provider = useMemo(() => {
@@ -114,30 +113,60 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl]);
 
-  // Send playlist go command to the embedded video player for series episode navigation
-  const sendPlaylistGo = useCallback((targetSeason?: string, targetEpisode?: string) => {
-    const s = targetSeason ?? seasonRef.current;
-    const e = targetEpisode ?? episodeRef.current;
-    if (!s && !e) return;
-
+  // Verified donor commands: adFree (player-venom) + playlist go (embed page).
+  const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        const sNum = parseInt(s || '1', 10);
-        const eNum = parseInt(e || '1', 10);
-        const eStr = String(e || '1');
+        // 1. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
-          { event: 'playlist go', season: sNum, episode: eNum },
+          { event: 'adFree', free: true },
           '*'
         );
-        iframeRef.current.contentWindow.postMessage(
-          { event: 'playlist go', season: sNum, episode: eStr },
-          '*'
-        );
+
+        // 2. For series: command target season and episode if provided
+        if (targetSeason || targetEp) {
+          const sNum = parseInt(targetSeason || '1', 10);
+          const eNum = parseInt(targetEp || '1', 10);
+          const eStr = String(targetEp || '1');
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: sNum, episode: eNum },
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: sNum, episode: eStr },
+            '*'
+          );
+        }
       }
     } catch (_) {}
   }, []);
 
-  // Listen for episode changes inside the embedded player (e.g. Next Episode button)
+  const syncDoneRef = useRef(false);
+  const syncTimersRef = useRef<any[]>([]);
+
+  const clearSyncTimers = useCallback(() => {
+    syncTimersRef.current.forEach((t) => {
+      try { clearTimeout(t); } catch (_) {}
+    });
+    syncTimersRef.current = [];
+  }, []);
+
+  const startSyncBurst = useCallback((targetSeason?: string, targetEp?: string) => {
+    clearSyncTimers();
+    syncDoneRef.current = false;
+    const fireSync = () => {
+      if (syncDoneRef.current) return;
+      sendPlayCommands(targetSeason, targetEp);
+    };
+    fireSync();
+
+    const retryDelays = [200, 500, 1000, 1800, 2600, 4200];
+    retryDelays.forEach(delay => {
+      syncTimersRef.current.push(setTimeout(fireSync, delay));
+    });
+  }, [clearSyncTimers, sendPlayCommands]);
+
+  // Listen for episode changes and playerReady signals inside embedded player
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
@@ -149,32 +178,39 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
         }
+        if (data.event === 'playerReady' || data.event === 'adStart' || data.event === 'startWatching') {
+          syncDoneRef.current = true;
+          clearSyncTimers();
+        }
       } catch (_) {}
     };
 
     window.addEventListener('message', handlePlayerMessage);
-    return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [onEpisodeChange]);
+    return () => {
+      window.removeEventListener('message', handlePlayerMessage);
+      clearSyncTimers();
+    };
+  }, [onEpisodeChange, clearSyncTimers]);
 
-  const isInitialMountRef = useRef(true);
-  const prevSeasonRef = useRef(season);
-  const prevEpisodeRef = useRef(episode);
+  // Single trigger: fire burst only when user explicitly chooses an episode
+  const lastTargetTokenRef = useRef<number | null>(null);
 
-  // When season or episode props change after initial mount, switch episode via postMessage
   useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      prevSeasonRef.current = season;
-      prevEpisodeRef.current = episode;
-      return;
+    if (targetEpisode) {
+      const token = targetEpisode.token ?? Date.now();
+      if (token !== lastTargetTokenRef.current) {
+        lastTargetTokenRef.current = token;
+        startSyncBurst(targetEpisode.season, targetEpisode.episode);
+      }
     }
+  }, [targetEpisode, startSyncBurst]);
 
-    if ((season && season !== prevSeasonRef.current) || (episode && episode !== prevEpisodeRef.current)) {
-      prevSeasonRef.current = season;
-      prevEpisodeRef.current = episode;
-      sendPlaylistGo(season, episode);
-    }
-  }, [season, episode, sendPlaylistGo]);
+  // Cleanup pending sync bursts on unmount
+  useEffect(() => {
+    return () => {
+      clearSyncTimers();
+    };
+  }, [clearSyncTimers]);
 
   // Fallback timer for iframe
   useEffect(() => {
@@ -211,9 +247,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, season, e
       } catch (e) {}
     }
 
-    // Series only: sync episode if loaded with a specific season/episode selection
-    if (season || episode) {
-      sendPlaylistGo(season, episode);
+    // Single transport: if episode already selected by user, run burst; otherwise send adFree for movies
+    if (targetEpisode) {
+      startSyncBurst(targetEpisode.season, targetEpisode.episode);
+    } else {
+      sendPlayCommands();
     }
   };
 

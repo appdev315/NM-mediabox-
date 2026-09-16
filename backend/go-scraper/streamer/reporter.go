@@ -84,7 +84,7 @@ func ReportMissingHandler(w http.ResponseWriter, r *http.Request) {
 		tmdbLink = "N/A"
 	}
 
-	failedSourcesStr := "Liftw (404), Anwap (404)"
+	failedSourcesStr := "Liftw (404)"
 	if len(req.SourcesFailed) > 0 {
 		failedSourcesStr = strings.Join(req.SourcesFailed, ", ")
 	}

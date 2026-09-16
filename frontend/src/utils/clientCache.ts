@@ -127,7 +127,7 @@ async function idbRemove(fullKey: string): Promise<void> {
 const MAX_MEMORY_ENTRIES = 60;
 
 function enforceMemoryLRU(): void {
-  while (memoryCache.size > MAX_MEMORY_ENTRIES) {
+  while (memoryCache.size >= MAX_MEMORY_ENTRIES) {
     const oldestKey = memoryCache.keys().next().value;
     if (oldestKey) {
       memoryCache.delete(oldestKey);

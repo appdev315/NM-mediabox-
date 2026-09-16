@@ -187,7 +187,6 @@ func main() {
 	mux.HandleFunc("/proxy", streamer.ProxyTVHandler)
 	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
-	mux.HandleFunc("/api/anwap", streamer.AnwapApiHandler)
 	mux.HandleFunc("/api/report-missing", streamer.ReportMissingHandler)
 
 	// Apply global middleware chain: Gzip -> RateLimiter -> BotGuard -> Metrics -> CORS -> Mux

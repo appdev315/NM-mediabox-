@@ -9,7 +9,7 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
   className = "my-6", 
   slotId = "default" 
 }) => {
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false);
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);

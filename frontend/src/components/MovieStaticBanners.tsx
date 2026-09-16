@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 export const MovieStaticBanners: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +31,17 @@ export const MovieStaticBanners: React.FC = () => {
     );
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  // Teardown iframes on unmount to release memory
+  useEffect(() => {
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.querySelectorAll('iframe').forEach(f => {
+          try { f.src = 'about:blank'; } catch (_) {}
+        });
+      }
+    };
   }, []);
 
   const bannerSlots = isDesktop ? [0, 1] : [0];

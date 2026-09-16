@@ -10,11 +10,11 @@ export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https:
 // In-flight request deduplication map to prevent redundant parallel network calls
 const inFlightRequests = new Map<string, Promise<any>>();
 
-// TMDB Image helper (direct-first with SW/capturing fallback to Edge proxy)
+// TMDB Image helper (routed through Cloudflare Edge image proxy with 30d CDN cache & anti-blocking)
 export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 'w342' | 'w780' = 'w342') => {
   if (!path) return '';
   const cleanPath = path.startsWith('/') ? path : '/' + path;
-  return `https://image.tmdb.org/t/p/${size}${cleanPath}`;
+  return `${CF_API_BASE}/image?path=/t/p/${size}${cleanPath}`;
 };
 
 export interface TMDBMovie {
@@ -543,8 +543,8 @@ export function useApi() {
       original_title: item.original_title || item.original_name || '',
       title_ru: titleRu,
       poster: item.poster_path 
-        ? getTmdbImageUrl(item.poster_path, (typeof window !== 'undefined' && window.innerWidth < 640) ? 'w185' : 'w342') 
-        : 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster',
+        ? getTmdbImageUrl(item.poster_path, 'w342') 
+        : (item.poster || 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster'),
       backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w780') : '',
       description: item.overview || '',
       tagline: item.tagline || '',
@@ -562,6 +562,7 @@ export function useApi() {
       release_date: rawDate,
       credits: item.credits || null,
       videos: item.videos || null,
+      liftw_id: item.liftw_id || null,
       isUpcoming
     };
   };
@@ -717,7 +718,9 @@ export function useApi() {
         params['vote_count.gte'] = 300;
       } else if (countryCode) {
         params.with_origin_country = countryCode;
-        params['vote_count.gte'] = 3;
+        params['vote_count.gte'] = 5;
+      } else {
+        params['vote_count.gte'] = 100;
       }
       if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/movie', params);
@@ -740,7 +743,9 @@ export function useApi() {
         params['vote_count.gte'] = 150;
       } else if (countryCode) {
         params.with_origin_country = countryCode;
-        params['vote_count.gte'] = 3;
+        params['vote_count.gte'] = 5;
+      } else {
+        params['vote_count.gte'] = 50;
       }
       if (genreId) params.with_genres = genreId;
       const data = await tmdbFetch('/discover/tv', params);
@@ -841,16 +846,16 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
-    const cacheKey = `categorized_home_v3_${type}_${language}`;
+    const cacheKey = `categorized_home_v4_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (!silent && cached) {
       return cached;
     }
 
     const fetcher = async () => {
-      // 1. High-Performance Primary: Single HTTP call to Cloudflare Edge Feed (cached 12h in KV)
+      // 1. High-Performance Primary: Single HTTP call to Cloudflare Edge Feed (Liftw Catalog + TMDB Enrichment)
       try {
-        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}`, {
+        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=2`, {
           signal: AbortSignal.timeout(6000),
         });
         if (cfFeedRes.ok) {

@@ -568,20 +568,24 @@ app.get('/api/liftw', async (c: Context) => {
   const titleRu = c.req.query('title_ru') || '';
   const originalTitle = c.req.query('original_title') || '';
   const bypassCache = c.req.query('bypass_cache') === 'true';
+  const liftwIdParam = c.req.query('liftw_id') || '';
 
-  if (!title) {
-    return c.json({ error: 'Title is required' }, 400);
+  if (!title && !liftwIdParam) {
+    return c.json({ error: 'Title or liftw_id is required' }, 400);
   }
 
   const canonicalType = (vType === 'tv' || vType === 'series') ? 'tv' : 'movie';
   const parsedUrl = new URL(c.req.url);
 
-  // 1. Canonical Edge Cache Key (language-agnostic: strictly tmdb + canonicalType when tmdb exists)
-  const canonicalUrl = tmdb 
-    ? `${parsedUrl.origin}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`
-    : `${parsedUrl.origin}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(yearStr)}&type=${canonicalType}`;
+  // 1. Canonical Edge Cache Key (language-agnostic: strictly liftw_id or tmdb + canonicalType when present)
+  const canonicalUrl = liftwIdParam
+    ? `${parsedUrl.origin}/api/liftw?liftw_id=${encodeURIComponent(liftwIdParam)}`
+    : (tmdb 
+        ? `${parsedUrl.origin}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`
+        : `${parsedUrl.origin}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(yearStr)}&type=${canonicalType}`);
 
   const legacyCacheParams = new URLSearchParams();
+  if (liftwIdParam) legacyCacheParams.set('liftw_id', liftwIdParam);
   if (tmdb) legacyCacheParams.set('tmdb', tmdb);
   if (title) legacyCacheParams.set('title', normString(title));
   if (yearStr) legacyCacheParams.set('year', yearStr);
@@ -613,6 +617,38 @@ app.get('/api/liftw', async (c: Context) => {
       c.executionCtx.waitUntil(edgeCache.delete(cacheReq));
       if (canonicalUrl !== legacyKeyUrl) {
         c.executionCtx.waitUntil(edgeCache.delete(new Request(legacyKeyUrl, { method: 'GET' })));
+      }
+    } catch (_) {}
+  }
+
+  // Direct fast-path when liftw_id is known (0ms search, 100% success)
+  if (liftwIdParam) {
+    try {
+      const infoRes = await fetch(`https://api.liftw.ws/info/${encodeURIComponent(liftwIdParam)}`, {
+        headers: LIFTW_HEADERS,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (infoRes.ok) {
+        const info = await infoRes.json() as any;
+        if (info && info.iframe_uri) {
+          const directResult: Record<string, any> = {
+            liftwId: info.id,
+            liftwType: info.type,
+            name: info.name,
+            iframe: info.iframe_uri,
+          };
+          if (info.episodes) directResult.episodes = info.episodes;
+          const directCacheTtl = canonicalType === 'tv' ? 86400 : 2592000;
+          const directHeaders: Record<string, string> = {
+            'Cache-Control': `public, max-age=${directCacheTtl}, s-maxage=${directCacheTtl}`,
+            'Access-Control-Allow-Origin': '*',
+          };
+          const directResponse = c.json(directResult, 200, directHeaders);
+          try {
+            c.executionCtx.waitUntil(edgeCache.put(cacheReq, directResponse.clone()));
+          } catch (_) {}
+          return directResponse;
+        }
       }
     } catch (_) {}
   }
@@ -971,7 +1007,7 @@ app.get('/api/tmdb/*', async (c: Context) => {
   }
 });
 
-// --- AGGREGATED HOME FEED (1 request instead of 19, cached 12 hours in KV) ---
+// --- AGGREGATED HOME FEED (Sourced from Liftw Catalog + Enriched with Multilingual TMDB) ---
 app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
   const lang = c.req.query('lang') || 'ru-RU';
@@ -986,76 +1022,148 @@ app.get('/api/feed/home', async (c: Context) => {
     }
   } catch (_) {}
 
-  // 2. TMDB Key fallback and fetch
+  const parsedUrl = new URL(c.req.url);
   const TMDB_KEY = getTmdbKey(c);
   const TMDB_BASE = 'https://api.themoviedb.org/3';
+  const isTv = type === 'tv';
+  const liftwType = isTv ? 'serial' : 'film';
+  const liftwCategory = isTv ? 'series' : 'films';
 
   try {
-    // 1. Trending
-    const trendingRes = await fetch(`${TMDB_BASE}/trending/${type}/day?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}`, {
-      signal: AbortSignal.timeout(7000),
-    });
-    const trendingData = trendingRes.ok ? await trendingRes.json() as any : { results: [] };
+    // Helper to enrich a batch of Liftw items with TMDB localized metadata in parallel
+    const enrichBatch = async (items: any[]) => {
+      const enrichPromises = items.map(async (item: any) => {
+        const query = item.origin_name || item.name;
+        if (!query) return null;
+        const year = item.year || 0;
+        const yearQuery = year > 0 ? (isTv ? `&first_air_date_year=${year}` : `&year=${year}`) : '';
+        const searchUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}${yearQuery}`;
+        
+        try {
+          let match: any = null;
+          const tmdbRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4500) });
+          if (tmdbRes.ok) {
+            const tmdbData = await tmdbRes.json() as any;
+            match = tmdbData.results?.[0];
+          }
 
-    // 2. Genres list
-    const genresToFetch = type === 'movie' ? [
-      { id: 28, name: lang.startsWith('ru') ? 'Боевики' : 'Action' },
-      { id: 12, name: lang.startsWith('ru') ? 'Приключения' : 'Adventure' },
-      { id: 16, name: lang.startsWith('ru') ? 'Мультфильмы' : 'Animation' },
-      { id: 35, name: lang.startsWith('ru') ? 'Комедии' : 'Comedy' },
-      { id: 80, name: lang.startsWith('ru') ? 'Криминал' : 'Crime' },
-      { id: 99, name: lang.startsWith('ru') ? 'Документальные' : 'Documentary' },
-      { id: 18, name: lang.startsWith('ru') ? 'Драмы' : 'Drama' },
-      { id: 10751, name: lang.startsWith('ru') ? 'Семейные' : 'Family' },
-      { id: 14, name: lang.startsWith('ru') ? 'Фэнтези' : 'Fantasy' },
-      { id: 36, name: lang.startsWith('ru') ? 'Исторические' : 'History' },
-      { id: 27, name: lang.startsWith('ru') ? 'Ужасы' : 'Horror' },
-      { id: 10402, name: lang.startsWith('ru') ? 'Музыкальные' : 'Music' },
-      { id: 9648, name: lang.startsWith('ru') ? 'Детективы' : 'Mystery' },
-      { id: 10749, name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance' },
-      { id: 878, name: lang.startsWith('ru') ? 'Фантастика' : 'Sci-Fi' },
-      { id: 53, name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller' },
-      { id: 10752, name: lang.startsWith('ru') ? 'Военные' : 'War' },
-      { id: 37, name: lang.startsWith('ru') ? 'Вестерны' : 'Western' },
+          // Elastic search: If strict year matching yielded 0 results, retry without year restriction
+          if (!match && yearQuery) {
+            const relaxedUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}`;
+            const relaxedRes = await fetch(relaxedUrl, { signal: AbortSignal.timeout(4000) });
+            if (relaxedRes.ok) {
+              const relaxedData = await relaxedRes.json() as any;
+              match = relaxedData.results?.[0];
+            }
+          }
+
+          if (match) {
+            return {
+              id: match.id,
+              title: match.title || match.name || item.name,
+              name: match.name || match.title || item.name,
+              original_title: match.original_title || match.original_name || item.origin_name,
+              original_name: match.original_name || match.original_title || item.origin_name,
+              poster_path: match.poster_path || null,
+              poster: match.poster_path ? `${parsedUrl.origin}/api/image?path=/t/p/w500${match.poster_path}` : (item.poster || ''),
+              backdrop_path: match.backdrop_path || null,
+              vote_average: match.vote_average || item.imdb_rating || item.kp_rating || 0,
+              rating: match.vote_average || item.imdb_rating || item.kp_rating || 0,
+              release_date: match.release_date || match.first_air_date || (year ? `${year}-01-01` : ''),
+              year: year || (match.release_date || match.first_air_date || '').slice(0, 4),
+              overview: match.overview || '',
+              type: isTv ? 'series' : 'movie',
+              liftw_id: item.id,
+            };
+          }
+        } catch (_) {}
+
+        // Fallback: use Liftw item natively if TMDB match not found
+        return {
+          id: item.id,
+          title: item.name,
+          name: item.name,
+          original_title: item.origin_name || item.name,
+          original_name: item.origin_name || item.name,
+          poster_path: null,
+          poster: item.poster || '',
+          backdrop_path: null,
+          vote_average: item.imdb_rating || item.kp_rating || 0,
+          rating: item.imdb_rating || item.kp_rating || 0,
+          release_date: year ? `${year}-01-01` : '',
+          year: year || '',
+          overview: '',
+          type: isTv ? 'series' : 'movie',
+          liftw_id: item.id,
+        };
+      });
+
+      const enriched = await Promise.all(enrichPromises);
+      return enriched.filter(Boolean);
+    };
+
+    // 1. Fetch Trending / Popular directly from Liftw
+    const liftwTrendingRes = await fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=16`, {
+      headers: LIFTW_HEADERS,
+      signal: AbortSignal.timeout(6000),
+    });
+    const liftwTrendingData = liftwTrendingRes.ok ? await liftwTrendingRes.json() as any[] : [];
+    const enrichedTrending = await enrichBatch((Array.isArray(liftwTrendingData) ? liftwTrendingData : []).slice(0, 16));
+
+    // 2. Fetch popular genres from Liftw
+    const genreCategories = isTv ? [
+      { id: '10759', name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure', liftwGenre: 'Боевик' },
+      { id: '35', name: lang.startsWith('ru') ? 'Комедии' : 'Comedy', liftwGenre: 'Комедия' },
+      { id: '18', name: lang.startsWith('ru') ? 'Драмы' : 'Drama', liftwGenre: 'Драма' },
+      { id: '53', name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller', liftwGenre: 'Триллер' },
+      { id: '10765', name: lang.startsWith('ru') ? 'Фантастика и Фэнтези' : 'Sci-Fi & Fantasy', liftwGenre: 'Фантастика' },
+      { id: '9648', name: lang.startsWith('ru') ? 'Детективы' : 'Mystery', liftwGenre: 'Детектив' },
+      { id: '16', name: lang.startsWith('ru') ? 'Мультсериалы' : 'Animation', liftwGenre: 'Мультфильм' },
+      { id: '80', name: lang.startsWith('ru') ? 'Криминал' : 'Crime', liftwGenre: 'Криминал' },
+      { id: '10751', name: lang.startsWith('ru') ? 'Семейные' : 'Family', liftwGenre: 'Семейный' },
     ] : [
-      { id: 10759, name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure' },
-      { id: 16, name: lang.startsWith('ru') ? 'Мультсериалы' : 'Animation' },
-      { id: 35, name: lang.startsWith('ru') ? 'Комедии' : 'Comedy' },
-      { id: 80, name: lang.startsWith('ru') ? 'Криминал' : 'Crime' },
-      { id: 99, name: lang.startsWith('ru') ? 'Документальные' : 'Documentary' },
-      { id: 18, name: lang.startsWith('ru') ? 'Драмы' : 'Drama' },
-      { id: 10751, name: lang.startsWith('ru') ? 'Семейные' : 'Family' },
-      { id: 10762, name: lang.startsWith('ru') ? 'Детские' : 'Kids' },
-      { id: 9648, name: lang.startsWith('ru') ? 'Детективы' : 'Mystery' },
-      { id: 10765, name: lang.startsWith('ru') ? 'Фантастика и Фэнтези' : 'Sci-Fi & Fantasy' },
-      { id: 10768, name: lang.startsWith('ru') ? 'Война и Политика' : 'War & Politics' },
-      { id: 37, name: lang.startsWith('ru') ? 'Вестерны' : 'Western' },
+      { id: '28', name: lang.startsWith('ru') ? 'Боевики' : 'Action', liftwGenre: 'Боевик' },
+      { id: '35', name: lang.startsWith('ru') ? 'Комедии' : 'Comedy', liftwGenre: 'Комедия' },
+      { id: '18', name: lang.startsWith('ru') ? 'Драмы' : 'Drama', liftwGenre: 'Драма' },
+      { id: '53', name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller', liftwGenre: 'Триллер' },
+      { id: '878', name: lang.startsWith('ru') ? 'Фантастика' : 'Sci-Fi', liftwGenre: 'Фантастика' },
+      { id: '9648', name: lang.startsWith('ru') ? 'Детективы' : 'Mystery', liftwGenre: 'Детектив' },
+      { id: '12', name: lang.startsWith('ru') ? 'Приключения' : 'Adventure', liftwGenre: 'Приключения' },
+      { id: '16', name: lang.startsWith('ru') ? 'Мультфильмы' : 'Animation', liftwGenre: 'Мультфильм' },
+      { id: '80', name: lang.startsWith('ru') ? 'Криминал' : 'Crime', liftwGenre: 'Криминал' },
+      { id: '27', name: lang.startsWith('ru') ? 'Ужасы' : 'Horror', liftwGenre: 'Ужасы' },
+      { id: '10751', name: lang.startsWith('ru') ? 'Семейные' : 'Family', liftwGenre: 'Семейный' },
+      { id: '10749', name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance', liftwGenre: 'Мелодрама' },
     ];
 
-    const genreResults = await Promise.all(
-      genresToFetch.map(async (g) => {
+    const genreSections = await Promise.all(
+      genreCategories.map(async (cat) => {
         try {
-          const endpoint = type === 'movie' ? 'discover/movie' : 'discover/tv';
-          const res = await fetch(`${TMDB_BASE}/${endpoint}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&with_genres=${g.id}&page=1`, {
-            signal: AbortSignal.timeout(7000),
+          const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=10&sort=popular`, {
+            headers: LIFTW_HEADERS,
+            signal: AbortSignal.timeout(5000),
           });
-          if (!res.ok) return { id: String(g.id), name: g.name, genreId: String(g.id), rawResults: [] };
-          const data = await res.json() as any;
+          if (!res.ok) return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
+          const data = await res.json() as any[];
+          if (!Array.isArray(data) || data.length === 0) {
+            return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
+          }
+          const enrichedResults = await enrichBatch(data.slice(0, 10));
           return {
-            id: String(g.id),
-            name: g.name,
-            genreId: String(g.id),
-            rawResults: (data.results || []).slice(0, 12),
+            id: cat.id,
+            name: cat.name,
+            genreId: cat.id,
+            rawResults: enrichedResults,
           };
         } catch (_) {
-          return { id: String(g.id), name: g.name, genreId: String(g.id), rawResults: [] };
+          return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
         }
       })
     );
 
     const payload = {
-      trending: (trendingData.results || []).slice(0, 12),
-      genres: genreResults.filter(g => g.rawResults && g.rawResults.length > 0),
+      trending: enrichedTrending,
+      genres: genreSections.filter(g => g.rawResults && g.rawResults.length > 0),
     };
 
     const response = c.json(payload, 200, {

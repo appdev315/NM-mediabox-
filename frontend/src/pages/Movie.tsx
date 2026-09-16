@@ -44,6 +44,7 @@ export function Movie() {
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<string>('');
   const [activeEpisode, setActiveEpisode] = useState<string>('');
+  const [targetEpisode, setTargetEpisode] = useState<{ season: string; episode: string; token?: number } | null>(null);
   const activeSeasonRef = useRef<string>('');
   const activeEpisodeRef = useRef<string>('');
   const isHealingRef = useRef<boolean>(false);
@@ -229,7 +230,7 @@ export function Movie() {
           year: String((movie as any)?.year || ''),
           type: mediaType,
           tmdb_id: String((movie as any)?.id || id || ''),
-          sources_failed: ['Liftw (404 / Unavailable)', 'Anwap (404 / Unavailable)'],
+          sources_failed: ['Liftw (404 / Unavailable)'],
           platform
         })
       });
@@ -322,37 +323,20 @@ export function Movie() {
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
 
-  // Season browsing is silent — no player commands here, so opening a
-  // season never loads its first episode while the user is still choosing.
+  // Season browsing is silent — updates UI dropdowns without triggering video playback.
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
     activeSeasonRef.current = season;
     activeEpisodeRef.current = episode;
     setActiveSeason(season);
     setActiveEpisode(episode);
-    userSelectedRef.current = true;
   };
 
-  // Single transport for the one explicit trigger: choosing an episode.
-  // The donor accepts the selection ONLY via this command (verified against
-  // the embed page code) — its native play button cannot receive it.
-  const postPlaylistGo = (season: string, episode: string): void => {
-    const iframe = document.getElementById('video-iframe') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow) {
-      try {
-        const sNum = parseInt(season, 10);
-        const eNum = parseInt(episode, 10);
-        const eStr = String(episode);
-        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eNum }, '*');
-        iframe.contentWindow.postMessage({ event: 'playlist go', season: sNum, episode: eStr }, '*');
-      } catch (_) {}
-    }
-  };
-
-  // Episode choice is the launch trigger: exactly one command per choice.
+  // Episode choice is the single launch trigger: commands Player via targetEpisode prop.
   const handleEpisodeSelect = (episode: string) => {
     const season = activeSeason || sortedSeasons[0] || '1';
     handleSeasonEpisodeChange(season, episode);
-    postPlaylistGo(season, episode);
+    userSelectedRef.current = true;
+    setTargetEpisode({ season, episode, token: Date.now() });
   };
 
 
@@ -434,7 +418,9 @@ export function Movie() {
       stopAudio();
       setIframeUrl(null);
       setSources([]);
-      setIsExtracting(false);
+      setIframeUrl(null);
+      setTargetEpisode(null);
+      userSelectedRef.current = false;
       setContentUnavailable(false);
       setMovie(null);
       setActiveSeason('');
@@ -593,7 +579,7 @@ export function Movie() {
       const originalTitle = (movie as any)?.original_title || (movie as any)?.original_name || '';
       const ruTitle = (movie as any)?.title_ru || (language === 'ru-RU' ? ((movie as any)?.title || (movie as any)?.name) : '') || queryParams.title;
 
-      // Parallel fetch: Liftw + Anwap
+      // Fetch stream from Liftw
       const liftwQuery = new URLSearchParams({
         title: queryParams.title,
         year: queryParams.year,
@@ -602,6 +588,9 @@ export function Movie() {
         title_ru: ruTitle,
         original_title: originalTitle
       });
+      if ((movie as any)?.liftw_id) {
+        liftwQuery.append('liftw_id', String((movie as any).liftw_id));
+      }
       if (forceRefresh) {
         if (id) {
           clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
@@ -609,29 +598,17 @@ export function Movie() {
         liftwQuery.append('bypass_cache', 'true');
       }
 
-      const foundSources: { liftw: any, anwap: any[] } = { 
-        liftw: null, 
-        anwap: []
-      };
+      let foundLiftw: any = null;
 
-      let isLiftwDone = false;
-      let anwapDone = false;
 
-      const evaluateUIUnblock = () => {
-        if (!isMountedRef.current) return;
-        if (foundSources.liftw || isLiftwDone || anwapDone) {
-          setIsExtracting(false);
-        }
-      };
 
       const updateUI = () => {
         if (!isMountedRef.current) return;
         const combined: any[] = [];
         
-        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
-        // Player 1: Liftw (Primary player with built-in audio/subtitles language switcher — Priority #1)
-        if (foundSources.liftw) {
-          const liftwUrl = foundSources.liftw.url;
+        // Primary Player: Liftw (1080p with built-in audio/subtitles switcher)
+        if (foundLiftw) {
+          const liftwUrl = foundLiftw.url;
           combined.push({
             name: 'player1',
             label: t('player1') || 'Плеер 1',
@@ -639,39 +616,17 @@ export function Movie() {
             isLiftw: true
           });
         }
-        
-        // Player 2: Anwap (Direct MP4 backup stream)
-        if (foundSources.anwap.length > 0) {
-          combined.push({
-            name: 'player2',
-            label: t('player2') || 'Плеер 2',
-            url: foundSources.anwap[0].url,
-            isLiftw: false
-          });
-        }
 
         setSources(combined);
 
-        if (combined.length > 0) {
-          // Priority 1: If Liftw (1080p) is found, it is ALWAYS the preferred player.
-          // Never preemptively mount backup player (Anwap) while Liftw is still resolving!
-          if (foundSources.liftw) {
-            const preferredUrl = combined[0]?.url || foundSources.liftw.url;
-            if (!userSelectedRef.current) {
-              setIframeUrl(preferredUrl);
-            } else {
-              setIframeUrl(prev => prev || preferredUrl);
-            }
-            setIsExtracting(false);
-          } else if (isLiftwDone && foundSources.anwap.length > 0) {
-            const preferredUrl = foundSources.anwap[0].url;
-            if (!userSelectedRef.current) {
-              setIframeUrl(preferredUrl);
-            } else {
-              setIframeUrl(prev => prev || preferredUrl);
-            }
-            setIsExtracting(false);
+        if (combined.length > 0 && foundLiftw) {
+          const preferredUrl = foundLiftw.url;
+          if (!userSelectedRef.current) {
+            setIframeUrl(preferredUrl);
+          } else {
+            setIframeUrl(prev => prev || preferredUrl);
           }
+          setIsExtracting(false);
         }
       };
 
@@ -697,11 +652,6 @@ export function Movie() {
         const freshMiss = !forceRefresh && !liftwData && getAvailability(mediaType, id) === 'missing';
 
         if (!liftwData && !freshMiss) {
-          let sawDefinitiveMiss = false;
-          const tapDefinitive = (res: any) => {
-            if (res && !res.iframe) sawDefinitiveMiss = true;
-            return res;
-          };
           const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
             const timeoutCtrl = new AbortController();
             const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
@@ -723,17 +673,13 @@ export function Movie() {
 
           try {
             // 1. Query Cloudflare Edge Cache first (primary edge, 0 redundant backend hits)
-            liftwData = await tryFetchLiftw(CF_API_BASE, 3000);
-            if (liftwData) tapDefinitive(liftwData);
+            liftwData = await tryFetchLiftw(CF_API_BASE, 4200);
 
-            // 2. Fallback to Express microservice only if Cloudflare didn't return stream
-            if ((!liftwData || !liftwData.iframe) && !sawDefinitiveMiss) {
+            // 2. Fallback to Express microservice if Cloudflare didn't return stream
+            if (!liftwData || !liftwData.iframe) {
               const hfData = await tryFetchLiftw(EXPRESS_API_BASE, 5000);
-              if (hfData) {
-                tapDefinitive(hfData);
-                if (hfData.iframe) {
-                  liftwData = hfData;
-                }
+              if (hfData && hfData.iframe) {
+                liftwData = hfData;
               }
             }
 
@@ -741,7 +687,7 @@ export function Movie() {
               const streamTtl = mediaType === 'tv' ? 86400 : 2592000; // 1 day TV, 30 days Movies
               clientCache.set(streamCacheKey, liftwData, streamTtl);
               if (id) setAvailability(mediaType, id, 'available');
-            } else if (sawDefinitiveMiss) {
+            } else {
               if (id) setAvailability(mediaType, id, 'missing');
             }
           } catch (e) {
@@ -751,7 +697,7 @@ export function Movie() {
 
         if (liftwData && liftwData.iframe) {
           const initialUrl = liftwData.iframe;
-          foundSources.liftw = { name: 'player1', url: initialUrl, isLiftw: true };
+          foundLiftw = { name: 'player1', url: initialUrl, isLiftw: true };
 
           if (liftwData.episodes) {
             setLiftwEpisodes(liftwData.episodes);
@@ -759,7 +705,7 @@ export function Movie() {
               const numA = parseInt(a, 10);
               const numB = parseInt(b, 10);
               if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-              return a.localeCompare(b);
+              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
             const firstSeason = initSortedSeasons[0] || '1';
             const firstSeasonEpisodes = liftwData.episodes[firstSeason] || [];
@@ -767,7 +713,7 @@ export function Movie() {
               const numA = parseInt(a, 10);
               const numB = parseInt(b, 10);
               if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-              return a.localeCompare(b);
+              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
             const firstEpisode = sortedFirstSeasonEps[0] || '1';
 
@@ -790,94 +736,31 @@ export function Movie() {
       }
     };
 
-      // 3. Fetch Anwap stream asynchronously (Player 2 — Backup)
-      const fetchAnwap = async () => {
-        const timeoutCtrl = new AbortController();
-        const timeoutId = setTimeout(() => timeoutCtrl.abort(), 7000);
-        try {
-          const titlesToTry: string[] = [];
-          const ru = ((movie as any)?.title_ru || '').trim();
-          const orig = ((movie as any)?.original_title || (movie as any)?.original_name || queryParams.original_title || '').trim();
-          const localized = ((movie as any)?.title || (movie as any)?.name || queryParams.title || '').trim();
+    // 10s UI deadline: if Liftw doesn't respond, stop spinner and show unavailable
+    if (extractDeadlineRef.current) {
+      clearTimeout(extractDeadlineRef.current);
+    }
+    extractDeadlineRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      if (foundLiftw === null) {
+        setIsExtracting(false);
+        setContentUnavailable(true);
+      }
+    }, 10000);
 
-          // Priority 1 for Anwap (Russian tracker): Russian title
-          if (ru) titlesToTry.push(ru);
-          // Priority 2: Original title (crucial for French, Spanish, Italian, Asian cinema)
-          if (orig && !titlesToTry.includes(orig)) titlesToTry.push(orig);
-          // Priority 3: Localized / English title
-          if (localized && !titlesToTry.includes(localized)) titlesToTry.push(localized);
-
-          let foundUrl = '';
-          for (const candTitle of titlesToTry) {
-            try {
-              const anwapUrl = `${EXPRESS_API_BASE}/anwap?title=${encodeURIComponent(candTitle)}&tmdb=${encodeURIComponent(queryParams.tmdb || '')}&title_ru=${encodeURIComponent(ru)}&original_title=${encodeURIComponent(orig)}`;
-              const res = await fetchWithRetry(anwapUrl, {
-                maxRetries: 1,
-                baseDelayMs: 250,
-                maxDelayMs: 800,
-                signal: timeoutCtrl.signal,
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data && data.url && /^https?:\/\//i.test(data.url)) {
-                  foundUrl = data.url;
-                  break;
-                }
-              }
-            } catch (_) {}
-          }
-
-          if (foundUrl) {
-            foundSources.anwap = [{ name: 'anwap', url: foundUrl, isLiftw: false }];
-          }
-        } catch (e) {
-          console.error("Anwap fetch failed", e);
-        } finally {
-          clearTimeout(timeoutId);
-          anwapDone = true;
-        }
-      };
-
-      // 10s UI deadline: if neither source responds, stop spinner and show unavailable
+    // Fetch primary player (Liftw)
+    fetchLiftw().finally(() => {
+      if (!isMountedRef.current) return;
+      updateUI();
       if (extractDeadlineRef.current) {
         clearTimeout(extractDeadlineRef.current);
+        extractDeadlineRef.current = null;
       }
-      extractDeadlineRef.current = setTimeout(() => {
-        if (!isMountedRef.current) return;
-        if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-          setIsExtracting(false);
-          setContentUnavailable(true);
-        }
-      }, 10000);
-
-      // Fetch primary player (Liftw). Only query backup player (Anwap) if Liftw has no stream.
-      fetchLiftw().then(async () => {
-        if (!isMountedRef.current) return;
-        updateUI();
-        evaluateUIUnblock();
-
-        // Lazy fallback: only call Anwap if Liftw did not find a stream
-        if (!foundSources.liftw) {
-          await fetchAnwap();
-          if (!isMountedRef.current) return;
-          updateUI();
-        } else {
-          anwapDone = true;
-        }
-      }).finally(() => {
-        isLiftwDone = true;
-        anwapDone = true;
-        if (!isMountedRef.current) return;
-        updateUI();
-        if (extractDeadlineRef.current) {
-          clearTimeout(extractDeadlineRef.current);
-          extractDeadlineRef.current = null;
-        }
-        setIsExtracting(false);
-        if (foundSources.liftw === null && foundSources.anwap.length === 0) {
-          setContentUnavailable(true);
-        }
-      });
+      setIsExtracting(false);
+      if (foundLiftw === null) {
+        setContentUnavailable(true);
+      }
+    });
     } catch (err) {
       console.error("Failed to extract stream", err);
       alert("Failed to load stream");
@@ -1264,7 +1147,7 @@ export function Movie() {
           )}
           {language !== 'ru-RU' && sources.length > 1 && !isExtracting && iframeUrl && (
             <div className="flex flex-wrap justify-center items-center gap-2 mb-3">
-              {sources.map((src, idx) => (
+              {sources.map((src) => (
                 <button
                   key={src.url}
                   onClick={() => {
@@ -1277,7 +1160,7 @@ export function Movie() {
                       : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {idx === 0 ? (t('player1') || 'Плеер 1') : (t('player2') || 'Плеер 2')}
+                  {src.label || (t('player1') || 'Плеер 1')}
                 </button>
               ))}
             </div>
@@ -1321,8 +1204,7 @@ export function Movie() {
                         iframeUrl={iframeUrl} 
                         initialTimecode={savedTimecode || undefined} 
                         mediaId={id} 
-                        season={mediaType === 'tv' ? (activeSeason || sortedSeasons[0] || '1') : undefined}
-                        episode={mediaType === 'tv' ? (activeEpisode || sortedEpisodes[0] || '1') : undefined}
+                        targetEpisode={mediaType === 'tv' ? targetEpisode : undefined}
                         onEpisodeChange={(s, e) => {
                           activeSeasonRef.current = s;
                           activeEpisodeRef.current = e;

@@ -176,12 +176,27 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
       if (!nextItems || nextItems.length === 0) {
         setHasMore(false);
       } else {
+const MAX_FEED_ITEMS = 60;
+
         setTrailers(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const unique = nextItems.filter(p => !existingIds.has(p.id));
           const prioritized = prioritizeUnviewedTrailers(unique, initialTrailerId === undefined);
           const combined = [...prev, ...prioritized];
-          return combined.length > 60 ? combined.slice(combined.length - 60) : combined;
+          if (combined.length > MAX_FEED_ITEMS) {
+            const droppedCount = combined.length - MAX_FEED_ITEMS;
+            const container = containerRef.current;
+            if (container && droppedCount > 0) {
+              const targetCard = cardRefs.current[droppedCount];
+              const droppedHeight = targetCard ? targetCard.offsetTop : (droppedCount * container.clientHeight);
+              container.scrollTop = Math.max(0, container.scrollTop - droppedHeight);
+            }
+            cardRefs.current = cardRefs.current.slice(droppedCount);
+            activeIndexRef.current = Math.max(0, activeIndexRef.current - droppedCount);
+            setActiveIndex(curr => Math.max(0, curr - droppedCount));
+            return combined.slice(droppedCount);
+          }
+          return combined;
         });
         setPage(nextPage);
 
