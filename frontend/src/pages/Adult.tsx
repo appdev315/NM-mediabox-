@@ -5,7 +5,6 @@ import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
 import React from 'react';
-import { AdultAdManager } from '../components/AdultAdManager';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { trackOpen } from '../utils/analytics';
 
@@ -378,7 +377,6 @@ export function Adult() {
         <div className="flex justify-center py-20 opacity-50 font-medium">{t('loading')}</div>
       ) : (
         <>
-          <AdultAdManager />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
             {videos.map((v, idx) => (
               <React.Fragment key={`${v.id}-${idx}`}>

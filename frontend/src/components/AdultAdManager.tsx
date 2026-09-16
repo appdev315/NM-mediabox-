@@ -1,20 +1,62 @@
 import React, { useEffect } from 'react';
-import { WebApp } from '../telegram';
 
-const SOCIAL_BAR_SRC = 'https://negotiatenapkin.com/ff/86/47/ff86478af4610b21f1c7b6ebf6ff8cac.js';
-const POPUNDER_SRC = 'https://negotiatenapkin.com/05/75/89/057589b246ea2587e91f8217c30ff3e8.js';
+const SOCIAL_BAR_KEY = 'ff86478af4610b21f1c7b6ebf6ff8cac';
+const POPUNDER_KEY = '057589b246ea2587e91f8217c30ff3e8';
 
-// Social Bar: every 3-5 minutes (4 min = 240,000 ms), with 15s initial delay
-const SOCIAL_BAR_INTERVAL_MS = 4 * 60 * 1000;
+const SOCIAL_BAR_SRC = `https://negotiatenapkin.com/ff/86/47/${SOCIAL_BAR_KEY}.js`;
+const POPUNDER_SRC = `https://negotiatenapkin.com/05/75/89/${POPUNDER_KEY}.js`;
+
+// Social Bar: every 3-5 minutes (3.5 min = 210,000 ms)
+const SOCIAL_BAR_INTERVAL_MS = 3.5 * 60 * 1000;
 const SOCIAL_STORAGE_KEY = 'mb_adult_social_ts';
 
-// Popunder: every 5-7 minutes (6 min = 360,000 ms)
-const POPUNDER_CAP_MS = 6 * 60 * 1000;
+// Popunder: every 5-7 minutes (5.5 min = 330,000 ms)
+const POPUNDER_CAP_MS = 5.5 * 60 * 1000;
 const POPUNDER_STORAGE_KEY = 'mb_adult_pop_ts';
 
 export const AdultAdManager: React.FC = () => {
   useEffect(() => {
-    // 1. Social Bar bottom positioning enforcement (slide from bottom up)
+    // 1. Clear internal Adsterra frequency capping cookies & storage so recurring timers work
+    const purgeAdsterraLimits = () => {
+      try {
+        const cookiesToPurge = [
+          `sb_delay_${SOCIAL_BAR_KEY}`,
+          `sb_count_${SOCIAL_BAR_KEY}`,
+          `sb_page_${SOCIAL_BAR_KEY}`,
+          `sb_onpage_${SOCIAL_BAR_KEY}`,
+          `sb_main_${SOCIAL_BAR_KEY}`,
+          `sb_idelay_${SOCIAL_BAR_KEY}`,
+          `pp_delay_${POPUNDER_KEY}`,
+          `pp_clicks_${POPUNDER_KEY}`,
+          `pp_idelay_${POPUNDER_KEY}`,
+          `total_count_${POPUNDER_KEY}`
+        ];
+
+        const domainParts = window.location.hostname.split('.');
+        const rootDomain = domainParts.length > 1 ? '.' + domainParts.slice(-2).join('.') : '';
+
+        cookiesToPurge.forEach((name) => {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          if (rootDomain) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${rootDomain};`;
+          }
+          try {
+            localStorage.removeItem(name);
+            sessionStorage.removeItem(name);
+          } catch {}
+        });
+
+        if ((window as any).placementKey) {
+          try {
+            delete (window as any).placementKey;
+          } catch {}
+        }
+      } catch (e) {
+        console.debug('[AdultAdManager] purge error:', e);
+      }
+    };
+
+    // 2. Social Bar bottom positioning enforcement (slide from bottom up)
     const isAdElement = (el: HTMLElement): boolean => {
       if (!el || !el.tagName) return false;
       if (el.tagName === 'IFRAME') {
@@ -29,7 +71,7 @@ export const AdultAdManager: React.FC = () => {
         className.includes('asg_') ||
         id.includes('at-') ||
         id.includes('asg_') ||
-        id.includes('container-3208ff608ab1302402523bc766aa65a2')
+        id.includes(SOCIAL_BAR_KEY)
       );
     };
 
@@ -56,65 +98,79 @@ export const AdultAdManager: React.FC = () => {
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // 2. Controlled Social Bar mounting every 3-5 minutes
-    const checkAndMountSocialBar = () => {
+    // 3. Social Bar mount trigger
+    const mountSocialBar = () => {
       const now = Date.now();
-      const lastSocialTime = Number(localStorage.getItem(SOCIAL_STORAGE_KEY) || '0');
-      const isEligible = !lastSocialTime || (now - lastSocialTime >= SOCIAL_BAR_INTERVAL_MS);
+      purgeAdsterraLimits();
 
-      if (isEligible) {
-        const existingSocialBar = document.querySelector(`script[src="${SOCIAL_BAR_SRC}"]`);
-        if (existingSocialBar) existingSocialBar.remove();
+      // Clean existing Social Bar elements and scripts
+      document.querySelectorAll<HTMLElement>(`script[data-adsterra="social-bar"], script[src*="${SOCIAL_BAR_KEY}"]`).forEach(s => s.remove());
+      document.querySelectorAll<HTMLElement>(`[id*="${SOCIAL_BAR_KEY}"], [class*="asg_"], [class*="at-social"]`).forEach(el => el.remove());
 
-        const script = document.createElement('script');
-        script.src = SOCIAL_BAR_SRC;
-        script.async = true;
-        script.dataset.adsterra = 'social-bar';
-        document.body.appendChild(script);
-        localStorage.setItem(SOCIAL_STORAGE_KEY, String(now));
-      }
+      const script = document.createElement('script');
+      script.src = `${SOCIAL_BAR_SRC}?_t=${now}`;
+      script.async = true;
+      script.dataset.adsterra = 'social-bar';
+      document.body.appendChild(script);
+
+      localStorage.setItem(SOCIAL_STORAGE_KEY, String(now));
     };
 
-    // 15-second initial delay after video/page opens to avoid instant popups
-    const socialInitialTimer = setTimeout(checkAndMountSocialBar, 15000);
-    const socialInterval = setInterval(checkAndMountSocialBar, 60000);
+    // 4. Popunder mount trigger
+    const mountPopunder = () => {
+      const now = Date.now();
+      purgeAdsterraLimits();
 
-    // 3. Controlled Popunder: every 5-7 minutes (guarded against Telegram WebApp)
-    const isTelegram = Boolean(WebApp?.platform && WebApp.platform !== 'unknown');
-    let popunderTimer: any;
-    let popunderInterval: any;
+      // Clean previous Popunder script tag
+      document.querySelectorAll<HTMLElement>(`script[data-adsterra="popunder"], script[src*="${POPUNDER_KEY}"]`).forEach(s => s.remove());
 
-    if (!isTelegram) {
-      const checkAndArmPopunder = () => {
-        const now = Date.now();
-        const lastPopTime = Number(localStorage.getItem(POPUNDER_STORAGE_KEY) || '0');
-        const isEligible = !lastPopTime || (now - lastPopTime >= POPUNDER_CAP_MS);
+      const popScript = document.createElement('script');
+      popScript.src = `${POPUNDER_SRC}?_t=${now}`;
+      popScript.async = true;
+      popScript.dataset.adsterra = 'popunder';
+      document.head.appendChild(popScript);
 
-        if (isEligible) {
-          const existingPopunder = document.querySelector(`script[src="${POPUNDER_SRC}"]`);
-          if (existingPopunder) existingPopunder.remove();
+      localStorage.setItem(POPUNDER_STORAGE_KEY, String(now));
+    };
 
-          const popScript = document.createElement('script');
-          popScript.src = POPUNDER_SRC;
-          popScript.async = true;
-          popScript.dataset.adsterra = 'popunder';
-          document.head.appendChild(popScript);
-          localStorage.setItem(POPUNDER_STORAGE_KEY, String(now));
-        }
-      };
+    // 5. Initial mount orchestration (quick start after 3-5 seconds to capture traffic)
+    const initialNow = Date.now();
+    const lastSocialTime = Number(localStorage.getItem(SOCIAL_STORAGE_KEY) || '0');
+    const initialSocialDelay = (!lastSocialTime || (initialNow - lastSocialTime >= SOCIAL_BAR_INTERVAL_MS))
+      ? 3500 
+      : Math.max(1000, SOCIAL_BAR_INTERVAL_MS - (initialNow - lastSocialTime));
 
-      popunderTimer = setTimeout(checkAndArmPopunder, 3000);
-      popunderInterval = setInterval(checkAndArmPopunder, 60000);
-    }
+    const lastPopTime = Number(localStorage.getItem(POPUNDER_STORAGE_KEY) || '0');
+    const initialPopDelay = (!lastPopTime || (initialNow - lastPopTime >= POPUNDER_CAP_MS))
+      ? 6000 
+      : Math.max(1000, POPUNDER_CAP_MS - (initialNow - lastPopTime));
+
+    const initialSocialTimer = setTimeout(mountSocialBar, initialSocialDelay);
+    const initialPopTimer = setTimeout(mountPopunder, initialPopDelay);
+
+    // 6. Persistent heartbeat check every 5 seconds to ensure timers fire precisely
+    const heartbeatInterval = setInterval(() => {
+      const now = Date.now();
+      
+      const currentSocial = Number(localStorage.getItem(SOCIAL_STORAGE_KEY) || '0');
+      if (!currentSocial || (now - currentSocial >= SOCIAL_BAR_INTERVAL_MS)) {
+        mountSocialBar();
+      }
+
+      const currentPop = Number(localStorage.getItem(POPUNDER_STORAGE_KEY) || '0');
+      if (!currentPop || (now - currentPop >= POPUNDER_CAP_MS)) {
+        mountPopunder();
+      }
+    }, 5000);
 
     return () => {
       observer.disconnect();
-      clearTimeout(socialInitialTimer);
-      clearInterval(socialInterval);
-      if (popunderTimer) clearTimeout(popunderTimer);
-      if (popunderInterval) clearInterval(popunderInterval);
+      clearTimeout(initialSocialTimer);
+      clearTimeout(initialPopTimer);
+      clearInterval(heartbeatInterval);
     };
   }, []);
 
   return null;
 };
+

@@ -24,6 +24,7 @@ import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { trackVisit } from './utils/analytics';
+import { AdultAdManager } from './components/AdultAdManager';
 
 function NetworkBanner() {
   const { isOnline } = useNetworkStatus();
@@ -162,9 +163,16 @@ function HardwareBackButtonHandler() {
   return null;
 }
 
+function MainAppAdultAdWatcher() {
+  const location = useLocation();
+  if (!location.pathname.startsWith('/adult')) return null;
+  return <AdultAdManager />;
+}
+
 function MainApp() {
   return (
     <BrowserRouter>
+      <MainAppAdultAdWatcher />
       <DeepLinkHandler isAdultApp={false} />
       <HardwareBackButtonHandler />
       <NetworkBanner />
@@ -194,6 +202,7 @@ function MainApp() {
 function AdultApp() {
   return (
     <BrowserRouter>
+      <AdultAdManager />
       <DeepLinkHandler isAdultApp={true} />
       <HardwareBackButtonHandler />
       <NetworkBanner />

@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { Header } from '../components/Header';
 import { Player } from '../components/Player';
-import { AdultAdManager } from '../components/AdultAdManager';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BannerAd } from '../components/BannerAd';
@@ -130,8 +129,6 @@ export function AdultVideo() {
           <AdsterraBanner300x250 />
         </div>
         
-        <AdultAdManager />
-
         {/* Related Videos */}
         {relatedVideos.length > 0 && (
           <div className="mt-8">
