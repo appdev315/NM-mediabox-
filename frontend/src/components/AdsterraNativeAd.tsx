@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BannerAd } from './BannerAd';
 
 export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,17 +38,14 @@ export const AdsterraNativeAd: React.FC<{ className?: string }> = ({ className =
   }, []);
 
   if (showFallback) {
-    return (
-      <div className="w-full col-span-full my-2">
-        <BannerAd variant="wide" type="telegram" />
-      </div>
-    );
+    return null;
   }
 
   return (
     <div 
       ref={containerRef} 
-      className={`w-full col-span-full my-2 flex justify-center items-center min-h-[120px] overflow-hidden ${className}`}
+      className={`w-full col-span-full my-2 flex justify-center items-center min-h-[100px] overflow-hidden ${className}`}
     />
   );
 };
+

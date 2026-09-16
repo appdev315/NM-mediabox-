@@ -15,6 +15,7 @@ import { useHomeState } from '../context/HomeStateContext';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
 import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
+import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 
 interface MovieCardProps {
   item: any;
@@ -759,41 +760,44 @@ export function Home() {
                   />
                 ))}
                 {selectedGenre === 'adult' && (
-                  <div 
-                    onClick={() => {
-                      if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
-                      const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
-                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594cd1b4a9553df503cfd154cdb9260';
+                  <>
+                    <AdsterraNativeAd className="my-2" />
+                    <div 
+                      onClick={() => {
+                        if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
+                        const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
+                        const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594cd1b4a9553df503cfd154cdb9260';
 
-                      // 1. Open background smartlink in separate tab
-                      try {
-                        window.open(smartlinkUrl, '_blank', 'noopener,noreferrer');
-                      } catch (_) {}
+                        // 1. Open background smartlink in separate tab
+                        try {
+                          window.open(smartlinkUrl, '_blank', 'noopener,noreferrer');
+                        } catch (_) {}
 
-                      // 2. Direct user in main focus to adult catalog
-                      if (WebApp?.openLink && WebApp.platform !== 'unknown') {
-                        WebApp.openLink(adultSiteUrl);
-                      } else {
-                        window.location.href = adultSiteUrl;
-                      }
-                    }}
-                    className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
-                  >
-                    <div className="relative overflow-hidden rounded-xl shadow-lg aspect-[2/3] bg-gradient-to-br from-red-600/90 via-pink-700/80 to-purple-900/90 border border-red-500/30 flex flex-col items-center justify-center p-3 text-white">
-                      <div className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-sm font-black tracking-wider mb-2 shadow-inner group-hover:scale-110 transition-transform">
-                        {t('adultCategory') || '18+'}
-                      </div>
-                      <span className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">
-                        {t('moreOnAdultSite') || 'Ещё больше на сайте 18+'}
-                      </span>
-                      <p className="text-[10px] opacity-80 mt-1 leading-tight">
-                        {t('thousandsAdultVideos') || 'Тысячи эксклюзивных роликов'}
-                      </p>
-                      <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
-                        {t('goToSite') || 'Перейти →'}
+                        // 2. Direct user in main focus to adult catalog
+                        if (WebApp?.openLink && WebApp.platform !== 'unknown') {
+                          WebApp.openLink(adultSiteUrl);
+                        } else {
+                          window.location.href = adultSiteUrl;
+                        }
+                      }}
+                      className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
+                    >
+                      <div className="relative overflow-hidden rounded-xl shadow-lg aspect-[2/3] bg-gradient-to-br from-red-600/90 via-pink-700/80 to-purple-900/90 border border-red-500/30 flex flex-col items-center justify-center p-3 text-white">
+                        <div className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-sm font-black tracking-wider mb-2 shadow-inner group-hover:scale-110 transition-transform">
+                          {t('adultCategory') || '18+'}
+                        </div>
+                        <span className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">
+                          {t('moreOnAdultSite') || 'Ещё больше на сайте 18+'}
+                        </span>
+                        <p className="text-[10px] opacity-80 mt-1 leading-tight">
+                          {t('thousandsAdultVideos') || 'Тысячи эксклюзивных роликов'}
+                        </p>
+                        <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
+                          {t('goToSite') || 'Перейти →'}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
