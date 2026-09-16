@@ -1064,6 +1064,7 @@ app.get('/api/feed/home', async (c: Context) => {
               name: match.name || match.title || item.name,
               original_title: match.original_title || match.original_name || item.origin_name,
               original_name: match.original_name || match.original_title || item.origin_name,
+              original_language: match.original_language || '',
               poster_path: match.poster_path || null,
               poster: match.poster_path ? `${parsedUrl.origin}/api/image?path=/t/p/w500${match.poster_path}` : (item.poster || ''),
               backdrop_path: match.backdrop_path || null,
@@ -1085,6 +1086,7 @@ app.get('/api/feed/home', async (c: Context) => {
           name: item.name,
           original_title: item.origin_name || item.name,
           original_name: item.origin_name || item.name,
+          original_language: '',
           poster_path: null,
           poster: item.poster || '',
           backdrop_path: null,
@@ -1098,17 +1100,25 @@ app.get('/api/feed/home', async (c: Context) => {
         };
       });
 
-      const enriched = await Promise.all(enrichPromises);
-      return enriched.filter(Boolean);
+      const rawEnriched = (await Promise.all(enrichPromises)).filter(Boolean) as any[];
+      if (!lang.startsWith('ru')) {
+        // Filter out Russian-only movies and series for English / international interface
+        return rawEnriched.filter((item: any) => {
+          const hasCyrillicOrigin = /[а-яА-ЯёЁ]/.test(item.original_title || item.original_name || '');
+          const isRuLang = item.original_language === 'ru';
+          return !hasCyrillicOrigin && !isRuLang;
+        });
+      }
+      return rawEnriched;
     };
 
     // 1. Fetch Trending / Popular directly from Liftw
-    const liftwTrendingRes = await fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=16`, {
+    const liftwTrendingRes = await fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=24`, {
       headers: LIFTW_HEADERS,
       signal: AbortSignal.timeout(6000),
     });
     const liftwTrendingData = liftwTrendingRes.ok ? await liftwTrendingRes.json() as any[] : [];
-    const enrichedTrending = await enrichBatch((Array.isArray(liftwTrendingData) ? liftwTrendingData : []).slice(0, 16));
+    const enrichedTrending = (await enrichBatch(Array.isArray(liftwTrendingData) ? liftwTrendingData : [])).slice(0, 16);
 
     // 2. Fetch popular genres from Liftw
     const genreCategories = isTv ? [
@@ -1139,7 +1149,7 @@ app.get('/api/feed/home', async (c: Context) => {
     const genreSections = await Promise.all(
       genreCategories.map(async (cat) => {
         try {
-          const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=10&sort=popular`, {
+          const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=20&sort=popular`, {
             headers: LIFTW_HEADERS,
             signal: AbortSignal.timeout(5000),
           });
@@ -1148,7 +1158,7 @@ app.get('/api/feed/home', async (c: Context) => {
           if (!Array.isArray(data) || data.length === 0) {
             return { id: cat.id, name: cat.name, genreId: cat.id, rawResults: [] };
           }
-          const enrichedResults = await enrichBatch(data.slice(0, 10));
+          const enrichedResults = (await enrichBatch(data)).slice(0, 12);
           return {
             id: cat.id,
             name: cat.name,

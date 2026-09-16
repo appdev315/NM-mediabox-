@@ -83,27 +83,35 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     }
   }, [rawUrl]);
 
-  // Lock initial timecode once on mount/source change to prevent URL mutation on playback ticks
+  // Lock initial timecode and target episode once on mount/source change to prevent URL mutation on playback ticks
   const initialTimecodeRef = useRef(initialTimecode);
+  const initialEpisodeRef = useRef(targetEpisode);
   const lastSourceKeyRef = useRef('');
 
   if (lastSourceKeyRef.current !== sourceKey) {
     lastSourceKeyRef.current = sourceKey;
     initialTimecodeRef.current = initialTimecode;
+    initialEpisodeRef.current = targetEpisode;
   }
 
-  // Base iframe URL stripped of season/episode/timecode query mutations to prevent browser iframe reload
+  // Base iframe URL: embeds initial season & episode for instant server-rendered series playback
   const currentUrl = useMemo(() => {
     if (!rawUrl || !/^https?:\/\//i.test(rawUrl.trim())) {
       return 'about:blank';
     }
     const timecode = initialTimecodeRef.current;
+    const epInfo = initialEpisodeRef.current || targetEpisode;
     let cleanUrl = rawUrl
       .replace(/[?&](start|t)=\d+/g, '')
       .replace(/[?&](season|episode)=\d+/g, '')
       .replace(/#t=\d+/g, '');
     if (cleanUrl.includes('?&')) cleanUrl = cleanUrl.replace('?&', '?');
     if (cleanUrl.endsWith('?')) cleanUrl = cleanUrl.slice(0, -1);
+
+    if (epInfo?.season && epInfo?.episode) {
+      const sep = cleanUrl.includes('?') ? '&' : '?';
+      cleanUrl = `${cleanUrl}${sep}season=${encodeURIComponent(epInfo.season)}&episode=${encodeURIComponent(epInfo.episode)}`;
+    }
 
     if (!timecode || timecode <= 5) return cleanUrl;
     const startSec = Math.floor(timecode);

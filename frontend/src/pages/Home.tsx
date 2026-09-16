@@ -12,7 +12,6 @@ import { TrailerFeed } from '../components/TrailerFeed';
 import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
-import { triggerViewportExpand } from '../hooks/useViewportExpand';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
 import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
@@ -162,6 +161,7 @@ export function Home() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const [searchInput, setSearchInput] = useState<string>(searchQuery);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
@@ -208,7 +208,7 @@ export function Home() {
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
     if (activeTab !== 'radio' && activeTab !== 'tv' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
-      const cacheKey = `categorized_home_v4_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+      const cacheKey = `categorized_home_v5_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
         setHomeSections(cached);
@@ -339,7 +339,7 @@ export function Home() {
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const cacheKey = `categorized_home_v4_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const cacheKey = `categorized_home_v5_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
             // Instant 0ms render from client cache
@@ -445,75 +445,110 @@ export function Home() {
   return (
     <div 
       className="px-3 sm:px-4 pb-20"
-      style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top))' }}
+      style={{ paddingTop: 'calc(5.2rem + env(safe-area-inset-top))' }}
     >
       {/* Header & Profile */}
       <Header />
 
-      {/* Adaptive Search Bar directly under Header */}
-      <div className="mb-3 flex items-center">
-        <div 
-          className="relative flex items-center rounded-xl transition-[width] duration-200"
-          style={{ 
-            backgroundColor: 'var(--hint-color)', 
-            width: searchInput ? '100%' : '240px',
-            maxWidth: '100%'
+      {/* Desktop Search Bar (Fixed directly to the right of MEDIABOX) */}
+      <div 
+        className="fixed left-[170px] top-[calc(16px+env(safe-area-inset-top))] z-40 hidden sm:flex items-center h-10 w-[240px] md:w-[320px] lg:w-[380px] rounded-xl border border-white/10 bg-gray-800 text-white shadow-xl px-3 transition-all"
+      >
+        <span className="pr-2 text-sm opacity-60 select-none">🔍</span>
+        <input 
+          type="text" 
+          placeholder={t('searchPlaceholder')} 
+          value={searchInput}
+          maxLength={120}
+          onChange={(e) => handleSearchInputChange(e.target.value)}
+          onPaste={(e) => {
+            const pastedText = e.clipboardData.getData('text');
+            if (pastedText && /[\r\n\t]/.test(pastedText)) {
+              e.preventDefault();
+              const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+              const currentVal = searchInput;
+              const target = e.target as HTMLInputElement;
+              const start = target.selectionStart || 0;
+              const end = target.selectionEnd || 0;
+              const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
+              setSearchInput(nextVal);
+              handleSearchInputChange(nextVal);
+            }
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+              handleSearchSubmit();
+            } else if (e.key === 'Escape') {
+              (e.target as HTMLInputElement).blur();
+              handleClearSearch();
+            }
+          }}
+          className="w-full py-1.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0 text-white placeholder-white/50"
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={handleClearSearch}
+            className="pl-1 text-xs opacity-60 hover:opacity-100 transition-opacity cursor-pointer text-white"
+            aria-label="Clear search"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Mobile Search: Compact Magnifier Button next to MEDIABOX (sm:hidden) */}
+      {!isMobileSearchOpen && (
+        <button
+          type="button"
+          onClick={() => setIsMobileSearchOpen(true)}
+          className="fixed left-[128px] top-[calc(16px+env(safe-area-inset-top))] z-40 w-10 h-10 rounded-full border border-white/10 bg-gray-800 text-white flex sm:hidden items-center justify-center cursor-pointer shadow-xl active:scale-95 transition-transform"
+          aria-label="Open search"
+          title="Поиск"
         >
-          <span className="pl-3 pr-1 text-sm opacity-60 select-none">🔍</span>
+          <span className="text-sm">🔍</span>
+        </button>
+      )}
+
+      {/* Mobile Search: Full-width Overlay Header when expanded (sm:hidden) */}
+      {isMobileSearchOpen && (
+        <div 
+          className="fixed left-3 right-3 top-[calc(16px+env(safe-area-inset-top))] z-50 h-11 rounded-xl border border-white/20 bg-gray-900/95 backdrop-blur-xl text-white flex sm:hidden items-center shadow-2xl px-3 animate-fade-in"
+        >
+          <span className="pr-2 text-sm opacity-60 select-none">🔍</span>
           <input 
             type="text" 
+            autoFocus
             placeholder={t('searchPlaceholder')} 
             value={searchInput}
             maxLength={120}
-            onChange={(e) => {
-              handleSearchInputChange(e.target.value);
-            }}
-            onPaste={(e) => {
-              const pastedText = e.clipboardData.getData('text');
-              if (pastedText && /[\r\n\t]/.test(pastedText)) {
-                e.preventDefault();
-                const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-                const currentVal = searchInput;
-                const target = e.target as HTMLInputElement;
-                const start = target.selectionStart || 0;
-                const end = target.selectionEnd || 0;
-                const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
-                setSearchInput(nextVal);
-                handleSearchInputChange(nextVal);
-              }
-            }}
+            onChange={(e) => handleSearchInputChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 (e.target as HTMLInputElement).blur();
                 handleSearchSubmit();
               } else if (e.key === 'Escape') {
-                (e.target as HTMLInputElement).blur();
-                handleClearSearch();
+                setIsMobileSearchOpen(false);
               }
             }}
-            onBlur={() => {
-              requestAnimationFrame(() => {
-                triggerViewportExpand();
-              });
-            }}
-            className="w-full py-2.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0"
-            style={{ color: 'var(--text-color)' }}
+            className="w-full py-1.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0 text-white placeholder-white/50"
           />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="pr-3 pl-1 text-xs opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-              style={{ color: 'var(--text-color)' }}
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              handleClearSearch();
+              setIsMobileSearchOpen(false);
+            }}
+            className="p-1 text-base opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-white"
+            aria-label="Close search"
+          >
+            ✕
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Top Leaderboard Banner (Adaptive 728x90 Desktop / 320x50 Mobile) */}
       <MovieBottomBanner className="my-2" slotId="home-top" />

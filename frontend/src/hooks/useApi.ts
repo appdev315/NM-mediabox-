@@ -846,7 +846,7 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
-    const cacheKey = `categorized_home_v4_${type}_${language}`;
+    const cacheKey = `categorized_home_v5_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (!silent && cached) {
       return cached;
@@ -855,7 +855,7 @@ export function useApi() {
     const fetcher = async () => {
       // 1. High-Performance Primary: Single HTTP call to Cloudflare Edge Feed (Liftw Catalog + TMDB Enrichment)
       try {
-        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=2`, {
+        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=3`, {
           signal: AbortSignal.timeout(6000),
         });
         if (cfFeedRes.ok) {
@@ -908,7 +908,13 @@ export function useApi() {
       const genreResults = await Promise.all(
         genresToFetch.map(async (g) => {
           try {
-            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', { with_genres: g.id, page: 1 });
+            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', {
+              with_genres: g.id,
+              'vote_count.gte': type === 'movie' ? 50 : 25,
+              'vote_average.gte': 4.0,
+              page: 1,
+              sort_by: 'popularity.desc'
+            });
             const mapped = (data.results || []).slice(0, 12).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
             return {
               id: String(g.id),

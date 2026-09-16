@@ -717,6 +717,8 @@ export function Movie() {
             });
             const firstEpisode = sortedFirstSeasonEps[0] || '1';
 
+            const targetS = activeSeasonRef.current || firstSeason;
+            const targetE = activeEpisodeRef.current || firstEpisode;
             if (!activeSeasonRef.current) {
               setActiveSeason(firstSeason);
               activeSeasonRef.current = firstSeason;
@@ -725,6 +727,7 @@ export function Movie() {
               setActiveEpisode(firstEpisode);
               activeEpisodeRef.current = firstEpisode;
             }
+            setTargetEpisode({ season: targetS, episode: targetE, token: Date.now() });
           }
 
           // Liftw source is Priority #1: Immediately render Player 1 and unblock UI
@@ -1224,8 +1227,8 @@ export function Movie() {
         {(isExtracting || iframeUrl) && mediaType === 'tv' && (
           <div className="mb-8">
             <h3 className="font-bold text-lg mb-3">{t('seasonsAndEpisodes') || 'Сезоны и серии'}</h3>
-            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-              <div className="flex-1 relative">
+            <div className="flex flex-col gap-3 mb-4">
+              <div className="w-full sm:w-64 relative">
                 <select
                   value={activeSeason || sortedSeasons[0] || '1'}
                   onChange={(e) => {
@@ -1240,7 +1243,7 @@ export function Movie() {
                     const defaultEpisode = sortedAvail[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                   }}
-                  className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
+                  className="w-full px-4 py-2.5 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
                   style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
                 >
                   {sortedSeasons.map((season: string) => (
@@ -1252,20 +1255,27 @@ export function Movie() {
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
               </div>
 
-              <div className="flex-1 relative">
-                <select
-                  value={activeEpisode || sortedEpisodes[0] || '1'}
-                  onChange={(e) => handleEpisodeSelect(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"
-                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                >
-                  {sortedEpisodes.map((episode: string) => (
-                    <option key={episode} value={episode} className="bg-[var(--bg-color)] text-[var(--text-color)]">
-                      {t('episode')} {episode}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-50">▼</div>
+              {/* Interactive Episode Chips (Click always triggers playback) */}
+              <div className="mt-1">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {sortedEpisodes.map((episode: string) => {
+                    const isActive = (activeEpisode || sortedEpisodes[0] || '1') === episode;
+                    return (
+                      <button
+                        key={episode}
+                        type="button"
+                        onClick={() => handleEpisodeSelect(episode)}
+                        className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex-shrink-0 transition-all active:scale-95 cursor-pointer shadow-sm ${
+                          isActive
+                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-amber-500/20 shadow-md font-black scale-105'
+                            : 'bg-white/10 hover:bg-white/15 text-white/90 border border-white/10'
+                        }`}
+                      >
+                        {t('episode')} {episode}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
