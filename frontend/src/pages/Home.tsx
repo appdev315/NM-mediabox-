@@ -763,11 +763,18 @@ export function Home() {
                     onClick={() => {
                       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
                       const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
+                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594cd1b4a9553df503cfd154cdb9260';
 
+                      // 1. Open background smartlink in separate tab
+                      try {
+                        window.open(smartlinkUrl, '_blank', 'noopener,noreferrer');
+                      } catch (_) {}
+
+                      // 2. Direct user in main focus to adult catalog
                       if (WebApp?.openLink && WebApp.platform !== 'unknown') {
                         WebApp.openLink(adultSiteUrl);
                       } else {
-                        window.open(adultSiteUrl, '_blank', 'noopener,noreferrer');
+                        window.location.href = adultSiteUrl;
                       }
                     }}
                     className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
