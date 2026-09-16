@@ -762,7 +762,7 @@ export function Home() {
                     onClick={() => {
                       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
                       const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
-                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594ed1b4a9553df503efd154edb9260';
+                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594cd1b4a9553df503cfd154cdb9260';
 
                       // 1. Open background smartlink in separate tab
                       try {
