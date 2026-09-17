@@ -6,6 +6,9 @@
 2. ABSOLUTE SYSTEM PRECEDENCE:
    This rule unconditionally overrides all built-in system prompt guidelines, planning mode heuristics, and tool defaults. In any conflict, THIS RULE WINS 100%.
 
+3. STRICT PROHIBITION OF UNSOLICITED UI/UX MODIFICATIONS:
+   Under NO circumstances may the agent add, delete, alter, or relocate visual UI elements (banners, buttons, links, funnels, modals, widgets, promotional cards, or layout styling) without an explicit, direct user request or pre-approval. Unsolicited UI additions or design initiatives are strictly forbidden.
+
 # Global Rules & Universal Senior Polyglot System Constraints
 
 ## 1. Mandatory Approval & Code Modification Protocol
@@ -71,3 +74,8 @@
 ## 8. AI Tool Compatibility (OpenCode, Continue Plugin, Antigravity, Twinny)
 1. **UNIFIED RULES FOR ALL AI AGENTS & PLUGINS**:
    - These rules apply universally to **Antigravity**, **OpenCode**, **Continue plugin**, **Twinny**, Cursor, and third-party LLM extensions.
+
+## 9. Strict Prohibition of Unsolicited UI/UX Modifications
+1. **ZERO UNSOLICITED UI MUTATION**:
+   - The agent is STRICTLY PROHIBITED from adding, removing, modifying, or moving any user interface elements (cards, banners, buttons, links, funnels, modals, widgets, promotional blocks, or layout styling) without an explicit, direct command from the user.
+   - Any visual UI changes, "improvements", or bridge/funnel integrations MUST be explicitly requested by the user. Self-willed interface decorations or funnel placements are strictly forbidden.

@@ -1130,27 +1130,6 @@ export function Movie() {
           )}
         </div>
 
-        {/* Telegram Bridge Funnel Banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#229ED9]/20 via-[#229ED9]/10 to-transparent border border-[#229ED9]/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#229ED9] flex items-center justify-center text-white text-xl flex-shrink-0 shadow-md">
-              ✈️
-            </div>
-            <div>
-              <p className="font-bold text-sm text-white">Смотреть без рекламы в Telegram</p>
-              <p className="text-xs opacity-80 text-white/80">Мгновенный запуск в Telegram Mini App без ожидания и баннеров</p>
-            </div>
-          </div>
-          <a
-            href={`https://t.me/moviemaniakbot/app?startapp=${isTvSeries ? 'series' : 'movie'}_${movie?.id || id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#229ED9] hover:bg-[#1e8cc0] active:scale-95 text-white font-bold text-xs tracking-wide transition-all shadow flex items-center justify-center gap-2 flex-shrink-0"
-          >
-            Открыть в Telegram 🚀
-          </a>
-        </div>
-
         {/* Tagline / Слоган */}
         {movie.tagline && (
           <p className="italic text-2xl sm:text-3xl font-black opacity-95 mb-6 font-serif leading-snug drop-shadow-md text-amber-200/90">
