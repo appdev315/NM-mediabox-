@@ -907,26 +907,6 @@ export function Movie() {
     }
   };
 
-  if (loading && !movie) {
-    return (
-      <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin mb-4" />
-        <div className="font-medium opacity-50">{t('loading')}</div>
-      </div>
-    );
-  }
-
-  if (!movie) {
-    return (
-      <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="text-4xl mb-2">🎬</div>
-        <div className="font-medium opacity-70 mb-4">{t('movieNotFound')}</div>
-      </div>
-    );
-  }
-
-
-
   const displayTitle = movie?.title || movie?.name || '';
   const displayYear = movie?.year || (movie?.release_date ? movie.release_date.slice(0, 4) : '') || (movie?.first_air_date ? movie.first_air_date.slice(0, 4) : '');
   const seoTitle = isTvSeries
@@ -984,7 +964,7 @@ export function Movie() {
 
   // Set document title and safe DOM injection for JSON-LD structured data
   useEffect(() => {
-    if (seoTitle) {
+    if (seoTitle && movie) {
       document.title = seoTitle;
     }
     if (!jsonLdData) return;
@@ -1002,7 +982,25 @@ export function Movie() {
         el.parentNode.removeChild(el);
       }
     };
-  }, [seoTitle, jsonLdData]);
+  }, [seoTitle, jsonLdData, movie]);
+
+  if (loading && !movie) {
+    return (
+      <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="font-medium opacity-50">{t('loading')}</div>
+      </div>
+    );
+  }
+
+  if (!movie) {
+    return (
+      <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="text-4xl mb-2">🎬</div>
+        <div className="font-medium opacity-70 mb-4">{t('movieNotFound')}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">
