@@ -1039,6 +1039,60 @@ export function useApi() {
     return withLoading(fetcher);
   }, [language, tmdbFetch, withLoading]);
 
+  const fetchAdditionalCategories = useCallback(async (type: 'movie' | 'tv', existingGenreIds: string[], count: number = 4) => {
+    try {
+      const allGenres = await fetchGenres(type);
+      if (!Array.isArray(allGenres) || allGenres.length === 0) return [];
+
+      const existingSet = new Set(existingGenreIds.map(String));
+      const candidates = allGenres.filter(g => !existingSet.has(String(g.id))).slice(0, count);
+      if (candidates.length === 0) return [];
+
+      const deduplicateFallback = (list: any[]) => {
+        const seenIds = new Set<string>();
+        const seenTitles = new Set<string>();
+        return list.filter((item: any) => {
+          if (!item) return false;
+          const idKey = String(item.id);
+          const normTitle = (item.title || item.name || '').trim().toLowerCase();
+          if (seenIds.has(idKey)) return false;
+          if (normTitle && seenTitles.has(normTitle)) return false;
+          seenIds.add(idKey);
+          if (normTitle) seenTitles.add(normTitle);
+          return true;
+        });
+      };
+
+      const results = await Promise.all(
+        candidates.map(async (g) => {
+          try {
+            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', {
+              with_genres: g.id,
+              'vote_count.gte': type === 'movie' ? 40 : 20,
+              'vote_average.gte': 4.0,
+              page: 1,
+              sort_by: 'popularity.desc'
+            });
+            const mapped = deduplicateFallback((data.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
+            return {
+              id: String(g.id),
+              name: g.name,
+              genreId: String(g.id),
+              items: mapped
+            };
+          } catch (_) {
+            return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
+          }
+        })
+      );
+
+      return results.filter(s => s.items && s.items.length > 0);
+    } catch (e) {
+      console.error('Failed to fetch additional categories:', e);
+      return [];
+    }
+  }, [fetchGenres, tmdbFetch]);
+
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
     const cleanQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120)) || 'popular';
 
@@ -1252,5 +1306,5 @@ export function useApi() {
     });
   }, [tmdbFetch, fetchGenres, language, withLoading]);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading, error };
+  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading, error };
 }

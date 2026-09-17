@@ -132,7 +132,7 @@ const MovieCard = React.memo(function MovieCard({
 
 export function Home() {
   const navigate = useNavigate();
-  const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, fetchAdultSearch, loading } = useApi();
+  const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, loading } = useApi();
   const { language, t } = useLanguage();
 
   const {
@@ -160,6 +160,8 @@ export function Home() {
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const [searchInput, setSearchInput] = useState<string>(searchQuery);
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
+  const [loadingMoreCategories, setLoadingMoreCategories] = useState(false);
+  const [hasMoreCategories, setHasMoreCategories] = useState(true);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
   // Live search: debounce timer + abort for stale requests
@@ -253,6 +255,48 @@ export function Home() {
     };
   }, [setScrollY]);
 
+  const sanitizeSections = useCallback((secs: any[]) => {
+    return (secs || []).map((sec: any) => {
+      const seenIds = new Set<string>();
+      const seenTitles = new Set<string>();
+      const cleanItems = (sec.items || []).filter((item: any) => {
+        if (!item) return false;
+        const idKey = String(item.id);
+        const normTitle = (item.title || item.name || '').trim().toLowerCase();
+        if (seenIds.has(idKey)) return false;
+        if (normTitle && seenTitles.has(normTitle)) return false;
+        seenIds.add(idKey);
+        if (normTitle) seenTitles.add(normTitle);
+        return true;
+      });
+      return { ...sec, items: cleanItems };
+    });
+  }, []);
+
+  const handleLoadMoreCategories = async () => {
+    if (loadingMoreCategories) return;
+    setLoadingMoreCategories(true);
+    try {
+      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+      const existingGenreIds = homeSections.map((s: any) => String(s.genreId || s.id)).filter(Boolean);
+      const newSections = await fetchAdditionalCategories(activeTab === 'movie' ? 'movie' : 'tv', existingGenreIds, 4);
+      if (!newSections || newSections.length === 0) {
+        setHasMoreCategories(false);
+      } else {
+        setHomeSections((prev: any[]) => sanitizeSections([...prev, ...newSections]));
+        const loadedIds = new Set([...existingGenreIds, ...newSections.map((s: any) => String(s.genreId || s.id))]);
+        const remaining = genres.filter(g => !loadedIds.has(String(g.id)));
+        if (remaining.length === 0) {
+          setHasMoreCategories(false);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load more categories:', err);
+    } finally {
+      setLoadingMoreCategories(false);
+    }
+  };
+
   // Load content
   useEffect(() => {
     if (isFirstRender.current) {
@@ -298,20 +342,19 @@ export function Home() {
                 id: v.id,
                 title: v.title,
                 poster: v.poster,
-                type: 'adult',
                 duration: v.duration,
-                isAdult: true,
+                views: v.views,
+                rating: v.rating,
+                type: 'adult'
               }));
               setItems(adultItems);
             } catch (err) {
-              console.error('Failed to load adult content', err);
+              console.error('Failed to fetch adult content:', err);
               setItems([]);
             }
           } else {
-            const results = activeTab === 'movie' 
-              ? await fetchMovies(page, selectedGenre, undefined, sortBy)
-              : await fetchSeries(page, selectedGenre, undefined, sortBy);
-              
+            const fetchFn = activeTab === 'movie' ? fetchMovies : fetchSeries;
+            const results = await fetchFn(page, selectedGenre, undefined, sortBy);
             if (page === 1) {
               setItems(results || []);
             } else {
@@ -325,23 +368,7 @@ export function Home() {
         } else {
           // Default categorized home feed (12 cards per genre section, cached for 24 hours)
           setIsSearching(false);
-          const sanitizeSections = (secs: any[]) => {
-            return (secs || []).map((sec: any) => {
-              const seenIds = new Set<string>();
-              const seenTitles = new Set<string>();
-              const cleanItems = (sec.items || []).filter((item: any) => {
-                if (!item) return false;
-                const idKey = String(item.id);
-                const normTitle = (item.title || item.name || '').trim().toLowerCase();
-                if (seenIds.has(idKey)) return false;
-                if (normTitle && seenTitles.has(normTitle)) return false;
-                seenIds.add(idKey);
-                if (normTitle) seenTitles.add(normTitle);
-                return true;
-              });
-              return { ...sec, items: cleanItems };
-            });
-          };
+          setHasMoreCategories(true);
 
           const cacheKey = `categorized_home_v6_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
@@ -363,7 +390,7 @@ export function Home() {
     };
 
     loadContent();
-  }, [activeTab, page, selectedGenre, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
+  }, [activeTab, page, selectedGenre, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, sanitizeSections, language]);
 
   // Infinite scroll listener (active in single-genre, search, or Top IMDb mode for movies & series)
   useEffect(() => {
@@ -580,13 +607,41 @@ export function Home() {
                     ))}
                   </div>
                   {sIdx === 1 && (
-                    <div className="my-6 space-y-4">
+                    <div className="my-6">
                       <BannerAd variant="wide" type="adult" />
+                    </div>
+                  )}
+                  {sIdx === 2 && (
+                    <div className="my-6">
                       <MovieBottomBanner slotId="home-feed-mid" className="my-2" />
                     </div>
                   )}
                 </div>
               );})}
+
+              {/* Load more categories button */}
+              {hasMoreCategories && (
+                <div className="pt-3 pb-8 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleLoadMoreCategories}
+                    disabled={loadingMoreCategories}
+                    className="group inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-neutral-800/80 hover:bg-neutral-700/80 active:scale-[0.97] border border-white/15 hover:border-blue-500/40 text-white font-bold text-sm sm:text-base shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingMoreCategories ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>{t('loading') || 'Загрузка...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-blue-400 group-hover:scale-110 transition-transform">➕</span>
+                        <span>{t('moreCategories') || 'Больше категорий'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */
