@@ -148,28 +148,38 @@ export function Profile() {
           </div>
         </div>
 
-        {/* Language Section */}
+        {/* Language Dropdown Section */}
         <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🌐</span>
             <h2 className="font-bold text-md">{t('language') || 'Язык'}</h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {LANGUAGES_CONFIG.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setLanguage(lang.code as any)}
-                className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer active:scale-95 ${
-                  language === lang.code
-                    ? 'border-[var(--button-color)] bg-[var(--button-color)]/20 shadow-sm'
-                    : 'border-white/10 bg-black/10 dark:bg-white/5 opacity-80 hover:opacity-100'
-                }`}
-                style={{ color: language === lang.code ? 'var(--button-color)' : 'var(--text-color)' }}
-              >
-                <span className="text-base">{lang.flag}</span>
-                <span>{lang.name}</span>
-              </button>
-            ))}
+          <div className="relative w-full">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as any)}
+              className="w-full h-11 px-3.5 pr-10 rounded-xl text-sm font-semibold border border-white/10 outline-none appearance-none cursor-pointer shadow-sm transition-all"
+              style={{
+                backgroundColor: 'var(--bg-color)',
+                color: 'var(--text-color)'
+              }}
+            >
+              {LANGUAGES_CONFIG.map((lang) => (
+                <option 
+                  key={lang.code} 
+                  value={lang.code} 
+                  style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
+                >
+                  {lang.flag} {lang.name} ({lang.label})
+                </option>
+              ))}
+            </select>
+            <div 
+              className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-xs opacity-60"
+              style={{ color: 'var(--text-color)' }}
+            >
+              ▼
+            </div>
           </div>
         </div>
       </div>
