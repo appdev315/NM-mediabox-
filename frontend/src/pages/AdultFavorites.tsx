@@ -32,6 +32,8 @@ export function AdultFavorites() {
 
   return (
     <div className="p-4 pt-24 pb-24 h-full flex flex-col">
+      {/* Exclude adult section from search engine index */}
+      <meta name="robots" content="noindex,nofollow" />
       <div className="flex justify-between items-center mb-6 mt-2 px-1">
         <h2 className="text-xl font-extrabold tracking-tight" style={{ color: 'var(--text-color)' }}>
           {t('myFavorites') || 'История'} 🍓

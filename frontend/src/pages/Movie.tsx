@@ -573,13 +573,14 @@ export function Movie() {
           setLiftwEpisodes(cachedStream.episodes);
         }
 
-        // Speculative pre-warm stream in background immediately for BOTH movies and TV series
         prewarmStream(id, {
           title: d?.title || d?.name || '',
           year: d?.year || '',
           type: resolvedType,
           original_title: d?.original_title || '',
           title_ru: (d as any)?.title_ru || (language === 'ru-RU' ? (d?.title || '') : ''),
+          release_date: d?.release_date || '',
+          isUpcoming: Boolean(d?.isUpcoming),
         }, language).then(streamData => {
           if (streamData && isMounted && streamData.episodes) {
             setLiftwEpisodes(streamData.episodes);
@@ -924,12 +925,89 @@ export function Movie() {
 
 
 
+  const displayTitle = movie?.title || movie?.name || '';
+  const displayYear = movie?.year || (movie?.release_date ? movie.release_date.slice(0, 4) : '') || (movie?.first_air_date ? movie.first_air_date.slice(0, 4) : '');
+  const seoTitle = isTvSeries
+    ? `Сериал ${displayTitle}${displayYear ? ` (${displayYear})` : ''} онлайн — MediaBox`
+    : `Смотреть ${displayTitle}${displayYear ? ` (${displayYear})` : ''} онлайн — MediaBox`;
+
+  const rawOverview = movie?.overview || '';
+  const seoDescription = rawOverview.length > 0
+    ? (rawOverview.length > 160 ? rawOverview.slice(0, 157).trim() + '...' : rawOverview)
+    : `Смотреть ${isTvSeries ? 'сериал' : 'фильм'} «${displayTitle}»${displayYear ? ` (${displayYear})` : ''} онлайн в хорошем качестве на MediaBox.`;
+
+  // Direct TMDB image URL without proxy for bots / external social previews
+  const tmdbImgPath = movie?.backdrop_path || movie?.poster_path || 
+    (typeof movie?.backdrop === 'string' ? movie.backdrop.replace(/.*\/t\/p\/[^\/]+/, '') : '') ||
+    (typeof movie?.poster === 'string' ? movie.poster.replace(/.*\/t\/p\/[^\/]+/, '') : '');
+  const cleanImgPath = tmdbImgPath ? (tmdbImgPath.startsWith('/') ? tmdbImgPath : '/' + tmdbImgPath) : '';
+  const ogImageUrl = cleanImgPath ? `https://image.tmdb.org/t/p/w780${cleanImgPath}` : 'https://media-box.xyz/kiss-bg.png';
+
+  const canonicalUrl = `https://media-box.xyz/movie/${movie?.id || id}?type=${isTvSeries ? 'series' : 'movie'}`;
+
+  // JSON-LD structured data (Movie / TVSeries)
+  const jsonLdData = useMemo(() => {
+    if (!movie) return null;
+    const schema: Record<string, any> = {
+      '@context': 'https://schema.org',
+      '@type': isTvSeries ? 'TVSeries' : 'Movie',
+      name: displayTitle,
+      description: seoDescription,
+      image: ogImageUrl,
+      url: canonicalUrl,
+    };
+
+    if (movie.release_date || movie.first_air_date) {
+      schema.datePublished = movie.release_date || movie.first_air_date;
+    } else if (displayYear) {
+      schema.datePublished = displayYear;
+    }
+
+    if (Array.isArray(movie.genres) && movie.genres.length > 0) {
+      schema.genre = movie.genres.map((g: any) => (typeof g === 'string' ? g : g.name)).filter(Boolean);
+    }
+
+    if (movie.vote_count && movie.vote_count > 0 && movie.vote_average) {
+      schema.aggregateRating = {
+        '@type': 'AggregateRating',
+        ratingValue: Number(movie.vote_average).toFixed(1),
+        bestRating: '10',
+        worstRating: '1',
+        ratingCount: movie.vote_count,
+      };
+    }
+
+    return schema;
+  }, [movie, isTvSeries, displayTitle, displayYear, seoDescription, ogImageUrl, canonicalUrl]);
+
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">
+      {/* React 19 Document Metadata Hoisting */}
+      <title>{seoTitle}</title>
+      <meta name="description" content={seoDescription} />
+      <link rel="canonical" href={canonicalUrl} />
+      <meta property="og:title" content={seoTitle} />
+      <meta property="og:description" content={seoDescription} />
+      <meta property="og:type" content={isTvSeries ? 'video.tv_show' : 'video.movie'} />
+      <meta property="og:url" content={canonicalUrl} />
+      <meta property="og:image" content={ogImageUrl} />
+      <meta property="og:site_name" content="MediaBox" />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={seoTitle} />
+      <meta name="twitter:description" content={seoDescription} />
+      <meta name="twitter:image" content={ogImageUrl} />
+      {jsonLdData && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
+        />
+      )}
+
       <div className="relative">
         <img 
           src={movie.backdrop || movie.poster} 
-          alt={movie.title} 
+          alt={movie.title || movie.name || 'Постер фильма'} 
+          loading="lazy"
           className="w-full aspect-[16/9] max-h-[50vh] object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/40 to-transparent"></div>
@@ -938,7 +1016,7 @@ export function Movie() {
       <div className="-mt-20 relative z-10 p-4">
         <div className="flex justify-between items-start mb-3">
           <div>
-            <h1 className="text-3xl font-black leading-tight drop-shadow-md">{movie.title}</h1>
+            <h1 className="text-3xl font-black leading-tight drop-shadow-md">{movie.title || movie.name}</h1>
             <p className="text-sm opacity-70 font-semibold">{movie.year}</p>
           </div>
           <div className="flex gap-2 relative z-50">
@@ -1048,6 +1126,27 @@ export function Movie() {
               ▶ {t('playTrailer')}
             </button>
           )}
+        </div>
+
+        {/* Telegram Bridge Funnel Banner */}
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#229ED9]/20 via-[#229ED9]/10 to-transparent border border-[#229ED9]/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#229ED9] flex items-center justify-center text-white text-xl flex-shrink-0 shadow-md">
+              ✈️
+            </div>
+            <div>
+              <p className="font-bold text-sm text-white">Смотреть без рекламы в Telegram</p>
+              <p className="text-xs opacity-80 text-white/80">Мгновенный запуск в Telegram Mini App без ожидания и баннеров</p>
+            </div>
+          </div>
+          <a
+            href={`https://t.me/moviemaniakbot/app?startapp=${isTvSeries ? 'series' : 'movie'}_${movie?.id || id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#229ED9] hover:bg-[#1e8cc0] active:scale-95 text-white font-bold text-xs tracking-wide transition-all shadow flex items-center justify-center gap-2 flex-shrink-0"
+          >
+            Открыть в Telegram 🚀
+          </a>
         </div>
 
         {/* Tagline / Слоган */}

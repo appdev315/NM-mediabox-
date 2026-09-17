@@ -82,7 +82,7 @@ const MovieCard = React.memo(function MovieCard({
           src={item.poster} 
           srcSet={posterSrcSet}
           sizes="(max-width: 640px) 170px, 342px"
-          alt={item.title} 
+          alt={item.title || item.name || 'Постер'} 
           width={300}
           height={450}
           className="w-full h-full object-cover"
@@ -467,6 +467,24 @@ export function Home() {
       className="px-3 sm:px-4 pb-20"
       style={{ paddingTop: 'calc(5.2rem + env(safe-area-inset-top))' }}
     >
+      {/* React 19 Document Metadata Hoisting */}
+      <title>MediaBox — Смотреть фильмы и сериалы онлайн бесплатно</title>
+      <meta name="description" content="MediaBox — онлайн-кинотеатр с огромной коллекцией фильмов, сериалов, новинок кино и трейлеров в хорошем качестве HD без регистрации." />
+      <link rel="canonical" href="https://media-box.xyz/" />
+      <meta property="og:title" content="MediaBox — Смотреть фильмы и сериалы онлайн" />
+      <meta property="og:description" content="Онлайн-кинотеатр фильмов и сериалов в отличном качестве HD." />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content="https://media-box.xyz/" />
+      <meta property="og:image" content="https://media-box.xyz/kiss-bg.png" />
+      <meta property="og:site_name" content="MediaBox" />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content="MediaBox — Смотреть фильмы и сериалы онлайн бесплатно" />
+      <meta name="twitter:description" content="Онлайн-кинотеатр фильмов и сериалов в отличном качестве HD." />
+      <meta name="twitter:image" content="https://media-box.xyz/kiss-bg.png" />
+
+      {/* Semantic H1 for SEO */}
+      <h1 className="sr-only">MediaBox — Смотреть фильмы и сериалы онлайн в хорошем качестве HD</h1>
+
       {/* Header & Profile */}
       <Header />
 

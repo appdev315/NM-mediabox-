@@ -14,6 +14,8 @@ export interface StreamItemMeta {
   original_title?: string;
   original_name?: string;
   title_ru?: string;
+  release_date?: string;
+  isUpcoming?: boolean;
 }
 
 /**
@@ -39,6 +41,14 @@ export function prewarmStream(
 
   // 1b. Fresh negative signal (missing ≤2h): skip network, no extra load
   if (getAvailability(resolvedType, id) === 'missing') {
+    return Promise.resolve(null);
+  }
+
+  // 1c. Block if movie is unreleased (saves backend bandwidth and error logs)
+  if (
+    item.isUpcoming ||
+    (item.release_date && new Date(item.release_date).getTime() > Date.now())
+  ) {
     return Promise.resolve(null);
   }
 
