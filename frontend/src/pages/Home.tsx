@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre, CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream } from '../utils/streamPreloader';
 import { AvailBadge } from '../components/AvailBadge';
-import { useLanguage, countriesList } from '../context/LanguageContext';
-import { useAdManager } from '../context/AdManager';
-import { Header } from '../components/Header';
-const RadioTVContent = lazy(() => import('./RadioTV').then(m => ({ default: m.RadioTVContent })));
+import { useLanguage } from '../context/LanguageContext';
 import { TrailerFeed } from '../components/TrailerFeed';
 import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
@@ -20,7 +17,6 @@ import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 interface MovieCardProps {
   item: any;
   mediaType: string;
-  selectedCountry?: string;
   comingSoonText: string;
   onNavigate: (id: string | number, mediaType: string, country?: string, meta?: any) => void;
 }
@@ -28,7 +24,6 @@ interface MovieCardProps {
 const MovieCard = React.memo(function MovieCard({
   item,
   mediaType,
-  selectedCountry,
   comingSoonText,
   onNavigate,
 }: MovieCardProps) {
@@ -55,7 +50,7 @@ const MovieCard = React.memo(function MovieCard({
         e.stopPropagation();
         (document.activeElement as HTMLElement)?.blur();
         if (!item.isAdult) prewarmStream(item.id, item);
-        onNavigate(item.id, targetMediaType, selectedCountry, {
+        onNavigate(item.id, targetMediaType, undefined, {
           title: item.title || item.name,
           year: item.year,
           liftw_id: item.liftw_id
@@ -141,15 +136,12 @@ export function Home() {
   const navigate = useNavigate();
   const { fetchMovies, fetchSeries, searchContent, fetchGenres, fetchCategorizedHome, fetchAdultSearch, loading } = useApi();
   const { language, t } = useLanguage();
-  const { triggerAd } = useAdManager();
 
   const {
     activeTab,
     setActiveTab,
     selectedGenre,
     setSelectedGenre,
-    selectedCountry,
-    setSelectedCountry,
     page,
     setPage,
     items,
@@ -160,6 +152,8 @@ export function Home() {
     setSearchQuery,
     isSearching,
     setIsSearching,
+    isSearchOpen,
+    setIsSearchOpen,
     scrollY,
     setScrollY
   } = useHomeState();
@@ -167,7 +161,6 @@ export function Home() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [sortBy, setSortBy] = useState<'popularity.desc' | 'vote_average.desc'>('popularity.desc');
   const [searchInput, setSearchInput] = useState<string>(searchQuery);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
@@ -192,29 +185,25 @@ export function Home() {
       if (sMatch) return sMatch.name;
       return t('allGenres');
     }
-    if (selectedCountry) {
-      const cMatch = countriesList.find(c => c.code === selectedCountry);
-      if (cMatch) return `${cMatch.flag} ${cMatch.name[language] || cMatch.name['en-US']}`;
-    }
     if (sortBy === 'vote_average.desc') {
       return '⭐ Top IMDb';
     }
     return '';
-  }, [selectedGenre, selectedCountry, sortBy, genres, homeSections, language, t]);
+  }, [selectedGenre, sortBy, genres, homeSections, language, t]);
 
   useEffect(() => {
     setSearchInput(searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    if (activeTab !== 'movie' && activeTab !== 'series' && activeTab !== 'radio' && activeTab !== 'tv') {
+    if (activeTab !== 'movie' && activeTab !== 'series') {
       setActiveTab('movie');
     }
   }, [activeTab, setActiveTab]);
 
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
-    if (activeTab !== 'radio' && activeTab !== 'tv' && searchQuery.trim().length === 0 && !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
+    if (searchQuery.trim().length === 0 && !selectedGenre && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
       const cacheKey = `categorized_home_v5_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
@@ -234,7 +223,6 @@ export function Home() {
 
   // Fetch genres
   useEffect(() => {
-    if (activeTab === 'radio' || activeTab === 'tv') return;
     fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
   }, [activeTab, fetchGenres]);
 
@@ -278,9 +266,6 @@ export function Home() {
 
     const loadContent = async () => {
       try {
-        if (activeTab === 'radio' || activeTab === 'tv') {
-          return;
-        }
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
           // Cancel stale live-search request before starting a new one
@@ -297,7 +282,7 @@ export function Home() {
               setItems([]);
             }
           }
-        } else if (selectedGenre || selectedCountry || sortBy === 'vote_average.desc' || page > 1) {
+        } else if (selectedGenre || sortBy === 'vote_average.desc' || page > 1) {
           setIsSearching(false);
           if (selectedGenre === 'adult') {
             try {
@@ -326,8 +311,8 @@ export function Home() {
             }
           } else {
             const results = activeTab === 'movie' 
-              ? await fetchMovies(page, selectedGenre, selectedCountry, sortBy)
-              : await fetchSeries(page, selectedGenre, selectedCountry, sortBy);
+              ? await fetchMovies(page, selectedGenre, undefined, sortBy)
+              : await fetchSeries(page, selectedGenre, undefined, sortBy);
               
             if (page === 1) {
               setItems(results || []);
@@ -380,13 +365,13 @@ export function Home() {
     };
 
     loadContent();
-  }, [activeTab, page, selectedGenre, selectedCountry, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
+  }, [activeTab, page, selectedGenre, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, language]);
 
-  // Infinite scroll listener (active in single-genre, country, search, or Top IMDb mode for movies & series)
+  // Infinite scroll listener (active in single-genre, search, or Top IMDb mode for movies & series)
   useEffect(() => {
     let ticking = false;
     const handleScroll = () => {
-      if (loading || isSearching || selectedGenre === 'adult' || (!selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !searchQuery)) return;
+      if (loading || isSearching || selectedGenre === 'adult' || (!selectedGenre && sortBy === 'popularity.desc' && !searchQuery)) return;
       
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -405,16 +390,9 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, page, selectedGenre, selectedCountry, sortBy, searchQuery]);
+  }, [loading, isSearching, page, selectedGenre, sortBy, searchQuery]);
 
 
-
-  const handleTabChange = (tab: 'movie' | 'series' | 'radio' | 'tv') => {
-    (document.activeElement as HTMLElement)?.blur();
-    setActiveTab(tab);
-    hasRestoredScrollRef.current = false;
-    triggerAd();
-  };
 
   const submitSearch = (raw: string) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -461,87 +439,20 @@ export function Home() {
     navigate(`/movie/${id}?type=${mediaType}${countryQuery}`, { state: meta });
   }, [navigate]);
 
-  const isCategorizedMode = !selectedGenre && !selectedCountry && sortBy === 'popularity.desc' && !isSearching && page === 1;
+  const isCategorizedMode = !selectedGenre && sortBy === 'popularity.desc' && !isSearching && page === 1;
 
   return (
     <div 
       className="px-3 sm:px-4 pb-20"
-      style={{ paddingTop: 'calc(5.2rem + env(safe-area-inset-top))' }}
+      style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
     >
 
       {/* Semantic H1 for SEO */}
       <h1 className="sr-only">MediaBox — Смотреть фильмы и сериалы онлайн в хорошем качестве HD</h1>
 
-      {/* Header & Profile */}
-      <Header />
-
-      {/* Desktop Search Bar (Fixed directly to the right of MEDIABOX) */}
-      <div 
-        className="fixed left-[170px] top-[calc(16px+env(safe-area-inset-top))] z-40 hidden sm:flex items-center h-10 w-[240px] md:w-[320px] lg:w-[380px] rounded-xl border border-white/10 bg-gray-800 text-white shadow-xl px-3 transition-all"
-      >
-        <span className="pr-2 text-sm opacity-60 select-none">🔍</span>
-        <input 
-          type="text" 
-          placeholder={t('searchPlaceholder')} 
-          value={searchInput}
-          maxLength={120}
-          onChange={(e) => handleSearchInputChange(e.target.value)}
-          onPaste={(e) => {
-            const pastedText = e.clipboardData.getData('text');
-            if (pastedText && /[\r\n\t]/.test(pastedText)) {
-              e.preventDefault();
-              const cleaned = pastedText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-              const currentVal = searchInput;
-              const target = e.target as HTMLInputElement;
-              const start = target.selectionStart || 0;
-              const end = target.selectionEnd || 0;
-              const nextVal = (currentVal.slice(0, start) + cleaned + currentVal.slice(end)).slice(0, 120);
-              setSearchInput(nextVal);
-              handleSearchInputChange(nextVal);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              (e.target as HTMLInputElement).blur();
-              handleSearchSubmit();
-            } else if (e.key === 'Escape') {
-              (e.target as HTMLInputElement).blur();
-              handleClearSearch();
-            }
-          }}
-          className="w-full py-1.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0 text-white placeholder-white/50"
-        />
-        {searchInput && (
-          <button
-            type="button"
-            onClick={handleClearSearch}
-            className="pl-1 text-xs opacity-60 hover:opacity-100 transition-opacity cursor-pointer text-white"
-            aria-label="Clear search"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-
-      {/* Mobile Search: Compact Magnifier Button next to MEDIABOX (sm:hidden) */}
-      {!isMobileSearchOpen && (
-        <button
-          type="button"
-          onClick={() => setIsMobileSearchOpen(true)}
-          className="fixed left-[128px] top-[calc(16px+env(safe-area-inset-top))] z-40 w-10 h-10 rounded-full border border-white/10 bg-gray-800 text-white flex sm:hidden items-center justify-center cursor-pointer shadow-xl active:scale-95 transition-transform"
-          aria-label="Open search"
-          title="Поиск"
-        >
-          <span className="text-sm">🔍</span>
-        </button>
-      )}
-
-      {/* Mobile Search: Full-width Overlay Header when expanded (sm:hidden) */}
-      {isMobileSearchOpen && (
-        <div 
-          className="fixed left-3 right-3 top-[calc(16px+env(safe-area-inset-top))] z-50 h-11 rounded-xl border border-white/20 bg-gray-900/95 backdrop-blur-xl text-white flex sm:hidden items-center shadow-2xl px-3 animate-fade-in"
-        >
+      {/* Search Bar (Displayed when search button clicked in bottom nav or searching) */}
+      {(isSearchOpen || isSearching || searchQuery) && (
+        <div className="mb-3 flex items-center h-11 rounded-xl border border-white/10 bg-[var(--hint-color)] px-3 shadow-md">
           <span className="pr-2 text-sm opacity-60 select-none">🔍</span>
           <input 
             type="text" 
@@ -556,18 +467,20 @@ export function Home() {
                 (e.target as HTMLInputElement).blur();
                 handleSearchSubmit();
               } else if (e.key === 'Escape') {
-                setIsMobileSearchOpen(false);
+                (e.target as HTMLInputElement).blur();
+                handleClearSearch();
+                setIsSearchOpen(false);
               }
             }}
-            className="w-full py-1.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0 text-white placeholder-white/50"
+            className="w-full py-1.5 pr-2 outline-none font-medium border-none bg-transparent text-sm min-w-0 text-[var(--text-color)] placeholder:text-[var(--text-color)] placeholder:opacity-50"
           />
           <button
             type="button"
             onClick={() => {
               handleClearSearch();
-              setIsMobileSearchOpen(false);
+              setIsSearchOpen(false);
             }}
-            className="p-1 text-base opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-white"
+            className="p-1 text-base opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-[var(--text-color)]"
             aria-label="Close search"
           >
             ✕
@@ -578,108 +491,49 @@ export function Home() {
       {/* Top Leaderboard Banner (Adaptive 728x90 Desktop / 320x50 Mobile) */}
       <MovieBottomBanner className="my-2" slotId="home-top" />
 
-      {/* Top Stories Bar (Facebook / Instagram style stories for trailers) */}
-      <TrailerStoriesBar onOpenFeed={(trailerId, idx) => setModalTrailerTarget({ id: trailerId, index: idx })} />
+      {/* Filters (hidden when searching) */}
+      {!isSearching && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* Genre Dropdown */}
+          <select 
+            className="w-full h-11 px-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
+            style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
+            value={selectedGenre}
+            onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
+          >
+            <option value="">{t('allGenres')}</option>
+            <option value="trending">{t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular')}</option>
+            <option value="adult">{t('adultCategory') || '18+'}</option>
+            {genres.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
 
-      {/* Top Navigation */}
-      <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-xl overflow-x-auto hide-scrollbar">
-        {[
-          { id: 'movie', label: t('movies') },
-          { id: 'series', label: t('series') },
-          { id: 'radio', label: t('tab_radio') || 'Радио' },
-          { id: 'tv', label: t('tab_tv') || 'ТВ' },
-          ...((WebApp.platform === 'unknown' && !(window as any).Capacitor) ? [{ id: 'private', label: t('secretRoomTab') }] : [])
-        ].map(tab => (
+          {/* Top IMDb Filter Button */}
           <button
-            key={tab.id}
-            onClick={(e) => {
-              if (tab.id === 'private') {
-                e.preventDefault();
-                window.location.href = 'https://moviemaniak5555.xyz/?app=adult';
-                return;
-              }
-              handleTabChange(tab.id as 'movie' | 'series' | 'radio' | 'tv');
+            onClick={() => {
+              const nextSort = sortBy === 'vote_average.desc' ? 'popularity.desc' : 'vote_average.desc';
+              setSortBy(nextSort);
+              setItems([]);
+              setPage(1);
             }}
-            className="px-3 py-2 flex-1 text-sm font-bold rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-            style={{ 
-              backgroundColor: activeTab === tab.id ? 'var(--button-color)' : 'transparent',
-              color: activeTab === tab.id ? 'var(--button-text-color)' : 'var(--text-color)',
-              border: activeTab === tab.id ? '1.5px solid var(--button-color)' : '1.5px solid var(--button-color)',
-              opacity: activeTab === tab.id ? 1 : 0.85
+            className={`w-full h-11 px-3 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 ${
+              sortBy === 'vote_average.desc' 
+                ? 'shadow-md scale-[1.01]' 
+                : 'opacity-90'
+            }`}
+            style={{
+              backgroundColor: sortBy === 'vote_average.desc' ? '#f59e0b' : 'var(--hint-color)',
+              color: sortBy === 'vote_average.desc' ? '#000000' : 'var(--text-color)'
             }}
           >
-            {tab.label}
+            ⭐ Top IMDb
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {(activeTab === 'radio' || activeTab === 'tv') ? (
-        <Suspense fallback={
-          <div className="flex items-center justify-center p-12 min-h-[300px]">
-            <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin" />
-          </div>
-        }>
-          <RadioTVContent activeTab={activeTab} />
-        </Suspense>
-      ) : (
-        <>
-          {/* Filters (hidden when searching) */}
-          {!isSearching && (
-            <div className="flex flex-col gap-2 mb-4">
-              <div className="grid grid-cols-2 gap-2">
-                {/* Genre Dropdown */}
-                <select 
-                  className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
-                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                  value={selectedGenre}
-                  onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
-                >
-                  <option value="">{t('allGenres')}</option>
-                  <option value="trending">{t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular')}</option>
-                  <option value="adult">{t('adultCategory') || '18+'}</option>
-                  {genres.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-
-                {/* Country Dropdown */}
-                <select 
-                  className="w-full p-3 rounded-xl outline-none text-sm border-none appearance-none font-medium shadow-sm cursor-pointer"
-                  style={{ backgroundColor: 'var(--hint-color)', color: 'var(--text-color)' }}
-                  value={selectedCountry}
-                  onChange={(e) => { setSelectedCountry(e.target.value); setPage(1); }}
-                >
-                  <option value="">{t('allCountries')}</option>
-                  {countriesList.map(c => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {c.name[language] || c.name['en-US']}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Top IMDb Filter Button */}
-              <button
-                onClick={() => {
-                  const nextSort = sortBy === 'vote_average.desc' ? 'popularity.desc' : 'vote_average.desc';
-                  setSortBy(nextSort);
-                  setItems([]);
-                  setPage(1);
-                }}
-                className={`w-full py-2.5 px-4 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 ${
-                  sortBy === 'vote_average.desc' 
-                    ? 'bg-yellow-400 text-black border border-yellow-300 shadow-md scale-[1.01]' 
-                    : 'opacity-90'
-                }`}
-                style={{
-                  backgroundColor: sortBy === 'vote_average.desc' ? '#f59e0b' : 'var(--hint-color)',
-                  color: sortBy === 'vote_average.desc' ? '#000000' : 'var(--text-color)'
-                }}
-              >
-                ⭐ Top IMDb
-              </button>
-            </div>
-          )}
+      {/* Top Stories Bar (Facebook / Instagram style stories for trailers) */}
+      <TrailerStoriesBar onOpenFeed={(trailerId, idx) => setModalTrailerTarget({ id: trailerId, index: idx })} />
 
           {/* MODE 1: Categorized Home Feed (12 cards per genre section in distinct framed containers) */}
           {isCategorizedMode ? (
@@ -723,7 +577,6 @@ export function Home() {
                         key={`${item.id}_${item.type || activeTab}_${idx}`}
                         item={item}
                         mediaType={activeTab === 'series' ? 'series' : 'movie'}
-                        selectedCountry={selectedCountry}
                         comingSoonText={t('comingSoon') || 'Скоро...'}
                         onNavigate={handleNavigate}
                       />
@@ -741,13 +594,13 @@ export function Home() {
           ) : (
             /* MODE 2: Single Genre or Search Mode Grid */
             <div className="w-full animate-fade-in space-y-4">
-              {(selectedGenre || selectedCountry || sortBy === 'vote_average.desc') && !isSearching && (
+              {(selectedGenre || sortBy === 'vote_average.desc') && !isSearching && (
                 <div className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-neutral-900/80 border border-white/10 shadow-md">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="w-2.5 h-6 sm:h-7 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm shrink-0"></span>
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-wider font-black text-blue-400 opacity-90 leading-none mb-1">
-                        {selectedGenre ? (t('categoryBadge') || 'Категория') : selectedCountry ? (t('allCountries') || 'Страна') : 'Рейтинг'}
+                        {selectedGenre ? (t('categoryBadge') || 'Категория') : 'Рейтинг'}
                       </p>
                       <h2 className="text-base sm:text-lg font-black text-white truncate">
                         {currentFilterLabel}
@@ -759,7 +612,6 @@ export function Home() {
                     onClick={() => {
                       if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
                       setSelectedGenre('');
-                      setSelectedCountry('');
                       setSortBy('popularity.desc');
                       setPage(1);
                     }}
@@ -814,7 +666,6 @@ export function Home() {
                     key={`${item.id}_${item.type || activeTab}_${idx}`}
                     item={item}
                     mediaType={activeTab === 'series' ? 'series' : 'movie'}
-                    selectedCountry={selectedCountry}
                     comingSoonText={t('comingSoon') || 'Скоро...'}
                     onNavigate={handleNavigate}
                   />
@@ -849,8 +700,6 @@ export function Home() {
               {loading && <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin"></div>}
             </div>
           )}
-        </>
-      )}
       {/* Fullscreen Stories Trailer Feed Modal */}
       {modalTrailerTarget !== null && (
         <TrailerFeed

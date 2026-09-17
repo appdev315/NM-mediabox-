@@ -15,12 +15,12 @@ interface HomeState {
   setPage: React.Dispatch<React.SetStateAction<number>>;
   selectedGenre: string;
   setSelectedGenre: (genre: string) => void;
-  selectedCountry: string;
-  setSelectedCountry: (country: string) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   isSearching: boolean;
   setIsSearching: (searching: boolean) => void;
+  isSearchOpen: boolean;
+  setIsSearchOpen: (open: boolean) => void;
   scrollY: number;
   setScrollY: (y: number) => void;
   resetHomeState: () => void;
@@ -45,9 +45,9 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [homeSections, setHomeSections] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [selectedGenre, setSelectedGenreState] = useState<string>('');
-  const [selectedCountry, setSelectedCountryState] = useState<string>('');
   const [searchQuery, setSearchQueryState] = useState<string>('');
   const [isSearching, setIsSearchingState] = useState<boolean>(false);
+  const [isSearchOpen, setIsSearchOpenState] = useState<boolean>(false);
   const [scrollY, setScrollY] = useState<number>(0);
 
   useEffect(() => {
@@ -60,22 +60,14 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setItems([]);
     setHomeSections([]);
     setSelectedGenreState('');
-    setSelectedCountryState('');
     setSearchQueryState('');
     setIsSearchingState(false);
+    setIsSearchOpenState(false);
     setScrollY(0);
   };
 
   const setSelectedGenre = (genre: string) => {
     setSelectedGenreState(genre);
-    setPage(1);
-    setItems([]);
-    setHomeSections([]);
-    setScrollY(0);
-  };
-
-  const setSelectedCountry = (country: string) => {
-    setSelectedCountryState(country);
     setPage(1);
     setItems([]);
     setHomeSections([]);
@@ -92,15 +84,19 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsSearchingState(searching);
   };
 
+  const setIsSearchOpen = (open: boolean) => {
+    setIsSearchOpenState(open);
+  };
+
   const resetHomeState = () => {
     setActiveTabState('movie');
     setItems([]);
     setHomeSections([]);
     setPage(1);
     setSelectedGenreState('');
-    setSelectedCountryState('');
     setSearchQueryState('');
     setIsSearchingState(false);
+    setIsSearchOpenState(false);
     setScrollY(0);
     localStorage.removeItem('mb_home_activeTab');
     localStorage.removeItem('mb_home_items');
@@ -123,12 +119,12 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setPage,
         selectedGenre,
         setSelectedGenre,
-        selectedCountry,
-        setSelectedCountry,
         searchQuery,
         setSearchQuery,
         isSearching,
         setIsSearching,
+        isSearchOpen,
+        setIsSearchOpen,
         scrollY,
         setScrollY,
         resetHomeState,

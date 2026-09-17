@@ -1,21 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import { useLanguage, type Language } from '../context/LanguageContext';
+import { useLanguage, LANGUAGES_CONFIG } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { IosInstallModal } from './IosInstallModal';
-
-const LANGUAGES_CONFIG: { code: Language; flag: string; label: string; fullName: string }[] = [
-  { code: 'ru-RU', flag: '🇷🇺', label: 'RU', fullName: 'Русский' },
-  { code: 'en-US', flag: '🇺🇸', label: 'EN', fullName: 'English' },
-  { code: 'ko-KR', flag: '🇰🇷', label: 'KR', fullName: '한국어' },
-  { code: 'id-ID', flag: '🇮🇩', label: 'ID', fullName: 'Indonesia' },
-  { code: 'es-ES', flag: '🇪🇸', label: 'ES', fullName: 'Español' },
-  { code: 'de-DE', flag: '🇩🇪', label: 'DE', fullName: 'Deutsch' },
-  { code: 'fr-FR', flag: '🇫🇷', label: 'FR', fullName: 'Français' },
-  { code: 'hi-IN', flag: '🇮🇳', label: 'IN', fullName: 'हिन्दी' },
-  { code: 'fa-IR', flag: '🇮🇷', label: 'FA', fullName: 'فارسی' },
-  { code: 'zh-CN', flag: '🇨🇳', label: 'CN', fullName: '中文' },
-];
 
 export function Header() {
   const navigate = useNavigate();

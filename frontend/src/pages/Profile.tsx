@@ -1,17 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage, LANGUAGES_CONFIG } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
-
-
+const RadioTVContent = lazy(() => import('./RadioTV').then(m => ({ default: m.RadioTVContent })));
 
 export function Profile() {
-
-  const { t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
+  const [activeMediaTab, setActiveMediaTab] = useState<'tv' | 'radio' | null>(null);
 
   const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
   const [showDonationModal, setShowDonationModal] = useState(false);
@@ -22,16 +21,46 @@ export function Profile() {
     // Read showPrivate
   }, [user?.id, user?.username]);
 
-
+  if (activeMediaTab) {
+    return (
+      <div 
+        className="p-4 flex flex-col gap-4"
+        style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveMediaTab(null)}
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
+            style={{ color: 'var(--text-color)' }}
+          >
+            <span>←</span>
+            <span>{t('profile') || 'Назад'}</span>
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-color)' }}>
+            {activeMediaTab === 'tv' ? (t('tab_tv') || 'Онлайн ТВ') : (t('tab_radio') || 'Радио')}
+          </h1>
+        </div>
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-12 min-h-[300px]">
+            <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <RadioTVContent activeTab={activeMediaTab} />
+        </Suspense>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 pt-24 flex flex-col gap-4">
+    <div 
+      className="p-4 flex flex-col gap-4"
+      style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+    >
       <div className="flex items-center gap-3 mb-2">
-
         <h1 className="text-2xl font-bold">{t('profile') || 'Profile'}</h1>
       </div>
       
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-4 mb-2">
         <div 
           className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold overflow-hidden"
           style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
@@ -59,6 +88,27 @@ export function Profile() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Online TV & Radio Buttons */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setActiveMediaTab('tv')}
+          className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
+          style={{ backgroundColor: 'var(--hint-color)' }}
+        >
+          <span className="text-3xl">📺</span>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_tv') || 'Онлайн ТВ'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveMediaTab('radio')}
+          className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
+          style={{ backgroundColor: 'var(--hint-color)' }}
+        >
+          <span className="text-3xl">📻</span>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_radio') || 'Радио'}</span>
+        </button>
       </div>
 
       {/* Settings Section */}
@@ -95,6 +145,31 @@ export function Profile() {
             >
               {t('themeDark')}
             </button>
+          </div>
+        </div>
+
+        {/* Language Section */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xl">🌐</span>
+            <h2 className="font-bold text-md">{t('language') || 'Язык'}</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {LANGUAGES_CONFIG.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code as any)}
+                className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer active:scale-95 ${
+                  language === lang.code
+                    ? 'border-[var(--button-color)] bg-[var(--button-color)]/20 shadow-sm'
+                    : 'border-white/10 bg-black/10 dark:bg-white/5 opacity-80 hover:opacity-100'
+                }`}
+                style={{ color: language === lang.code ? 'var(--button-color)' : 'var(--text-color)' }}
+              >
+                <span className="text-base">{lang.flag}</span>
+                <span>{lang.name}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>

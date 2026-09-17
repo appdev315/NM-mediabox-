@@ -62,35 +62,158 @@ function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
 
 function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useLanguage();
+  const homeState = useHomeState();
   
   if (location.pathname.includes('/movie/') || location.pathname.startsWith('/adult/')) return null;
 
-  const isFav = isAdultApp ? location.pathname === '/adult/favorites' : location.pathname === '/favorites';
-  const toUrl = isAdultApp 
-    ? (isFav ? '/adult' : '/adult/favorites') 
-    : (isFav ? '/' : '/favorites');
+  if (isAdultApp) {
+    const isFav = location.pathname === '/adult/favorites';
+    const toUrl = isFav ? '/adult' : '/adult/favorites';
+    return (
+      <div 
+        className="fixed bottom-0 left-0 right-0 flex justify-around p-3 border-t z-40"
+        style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
+      >
+        <Link 
+          to={toUrl} 
+          className="font-bold transition-opacity opacity-100 flex items-center justify-center w-full"
+          style={{ color: isFav ? 'var(--button-color)' : 'var(--text-color)' }}
+        >
+          {isFav ? t('home') : t('myFavorites')}
+        </Link>
+      </div>
+    );
+  }
+
+  const { activeTab, setActiveTab, isSearchOpen, setIsSearchOpen, isSearching, searchQuery } = homeState;
+
+  const isHome = location.pathname === '/' || location.pathname === '/movies';
+  const isSearchActive = isHome && (isSearchOpen || isSearching || Boolean(searchQuery));
+  const isMovieActive = isHome && activeTab === 'movie' && !isSearchActive;
+  const isSeriesActive = isHome && activeTab === 'series' && !isSearchActive;
+  const isFavActive = location.pathname === '/favorites';
+  const isProfileActive = location.pathname === '/profile';
+
+  const navItems = [
+    {
+      id: 'movies',
+      label: t('movies') || 'Фильмы',
+      isActive: isMovieActive,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+          <line x1="7" y1="2" x2="7" y2="22"></line>
+          <line x1="17" y1="2" x2="17" y2="22"></line>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <line x1="2" y1="7" x2="7" y2="7"></line>
+          <line x1="2" y1="17" x2="7" y2="17"></line>
+          <line x1="17" y1="17" x2="22" y2="17"></line>
+          <line x1="17" y1="7" x2="22" y2="7"></line>
+        </svg>
+      ),
+      onClick: () => {
+        if (!isHome) navigate('/');
+        setActiveTab('movie');
+        setIsSearchOpen(false);
+        if (isHome) window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    },
+    {
+      id: 'series',
+      label: t('series') || 'Сериалы',
+      isActive: isSeriesActive,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+          <polyline points="17 2 12 7 7 2"></polyline>
+        </svg>
+      ),
+      onClick: () => {
+        if (!isHome) navigate('/');
+        setActiveTab('series');
+        setIsSearchOpen(false);
+        if (isHome) window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    },
+    {
+      id: 'favorites',
+      label: t('myFavorites') || 'Избранное',
+      isActive: isFavActive,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+        </svg>
+      ),
+      onClick: () => navigate('/favorites')
+    },
+    {
+      id: 'search',
+      label: t('search') || 'Поиск',
+      isActive: isSearchActive,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      ),
+      onClick: () => {
+        if (!isHome) {
+          navigate('/');
+          setIsSearchOpen(true);
+        } else {
+          setIsSearchOpen(!isSearchOpen);
+        }
+      }
+    },
+    {
+      id: 'profile',
+      label: t('profile') || 'Профиль',
+      isActive: isProfileActive,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      ),
+      onClick: () => navigate('/profile')
+    }
+  ];
 
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 flex justify-around p-3 border-t z-40"
-      style={{ backgroundColor: 'var(--bg-color)', borderColor: 'var(--hint-color)' }}
+    <nav 
+      className="fixed bottom-0 left-0 right-0 border-t z-40 flex items-center justify-around px-1 py-1"
+      style={{ 
+        backgroundColor: 'var(--bg-color)', 
+        borderColor: 'var(--hint-color)',
+        paddingBottom: 'calc(0.4rem + env(safe-area-inset-bottom))'
+      }}
+      aria-label="Bottom navigation"
     >
-      <Link 
-        to={toUrl} 
-        className="font-bold transition-opacity opacity-100 flex items-center justify-center w-full"
-        style={{ color: isFav ? 'var(--button-color)' : 'var(--text-color)' }}
-      >
-        {isFav ? t('home') : t('myFavorites')}
-      </Link>
-    </div>
+      {navItems.map(item => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={item.onClick}
+          className="flex-1 flex flex-col items-center justify-center py-1 gap-1 text-[11px] font-semibold transition-all cursor-pointer active:scale-95 border-none bg-transparent"
+          style={{ 
+            color: item.isActive ? 'var(--button-color)' : 'var(--text-color)',
+            opacity: item.isActive ? 1 : 0.6
+          }}
+        >
+          {item.icon}
+          <span className="truncate max-w-[64px]">{item.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
 function HardwareBackButtonHandler() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { selectedGenre, setSelectedGenre, selectedCountry, setSelectedCountry, searchQuery, setSearchQuery, isSearching } = useHomeState();
+  const { selectedGenre, setSelectedGenre, searchQuery, setSearchQuery, isSearching, isSearchOpen, setIsSearchOpen } = useHomeState();
 
   // Telegram WebApp BackButton sync
   useEffect(() => {
@@ -98,7 +221,7 @@ function HardwareBackButtonHandler() {
       if (WebApp && WebApp.BackButton) {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
         const hasActiveFilter = (location.pathname === '/' || location.pathname === '/movies') && 
-          (Boolean(selectedGenre) || Boolean(selectedCountry) || Boolean(searchQuery) || isSearching);
+          (Boolean(selectedGenre) || Boolean(searchQuery) || isSearching || isSearchOpen);
 
         if (isRoot && !hasActiveFilter) {
           WebApp.BackButton.hide();
@@ -107,8 +230,8 @@ function HardwareBackButtonHandler() {
           const handleBack = () => {
             if (hasActiveFilter) {
               setSelectedGenre('');
-              setSelectedCountry('');
               setSearchQuery('');
+              setIsSearchOpen(false);
             } else if (window.history.length > 1) {
               navigate(-1);
             } else {
@@ -124,7 +247,7 @@ function HardwareBackButtonHandler() {
     } catch (e) {
       console.warn('[BackButton] WebApp BackButton error:', e);
     }
-  }, [location.pathname, navigate, selectedGenre, selectedCountry, searchQuery, isSearching, setSelectedGenre, setSelectedCountry, setSearchQuery]);
+  }, [location.pathname, navigate, selectedGenre, searchQuery, isSearching, isSearchOpen, setSelectedGenre, setSearchQuery, setIsSearchOpen]);
 
   // Capacitor Android hardware back button
   useEffect(() => {
@@ -133,12 +256,12 @@ function HardwareBackButtonHandler() {
       CapacitorApp.addListener('backButton', ({ canGoBack }) => {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
         const hasActiveFilter = (location.pathname === '/' || location.pathname === '/movies') && 
-          (Boolean(selectedGenre) || Boolean(selectedCountry) || Boolean(searchQuery) || isSearching);
+          (Boolean(selectedGenre) || Boolean(searchQuery) || isSearching || isSearchOpen);
 
         if (hasActiveFilter) {
           setSelectedGenre('');
-          setSelectedCountry('');
           setSearchQuery('');
+          setIsSearchOpen(false);
         } else if (isRoot) {
           CapacitorApp.exitApp();
         } else if (canGoBack) {
@@ -158,7 +281,7 @@ function HardwareBackButtonHandler() {
         listenerHandle.remove();
       }
     };
-  }, [location.pathname, navigate, selectedGenre, selectedCountry, searchQuery, isSearching, setSelectedGenre, setSelectedCountry, setSearchQuery]);
+  }, [location.pathname, navigate, selectedGenre, searchQuery, isSearching, isSearchOpen, setSelectedGenre, setSearchQuery, setIsSearchOpen]);
 
   return null;
 }
@@ -176,7 +299,7 @@ function MainApp() {
       <DeepLinkHandler isAdultApp={false} />
       <HardwareBackButtonHandler />
       <NetworkBanner />
-      <div className="pb-16 min-h-screen relative flex flex-col">
+      <div className="pb-24 min-h-screen relative flex flex-col">
         <ErrorBoundary>
           <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             <Routes>
