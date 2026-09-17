@@ -10,7 +10,6 @@ import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { usePlaybackResilience } from '../hooks/usePlaybackResilience';
 import { TrailerModal } from '../components/TrailerModal';
 import { PersonModal } from '../components/PersonModal';
-import { MovieStaticBanners } from '../components/MovieStaticBanners';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
 import { useViewportExpand } from '../hooks/useViewportExpand';
@@ -909,14 +908,12 @@ export function Movie() {
 
   const displayTitle = movie?.title || movie?.name || '';
   const displayYear = movie?.year || (movie?.release_date ? movie.release_date.slice(0, 4) : '') || (movie?.first_air_date ? movie.first_air_date.slice(0, 4) : '');
-  const seoTitle = isTvSeries
-    ? `Сериал ${displayTitle}${displayYear ? ` (${displayYear})` : ''} онлайн — MediaBox`
-    : `Смотреть ${displayTitle}${displayYear ? ` (${displayYear})` : ''} онлайн — MediaBox`;
+  const seoTitle = displayTitle ? `${displayTitle}${displayYear ? ` (${displayYear})` : ''} — MediaBox` : 'MediaBox';
 
   const rawOverview = movie?.overview || '';
   const seoDescription = rawOverview.length > 0
     ? (rawOverview.length > 160 ? rawOverview.slice(0, 157).trim() + '...' : rawOverview)
-    : `Смотреть ${isTvSeries ? 'сериал' : 'фильм'} «${displayTitle}»${displayYear ? ` (${displayYear})` : ''} онлайн в хорошем качестве на MediaBox.`;
+    : `${displayTitle}${displayYear ? ` (${displayYear})` : ''} — MediaBox`;
 
   // Direct TMDB image URL without proxy for bots / external social previews
   const tmdbImgPath = movie?.backdrop_path || movie?.poster_path || 
@@ -1490,11 +1487,11 @@ export function Movie() {
                           type="button"
                           disabled
                           className="px-3.5 py-1.5 rounded-xl text-xs font-medium flex-shrink-0 opacity-55 cursor-not-allowed bg-white/5 text-gray-400 border border-white/10 flex flex-col items-center justify-center select-none min-w-[76px]"
-                          title={releaseDate ? `Премьера: ${releaseDate}` : (t('comingSoon') || 'Скоро')}
+                          title={releaseDate ? `${t('premiereDate') || 'Premiere'}: ${releaseDate}` : (t('comingSoon') || '...')}
                         >
                           <span className="font-bold text-xs">{t('episode')} {episode}</span>
                           <span className="text-[10px] text-amber-400/90 font-mono mt-0.5 tracking-tight font-semibold">
-                            {releaseDate || (t('comingSoon') || 'Скоро')}
+                            {releaseDate || (t('comingSoon') || '...')}
                           </span>
                         </button>
                       );
@@ -1576,9 +1573,9 @@ export function Movie() {
           </div>
         )}
 
-        {/* 3 Static Banners under actors / player in watch mode */}
+        {/* Bottom Banner under actors / player in watch mode */}
         {(isExtracting || iframeUrl) && (
-          <MovieStaticBanners />
+          <MovieBottomBanner slotId="movie-watch-bottom" className="my-4" />
         )}
       </div>
 

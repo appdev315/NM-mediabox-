@@ -6,7 +6,7 @@ import { Player } from '../components/Player';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
-import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
+import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { trackOpen } from '../utils/analytics';
 
 export function AdultVideo() {
@@ -167,8 +167,10 @@ export function AdultVideo() {
                 );
               })}
 
-              {/* Native Banner before return card */}
-              <AdsterraNativeAd />
+              {/* Bottom Banner before return card */}
+              <div className="col-span-full my-4">
+                <MovieBottomBanner slotId="adult-video-bottom" className="my-2" />
+              </div>
 
               {/* Return to Category / Previous Page Card */}
               <div 

@@ -79,7 +79,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
               </svg>
             </div>
             <div className="flex-1 text-left">
-              <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider block">1. Шаг 1</span>
+              <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider block">1. {t('step1') || 'Step 1'}</span>
               <p className="text-xs sm:text-sm text-gray-200 font-medium leading-snug">
                 {t('iosStep1') || 'В Safari нажмите «Поделиться» (иконка внизу)'}
               </p>
@@ -95,7 +95,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
               </svg>
             </div>
             <div className="flex-1 text-left">
-              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">2. Шаг 2</span>
+              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">2. {t('step2') || 'Step 2'}</span>
               <p className="text-xs sm:text-sm text-gray-200 font-medium leading-snug">
                 {t('iosStep2') || 'Выберите «На экран «Домой»»'}
               </p>
@@ -111,7 +111,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
               </svg>
             </div>
             <div className="flex-1 text-left">
-              <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block">3. Шаг 3</span>
+              <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block">3. {t('step3') || 'Step 3'}</span>
               <p className="text-xs sm:text-sm text-gray-200 font-medium leading-snug">
                 {t('iosStep3') || 'В правом верхнем углу нажмите «Добавить»'}
               </p>

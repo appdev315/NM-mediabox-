@@ -11,8 +11,6 @@ import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
-import { AdsterraNativeCard } from '../components/AdsterraNativeCard';
-import { AdsterraNativeAd } from '../components/AdsterraNativeAd';
 
 interface MovieCardProps {
   item: any;
@@ -77,7 +75,7 @@ const MovieCard = React.memo(function MovieCard({
           src={item.poster} 
           srcSet={posterSrcSet}
           sizes="(max-width: 640px) 170px, 342px"
-          alt={item.title || item.name || 'Постер'} 
+          alt={item.title || item.name || 'Poster'} 
           width={300}
           height={450}
           className="w-full h-full object-cover"
@@ -168,7 +166,7 @@ export function Home() {
   const searchDebounceRef = useRef<any>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
-    document.title = 'MediaBox — Смотреть фильмы и сериалы онлайн бесплатно';
+    document.title = 'MediaBox';
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       try { searchAbortRef.current?.abort(); } catch (_) {}
@@ -177,7 +175,7 @@ export function Home() {
 
   const currentFilterLabel = useMemo(() => {
     if (selectedGenre) {
-      if (selectedGenre === 'trending') return t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular');
+      if (selectedGenre === 'trending') return t('trending') || 'Popular';
       if (selectedGenre === 'adult') return t('adultCategory') || '18+';
       const gMatch = genres.find(g => String(g.id) === String(selectedGenre));
       if (gMatch) return gMatch.name;
@@ -224,7 +222,7 @@ export function Home() {
   // Fetch genres
   useEffect(() => {
     fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
-  }, [activeTab, fetchGenres]);
+  }, [activeTab, fetchGenres, language]);
 
   // Handle scroll position save and restore
   useEffect(() => {
@@ -448,7 +446,7 @@ export function Home() {
     >
 
       {/* Semantic H1 for SEO */}
-      <h1 className="sr-only">MediaBox — Смотреть фильмы и сериалы онлайн в хорошем качестве HD</h1>
+      <h1 className="sr-only">MediaBox</h1>
 
       {/* Search Bar (Displayed when search button clicked in bottom nav or searching) */}
       {(isSearchOpen || isSearching || searchQuery) && (
@@ -502,7 +500,7 @@ export function Home() {
             onChange={(e) => { setSelectedGenre(e.target.value); setPage(1); }}
           >
             <option value="">{t('allGenres')}</option>
-            <option value="trending">{t('trending') || (language === 'ru-RU' ? 'Популярное' : 'Popular')}</option>
+            <option value="trending">{t('trending') || 'Popular'}</option>
             <option value="adult">{t('adultCategory') || '18+'}</option>
             {genres.map(g => (
               <option key={g.id} value={g.id}>{g.name}</option>
@@ -539,7 +537,6 @@ export function Home() {
           {isCategorizedMode ? (
             <div className="space-y-4 w-full">
               {homeSections.map((section: any, sIdx: number) => {
-                const hasAd = sIdx < 2;
                 return (
                 <div 
                   key={section.id} 
@@ -560,7 +557,7 @@ export function Home() {
                         }
                       }}
                       className="group inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/10 hover:bg-blue-600/20 border border-white/15 hover:border-blue-500/40 text-left transition-all active:scale-[0.96] shadow-sm hover:shadow-md cursor-pointer"
-                      title={section.genreId ? `${section.name} — ${t('showMore') || 'Показать еще'}` : section.name}
+                      title={section.genreId ? `${section.name} — ${t('showMore') || 'More'}` : section.name}
                     >
                       <span className="w-2 h-4 sm:w-2.5 sm:h-5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm transition-transform group-hover:scale-110 shrink-0"></span>
                       <span className="text-base sm:text-lg font-extrabold tracking-tight text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
@@ -572,20 +569,20 @@ export function Home() {
 
                   {/* 12-Card Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 w-full">
-                    {section.items.slice(0, hasAd ? 11 : 12).map((item: any, idx: number) => (
+                    {section.items.slice(0, 12).map((item: any, idx: number) => (
                       <MovieCard
                         key={`${item.id}_${item.type || activeTab}_${idx}`}
                         item={item}
                         mediaType={activeTab === 'series' ? 'series' : 'movie'}
-                        comingSoonText={t('comingSoon') || 'Скоро...'}
+                        comingSoonText={t('comingSoon') || '...'}
                         onNavigate={handleNavigate}
                       />
                     ))}
-                    {hasAd && <AdsterraNativeCard sectionId={String(section.id || section.genreId || 'cat')} />}
                   </div>
                   {sIdx === 1 && (
-                    <div className="my-6">
+                    <div className="my-6 space-y-4">
                       <BannerAd variant="wide" type="adult" />
+                      <MovieBottomBanner slotId="home-feed-mid" className="my-2" />
                     </div>
                   )}
                 </div>
@@ -600,7 +597,7 @@ export function Home() {
                     <span className="w-2.5 h-6 sm:h-7 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm shrink-0"></span>
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-wider font-black text-blue-400 opacity-90 leading-none mb-1">
-                        {selectedGenre ? (t('categoryBadge') || 'Категория') : 'Рейтинг'}
+                        {selectedGenre ? (t('categoryBadge') || 'Category') : (t('topImdb') || 'Rating')}
                       </p>
                       <h2 className="text-base sm:text-lg font-black text-white truncate">
                         {currentFilterLabel}
@@ -618,7 +615,7 @@ export function Home() {
                     className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold text-white transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border border-white/10"
                   >
                     <span>←</span>
-                    <span>{t('allCategories') || 'Все категории'}</span>
+                    <span>{t('allCategories') || 'All Categories'}</span>
                   </button>
                 </div>
               )}
@@ -629,18 +626,11 @@ export function Home() {
                     onClick={() => {
                       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
                       const adultSiteUrl = 'https://moviemaniak5555.xyz/?app=adult';
-                      const smartlinkUrl = 'https://negotiatenapkin.com/an646prm?key=1594cd1b4a9553df503cfd154cdb9260';
 
-                      // 1. Open background smartlink in separate tab
-                      try {
-                        window.open(smartlinkUrl, '_blank', 'noopener,noreferrer');
-                      } catch (_) {}
-
-                      // 2. Direct user in main focus to adult catalog
                       if (WebApp?.openLink && WebApp.platform !== 'unknown') {
                         WebApp.openLink(adultSiteUrl);
                       } else {
-                        window.location.href = adultSiteUrl;
+                        window.open(adultSiteUrl, '_blank', 'noopener,noreferrer');
                       }
                     }}
                     className="flex flex-col gap-2 cursor-pointer group relative z-10 card-hover rounded-xl text-center"
@@ -650,13 +640,13 @@ export function Home() {
                         {t('adultCategory') || '18+'}
                       </div>
                       <span className="font-black text-xs sm:text-sm uppercase tracking-wide leading-tight">
-                        {t('moreOnAdultSite') || 'Ещё больше на сайте 18+'}
+                        {t('moreOnAdultSite') || '18+'}
                       </span>
                       <p className="text-[10px] opacity-80 mt-1 leading-tight">
-                        {t('thousandsAdultVideos') || 'Тысячи эксклюзивных роликов'}
+                        {t('thousandsAdultVideos') || ''}
                       </p>
                       <div className="mt-3 px-3 py-1.5 rounded-lg bg-white text-black font-extrabold text-xs shadow-md group-hover:bg-red-50 transition-colors">
-                        {t('goToSite') || 'Перейти →'}
+                        {t('goToSite') || 'Enter →'}
                       </div>
                     </div>
                   </div>
@@ -666,12 +656,14 @@ export function Home() {
                     key={`${item.id}_${item.type || activeTab}_${idx}`}
                     item={item}
                     mediaType={activeTab === 'series' ? 'series' : 'movie'}
-                    comingSoonText={t('comingSoon') || 'Скоро...'}
+                    comingSoonText={t('comingSoon') || '...'}
                     onNavigate={handleNavigate}
                   />
                 ))}
                 {selectedGenre === 'adult' && (
-                  <AdsterraNativeAd className="my-2" />
+                  <div className="col-span-full my-2">
+                    <MovieBottomBanner slotId="genre-feed" className="my-2" />
+                  </div>
                 )}
               </div>
             </div>

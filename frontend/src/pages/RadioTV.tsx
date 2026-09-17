@@ -137,7 +137,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const requestIdRef = useRef(0);
 
   const { playTrack, currentTrack, stop } = useAudioPlayer();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   useEffect(() => {
     localStorage.setItem('radio_tv_country', country);
@@ -523,7 +523,10 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       });
 
       if (title) {
-        setBrokenNotice(`Станция «${title}» временно недоступна и скрыта`);
+        const desc = language === 'ru-RU' 
+          ? `Станция «${title}» временно недоступна и скрыта` 
+          : `Station "${title}" temporarily unavailable and hidden`;
+        setBrokenNotice(desc);
         setTimeout(() => setBrokenNotice(null), 4500);
       }
 
@@ -1026,7 +1029,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                         backgroundColor: favIds.has(String(item.id)) ? 'rgba(234, 179, 8, 0.25)' : 'rgba(0, 0, 0, 0.25)',
                         color: favIds.has(String(item.id)) ? '#eab308' : 'rgba(255, 255, 255, 0.45)',
                       }}
-                      title={favIds.has(String(item.id)) ? 'Удалить из избранного' : 'Добавить в избранное'}
+                      title={favIds.has(String(item.id)) ? (t('removeFromFavorites') || 'Remove from favorites') : (t('addToFavorites') || 'Add to favorites')}
                     >
                       {favIds.has(String(item.id)) ? '★' : '☆'}
                     </button>

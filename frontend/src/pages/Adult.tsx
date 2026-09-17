@@ -11,8 +11,8 @@ import { trackOpen } from '../utils/analytics';
 
 
 const CATEGORIES = [
-  { id: '', label: 'All Categories / Все категории' },
-  { id: 'popular', label: 'Popular / Популярное' },
+  { id: '', label: 'All Categories' },
+  { id: 'popular', label: 'Popular' },
   { id: 'milf', label: 'MILF' },
   { id: 'teen', label: 'Teens' },
   { id: 'japanese', label: 'Japanese' },
