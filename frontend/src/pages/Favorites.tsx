@@ -17,7 +17,7 @@ export function Favorites() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('movie');
-  const [mode, setMode] = useState<'favorites' | 'history'>('favorites');
+  const [mode, setMode] = useState<'favorites' | 'history'>('history');
   
   const [favMovies, setFavMovies] = useState<any[]>([]);
   const [favSeries, setFavSeries] = useState<any[]>([]);
