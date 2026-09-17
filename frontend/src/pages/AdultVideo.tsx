@@ -93,8 +93,6 @@ export function AdultVideo() {
 
   return (
     <div className="pb-20">
-      {/* Exclude adult section from search engine index */}
-      <meta name="robots" content="noindex,nofollow" />
       <div className="p-4 pt-20 sm:pt-24">
         {/* Top Banner to Secret Room */}
         <div className="mb-4">

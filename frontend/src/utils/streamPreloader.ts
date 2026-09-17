@@ -45,11 +45,14 @@ export function prewarmStream(
   }
 
   // 1c. Block if movie is unreleased (saves backend bandwidth and error logs)
-  if (
-    item.isUpcoming ||
-    (item.release_date && new Date(item.release_date).getTime() > Date.now())
-  ) {
+  if (item.isUpcoming) {
     return Promise.resolve(null);
+  }
+  if (resolvedType !== 'tv' && item.release_date) {
+    const relTime = new Date(item.release_date).getTime();
+    if (!isNaN(relTime) && relTime > Date.now()) {
+      return Promise.resolve(null);
+    }
   }
 
   // 2. Reuse active in-flight request if already kicked off

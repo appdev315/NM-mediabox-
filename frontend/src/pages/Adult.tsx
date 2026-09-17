@@ -319,8 +319,6 @@ export function Adult() {
 
   return (
     <div className="px-3 sm:px-4 pb-20 pt-16 sm:pt-16">
-      {/* Exclude adult section from search engine index */}
-      <meta name="robots" content="noindex,nofollow" />
       <div className="flex items-center gap-3 mb-3">
         <h1 className="text-xl font-extrabold">{t('privateCollection')} 🍓</h1>
       </div>

@@ -55,9 +55,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <h2 className="text-lg font-bold text-white mb-2">
             Что-то пошло не так
           </h2>
-          <p className="text-sm text-neutral-400 max-w-md mb-6">
+          <p className="text-sm text-neutral-400 max-w-md mb-4">
             Произошла ошибка при отображении страницы. Попробуйте обновить состояние или вернуться на главную.
           </p>
+          {this.state.error && (
+            <div className="mb-6 p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-left max-w-lg w-full text-xs font-mono text-red-300 break-words">
+              <span className="font-bold text-red-400">Детали: </span>
+              {this.state.error.message || String(this.state.error)}
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={this.handleReset}

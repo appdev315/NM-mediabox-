@@ -310,10 +310,16 @@ export function Movie() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendations, availVersion]);
   const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
-  const isUnreleased = useMemo(() => Boolean(
-    movie?.isUpcoming || 
-    (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
-  ), [movie?.isUpcoming, movie?.release_date]);
+  const isUnreleased = useMemo(() => {
+    if (movie?.isUpcoming) return true;
+    if (isTvSeries && (movie?.status === 'Ended' || (Array.isArray(movie?.seasons) && movie.seasons.length > 0) || liftwEpisodes)) {
+      return false;
+    }
+    const dateStr = movie?.release_date || movie?.first_air_date;
+    if (!dateStr) return false;
+    const time = new Date(dateStr).getTime();
+    return !isNaN(time) && time > Date.now();
+  }, [movie?.isUpcoming, movie?.release_date, movie?.first_air_date, isTvSeries, movie?.seasons, movie?.status, liftwEpisodes]);
 
   const handleReportMissing = async () => {
     if (!movie || isReporting || isReported) return;
@@ -579,7 +585,7 @@ export function Movie() {
           type: resolvedType,
           original_title: d?.original_title || '',
           title_ru: (d as any)?.title_ru || (language === 'ru-RU' ? (d?.title || '') : ''),
-          release_date: d?.release_date || '',
+          release_date: d?.release_date || d?.first_air_date || '',
           isUpcoming: Boolean(d?.isUpcoming),
         }, language).then(streamData => {
           if (streamData && isMounted && streamData.episodes) {
@@ -644,10 +650,6 @@ export function Movie() {
 
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
-    const isUnreleased = Boolean(
-      movie?.isUpcoming || 
-      (movie?.release_date && new Date(movie.release_date).getTime() > Date.now())
-    );
     if (isUnreleased) {
       if (trailerVideo) {
         stopAudio();
@@ -980,28 +982,30 @@ export function Movie() {
     return schema;
   }, [movie, isTvSeries, displayTitle, displayYear, seoDescription, ogImageUrl, canonicalUrl]);
 
+  // Set document title and safe DOM injection for JSON-LD structured data
+  useEffect(() => {
+    if (seoTitle) {
+      document.title = seoTitle;
+    }
+    if (!jsonLdData) return;
+    let scriptEl = document.getElementById('jsonld-movie-schema') as HTMLScriptElement | null;
+    if (!scriptEl) {
+      scriptEl = document.createElement('script');
+      scriptEl.id = 'jsonld-movie-schema';
+      scriptEl.type = 'application/ld+json';
+      document.head.appendChild(scriptEl);
+    }
+    scriptEl.textContent = JSON.stringify(jsonLdData);
+    return () => {
+      const el = document.getElementById('jsonld-movie-schema');
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    };
+  }, [seoTitle, jsonLdData]);
+
   return (
     <div className="pb-32 sm:pb-36 animate-fade-in">
-      {/* React 19 Document Metadata Hoisting */}
-      <title>{seoTitle}</title>
-      <meta name="description" content={seoDescription} />
-      <link rel="canonical" href={canonicalUrl} />
-      <meta property="og:title" content={seoTitle} />
-      <meta property="og:description" content={seoDescription} />
-      <meta property="og:type" content={isTvSeries ? 'video.tv_show' : 'video.movie'} />
-      <meta property="og:url" content={canonicalUrl} />
-      <meta property="og:image" content={ogImageUrl} />
-      <meta property="og:site_name" content="MediaBox" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={seoTitle} />
-      <meta name="twitter:description" content={seoDescription} />
-      <meta name="twitter:image" content={ogImageUrl} />
-      {jsonLdData && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
-        />
-      )}
 
       <div className="relative">
         <img 

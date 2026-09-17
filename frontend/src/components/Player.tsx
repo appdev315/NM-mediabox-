@@ -94,13 +94,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     initialEpisodeRef.current = targetEpisode;
   }
 
-  // Base iframe URL: embeds initial season & episode for instant server-rendered series playback
+  // Base iframe URL: embeds target season & episode for instant server-rendered series playback
   const currentUrl = useMemo(() => {
     if (!rawUrl || !/^https?:\/\//i.test(rawUrl.trim())) {
       return 'about:blank';
     }
-    const timecode = initialTimecodeRef.current;
-    const epInfo = initialEpisodeRef.current || targetEpisode;
+    const epInfo = targetEpisode || initialEpisodeRef.current;
     let cleanUrl = rawUrl
       .replace(/[?&](start|t)=\d+/g, '')
       .replace(/[?&](season|episode)=\d+/g, '')
@@ -113,13 +112,18 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       cleanUrl = `${cleanUrl}${sep}season=${encodeURIComponent(epInfo.season)}&episode=${encodeURIComponent(epInfo.episode)}`;
     }
 
+    const isInitialEpisode = !targetEpisode || (
+      targetEpisode.season === initialEpisodeRef.current?.season &&
+      targetEpisode.episode === initialEpisodeRef.current?.episode
+    );
+    const timecode = isInitialEpisode ? initialTimecodeRef.current : 0;
     if (!timecode || timecode <= 5) return cleanUrl;
     const startSec = Math.floor(timecode);
     if (cleanUrl.includes('?')) {
       return `${cleanUrl}&start=${startSec}#t=${startSec}`;
     }
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
-  }, [rawUrl]);
+  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
 
   // Verified donor commands: adFree (player-venom) + playlist go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
