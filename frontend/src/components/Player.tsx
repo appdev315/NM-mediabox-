@@ -160,17 +160,20 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [targetEpisode, currentUrl]);
 
-  // Verified donor commands: adFree (player-venom) + playlist go (embed page).
+  // Verified donor commands: adFree (player-venom) + playlist hook/go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        // 1. Skip donor's VAST ad-wait and trigger instant playback
+        // 1. Establish Zenith hook handshake
+        iframeRef.current.contentWindow.postMessage('playlist hook', '*');
+
+        // 2. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
           '*'
         );
 
-        // 2. For series: command target season and episode if provided
+        // 3. For series: command target season and episode if provided
         if (targetSeason || targetEp) {
           const sNum = parseInt(targetSeason || '1', 10);
           const eNum = parseInt(targetEp || '1', 10);
@@ -183,6 +186,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             { event: 'playlist go', season: sNum, episode: eStr },
             '*'
           );
+          iframeRef.current.contentWindow.postMessage(
+            'playlist hooked play',
+            '*'
+          );
+        } else {
+          // For movies or initial autoplay
           iframeRef.current.contentWindow.postMessage(
             'playlist hooked play',
             '*'
@@ -230,26 +239,32 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
-          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
+          // Note: Do NOT set syncDoneRef.current = true or clear sync timers here!
+          // Zenith embed passively posts { event: 'changeEpisode', season: 1, episode: '1' }
+          // during initial HTML parse before player-venom is downloaded or ready to autoplay.
+          if (fallbackNavTimerRef.current && currentTargetRef.current.season && currentTargetRef.current.episode) {
             if (s === currentTargetRef.current.season && e === currentTargetRef.current.episode) {
-              syncDoneRef.current = true;
-              clearSyncTimers();
-              if (fallbackNavTimerRef.current) {
-                clearTimeout(fallbackNavTimerRef.current);
-                fallbackNavTimerRef.current = null;
-              }
+              clearTimeout(fallbackNavTimerRef.current);
+              fallbackNavTimerRef.current = null;
             }
           }
         }
         if (data.event === 'playerReady') {
-          if (!currentTargetRef.current.season) {
-            syncDoneRef.current = true;
-            clearSyncTimers();
+          // player-venom scripts loaded and mounted - fire immediate burst
+          if (currentTargetRef.current.season || currentTargetRef.current.episode) {
+            sendPlayCommands(currentTargetRef.current.season, currentTargetRef.current.episode);
+          } else {
+            sendPlayCommands();
           }
         }
-        if (data.event === 'adStart' || data.event === 'startWatching') {
+        // Genuine playback verification: only stop retries once playback or ad actually commences
+        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate') {
           syncDoneRef.current = true;
           clearSyncTimers();
+          if (fallbackNavTimerRef.current) {
+            clearTimeout(fallbackNavTimerRef.current);
+            fallbackNavTimerRef.current = null;
+          }
         }
       } catch (_) {}
     };
@@ -259,7 +274,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       window.removeEventListener('message', handlePlayerMessage);
       clearSyncTimers();
     };
-  }, [onEpisodeChange, clearSyncTimers]);
+  }, [onEpisodeChange, clearSyncTimers, sendPlayCommands]);
 
   // Single trigger: fire burst only when user explicitly chooses an episode
   const lastTargetTokenRef = useRef<number | null>(null);
@@ -598,8 +613,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />
 
-      {/* Transparent tap interceptor strictly on mobile devices to prevent Apple AVPlayer stall. On desktop, native fullscreen button is clicked directly. */}
-      {isMobileDevice && (
+      {/* Transparent tap interceptor strictly on mobile devices in inline mode to prevent Apple AVPlayer stall. Unmounted in fullscreen to prevent blocking settings/controls. */}
+      {isMobileDevice && !isWebFullscreen && (
         <button
           type="button"
           onClick={(e) => {
@@ -607,15 +622,15 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             e.stopPropagation();
             toggleWebFullscreen();
           }}
-          aria-label={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
-          title={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
-          className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
+          aria-label="Во весь экран"
+          title="Во весь экран"
+          className="absolute bottom-0 right-0 w-7 h-7 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
           style={{ touchAction: 'manipulation' }}
         />
       )}
 
-      {/* Floating exit button when in Web Fullscreen mode */}
-      {isWebFullscreen && (
+      {/* Floating exit button when in Web Fullscreen mode (desktop only, hidden on mobile phones) */}
+      {isWebFullscreen && !isMobileDevice && (
         <button
           type="button"
           onClick={(e) => {

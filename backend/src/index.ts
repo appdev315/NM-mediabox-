@@ -152,6 +152,20 @@ app.get('/api/analytics/stats', async (c: Context) => {
        GROUP BY item_type ORDER BY cnt DESC`
     ).bind(`-${since} hours`).all();
 
+    const donorRow = await c.env.DB.prepare(
+      `SELECT 
+         COUNT(*) as total,
+         SUM(CASE WHEN meta = 'liftw_ok' THEN 1 ELSE 0 END) as ok,
+         SUM(CASE WHEN meta = 'liftw_fail' THEN 1 ELSE 0 END) as fail
+       FROM analytics_events 
+       WHERE event_type = 'donor_hit' AND ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first() as { total?: number; ok?: number; fail?: number } | null;
+
+    const donorTotal = donorRow?.total || 0;
+    const donorOk = donorRow?.ok || 0;
+    const donorFail = donorRow?.fail || 0;
+    const donorRate = donorTotal > 0 ? Number(((donorOk / donorTotal) * 100).toFixed(1)) : 100.0;
+
 const COUNTRY_NAMES: Record<string, string> = {
   RU: '🇷🇺 Россия',
   KZ: '🇰🇿 Казахстан',
@@ -220,6 +234,14 @@ function formatCountry(code?: string): string {
         events: activeUsers?.events || 0
       },
       newUsers: newUsers?.cnt || 0,
+      donorStats: {
+        liftw: {
+          requests: donorTotal,
+          success: donorOk,
+          fails: donorFail,
+          rate: donorRate
+        }
+      },
       byCountry: (byCountry.results || []).map((r: any) => ({
         country: r.country,
         countryName: formatCountry(r.country),
@@ -610,6 +632,19 @@ app.get('/api/liftw', async (c: Context) => {
   const cacheReq = new Request(canonicalUrl, { method: 'GET' });
   const edgeCache = (caches as any).default;
 
+  // Donor metric recorder: tracks real Liftw stream resolutions for the 3-hour report
+  const recordDonorMetric = (status: 'liftw_ok' | 'liftw_fail') => {
+    if (!c.env.DB || !c.executionCtx?.waitUntil) return;
+    c.executionCtx.waitUntil((async () => {
+      try {
+        await c.env.DB.prepare(
+          `INSERT INTO analytics_events (event_type, country, item_type, item_title, item_id, meta)
+           VALUES ('donor_hit', ?, ?, ?, ?, ?)`
+        ).bind(c.get('country') || null, canonicalType, title || null, tmdb || liftwIdParam || null, status).run();
+      } catch (_) {}
+    })());
+  };
+
   if (!bypassCache) {
     try {
       const cachedResponse = await edgeCache.match(cacheReq);
@@ -664,6 +699,7 @@ app.get('/api/liftw', async (c: Context) => {
           try {
             c.executionCtx.waitUntil(edgeCache.put(cacheReq, directResponse.clone()));
           } catch (_) {}
+          recordDonorMetric('liftw_ok');
           return directResponse;
         }
       }
@@ -817,6 +853,9 @@ app.get('/api/liftw', async (c: Context) => {
   // Autonomous Sysadmin Incident logger (non-blocking via executionCtx)
   const recordIncident = (failType: string, status: string, note?: string) => {
     if (!c.env.DB) return;
+    // Guard: Only record incidents for verified catalog items with tmdb or liftw_id.
+    // Arbitrary user search terms (especially adult keywords or typos) must not pollute parsing_incidents.
+    if (!tmdb && !liftwIdParam) return;
     c.executionCtx.waitUntil((async () => {
       try {
         await c.env.DB.prepare(
@@ -830,6 +869,7 @@ app.get('/api/liftw', async (c: Context) => {
   };
 
   if (!matchedItem) {
+    recordDonorMetric('liftw_fail');
     recordIncident('not_found', 'unresolved', 'Exhausted direct, alt titles, and relaxed search');
     return c.json({ error: 'exact match not found on liftw' }, 404, {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -843,6 +883,7 @@ app.get('/api/liftw', async (c: Context) => {
       signal: AbortSignal.timeout(7000),
     });
     if (!infoRes.ok) {
+      recordDonorMetric('liftw_fail');
       recordIncident('http_502', 'unresolved', `Liftw info HTTP ${infoRes.status}`);
       return c.json({ error: 'failed to fetch liftw stream info' }, 502, {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -852,6 +893,7 @@ app.get('/api/liftw', async (c: Context) => {
     const info = await infoRes.json() as { id: number; type: number; name: string; iframe_uri: string; episodes?: any };
     
     if (!info.iframe_uri) {
+      recordDonorMetric('liftw_fail');
       recordIncident('empty_iframe', 'unresolved', 'Liftw returned empty iframe_uri');
       return c.json({ error: 'liftw stream has no active player' }, 404, {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -868,6 +910,8 @@ app.get('/api/liftw', async (c: Context) => {
     if (info.episodes) {
       result.episodes = info.episodes;
     }
+
+    recordDonorMetric('liftw_ok');
 
     // If stream was recovered via fallback cascade, record auto_fixed incident
     if (healNote) {

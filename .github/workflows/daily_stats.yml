@@ -16,6 +16,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
+          echo "DONOR_BLOCK=" >> $GITHUB_ENV
           RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${BOT_TOKEN}" https://evro90-nm6.hf.space/api/stats?reset=true)
           
           HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
@@ -36,11 +37,6 @@ jobs:
             TV=$(echo "$BODY" | jq -r '.metrics.categories.tv // 0')
             ADULT=$(echo "$BODY" | jq -r '.metrics.categories.adult // 0')
             
-            LIFTW_REQ=$(echo "$BODY" | jq -r '.metrics.donors.liftwRequests // 0')
-            LIFTW_FAIL=$(echo "$BODY" | jq -r '.metrics.donors.liftwFails // 0')
-            GO_REQ=$(echo "$BODY" | jq -r '.metrics.donors.goRequests // 0')
-            GO_FAIL=$(echo "$BODY" | jq -r '.metrics.donors.goFails // 0')
-            
             ERRORS=$(echo "$BODY" | jq -r '.metrics.errors.total // 0')
             BANS=$(echo "$BODY" | jq -r '.metrics.errors.donorBans // 0')
             RL=$(echo "$BODY" | jq -r '.metrics.errors.rateLimits // 0')
@@ -50,18 +46,13 @@ jobs:
             HOURS=$(($UPTIME / 3600))
             MINUTES=$((($UPTIME % 3600) / 60))
             
-            # Calculate Success Rate %
-            if [ "$TOTAL" -gt 0 ]; then
-              SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($SUCCESS / $TOTAL) * 100}")
+            # Calculate Server Health Success Rate % (excluding 404 catalog misses)
+            SERVER_ERRORS=$(($BANS + $RL + $INTERNAL))
+            SERVER_TOTAL=$(($SUCCESS + $SERVER_ERRORS))
+            if [ "$SERVER_TOTAL" -gt 0 ]; then
+              SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($SUCCESS / $SERVER_TOTAL) * 100}")
             else
               SUCCESS_RATE="100.0"
-            fi
-            
-            # Calculate Liftw Success %
-            if [ "$LIFTW_REQ" -gt 0 ]; then
-              LIFTW_SUCCESS_PCT=$(awk "BEGIN {printf \"%.1f\", (($LIFTW_REQ - $LIFTW_FAIL) / $LIFTW_REQ) * 100}")
-            else
-              LIFTW_SUCCESS_PCT="100.0"
             fi
 
             # Extract Recent Errors for 1-click copy block (HTML entity escaped to prevent Telegram 400 Bad Request)
@@ -83,10 +74,6 @@ jobs:
           📻 Радио: ${RADIO} | 📺 ТВ: ${TV}
           🍓 18+ (Адалт): ${ADULT}
 
-          📡 <b>Диагностика доноров:</b>
-          🏎 <b>Liftw (Плеер 1):</b> ${LIFTW_REQ} зап. | ${LIFTW_SUCCESS_PCT}% успех
-          ⚡ <b>Anwap/Go (Плеер 2):</b> ${GO_REQ} зап. | ${GO_FAIL} сбоев
-
           📋 <b>Детализация проблем:</b>
           🔍 404 (Не найдено): ${NF} | 🚫 403 (Баны): ${BANS}
           🛑 429 (Лимиты): ${RL} | 🔥 500 (Ошибки парсера): ${INTERNAL}${LOG_BLOCK}"
@@ -107,9 +94,20 @@ jobs:
           ANA_BODY=$(echo "$ANALYTICS_RESP" | sed '$d')
 
           if [ "$ANA_HTTP" -ne 200 ]; then
+            echo "DONOR_BLOCK=" >> $GITHUB_ENV
             echo "ANALYTICS_BLOCK=" >> $GITHUB_ENV
             exit 0
           fi
+
+          # Real Donor Stats from Cloudflare Workers D1
+          CF_LIFTW_REQ=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.requests // 0')
+          CF_LIFTW_RATE=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.rate // 100.0')
+          CF_LIFTW_FAIL=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.fails // 0')
+
+          DONOR_BLOCK="\n\n📡 <b>Диагностика доноров:</b>\n🏎 <b>Liftw (Плеер 1):</b> ${CF_LIFTW_REQ} зап. | ${CF_LIFTW_RATE}% успех"
+          echo "DONOR_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$DONOR_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
           ACTIVE=$(echo "$ANA_BODY" | jq -r '.active.users // 0')
           SESSIONS=$(echo "$ANA_BODY" | jq -r '.active.sessions // 0')
@@ -190,7 +188,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          MESSAGE="${ERROR_MSG:-$STATS_MSG}${ANALYTICS_BLOCK}${INCIDENTS_BLOCK}"
+          MESSAGE="${ERROR_MSG:-$STATS_MSG}${DONOR_BLOCK}${ANALYTICS_BLOCK}${INCIDENTS_BLOCK}"
           TARGET_CHAT="${CHAT_ID:-484803732}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
