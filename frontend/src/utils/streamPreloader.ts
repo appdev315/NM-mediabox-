@@ -1,4 +1,4 @@
-import { CF_API_BASE, EXPRESS_API_BASE } from '../hooks/useApi';
+import { CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from './clientCache';
 import { fetchWithRetry } from './fetchWithRetry';
 import { getAvailability, setAvailability } from './availability';
@@ -85,14 +85,14 @@ export function prewarmStream(
         return res;
       };
 
-      // 1. Query Cloudflare Edge Cache first (primary edge, 0 redundant backend hits)
+      // 1. Query Cloudflare Edge (primary edge, 0 redundant backend hits)
       let data: any = null;
       try {
         const cfRes = await fetchWithRetry(`${CF_API_BASE}/liftw?${bgQuery}`, {
           maxRetries: 1,
           baseDelayMs: 200,
           maxDelayMs: 600,
-          signal: AbortSignal.timeout(2500),
+          signal: AbortSignal.timeout(5000),
         });
         if (cfRes.ok) {
           const cfJson = await cfRes.json();
@@ -102,25 +102,6 @@ export function prewarmStream(
           }
         }
       } catch (_) {}
-
-      // 2. Only if Cloudflare Edge missed or failed, fallback to Express microservice
-      if (!data && !sawDefinitiveMiss) {
-        try {
-          const hfRes = await fetchWithRetry(`${EXPRESS_API_BASE}/liftw?${bgQuery}`, {
-            maxRetries: 1,
-            baseDelayMs: 200,
-            maxDelayMs: 600,
-            signal: AbortSignal.timeout(4000),
-          });
-          if (hfRes.ok) {
-            const hfJson = await hfRes.json();
-            tapDefinitive(hfJson);
-            if (hfJson && hfJson.iframe) {
-              data = hfJson;
-            }
-          }
-        } catch (_) {}
-      }
 
       if (data && data.iframe) {
         const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies

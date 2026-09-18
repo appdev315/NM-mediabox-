@@ -125,6 +125,40 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
 
+  // Locked src state: freezes initial currentUrl for the active sourceKey so that
+  // subsequent season/episode changes are handled via postMessage bursts without iframe DOM teardown.
+  const [lockedSrc, setLockedSrc] = useState<string>(currentUrl);
+  const activeSourceKeyRef = useRef(sourceKey);
+  const fallbackNavTimerRef = useRef<any>(null);
+
+  if (activeSourceKeyRef.current !== sourceKey) {
+    activeSourceKeyRef.current = sourceKey;
+    setLockedSrc(currentUrl);
+  }
+
+  // Fallback timer: if postMessage burst does not confirm episode change within 4s, fallback to updating lockedSrc
+  useEffect(() => {
+    if (!targetEpisode) return;
+
+    if (fallbackNavTimerRef.current) {
+      clearTimeout(fallbackNavTimerRef.current);
+      fallbackNavTimerRef.current = null;
+    }
+
+    fallbackNavTimerRef.current = setTimeout(() => {
+      if (!syncDoneRef.current) {
+        setLockedSrc(currentUrl);
+      }
+    }, 4000);
+
+    return () => {
+      if (fallbackNavTimerRef.current) {
+        clearTimeout(fallbackNavTimerRef.current);
+        fallbackNavTimerRef.current = null;
+      }
+    };
+  }, [targetEpisode, currentUrl]);
+
   // Verified donor commands: adFree (player-venom) + playlist go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
@@ -199,6 +233,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             if (s === currentTargetRef.current.season && e === currentTargetRef.current.episode) {
               syncDoneRef.current = true;
               clearSyncTimers();
+              if (fallbackNavTimerRef.current) {
+                clearTimeout(fallbackNavTimerRef.current);
+                fallbackNavTimerRef.current = null;
+              }
             }
           }
         }
@@ -265,14 +303,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       clearTimeout(fallbackTimer);
       if (sentinelTimer) clearTimeout(sentinelTimer);
     };
-  }, [currentUrl, mirrorIndex, activeMirrors]);
+  }, [lockedSrc, mirrorIndex, activeMirrors]);
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
     onReady?.();
     if (provider !== 'generic') {
       try {
-        const parsed = new URL(currentUrl);
+        const parsed = new URL(lockedSrc);
         localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
       } catch (e) {}
     }
@@ -365,7 +403,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, []);
 
-  const isSafeUrl = typeof currentUrl === 'string' && /^https?:\/\//i.test(currentUrl);
+  const isSafeUrl = typeof lockedSrc === 'string' && /^https?:\/\//i.test(lockedSrc);
   if (!isSafeUrl) {
     return null;
   }
@@ -380,7 +418,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         ref={iframeRef}
         id="video-iframe"
         key={sourceKey}
-        src={currentUrl}
+        src={lockedSrc}
         onLoad={handleIframeLoad}
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="eager"

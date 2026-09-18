@@ -263,8 +263,6 @@ export function Movie() {
   const isMountedRef = useRef(true);
   const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contentUnavailable, setContentUnavailable] = useState(false);
-  const [isReporting, setIsReporting] = useState(false);
-  const [isReported, setIsReported] = useState(false);
 
   const formatRuntime = (minutes: number) => {
     if (!minutes) return '';
@@ -320,45 +318,6 @@ export function Movie() {
     return !isNaN(time) && time > Date.now();
   }, [movie?.isUpcoming, movie?.release_date, movie?.first_air_date, isTvSeries, movie?.seasons, movie?.status, liftwEpisodes]);
 
-  const handleReportMissing = async () => {
-    if (!movie || isReporting || isReported) return;
-    setIsReporting(true);
-    try {
-      let platform = 'Web / Browser';
-      if (WebApp && WebApp.platform && WebApp.platform !== 'unknown') {
-        platform = `Telegram WebApp (${WebApp.platform})`;
-      } else if (/android/i.test(navigator.userAgent)) {
-        platform = 'Android App / Browser';
-      } else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
-        platform = 'iOS / Safari';
-      }
-
-      await fetch(`${EXPRESS_API_BASE}/report-missing`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: (movie as any)?.title || (movie as any)?.name || '',
-          year: String((movie as any)?.year || ''),
-          type: mediaType,
-          tmdb_id: String((movie as any)?.id || id || ''),
-          sources_failed: ['Liftw (404 / Unavailable)'],
-          platform
-        })
-      });
-
-      setIsReported(true);
-      try {
-        if (WebApp?.HapticFeedback) {
-          WebApp.HapticFeedback.notificationOccurred('success');
-        }
-      } catch (_) {}
-    } catch (err) {
-      console.error('Failed to submit missing report', err);
-      setIsReported(true);
-    } finally {
-      setIsReporting(false);
-    }
-  };
 
   useEffect(() => {
     return () => {
@@ -1138,12 +1097,9 @@ export function Movie() {
         {contentUnavailable && !isExtracting && !iframeUrl && (
           <div className="mb-6 p-6 rounded-2xl text-center space-y-4" style={{ backgroundColor: 'var(--hint-color)' }}>
             <div className="text-4xl">🎬</div>
-            <p className="font-bold text-lg" style={{ color: 'var(--text-color)' }}>
-              {t('contentUnavailable') || 'Контент временно недоступен'}
-            </p>
-            <p className="text-sm opacity-70 max-w-md mx-auto" style={{ color: 'var(--text-color)' }}>
-              {t('contentUnavailableDesc') || 'Фильм не найден на доступных источниках. Сообщите нам, и мы оперативно проверим.'}
-            </p>
+            <div className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 font-bold text-base select-none">
+              ✨ {t('comingSoonMediaBox') || 'Скоро на MediaBox'}
+            </div>
             <div className="flex flex-col items-center gap-3 pt-2">
               {trailerVideo && (
                 <button
@@ -1168,23 +1124,6 @@ export function Movie() {
                 style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
               >
                 🔄 {t('retry') || 'Обновить и повторить поиск'}
-              </button>
-
-              <button
-                onClick={handleReportMissing}
-                disabled={isReporting || isReported}
-                className={`w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow flex items-center justify-center gap-2 ${
-                  isReported
-                    ? 'bg-green-600/30 text-green-400 border border-green-500/40 cursor-default'
-                    : 'cursor-pointer'
-                }`}
-                style={!isReported ? { backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' } : undefined}
-              >
-                {isReporting
-                  ? (t('reportSending') || 'Отправка...')
-                  : isReported
-                    ? '✅ ' + (t('reportSent') || 'Уведомление отправлено разработчику')
-                    : '📩 ' + (t('reportToDev') || 'Отправить уведомление разработчику')}
               </button>
               
               <button
