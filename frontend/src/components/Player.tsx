@@ -15,9 +15,10 @@ interface PlayerProps {
   onReady?: () => void;
   targetEpisode?: TargetEpisode | null;
   onEpisodeChange?: (season: string, episode: string) => void;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange }: PlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
@@ -381,6 +382,41 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   // Web Fullscreen (DOM-level) to bypass native OS AVPlayer stall on mobile/PWA
   const [isWebFullscreen, setIsWebFullscreen] = useState(false);
 
+  // Notify parent component of fullscreen transitions
+  useEffect(() => {
+    onFullscreenChange?.(isWebFullscreen);
+  }, [isWebFullscreen, onFullscreenChange]);
+
+  const isMobileDevice = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /iphone|ipad|ipod|android/i.test(navigator.userAgent) || 
+      (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
+  }, []);
+
+  const [isLandscape, setIsLandscape] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(orientation: landscape)').matches;
+  });
+
+  useEffect(() => {
+    const mql = window.matchMedia('(orientation: landscape)');
+    const update = () => setIsLandscape(mql.matches);
+    if (mql.addEventListener) {
+      mql.addEventListener('change', update);
+    } else {
+      mql.addListener(update);
+    }
+    window.addEventListener('orientationchange', update);
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener('change', update);
+      } else {
+        mql.removeListener(update);
+      }
+      window.removeEventListener('orientationchange', update);
+    };
+  }, []);
+
   const toggleWebFullscreen = useCallback(() => {
     setIsWebFullscreen(prev => !prev);
   }, []);
@@ -426,18 +462,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const wasLandscapeRef = useRef(false);
 
   useEffect(() => {
-    const isMobileDevice = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
     if (!isMobileDevice) return;
 
-    // Track actual physical transitions instead of blindly closing on window.resize in portrait
     const handleOrientationChange = () => {
-      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
-      const isCompactLandscape = isLandscape && window.innerHeight < 600;
+      const landscape = window.matchMedia('(orientation: landscape)').matches;
+      const compactLandscape = landscape && window.innerHeight < 600;
 
-      if (isCompactLandscape && !wasLandscapeRef.current) {
+      if (compactLandscape && !wasLandscapeRef.current) {
         wasLandscapeRef.current = true;
         setIsWebFullscreen(true);
-      } else if (!isLandscape && wasLandscapeRef.current) {
+      } else if (!landscape && wasLandscapeRef.current) {
         wasLandscapeRef.current = false;
         setIsWebFullscreen(false);
       }
@@ -461,7 +495,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       }
       window.removeEventListener('orientationchange', handleOrientationChange);
     };
-  }, []);
+  }, [isMobileDevice]);
 
   // Escape key handler to exit Web Fullscreen
   useEffect(() => {
@@ -504,15 +538,47 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     return null;
   }
 
+  const isRotatedPortrait = isWebFullscreen && isMobileDevice && !isLandscape;
+
+  const containerStyle = useMemo<React.CSSProperties>(() => {
+    if (!isWebFullscreen) {
+      return { width: '100%', aspectRatio: '16/9' };
+    }
+    if (isRotatedPortrait) {
+      return {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: '100dvh',
+        height: '100vw',
+        maxWidth: '100dvh',
+        maxHeight: '100vw',
+        transform: 'translate(-50%, -50%) rotate(90deg)',
+        transformOrigin: 'center center',
+        zIndex: 99999,
+      };
+    }
+    return {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100dvh',
+      maxWidth: '100vw',
+      maxHeight: '100dvh',
+      zIndex: 99999,
+    };
+  }, [isWebFullscreen, isRotatedPortrait]);
+
   return (
     <div 
       ref={wrapperRef} 
       className={`player-wrapper bg-black flex justify-center items-center ${
         isWebFullscreen 
-          ? 'fixed inset-0 z-[99999] w-screen h-[100dvh] overflow-hidden' 
+          ? (isRotatedPortrait ? 'fixed overflow-hidden' : 'fixed inset-0 overflow-hidden') 
           : 'relative overflow-hidden group/player'
       }`} 
-      style={isWebFullscreen ? { width: '100vw', height: '100dvh', maxWidth: '100vw', maxHeight: '100dvh' } : { width: '100%', aspectRatio: '16/9' }}
+      style={containerStyle}
     >
       <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-300 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
         <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
@@ -532,19 +598,21 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
       />
 
-      {/* Transparent tap interceptor directly overlaying the player's bottom-right fullscreen icon */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleWebFullscreen();
-        }}
-        aria-label={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
-        title={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
-        className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
-        style={{ touchAction: 'manipulation' }}
-      />
+      {/* Transparent tap interceptor strictly on mobile devices to prevent Apple AVPlayer stall. On desktop, native fullscreen button is clicked directly. */}
+      {isMobileDevice && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWebFullscreen();
+          }}
+          aria-label={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
+          title={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
+          className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
+          style={{ touchAction: 'manipulation' }}
+        />
+      )}
 
       {/* Floating exit button when in Web Fullscreen mode */}
       {isWebFullscreen && (

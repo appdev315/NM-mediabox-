@@ -57,6 +57,7 @@ export function Movie() {
   const favType = isTvSeries ? 'series' : 'movie';
 
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1316,9 +1317,9 @@ export function Movie() {
             </div>
           )}
           {(isExtracting || iframeUrl) && (
-            <div className="relative w-full md:w-[80%] mx-auto mt-2 mb-8">
+            <div className={`relative w-full ${isPlayerFullscreen ? 'z-[99999]' : 'md:w-[80%] mx-auto mt-2 mb-8'}`}>
               {/* Audio language hint pointing to gear in iframe top-right */}
-              {showAudioHint && !isExtracting && iframeUrl && (
+              {showAudioHint && !isExtracting && iframeUrl && !isPlayerFullscreen && (
                 <div
                   onClick={() => setShowAudioHint(false)}
                   className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-lg border border-white/20 cursor-pointer select-none max-w-[calc(100%-16px)] animate-pulse"
@@ -1336,7 +1337,7 @@ export function Movie() {
                 </div>
               )}
 
-              <div id="video-player" className="relative w-full aspect-video rounded-lg overflow-hidden bg-black shadow-xl flex items-center justify-center">
+              <div id="video-player" className={`relative w-full ${isPlayerFullscreen ? 'bg-black' : 'aspect-video rounded-lg overflow-hidden bg-black shadow-xl flex items-center justify-center'}`}>
                 {isExtracting ? (
                   <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
                     <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
@@ -1355,6 +1356,7 @@ export function Movie() {
                         initialTimecode={savedTimecode || undefined} 
                         mediaId={id} 
                         targetEpisode={mediaType === 'tv' ? targetEpisode : undefined}
+                        onFullscreenChange={setIsPlayerFullscreen}
                         onEpisodeChange={(s, e) => {
                           activeSeasonRef.current = s;
                           activeEpisodeRef.current = e;
