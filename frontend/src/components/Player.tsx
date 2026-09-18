@@ -406,8 +406,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       document.body.style.overflow = '';
       if (WebApp && WebApp.BackButton) {
         try {
+          // Unbind own exit listener without calling hide(), allowing global App.tsx router to keep page BackButton
           WebApp.BackButton.offClick(exitWebFullscreen);
-          WebApp.BackButton.hide();
         } catch (_) {}
       }
     }
@@ -422,37 +422,44 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [isWebFullscreen, exitWebFullscreen]);
 
-  // Auto-expand to Web Fullscreen on landscape rotation for mobile devices
+  // Auto-expand to Web Fullscreen strictly upon rotating to landscape, and auto-collapse upon rotating back to portrait
+  const wasLandscapeRef = useRef(false);
+
   useEffect(() => {
-    const checkOrientation = () => {
+    const isMobileDevice = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
+    if (!isMobileDevice) return;
+
+    // Track actual physical transitions instead of blindly closing on window.resize in portrait
+    const handleOrientationChange = () => {
       const isLandscape = window.matchMedia('(orientation: landscape)').matches;
       const isCompactLandscape = isLandscape && window.innerHeight < 600;
-      const isMobileDevice = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
 
-      if (isMobileDevice) {
-        if (isCompactLandscape) {
-          setIsWebFullscreen(true);
-        } else if (!isLandscape) {
-          setIsWebFullscreen(false);
-        }
+      if (isCompactLandscape && !wasLandscapeRef.current) {
+        wasLandscapeRef.current = true;
+        setIsWebFullscreen(true);
+      } else if (!isLandscape && wasLandscapeRef.current) {
+        wasLandscapeRef.current = false;
+        setIsWebFullscreen(false);
       }
     };
 
+    wasLandscapeRef.current = window.matchMedia('(orientation: landscape)').matches && window.innerHeight < 600;
+
     const mediaQuery = window.matchMedia('(orientation: landscape)');
     if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', checkOrientation);
+      mediaQuery.addEventListener('change', handleOrientationChange);
     } else {
-      mediaQuery.addListener(checkOrientation);
+      mediaQuery.addListener(handleOrientationChange);
     }
-    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', handleOrientationChange);
 
     return () => {
       if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', checkOrientation);
+        mediaQuery.removeEventListener('change', handleOrientationChange);
       } else {
-        mediaQuery.removeListener(checkOrientation);
+        mediaQuery.removeListener(handleOrientationChange);
       }
-      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, []);
 
@@ -502,10 +509,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       ref={wrapperRef} 
       className={`player-wrapper bg-black flex justify-center items-center ${
         isWebFullscreen 
-          ? 'fixed inset-0 z-[99999] w-screen h-screen overflow-hidden' 
+          ? 'fixed inset-0 z-[99999] w-screen h-[100dvh] overflow-hidden' 
           : 'relative overflow-hidden group/player'
       }`} 
-      style={isWebFullscreen ? { width: '100vw', height: '100vh', maxWidth: '100vw', maxHeight: '100vh' } : { width: '100%', aspectRatio: '16/9' }}
+      style={isWebFullscreen ? { width: '100vw', height: '100dvh', maxWidth: '100vw', maxHeight: '100dvh' } : { width: '100%', aspectRatio: '16/9' }}
     >
       <div className={`absolute inset-0 flex flex-col items-center justify-center z-10 bg-black px-8 transition-opacity duration-300 pointer-events-none ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
         <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
@@ -535,7 +542,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }}
         aria-label={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
         title={isWebFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран'}
-        className="absolute bottom-0 right-0 w-14 h-14 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
+        className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
         style={{ touchAction: 'manipulation' }}
       />
 
