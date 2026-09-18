@@ -207,3 +207,13 @@ button, a, [role="button"], input, select, textarea, .cursor-pointer {
   animation: wordStopBounce 0.45s ease-out forwards;
 }
 
+/* Hide all application UI overlays when video player is in fullscreen */
+body.fullscreen-active .floating-back-btn,
+body.fullscreen-active nav[aria-label="Bottom navigation"],
+body.fullscreen-active #global-audio-player,
+body.fullscreen-active .network-banner {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+

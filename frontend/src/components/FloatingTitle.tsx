@@ -46,7 +46,7 @@ export function FloatingTitle() {
 
   return (
     <div 
-      className="fixed left-4 z-50 cursor-pointer w-12 h-12 rounded-full shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
+      className="floating-back-btn fixed left-4 z-50 cursor-pointer w-12 h-12 rounded-full shadow-lg border border-white/10 active:scale-95 flex items-center justify-center bg-gray-800 text-white"
       style={{ top: 'calc(16px + env(safe-area-inset-top))' }}
       onClick={handleBackNavigation}
     >

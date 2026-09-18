@@ -425,10 +425,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     setIsWebFullscreen(false);
   }, []);
 
-  // Lock body scroll and configure Telegram WebApp when Web Fullscreen is active
+  // Lock body scroll, manage global class, and configure Telegram WebApp when Web Fullscreen is active
   useEffect(() => {
     if (isWebFullscreen) {
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('fullscreen-active');
       if (WebApp && WebApp.requestFullscreen) {
         try { WebApp.requestFullscreen(); } catch (_) {}
       }
@@ -440,6 +441,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       }
     } else {
       document.body.style.overflow = '';
+      document.body.classList.remove('fullscreen-active');
       if (WebApp && WebApp.BackButton) {
         try {
           // Unbind own exit listener without calling hide(), allowing global App.tsx router to keep page BackButton
@@ -450,6 +452,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
     return () => {
       document.body.style.overflow = '';
+      document.body.classList.remove('fullscreen-active');
       if (WebApp && WebApp.BackButton) {
         try {
           WebApp.BackButton.offClick(exitWebFullscreen);
@@ -497,6 +500,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [isMobileDevice]);
 
+  // Orientation hint in portrait fullscreen mode (fades out after 4 seconds)
+  const [showRotateHint, setShowRotateHint] = useState(true);
+  useEffect(() => {
+    if (isWebFullscreen && !isLandscape) {
+      setShowRotateHint(true);
+      const timer = setTimeout(() => setShowRotateHint(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isWebFullscreen, isLandscape]);
+
   // Escape key handler to exit Web Fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -538,44 +551,31 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     return null;
   }
 
-  const isRotatedPortrait = isWebFullscreen && isMobileDevice && !isLandscape;
-
   const containerStyle = useMemo<React.CSSProperties>(() => {
     if (!isWebFullscreen) {
       return { width: '100%', aspectRatio: '16/9' };
-    }
-    if (isRotatedPortrait) {
-      return {
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        width: '100dvh',
-        height: '100vw',
-        maxWidth: '100dvh',
-        maxHeight: '100vw',
-        transform: 'translate(-50%, -50%) rotate(90deg)',
-        transformOrigin: 'center center',
-        zIndex: 99999,
-      };
     }
     return {
       position: 'fixed',
       top: 0,
       left: 0,
+      right: 0,
+      bottom: 0,
       width: '100vw',
       height: '100dvh',
       maxWidth: '100vw',
       maxHeight: '100dvh',
       zIndex: 99999,
+      backgroundColor: '#000',
     };
-  }, [isWebFullscreen, isRotatedPortrait]);
+  }, [isWebFullscreen]);
 
   return (
     <div 
       ref={wrapperRef} 
-      className={`player-wrapper bg-black flex justify-center items-center ${
+      className={`player-wrapper bg-black flex flex-col justify-center items-center ${
         isWebFullscreen 
-          ? (isRotatedPortrait ? 'fixed overflow-hidden' : 'fixed inset-0 overflow-hidden') 
+          ? 'fixed inset-0 overflow-hidden' 
           : 'relative overflow-hidden group/player'
       }`} 
       style={containerStyle}
@@ -623,12 +623,26 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             e.stopPropagation();
             exitWebFullscreen();
           }}
-          className="absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/75 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
-          style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))' }}
+          className="absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
+          style={{ 
+            paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0.75rem))'
+          }}
         >
           <span className="text-sm leading-none">✕</span>
           <span>Свернуть</span>
         </button>
+      )}
+
+      {/* Subtle orientation tip in portrait fullscreen mode */}
+      {isWebFullscreen && isMobileDevice && !isLandscape && showRotateHint && (
+        <div 
+          className="absolute bottom-6 z-30 px-4 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white/90 text-xs font-semibold flex items-center gap-2 shadow-2xl pointer-events-none transition-opacity duration-500"
+          style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}
+        >
+          <span className="text-base">🔄</span>
+          <span>Поверните телефон для полного экрана</span>
+        </div>
       )}
     </div>
   );
