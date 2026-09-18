@@ -64,8 +64,6 @@ type CategoryMetrics struct {
 type DonorMetrics struct {
 	LiftwRequests uint64 `json:"liftwRequests"`
 	LiftwFails    uint64 `json:"liftwFails"`
-	GoRequests    uint64 `json:"goRequests"`
-	GoFails       uint64 `json:"goFails"`
 }
 
 type RecentError struct {
@@ -525,8 +523,6 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		atomic.StoreUint64(&GlobalMetrics.Categories.Adult, 0)
 		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwRequests, 0)
 		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwFails, 0)
-		atomic.StoreUint64(&GlobalMetrics.Donors.GoRequests, 0)
-		atomic.StoreUint64(&GlobalMetrics.Donors.GoFails, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.Total, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.RateLimits, 0)
 		atomic.StoreUint64(&GlobalMetrics.Errors.NotFounds, 0)

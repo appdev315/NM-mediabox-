@@ -719,8 +719,9 @@ export function Movie() {
         title_ru: ruTitle,
         original_title: originalTitle
       });
-      if ((movie as any)?.liftw_id) {
-        liftwQuery.append('liftw_id', String((movie as any).liftw_id));
+      const effectiveLiftwId = (movie as any)?.liftw_id || (location.state as any)?.liftw_id;
+      if (effectiveLiftwId) {
+        liftwQuery.append('liftw_id', String(effectiveLiftwId));
       }
       if (forceRefresh) {
         if (id) {

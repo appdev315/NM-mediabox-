@@ -581,7 +581,7 @@ app.get('/api/liftw', async (c: Context) => {
   const titleRu = c.req.query('title_ru') || '';
   const originalTitle = c.req.query('original_title') || '';
   const bypassCache = c.req.query('bypass_cache') === 'true';
-  const liftwIdParam = c.req.query('liftw_id') || '';
+  const liftwIdParam = c.req.query('liftw_id') || c.req.query('liftwId') || '';
 
   if (!title && !liftwIdParam) {
     return c.json({ error: 'Title or liftw_id is required' }, 400);
@@ -911,6 +911,80 @@ app.get('/api/liftw', async (c: Context) => {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'Access-Control-Allow-Origin': '*',
     });
+  }
+});
+
+// --- DIRECT LIFTW CATALOG SEARCH ---
+app.get('/api/search/liftw', async (c: Context) => {
+  const query = (c.req.query('q') || c.req.query('query') || '').trim();
+  const vType = c.req.query('type') || '';
+  if (!query) {
+    return c.json({ results: [] });
+  }
+
+  const edgeCache = (caches as any).default;
+  const parsedUrl = new URL(c.req.url);
+  const cacheKeyUrl = `${parsedUrl.origin}/api/search/liftw?q=${encodeURIComponent(query.toLowerCase())}&type=${encodeURIComponent(vType)}`;
+  const cacheReq = new Request(cacheKeyUrl, { method: 'GET' });
+
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  try {
+    const res = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(query)}`, {
+      headers: LIFTW_HEADERS,
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!res.ok) {
+      return c.json({ results: [] });
+    }
+
+    const data = await res.json() as { items?: any[] };
+    const items = data.items || [];
+
+    // Filter by type if provided (Movies: [1, 2, 6], Series: [3, 4, 5, 7])
+    let filtered = items;
+    if (vType === 'movie') {
+      filtered = items.filter(it => [1, 2, 6].includes(it.type));
+    } else if (vType === 'tv' || vType === 'series') {
+      filtered = items.filter(it => [3, 4, 5, 7].includes(it.type));
+    }
+
+    const results = filtered.map(it => {
+      const isSeries = [3, 4, 5, 7].includes(it.type);
+      return {
+        id: `liftw_${it.id}`,
+        liftw_id: it.id,
+        name: it.name,
+        title: it.name,
+        original_name: it.origin_name || it.name,
+        original_title: it.origin_name || it.name,
+        poster: it.poster || '',
+        year: it.year ? String(it.year) : '',
+        release_date: it.year ? `${it.year}-01-01` : '',
+        rating: it.kp_rating || it.imdb_rating || 0,
+        vote_average: it.kp_rating || it.imdb_rating || 0,
+        type: isSeries ? 'series' : 'movie',
+        media_type: isSeries ? 'tv' : 'movie',
+        search_score: it.search_score ?? 0,
+      };
+    });
+
+    const response = c.json({ results }, 200, {
+      'Cache-Control': 'public, max-age=1800, s-maxage=3600',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+
+    return response;
+  } catch (err: any) {
+    return c.json({ results: [], error: err?.message }, 500);
   }
 });
 

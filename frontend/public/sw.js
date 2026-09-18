@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mediabox-v20';
+const CACHE_NAME = 'mediabox-v21';
 const IMG_CACHE_NAME = 'mediabox-img-v1';
 const MAX_CACHED_IMAGES = 40;
 const OFFLINE_FALLBACK = '/index.html';

@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
-import { getAvailability } from '../utils/availability';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
@@ -580,135 +579,45 @@ export function useApi() {
   }, [tmdbFetch, withLoading]);
 
   const searchContent = useCallback(async (rawQuery: string, signal?: AbortSignal) => {
-    const { title, year } = parseSearchQuery(rawQuery);
-    const cleanTitle = title.slice(0, 120);
+    const { title } = parseSearchQuery(rawQuery);
+    const cleanTitle = title.slice(0, 120).trim();
     if (!cleanTitle) return [];
     if (signal?.aborted) return [];
 
     return withLoading(async () => {
-      // Extra cheap client-side variants: punctuation strip + RU→EN translit
-      const extraVariants: string[] = [];
-      const strippedPunct = cleanTitle.replace(/[^a-zа-яё0-9\s]/gi, ' ').replace(/\s{2,}/g, ' ').trim();
-      if (strippedPunct && strippedPunct !== cleanTitle) extraVariants.push(strippedPunct);
-      if (/[а-яё]/i.test(cleanTitle) && !/[a-z]/i.test(cleanTitle)) {
-        const tr = transliterateRuToEn(cleanTitle);
-        if (tr && tr !== cleanTitle) extraVariants.push(tr);
-      }
-      const searchVariants = Array.from(new Set([...generateSearchVariants(cleanTitle), ...extraVariants]));
+      try {
+        const url = `${CF_API_BASE}/search/liftw?q=${encodeURIComponent(cleanTitle)}`;
+        const res = await fetch(url, { signal });
+        if (!res.ok) return [];
+        const data = await res.json() as { results?: any[] };
+        const list = data?.results || [];
 
-      const fetchBatch = async (queries: string[], yearFilter?: string) => {
-        const promises = queries.map(async (q) => {
-          const params: Record<string, string | number> = { query: q };
-          if (yearFilter) params.year = yearFilter;
-          try {
-            const data = await tmdbFetch('/search/multi', params, 3600, signal);
-            const items: TMDBMovie[] = [];
-            for (const item of (data?.results || [])) {
-              if (item.media_type === 'person') {
-                if (Array.isArray(item.known_for)) {
-                  for (const kf of item.known_for) {
-                    if (kf && (kf.title || kf.name) && (kf.poster_path || kf.backdrop_path)) {
-                      items.push({
-                        ...kf,
-                        media_type: kf.media_type || (kf.name ? 'tv' : 'movie')
-                      });
-                    }
-                  }
-                }
-              } else {
-                items.push(item);
-              }
-            }
-            return items;
-          } catch {
-            return [];
-          }
-        });
-        const resultsArray = await Promise.all(promises);
-        const seen = new Set<number>();
-        const merged: TMDBMovie[] = [];
-        for (const list of resultsArray) {
-          for (const item of list) {
-            if (!seen.has(item.id)) {
-              seen.add(item.id);
-              merged.push(item);
-            }
-          }
+        if (signal?.aborted) {
+          throw new DOMException('Search aborted', 'AbortError');
         }
-        return merged;
-      };
 
-      // 1. Primary search with all orthographic variants (+ year if specified)
-      let results = await fetchBatch(searchVariants, year);
-
-      // 2. Fallback: if 0 results and year was attached, retry variants without year restriction
-      if (results.length === 0 && year && !signal?.aborted) {
-        results = await fetchBatch(searchVariants);
+        return list.map((item: any) => ({
+          id: item.id,
+          liftw_id: item.liftw_id,
+          title: item.title || item.name,
+          name: item.name || item.title,
+          original_title: item.original_title || item.original_name || '',
+          original_name: item.original_name || item.original_title || '',
+          poster: item.poster || '',
+          poster_path: null,
+          year: String(item.year || ''),
+          release_date: item.release_date || (item.year ? `${item.year}-01-01` : ''),
+          rating: item.rating || 0,
+          vote_average: item.vote_average || 0,
+          media_type: item.media_type === 'tv' ? 'tv' : 'movie',
+          type: item.type === 'series' ? 'series' : 'movie',
+        }));
+      } catch (err: any) {
+        if (signal?.aborted) throw err;
+        return [];
       }
-
-      // 3. Fallback: if 0 results and title contains actor phrase like "фильм с <актером>" or "<название> с <актером>"
-      if (results.length === 0 && !signal?.aborted) {
-        const actorMatch = cleanTitle.match(/^(.*)\s+(?:с|со|with)\s+([а-яёa-z\s]+)$/i);
-        if (actorMatch && actorMatch[1].trim().length >= 2) {
-          const strippedTitle = actorMatch[1].trim();
-          const strippedVariants = generateSearchVariants(strippedTitle);
-          results = await fetchBatch(strippedVariants, year);
-          if (results.length === 0 && year) {
-            results = await fetchBatch(strippedVariants);
-          }
-        }
-      }
-
-      // 4. Fallback: if 0 results, strip descriptive media prefixes ("фильм", "сериал", "кино")
-      if (results.length === 0 && !signal?.aborted) {
-        const strippedPrefix = cleanTitle.replace(/^(?:фильм|сериал|кино|мультфильм|аниме)\s+/i, '').trim();
-        if (strippedPrefix && strippedPrefix !== cleanTitle) {
-          const prefixVariants = generateSearchVariants(strippedPrefix);
-          results = await fetchBatch(prefixVariants, year);
-          if (results.length === 0 && year) {
-            results = await fetchBatch(prefixVariants);
-          }
-        }
-      }
-
-      // 5. Fallback: if 0 results and query had multiple words, try distinctive keywords
-      if (results.length === 0 && !signal?.aborted) {
-        const words = cleanTitle.replace(/[^a-zа-я0-9]/gi, ' ').trim().split(/\s+/).filter(w => w.length >= 4);
-        for (const word of words) {
-          const wordVariants = generateSearchVariants(word);
-          const wordResults = await fetchBatch(wordVariants);
-          if (wordResults.length > 0) {
-            results = wordResults;
-            break;
-          }
-        }
-      }
-
-      // 6. Fallback: if still 0 results and normalized raw differed from cleanTitle, try raw query
-      const normalizedRaw = (rawQuery || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 120);
-      if (results.length === 0 && normalizedRaw !== cleanTitle && !signal?.aborted) {
-        const rawResults = await fetchBatch([normalizedRaw]);
-        results = rawResults;
-      }
-
-      if (signal?.aborted) {
-        throw new DOMException('Search aborted', 'AbortError');
-      }
-
-      // 5. Intelligent relevance ranking: exact title match > starts-with > popularity & votes
-      const ranked = rankSearchResults(results, cleanTitle);
-
-      // 6. Availability-first ordering (0 requests): known player first,
-      // unknown keeps relevance order, known missing sinks but stays visible
-      const availScore = (m: TMDBMovie) => {
-        const s = getAvailability(m.media_type === 'tv' ? 'series' : 'movie', (m as any).id);
-        return s === 'available' ? 0 : s === 'missing' ? 2 : 1;
-      };
-      ranked.sort((a, b) => availScore(a) - availScore(b));
-
-      return ranked.map((item: TMDBMovie) => mapTMDB(item, item.media_type === 'tv' ? 'series' : 'movie'));
     });
-  }, [tmdbFetch, withLoading]);
+  }, [withLoading]);
 
   const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
@@ -780,7 +689,7 @@ export function useApi() {
       if (String(id).startsWith('liftw_')) {
         const liftwId = String(id).replace('liftw_', '');
         try {
-          const liftwRes = await fetch(`${CF_API_BASE}/liftw?liftwId=${encodeURIComponent(liftwId)}&type=${type}`);
+          const liftwRes = await fetch(`${CF_API_BASE}/liftw?liftw_id=${encodeURIComponent(liftwId)}&type=${type}`);
           if (liftwRes.ok) {
             const lData = await liftwRes.json() as any;
             if (lData) {
@@ -794,7 +703,8 @@ export function useApi() {
                   const searchRes = await tmdbFetch(`/search/${type}`, { query, ...(year > 0 ? { year } : {}) });
                   const bestMatch = searchRes?.results?.[0];
                   if (bestMatch?.id) {
-                    return await fetchMovieDetails(bestMatch.id, type);
+                    const tmdbDetails = await fetchMovieDetails(bestMatch.id, type);
+                    return { ...tmdbDetails, liftw_id: liftwId };
                   }
                 } catch (_) {}
               }
