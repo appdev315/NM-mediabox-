@@ -603,7 +603,8 @@ app.get('/api/liftw', async (c: Context) => {
   const titleRu = c.req.query('title_ru') || '';
   const originalTitle = c.req.query('original_title') || '';
   const bypassCache = c.req.query('bypass_cache') === 'true';
-  const liftwIdParam = c.req.query('liftw_id') || c.req.query('liftwId') || '';
+  const rawLiftwId = c.req.query('liftw_id') || c.req.query('liftwId') || '';
+  const liftwIdParam = rawLiftwId ? rawLiftwId.replace(/^liftw_/, '') : '';
 
   if (!title && !liftwIdParam) {
     return c.json({ error: 'Title or liftw_id is required' }, 400);
@@ -1155,14 +1156,69 @@ app.get('/api/tmdb/*', async (c: Context) => {
   }
 });
 
-// --- AGGREGATED HOME FEED (Sourced from Liftw Catalog + Enriched with Multilingual TMDB) ---
+// --- HIGH-PERFORMANCE LIFTW CATALOG & HOME FEED ---
+const GENRE_ID_TO_LIFTW: Record<string, string> = {
+  '28': 'Боевик',
+  '12': 'Приключения',
+  '16': 'Мультфильм',
+  '35': 'Комедия',
+  '80': 'Криминал',
+  '99': 'Документальный',
+  '18': 'Драма',
+  '10751': 'Семейный',
+  '14': 'Фэнтези',
+  '36': 'История',
+  '27': 'Ужасы',
+  '10402': 'Музыка',
+  '9648': 'Детектив',
+  '10749': 'Мелодрама',
+  '878': 'Фантастика',
+  '10770': 'Телефильм',
+  '53': 'Триллер',
+  '10752': 'Военный',
+  '37': 'Вестерн',
+  '10759': 'Боевик',
+  '10762': 'Детский',
+  '10763': 'Новости',
+  '10764': 'Реалити-шоу',
+  '10765': 'Фантастика',
+  '10766': 'Мыльная опера',
+  '10767': 'Ток-шоу',
+  '10768': 'Военный',
+};
+
+const mapLiftwItem = (item: any, isTv: boolean) => {
+  if (!item || !item.id) return null;
+  const rawRating = item.imdb_rating || item.kp_rating || 0;
+  const numRating = typeof rawRating === 'number' ? rawRating : (parseFloat(rawRating) || 0);
+  const year = item.year || 0;
+  return {
+    id: `liftw_${item.id}`,
+    liftw_id: item.id,
+    title: item.name,
+    name: item.name,
+    original_title: item.origin_name || item.name,
+    original_name: item.origin_name || item.name,
+    poster: item.poster || '',
+    backdrop_path: null,
+    poster_path: null,
+    vote_average: numRating,
+    rating: numRating,
+    release_date: year ? `${year}-01-01` : '',
+    year: year ? String(year) : '',
+    type: isTv ? 'series' : 'movie',
+    isLiftwOnly: true,
+    quality: item.quality || '',
+    serial_status: item.serial_status || '',
+  };
+};
+
 app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
   const lang = c.req.query('lang') || 'ru-RU';
   const edgeCache = (caches as any).default;
   const cacheReq = new Request(c.req.url, { method: 'GET' });
 
-  // 1. Unlimited Cloudflare Edge Cache check (0 writes to KV)
   try {
     const cachedResponse = await edgeCache.match(cacheReq);
     if (cachedResponse) {
@@ -1170,151 +1226,11 @@ app.get('/api/feed/home', async (c: Context) => {
     }
   } catch (_) {}
 
-  const parsedUrl = new URL(c.req.url);
-  const TMDB_KEY = getTmdbKey(c);
-  const TMDB_BASE = 'https://api.themoviedb.org/3';
   const isTv = type === 'tv';
   const liftwType = isTv ? 'serial' : 'film';
   const liftwCategory = isTv ? 'series' : 'films';
 
   try {
-    // Clean title helper: strips alternative titles like "Бесстыжие / Бесстыдники" or "Shameless (US)"
-    const cleanSearchTitle = (str: string) => {
-      if (!str) return '';
-      return str.split('/')[0].replace(/\([^)]*\)/g, '').trim();
-    };
-
-    // Helper to enrich a batch of Liftw items with TMDB localized metadata with concurrency control
-    const enrichBatch = async (items: any[]) => {
-      const enrichItem = async (item: any) => {
-        if (!item) return null;
-        const originClean = cleanSearchTitle(item.origin_name || '');
-        const ruClean = cleanSearchTitle(item.name || '');
-        const queries = Array.from(new Set([originClean, ruClean].filter(Boolean)));
-        if (queries.length === 0) return null;
-
-        const year = item.year || 0;
-        const yearQuery = year > 0 ? (isTv ? `&first_air_date_year=${year}` : `&year=${year}`) : '';
-
-        let match: any = null;
-        for (const query of queries) {
-          try {
-            const searchUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}${yearQuery}`;
-            const tmdbRes = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
-            if (tmdbRes.ok) {
-              const tmdbData = await tmdbRes.json() as any;
-              if (tmdbData.results && tmdbData.results.length > 0) {
-                if (year > 0) {
-                  match = tmdbData.results.find((r: any) => {
-                    const rYear = parseInt((r.release_date || r.first_air_date || '').slice(0, 4), 10);
-                    return Math.abs(rYear - year) <= 1;
-                  }) || tmdbData.results[0];
-                } else {
-                  match = tmdbData.results[0];
-                }
-                if (match) break;
-              }
-            }
-
-            // Relaxed search without year constraint
-            if (!match && yearQuery) {
-              const relaxedUrl = `${TMDB_BASE}/search/${isTv ? 'tv' : 'movie'}?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&query=${encodeURIComponent(query)}`;
-              const relaxedRes = await fetch(relaxedUrl, { signal: AbortSignal.timeout(3000) });
-              if (relaxedRes.ok) {
-                const relaxedData = await relaxedRes.json() as any;
-                if (relaxedData.results && relaxedData.results.length > 0) {
-                  match = relaxedData.results[0];
-                  if (match) break;
-                }
-              }
-            }
-          } catch (_) {}
-        }
-
-        if (match) {
-          return {
-            id: match.id,
-            title: match.title || match.name || item.name,
-            name: match.name || match.title || item.name,
-            original_title: match.original_title || match.original_name || item.origin_name,
-            original_name: match.original_name || match.original_title || item.origin_name,
-            original_language: match.original_language || '',
-            poster_path: match.poster_path || null,
-            poster: match.poster_path ? `${parsedUrl.origin}/api/image?path=/t/p/w500${match.poster_path}` : (item.poster || ''),
-            backdrop_path: match.backdrop_path || null,
-            vote_average: match.vote_average || item.imdb_rating || item.kp_rating || 0,
-            rating: match.vote_average || item.imdb_rating || item.kp_rating || 0,
-            release_date: match.release_date || match.first_air_date || (year ? `${year}-01-01` : ''),
-            year: year || (match.release_date || match.first_air_date || '').slice(0, 4),
-            overview: match.overview || '',
-            type: isTv ? 'series' : 'movie',
-            liftw_id: item.id,
-          };
-        }
-
-        // Fallback: prefix with liftw_ to prevent ID collision with TMDB IDs
-        return {
-          id: `liftw_${item.id}`,
-          title: item.name,
-          name: item.name,
-          original_title: item.origin_name || item.name,
-          original_name: item.origin_name || item.name,
-          original_language: '',
-          poster_path: null,
-          poster: item.poster || '',
-          backdrop_path: null,
-          vote_average: item.imdb_rating || item.kp_rating || 0,
-          rating: item.imdb_rating || item.kp_rating || 0,
-          release_date: year ? `${year}-01-01` : '',
-          year: year || '',
-          overview: '',
-          type: isTv ? 'series' : 'movie',
-          liftw_id: item.id,
-          isLiftwOnly: true,
-        };
-      };
-
-      const results: any[] = [];
-      const chunkSize = 5;
-      for (let i = 0; i < items.length; i += chunkSize) {
-        const chunk = items.slice(i, i + chunkSize);
-        const chunkResults = await Promise.all(chunk.map(enrichItem));
-        results.push(...chunkResults);
-      }
-
-      const valid = results.filter(Boolean);
-      const seenIds = new Set<string>();
-      const seenTitles = new Set<string>();
-      const deduplicated = valid.filter((item: any) => {
-        const idKey = String(item.id);
-        const normTitle = (item.title || item.name || '').trim().toLowerCase();
-        if (seenIds.has(idKey)) return false;
-        if (normTitle && seenTitles.has(normTitle)) return false;
-        seenIds.add(idKey);
-        if (normTitle) seenTitles.add(normTitle);
-        return true;
-      });
-
-      if (!lang.startsWith('ru')) {
-        // Filter out Russian-only movies and series for English / international interface
-        return deduplicated.filter((item: any) => {
-          const hasCyrillicOrigin = /[а-яА-ЯёЁ]/.test(item.original_title || item.original_name || '');
-          const isRuLang = item.original_language === 'ru';
-          return !hasCyrillicOrigin && !isRuLang;
-        });
-      }
-      return deduplicated;
-    };
-
-    // 1. Fetch Trending / Popular directly from Liftw
-    const liftwTrendingRes = await fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=24`, {
-      headers: LIFTW_HEADERS,
-      signal: AbortSignal.timeout(6000),
-    });
-    const liftwTrendingData = liftwTrendingRes.ok ? await liftwTrendingRes.json() as any[] : [];
-    const enrichedTrending = (await enrichBatch(Array.isArray(liftwTrendingData) ? liftwTrendingData : [])).slice(0, 16);
-
-    // 2. Fetch popular genres from Liftw
     const genreCategories = isTv ? [
       { id: '10759', name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure', liftwGenre: 'Боевик' },
       { id: '35', name: lang.startsWith('ru') ? 'Комедии' : 'Comedy', liftwGenre: 'Комедия' },
@@ -1340,33 +1256,44 @@ app.get('/api/feed/home', async (c: Context) => {
       { id: '10749', name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance', liftwGenre: 'Мелодрама' },
     ];
 
-    const genreSections: any[] = [];
-    for (const cat of genreCategories) {
+    const genrePromises = genreCategories.map(async (cat) => {
       try {
-        const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=16&sort=popular`, {
+        const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=14&sort=popular`, {
           headers: LIFTW_HEADERS,
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(4500),
         });
-        if (res.ok) {
-          const data = await res.json() as any[];
-          if (Array.isArray(data) && data.length > 0) {
-            const enrichedResults = (await enrichBatch(data)).slice(0, 12);
-            if (enrichedResults.length > 0) {
-              genreSections.push({
-                id: cat.id,
-                name: cat.name,
-                genreId: cat.id,
-                rawResults: enrichedResults,
-              });
-            }
-          }
-        }
-      } catch (_) {}
-    }
+        if (!res.ok) return null;
+        const data = await res.json() as any[];
+        if (!Array.isArray(data) || data.length === 0) return null;
+        const items = data.map(item => mapLiftwItem(item, isTv)).filter(Boolean);
+        return {
+          id: cat.id,
+          name: cat.name,
+          genreId: cat.id,
+          rawResults: items,
+        };
+      } catch (_) {
+        return null;
+      }
+    });
+
+    const [trendingRes, ...genreResults] = await Promise.all([
+      fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=16`, {
+        headers: LIFTW_HEADERS,
+        signal: AbortSignal.timeout(4500),
+      }).then(r => r.ok ? r.json() as Promise<any[]> : []).catch(() => []),
+      ...genrePromises,
+    ]);
+
+    const trendingItems = Array.isArray(trendingRes)
+      ? trendingRes.map(item => mapLiftwItem(item, isTv)).filter(Boolean)
+      : [];
+
+    const validGenres = genreResults.filter((g): g is NonNullable<typeof g> => !!g && g.rawResults.length > 0);
 
     const payload = {
-      trending: enrichedTrending,
-      genres: genreSections.filter(g => g.rawResults && g.rawResults.length > 0),
+      trending: trendingItems,
+      genres: validGenres,
     };
 
     const response = c.json(payload, 200, {
@@ -1380,6 +1307,69 @@ app.get('/api/feed/home', async (c: Context) => {
     return response;
   } catch (err: any) {
     return c.json({ error: err?.message || 'failed to load home feed' }, 500);
+  }
+});
+
+// --- PURE LIFTW CATALOG LIST (PAGINATION, GENRES, IN-STOCK ONLY) ---
+app.get('/api/catalog/list', async (c: Context) => {
+  const typeParam = c.req.query('type') || 'movie';
+  const isTv = typeParam === 'tv' || typeParam === 'series' || typeParam === 'serial';
+  const liftwType = isTv ? 'serial' : 'film';
+  const liftwCategory = isTv ? 'series' : 'films';
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
+  const limit = Math.min(30, Math.max(1, parseInt(c.req.query('limit') || '20', 10) || 20));
+  const genreParam = c.req.query('genre') || '';
+  const sortBy = c.req.query('sort') || c.req.query('sortBy') || 'popularity.desc';
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = new Request(c.req.url, { method: 'GET' });
+
+  try {
+    const cachedResponse = await edgeCache.match(cacheReq);
+    if (cachedResponse) return cachedResponse;
+  } catch (_) {}
+
+  let targetGenre = '';
+  if (genreParam && genreParam !== 'trending' && genreParam !== 'all') {
+    targetGenre = GENRE_ID_TO_LIFTW[genreParam] || genreParam;
+  }
+
+  let liftwUrl = '';
+  if (targetGenre) {
+    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(targetGenre)}&page=${page}&limit=${limit}&sort=popular`;
+  } else if (sortBy.includes('date') || sortBy.includes('new') || genreParam === 'trending') {
+    liftwUrl = `https://api.liftw.ws/list?type=${liftwType}&page=${page}&limit=${limit}&last=true`;
+  } else {
+    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&page=${page}&limit=${limit}&sort=popular`;
+  }
+
+  try {
+    const res = await fetch(liftwUrl, {
+      headers: LIFTW_HEADERS,
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      return c.json([], 200);
+    }
+    const data = await res.json() as any[];
+    if (!Array.isArray(data)) {
+      return c.json([], 200);
+    }
+
+    const items = data.map(item => mapLiftwItem(item, isTv)).filter(Boolean);
+
+    const response = c.json(items, 200, {
+      'Cache-Control': 'public, max-age=1800, s-maxage=43200',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+
+    return response;
+  } catch (_) {
+    return c.json([], 200);
   }
 });
 

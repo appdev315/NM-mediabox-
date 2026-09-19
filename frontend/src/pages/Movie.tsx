@@ -680,7 +680,9 @@ export function Movie() {
         title_ru: ruTitle,
         original_title: originalTitle
       });
-      const effectiveLiftwId = (movie as any)?.liftw_id || (location.state as any)?.liftw_id;
+      const effectiveLiftwId = (movie as any)?.liftw_id || 
+        (location.state as any)?.liftw_id || 
+        (String(id).startsWith('liftw_') ? String(id).replace(/^liftw_/, '') : undefined);
       if (effectiveLiftwId) {
         liftwQuery.append('liftw_id', String(effectiveLiftwId));
       }
@@ -763,11 +765,11 @@ export function Movie() {
 
           try {
             // 1. Query Cloudflare Edge Cache first (primary edge, 0 redundant backend hits)
-            liftwData = await tryFetchLiftw(CF_API_BASE, 4200);
+            liftwData = await tryFetchLiftw(CF_API_BASE, 8500);
 
             // 2. Fallback to Express microservice if Cloudflare didn't return stream
             if (!liftwData || !liftwData.iframe) {
-              const hfData = await tryFetchLiftw(EXPRESS_API_BASE, 5000);
+              const hfData = await tryFetchLiftw(EXPRESS_API_BASE, 6500);
               if (hfData && hfData.iframe) {
                 liftwData = hfData;
               }

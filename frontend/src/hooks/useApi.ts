@@ -619,55 +619,61 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
+  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, _countryCode?: string, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
-      if (genreId === 'trending') {
-        const data = await tmdbFetch('/trending/movie/day', { page });
-        return (data.results || [])
-          .filter((item: TMDBMovie) => !!item.poster_path)
-          .map((item: TMDBMovie) => mapTMDB(item, 'movie'));
-      }
-      const params: any = { page, sort_by: sortBy };
-      if (sortBy === 'vote_average.desc') {
-        params['vote_count.gte'] = 300;
-      } else if (countryCode) {
-        params.with_origin_country = countryCode;
-        params['vote_count.gte'] = 5;
-      } else {
-        params['vote_count.gte'] = 100;
-      }
-      if (genreId) params.with_genres = genreId;
-      const data = await tmdbFetch('/discover/movie', params);
-      return (data.results || [])
-        .filter((item: TMDBMovie) => !!item.poster_path)
-        .map((item: TMDBMovie) => mapTMDB(item, 'movie'));
-    });
-  }, [tmdbFetch, withLoading]);
+      const cacheKey = `catalog_list_v7_movie_${page}_${genreId || ''}_${sortBy}`;
+      const cached = clientCache.get<any[]>(cacheKey);
+      if (cached) return cached;
 
-  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, countryCode?: string, sortBy: string = 'popularity.desc') => {
-    return withLoading(async () => {
-      if (genreId === 'trending') {
-        const data = await tmdbFetch('/trending/tv/day', { page });
-        return (data.results || [])
-          .filter((item: TMDBMovie) => !!item.poster_path)
-          .map((item: TMDBMovie) => mapTMDB(item, 'series'));
-      }
-      const params: any = { page, sort_by: sortBy };
-      if (sortBy === 'vote_average.desc') {
-        params['vote_count.gte'] = 150;
-      } else if (countryCode) {
-        params.with_origin_country = countryCode;
-        params['vote_count.gte'] = 5;
-      } else {
-        params['vote_count.gte'] = 50;
-      }
-      if (genreId) params.with_genres = genreId;
-      const data = await tmdbFetch('/discover/tv', params);
-      return (data.results || [])
-        .filter((item: TMDBMovie) => !!item.poster_path)
-        .map((item: TMDBMovie) => mapTMDB(item, 'series'));
+      try {
+        const queryParams = new URLSearchParams({
+          type: 'movie',
+          page: String(page),
+          genre: genreId ? String(genreId) : '',
+          sort: sortBy,
+        });
+        const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
+          signal: AbortSignal.timeout(7000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            clientCache.set(cacheKey, data, 86400);
+            return data;
+          }
+        }
+      } catch (_) {}
+      return [];
     });
-  }, [tmdbFetch, withLoading]);
+  }, [withLoading]);
+
+  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, _countryCode?: string, sortBy: string = 'popularity.desc') => {
+    return withLoading(async () => {
+      const cacheKey = `catalog_list_v7_tv_${page}_${genreId || ''}_${sortBy}`;
+      const cached = clientCache.get<any[]>(cacheKey);
+      if (cached) return cached;
+
+      try {
+        const queryParams = new URLSearchParams({
+          type: 'tv',
+          page: String(page),
+          genre: genreId ? String(genreId) : '',
+          sort: sortBy,
+        });
+        const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
+          signal: AbortSignal.timeout(7000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            clientCache.set(cacheKey, data, 86400);
+            return data;
+          }
+        }
+      } catch (_) {}
+      return [];
+    });
+  }, [withLoading]);
 
   const fetchGenres = useCallback(async (type: 'movie' | 'tv'): Promise<Genre[]> => {
     try {
@@ -817,17 +823,16 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
-    const cacheKey = `categorized_home_v6_${type}_${language}`;
+    const cacheKey = `categorized_home_v7_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (!silent && cached) {
       return cached;
     }
 
     const fetcher = async () => {
-      // 1. High-Performance Primary: Single HTTP call to Cloudflare Edge Feed (Liftw Catalog + TMDB Enrichment)
       try {
-        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=3`, {
-          signal: AbortSignal.timeout(6000),
+        const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=4`, {
+          signal: AbortSignal.timeout(8000),
         });
         if (cfFeedRes.ok) {
           const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
@@ -847,12 +852,12 @@ export function useApi() {
               });
             };
 
-            const trendingItems = deduplicateMediaList(feedData.trending.map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie')));
+            const trendingItems = deduplicateMediaList(feedData.trending);
             const genreSections = feedData.genres.map((g) => ({
               id: g.id,
               name: g.name,
               genreId: g.genreId,
-              items: deduplicateMediaList((g.rawResults || []).map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))),
+              items: deduplicateMediaList(g.rawResults || []),
             }));
 
             const sections = [
@@ -860,82 +865,15 @@ export function useApi() {
               ...genreSections.filter(s => s.items.length > 0)
             ];
 
-            // Cache for 48 hours locally
             clientCache.set(cacheKey, sections, 172800);
             return sections;
           }
         }
       } catch (e) {
-        console.warn('[HomeFeed] Cloudflare feed fallback triggered:', e);
+        console.warn('[HomeFeed] Cloudflare feed request failed:', e);
       }
 
-      // 2. Resilient Fallback: Local parallel assembly if Cloudflare feed is temporarily unavailable
-      const deduplicateFallback = (list: any[]) => {
-        const seenIds = new Set<string>();
-        const seenTitles = new Set<string>();
-        return list.filter((item: any) => {
-          if (!item) return false;
-          const idKey = String(item.id);
-          const normTitle = (item.title || item.name || '').trim().toLowerCase();
-          if (seenIds.has(idKey)) return false;
-          if (normTitle && seenTitles.has(normTitle)) return false;
-          seenIds.add(idKey);
-          if (normTitle) seenTitles.add(normTitle);
-          return true;
-        });
-      };
-
-      const trendingData = await tmdbFetch(`/trending/${type}/day`);
-      const trendingItems = deduplicateFallback((trendingData.results || []).slice(0, 16).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
-
-      // Curated top 6 genres for resilient lightweight fallback (prevents 19-request connection storm on slow networks)
-      const allGenres = type === 'movie' ? [
-        { id: 28, name: language === 'ru-RU' ? 'Боевики' : 'Action' },
-        { id: 16, name: language === 'ru-RU' ? 'Мультфильмы' : 'Animation' },
-        { id: 35, name: language === 'ru-RU' ? 'Комедии' : 'Comedy' },
-        { id: 18, name: language === 'ru-RU' ? 'Драмы' : 'Drama' },
-        { id: 878, name: language === 'ru-RU' ? 'Фантастика' : 'Sci-Fi' },
-        { id: 53, name: language === 'ru-RU' ? 'Триллеры' : 'Thriller' },
-      ] : [
-        { id: 10759, name: language === 'ru-RU' ? 'Боевики и Приключения' : 'Action & Adventure' },
-        { id: 16, name: language === 'ru-RU' ? 'Мультсериалы' : 'Animation' },
-        { id: 35, name: language === 'ru-RU' ? 'Комедии' : 'Comedy' },
-        { id: 18, name: language === 'ru-RU' ? 'Драмы' : 'Drama' },
-        { id: 80, name: language === 'ru-RU' ? 'Криминал' : 'Crime' },
-        { id: 10765, name: language === 'ru-RU' ? 'Фантастика и Фэнтези' : 'Sci-Fi & Fantasy' },
-      ];
-      const genresToFetch = allGenres;
-
-      const genreResults = await Promise.all(
-        genresToFetch.map(async (g) => {
-          try {
-            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', {
-              with_genres: g.id,
-              'vote_count.gte': type === 'movie' ? 50 : 25,
-              'vote_average.gte': 4.0,
-              page: 1,
-              sort_by: 'popularity.desc'
-            });
-            const mapped = deduplicateFallback((data.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
-            return {
-              id: String(g.id),
-              name: g.name,
-              genreId: String(g.id),
-              items: mapped
-            };
-          } catch (_) {
-            return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
-          }
-        })
-      );
-
-      const sections = [
-        { id: 'trending', name: language === 'ru-RU' ? 'Популярное' : 'Popular', genreId: '', items: trendingItems },
-        ...genreResults.filter(s => s.items.length > 0)
-      ];
-
-      clientCache.set(cacheKey, sections, 172800);
-      return sections;
+      return (cached as any[]) || [];
     };
 
     if (silent) {
@@ -947,7 +885,7 @@ export function useApi() {
     }
 
     return withLoading(fetcher);
-  }, [language, tmdbFetch, withLoading]);
+  }, [language, withLoading]);
 
   const fetchAdditionalCategories = useCallback(async (type: 'movie' | 'tv', existingGenreIds: string[], count: number = 4) => {
     try {
@@ -976,20 +914,28 @@ export function useApi() {
       const results = await Promise.all(
         candidates.map(async (g) => {
           try {
-            const data = await tmdbFetch(type === 'movie' ? '/discover/movie' : '/discover/tv', {
-              with_genres: g.id,
-              'vote_count.gte': type === 'movie' ? 40 : 20,
-              'vote_average.gte': 4.0,
-              page: 1,
-              sort_by: 'popularity.desc'
+            const queryParams = new URLSearchParams({
+              type: type === 'movie' ? 'movie' : 'tv',
+              genre: String(g.id),
+              page: '1',
+              limit: '12',
             });
-            const mapped = deduplicateFallback((data.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'))).slice(0, 12);
-            return {
-              id: String(g.id),
-              name: g.name,
-              genreId: String(g.id),
-              items: mapped
-            };
+            const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
+              signal: AbortSignal.timeout(6000),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data) && data.length > 0) {
+                const mapped = deduplicateFallback(data);
+                return {
+                  id: String(g.id),
+                  name: g.name,
+                  genreId: String(g.id),
+                  items: mapped
+                };
+              }
+            }
+            return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
           } catch (_) {
             return { id: String(g.id), name: g.name, genreId: String(g.id), items: [] };
           }
@@ -1001,7 +947,7 @@ export function useApi() {
       console.error('Failed to fetch additional categories:', e);
       return [];
     }
-  }, [fetchGenres, tmdbFetch]);
+  }, [fetchGenres]);
 
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
     const cleanQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120)) || 'popular';
