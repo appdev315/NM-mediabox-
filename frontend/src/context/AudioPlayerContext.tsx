@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
-import type Hls from 'hls.js';
+import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 
 export interface Track {
@@ -57,7 +57,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
-  const hlsRef = useRef<Hls | null>(null);
+  const { hlsRef, initHls, destroyHls } = useHlsPlayer();
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isReconnectingRef = useRef(false);
@@ -143,10 +143,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
 
     // 3. Unconditionally destroy HLS instance if active
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    destroyHls();
 
     // 4. Unconditionally pause, clear src, and unload the audio element
     const audio = audioRef.current;
@@ -454,10 +451,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     syncToPeers(track, true, true);
 
     // Clean up previous Hls instance
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    destroyHls();
 
     audio.preload = track.type === 'radio' ? 'auto' : 'none';
     
@@ -470,12 +464,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         audio.src = url;
         isRefreshingSrcRef.current = false;
       } else {
-        const { default: HlsClass } = await import('hls.js');
-        if (HlsClass.isSupported()) {
-          const bufferCfg = getOptimalBufferConfig();
-          const hls = new HlsClass({
-            enableWorker: true,
-            lowLatencyMode: false,
+        const bufferCfg = getOptimalBufferConfig();
+        const hls = await initHls({
+          url,
+          media: audio,
+          config: {
             maxBufferLength: bufferCfg.maxBufferLength,
             maxMaxBufferLength: bufferCfg.maxMaxBufferLength,
             backBufferLength: bufferCfg.backBufferLength,
@@ -488,21 +481,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             levelLoadingMaxRetry: 10,
             fragLoadingMaxRetry: 10,
             maxFragLookUpTolerance: 0.25,
-          });
-          hls.loadSource(url);
-          hls.attachMedia(audio);
-          hlsRef.current = hls;
-
-          hls.on(HlsClass.Events.ERROR, (_, data) => {
+          },
+          onError: (instance, data) => {
             if (data.fatal) {
               switch (data.type) {
-                case HlsClass.ErrorTypes.NETWORK_ERROR:
+                case 'networkError':
                   console.warn('[HLS] Network error encountered, attempting recovery...');
-                  hls.startLoad();
+                  instance.startLoad();
                   break;
-                case HlsClass.ErrorTypes.MEDIA_ERROR:
+                case 'mediaError':
                   console.warn('[HLS] Media error encountered, recovering media...');
-                  hls.recoverMediaError();
+                  instance.recoverMediaError();
                   break;
                 default:
                   console.error('[HLS] Fatal error, delegating to attemptReconnect...');
@@ -510,8 +499,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
                   break;
               }
             }
-          });
-        } else {
+          },
+        });
+
+        if (!hls) {
           isRefreshingSrcRef.current = true;
           audio.src = url;
           audio.load();

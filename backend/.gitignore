@@ -1,5 +1,6 @@
 node_modules/
 .env
+.wrangler/
 go-scraper/server
 go-scraper/go-server
 go-scraper/main

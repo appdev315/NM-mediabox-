@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type Hls from 'hls.js';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { WebApp } from '../telegram';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { BannerAd } from '../components/BannerAd';
@@ -61,7 +61,7 @@ const FREE_TV_MAP: Record<string, string> = {
 
 export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const { initHls, destroyHls } = useHlsPlayer();
   const tvConfigRef = useRef<any>(null);
   const tvCountryRef = useRef<string>('');
   const [showTvWarning, setShowTvWarning] = useState(false);
@@ -661,17 +661,11 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
       const video = videoRef.current;
       const url = activeTvChannel.url;
 
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      destroyHls();
 
       // Timeout: if nothing plays within 15s, try alternative source or show error
       playbackTimeout = setTimeout(() => {
-        if (hlsRef.current) {
-          hlsRef.current.destroy();
-          hlsRef.current = null;
-        }
+        destroyHls();
         if (activeTvChannel) {
           tryAlternativeTvSource(activeTvChannel).then((found) => {
             if (!found) {
@@ -692,100 +686,51 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }
       };
 
-      const initHls = async () => {
-        try {
-          const { default: HlsClass } = await import('hls.js');
-          if (isCancelled || !videoRef.current) return;
-
-          if (HlsClass.isSupported()) {
-            const hls = new HlsClass({
-              maxBufferLength: 60,
-              maxMaxBufferLength: 180,
-              backBufferLength: 15,
-              maxBufferHole: 0.5,
-              startFragPrefetch: true,
-              enableWorker: true,
-              lowLatencyMode: false,
-              manifestLoadingTimeOut: 12000,
-              levelLoadingTimeOut: 12000,
-              fragLoadingTimeOut: 12000,
-              maxFragLookUpTolerance: 0.25,
-              xhrSetup: (xhr: XMLHttpRequest) => {
-                xhr.withCredentials = false;
-                xhr.timeout = 12000;
-              }
-            });
-            hlsRef.current = hls;
-
-            hls.loadSource(url);
-            hls.attachMedia(video);
-
-            hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
-              video.play().catch(e => console.log('Autoplay prevented', e));
-            });
-
-            // Clear timeout once video actually plays
-            video.addEventListener('playing', clearPlaybackTimeout, { once: true });
-
-            hls.on(HlsClass.Events.ERROR, (_event, data) => {
-              if (data.fatal) {
-                switch (data.type) {
-                  case HlsClass.ErrorTypes.NETWORK_ERROR:
-                    networkRetries++;
-                    if (networkRetries <= MAX_NETWORK_RETRIES) {
-                      console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
-                      hls.startLoad();
-                    } else {
-                      // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
-                      // let's try wrapping it in our Go proxy
-                      if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
-                        console.log('[TV] Stream failed, trying Go proxy fallback...');
-                        clearPlaybackTimeout();
-                        hls.destroy();
-                        hlsRef.current = null;
-                        networkRetries = 0;
-                        
-                        const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
-                        setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
-                      } else {
-                        console.error('fatal network error, max retries reached');
-                        clearPlaybackTimeout();
-                        hls.destroy();
-                        hlsRef.current = null;
-                        
-                        if (activeTvChannel) {
-                          tryAlternativeTvSource(activeTvChannel).then((found) => {
-                            if (!found) {
-                              setTvError(true);
-                              setTvLoading(false);
-                            }
-                          });
-                        } else {
-                          setTvError(true);
-                          setTvLoading(false);
-                        }
-                      }
-                    }
-                    break;
-                  case HlsClass.ErrorTypes.MEDIA_ERROR:
-                    console.error('fatal media error encountered, try to recover');
-                    hls.recoverMediaError();
-                    break;
-                  default:
+      const startHls = async () => {
+        const hls = await initHls({
+          url,
+          media: video,
+          config: {
+            maxBufferLength: 60,
+            maxMaxBufferLength: 180,
+            backBufferLength: 15,
+            maxBufferHole: 0.5,
+            startFragPrefetch: true,
+            manifestLoadingTimeOut: 12000,
+            levelLoadingTimeOut: 12000,
+            fragLoadingTimeOut: 12000,
+            maxFragLookUpTolerance: 0.25,
+            xhrSetup: (xhr: XMLHttpRequest) => {
+              xhr.withCredentials = false;
+              xhr.timeout = 12000;
+            }
+          },
+          onManifestParsed: () => {
+            video.play().catch(e => console.log('Autoplay prevented', e));
+          },
+          onError: (instance, data) => {
+            if (data.fatal) {
+              switch (data.type) {
+                case 'networkError':
+                  networkRetries++;
+                  if (networkRetries <= MAX_NETWORK_RETRIES) {
+                    console.error(`fatal network error, retry ${networkRetries}/${MAX_NETWORK_RETRIES}`);
+                    instance.startLoad();
+                  } else {
+                    // Fallback: If we were playing direct HTTPS and it failed (CORS/etc),
+                    // let's try wrapping it in our Go proxy
                     if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
-                      console.log('[TV] Media error, trying Go proxy fallback...');
+                      console.log('[TV] Stream failed, trying Go proxy fallback...');
                       clearPlaybackTimeout();
-                      hls.destroy();
-                      hlsRef.current = null;
+                      destroyHls();
                       networkRetries = 0;
                       
                       const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
                       setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
                     } else {
-                      console.error('fatal media error, max retries reached');
+                      console.error('fatal network error, max retries reached');
                       clearPlaybackTimeout();
-                      hls.destroy();
-                      hlsRef.current = null;
+                      destroyHls();
                       
                       if (activeTvChannel) {
                         tryAlternativeTvSource(activeTvChannel).then((found) => {
@@ -799,13 +744,48 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                         setTvLoading(false);
                       }
                     }
-                    break;
-                }
+                  }
+                  break;
+                case 'mediaError':
+                  console.error('fatal media error encountered, try to recover');
+                  instance.recoverMediaError();
+                  break;
+                default:
+                  if (activeTvChannel && !activeTvChannel.url.includes('/proxy')) {
+                    console.log('[TV] Media error, trying Go proxy fallback...');
+                    clearPlaybackTimeout();
+                    destroyHls();
+                    networkRetries = 0;
+                    
+                    const proxiedUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(activeTvChannel.url)}`;
+                    setActiveTvChannel(prev => prev ? { ...prev, url: proxiedUrl } : null);
+                  } else {
+                    console.error('fatal media error, max retries reached');
+                    clearPlaybackTimeout();
+                    destroyHls();
+                    
+                    if (activeTvChannel) {
+                      tryAlternativeTvSource(activeTvChannel).then((found) => {
+                        if (!found) {
+                          setTvError(true);
+                          setTvLoading(false);
+                        }
+                      });
+                    } else {
+                      setTvError(true);
+                      setTvLoading(false);
+                    }
+                  }
+                  break;
               }
-            });
-            return;
+            }
           }
-        } catch (_) {}
+        });
+
+        if (hls) {
+          video.addEventListener('playing', clearPlaybackTimeout, { once: true });
+          return;
+        }
 
         if (!isCancelled && video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = url;
@@ -816,16 +796,13 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
         }
       };
 
-      initHls();
+      startHls();
     }
 
     return () => {
       isCancelled = true;
       if (playbackTimeout) clearTimeout(playbackTimeout);
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      destroyHls();
       const vid = videoRef.current;
       if (vid) {
         vid.pause();

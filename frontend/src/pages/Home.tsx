@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre, CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream } from '../utils/streamPreloader';
+import { deduplicateMediaList } from '../utils/mediaUtils';
 import { AvailBadge } from '../components/AvailBadge';
 import { useLanguage } from '../context/LanguageContext';
 import { TrailerFeed } from '../components/TrailerFeed';
@@ -259,21 +260,10 @@ export function Home() {
   }, [setScrollY]);
 
   const sanitizeSections = useCallback((secs: any[]) => {
-    return (secs || []).map((sec: any) => {
-      const seenIds = new Set<string>();
-      const seenTitles = new Set<string>();
-      const cleanItems = (sec.items || []).filter((item: any) => {
-        if (!item) return false;
-        const idKey = String(item.id);
-        const normTitle = (item.title || item.name || '').trim().toLowerCase();
-        if (seenIds.has(idKey)) return false;
-        if (normTitle && seenTitles.has(normTitle)) return false;
-        seenIds.add(idKey);
-        if (normTitle) seenTitles.add(normTitle);
-        return true;
-      });
-      return { ...sec, items: cleanItems };
-    });
+    return (secs || []).map((sec: any) => ({
+      ...sec,
+      items: deduplicateMediaList(sec.items || []),
+    }));
   }, []);
 
   const handleLoadMoreCategories = async () => {

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
+import { deduplicateMediaList } from '../utils/mediaUtils';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
@@ -618,21 +619,6 @@ export function useApi() {
         if (cfFeedRes.ok) {
           const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
           if (Array.isArray(feedData?.trending) && Array.isArray(feedData?.genres) && feedData.genres.length > 0) {
-            const deduplicateMediaList = (list: any[]) => {
-              const seenIds = new Set<string>();
-              const seenTitles = new Set<string>();
-              return list.filter((item: any) => {
-                if (!item) return false;
-                const idKey = String(item.id);
-                const normTitle = (item.title || item.name || '').trim().toLowerCase();
-                if (seenIds.has(idKey)) return false;
-                if (normTitle && seenTitles.has(normTitle)) return false;
-                seenIds.add(idKey);
-                if (normTitle) seenTitles.add(normTitle);
-                return true;
-              });
-            };
-
             const trendingItems = deduplicateMediaList(feedData.trending);
             const genreSections = feedData.genres.map((g) => ({
               id: g.id,
@@ -677,21 +663,6 @@ export function useApi() {
       const candidates = allGenres.filter(g => !existingSet.has(String(g.id))).slice(0, count);
       if (candidates.length === 0) return [];
 
-      const deduplicateFallback = (list: any[]) => {
-        const seenIds = new Set<string>();
-        const seenTitles = new Set<string>();
-        return list.filter((item: any) => {
-          if (!item) return false;
-          const idKey = String(item.id);
-          const normTitle = (item.title || item.name || '').trim().toLowerCase();
-          if (seenIds.has(idKey)) return false;
-          if (normTitle && seenTitles.has(normTitle)) return false;
-          seenIds.add(idKey);
-          if (normTitle) seenTitles.add(normTitle);
-          return true;
-        });
-      };
-
       const results = await Promise.all(
         candidates.map(async (g) => {
           try {
@@ -707,7 +678,7 @@ export function useApi() {
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data) && data.length > 0) {
-                const mapped = deduplicateFallback(data);
+                const mapped = deduplicateMediaList(data);
                 return {
                   id: String(g.id),
                   name: g.name,

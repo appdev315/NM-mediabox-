@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';

@@ -2,6 +2,7 @@ import { CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from './clientCache';
 import { fetchWithRetry } from './fetchWithRetry';
 import { getAvailability, setAvailability } from './availability';
+import { buildLiftwQuery } from './mediaUtils';
 
 // Map of active in-flight stream promises shared across card clicks and Movie.tsx
 export const inFlightStreamMap = new Map<string, Promise<any>>();
@@ -74,23 +75,17 @@ export function prewarmStream(
   const title = item.title || item.name || '';
   if (!title) return Promise.resolve(null);
 
-  const orig = item.original_title || item.original_name || '';
-  const ru = language === 'ru-RU' ? (item.title_ru || title) : '';
-
-  const rawYear = item.year || (item.release_date ? String(item.release_date).slice(0, 4) : '');
-  const bgQueryParams: Record<string, string> = {
+  const bgQuery = buildLiftwQuery({
     title,
-    year: String(rawYear || ''),
+    year: item.year || (item.release_date ? String(item.release_date).slice(0, 4) : ''),
     type: resolvedType,
-    tmdb: String(id),
-    title_ru: ru,
-    original_title: orig,
-  };
-  const effectiveLiftwId = item.liftw_id || (String(id).startsWith('liftw_') ? String(id).replace(/^liftw_/, '') : undefined);
-  if (effectiveLiftwId) {
-    bgQueryParams.liftw_id = String(effectiveLiftwId);
-  }
-  const bgQuery = new URLSearchParams(bgQueryParams).toString();
+    tmdb: id,
+    title_ru: item.title_ru,
+    original_title: item.original_title,
+    original_name: item.original_name,
+    liftw_id: item.liftw_id,
+    language,
+  });
 
   const promise = (async () => {
     try {

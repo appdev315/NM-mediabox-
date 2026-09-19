@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type Hls from 'hls.js';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
@@ -35,7 +35,7 @@ export function Favorites() {
   const [tvError, setTvError] = useState(false);
   const playerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const { initHls, destroyHls } = useHlsPlayer();
 
   const loadData = () => {
     // Instant 0ms load from LocalStorage
@@ -62,10 +62,7 @@ export function Favorites() {
   // Hls.js stream lifecycle for TV channels
   useEffect(() => {
     if (!activeTvChannel) {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      destroyHls();
       return;
     }
 
@@ -73,56 +70,43 @@ export function Favorites() {
     if (!video) return;
 
     setTvError(false);
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    destroyHls();
 
     const streamUrl = activeTvChannel.url;
     const isHls = streamUrl.includes('.m3u8') || streamUrl.includes('/playlist') || streamUrl.includes('/proxy');
     let isCancelled = false;
 
-    const initHls = async () => {
+    const startHls = async () => {
       if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) {
-        try {
-          const { default: HlsClass } = await import('hls.js');
-          if (isCancelled || !videoRef.current) return;
-          if (HlsClass.isSupported()) {
-            const hls = new HlsClass({
-              enableWorker: true,
-              lowLatencyMode: false,
-              manifestLoadingTimeOut: 15000,
-              levelLoadingTimeOut: 15000,
-              fragLoadingTimeOut: 15000,
-            });
-            hlsRef.current = hls;
-            hls.loadSource(streamUrl);
-            hls.attachMedia(video);
-
-            hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
-              video.play().catch(() => {});
-            });
-
-            hls.on(HlsClass.Events.ERROR, (_, data) => {
-              if (data.fatal) {
-                switch (data.type) {
-                  case HlsClass.ErrorTypes.NETWORK_ERROR:
-                    hls.startLoad();
-                    break;
-                  case HlsClass.ErrorTypes.MEDIA_ERROR:
-                    hls.recoverMediaError();
-                    break;
-                  default:
-                    setTvError(true);
-                    hls.destroy();
-                    hlsRef.current = null;
-                    break;
-                }
+        const hls = await initHls({
+          url: streamUrl,
+          media: video,
+          config: {
+            manifestLoadingTimeOut: 15000,
+            levelLoadingTimeOut: 15000,
+            fragLoadingTimeOut: 15000,
+          },
+          onManifestParsed: () => {
+            if (!isCancelled) video.play().catch(() => {});
+          },
+          onError: (instance, data) => {
+            if (data.fatal) {
+              switch (data.type) {
+                case 'networkError':
+                  instance.startLoad();
+                  break;
+                case 'mediaError':
+                  instance.recoverMediaError();
+                  break;
+                default:
+                  setTvError(true);
+                  destroyHls();
+                  break;
               }
-            });
-            return;
-          }
-        } catch (_) {}
+            }
+          },
+        });
+        if (hls) return;
       }
 
       if (!isCancelled && video) {
@@ -131,21 +115,18 @@ export function Favorites() {
         video.play().catch(() => {});
       }
     };
-    initHls();
+    startHls();
 
     return () => {
       isCancelled = true;
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      destroyHls();
       if (video) {
         video.pause();
         video.removeAttribute('src');
         video.load();
       }
     };
-  }, [activeTvChannel]);
+  }, [activeTvChannel, initHls, destroyHls]);
 
   const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
     e.stopPropagation();

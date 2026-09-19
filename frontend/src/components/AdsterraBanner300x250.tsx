@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { WebApp } from '../telegram';
 
 interface SingleBannerProps {
   id: string;

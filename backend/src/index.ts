@@ -972,6 +972,36 @@ app.get('/api/liftw', async (c: Context) => {
   }
 });
 
+const mapLiftwItem = (item: any, isTv?: boolean, searchScore?: number) => {
+  if (!item || !item.id) return null;
+  const rawRating = item.imdb_rating || item.kp_rating || 0;
+  const numRating = typeof rawRating === 'number' ? rawRating : (parseFloat(rawRating) || 0);
+  const year = item.year || 0;
+  const resolvedIsTv = isTv !== undefined ? isTv : [3, 4, 5, 7].includes(item.type);
+
+  return {
+    id: `liftw_${item.id}`,
+    liftw_id: item.id,
+    name: item.name,
+    title: item.name,
+    original_name: item.origin_name || item.name,
+    original_title: item.origin_name || item.name,
+    poster: item.poster || '',
+    backdrop_path: null,
+    poster_path: null,
+    rating: numRating,
+    vote_average: numRating,
+    release_date: year ? `${year}-01-01` : '',
+    year: year ? String(year) : '',
+    type: resolvedIsTv ? 'series' : 'movie',
+    media_type: resolvedIsTv ? 'tv' : 'movie',
+    isLiftwOnly: true,
+    quality: item.quality || '',
+    serial_status: item.serial_status || '',
+    ...(searchScore !== undefined ? { search_score: searchScore } : {}),
+  };
+};
+
 // --- DIRECT LIFTW CATALOG SEARCH ---
 app.get('/api/search/liftw', async (c: Context) => {
   const query = (c.req.query('q') || c.req.query('query') || '').trim();
@@ -1011,25 +1041,7 @@ app.get('/api/search/liftw', async (c: Context) => {
       filtered = items.filter(it => [3, 4, 5, 7].includes(it.type));
     }
 
-    const results = filtered.map(it => {
-      const isSeries = [3, 4, 5, 7].includes(it.type);
-      return {
-        id: `liftw_${it.id}`,
-        liftw_id: it.id,
-        name: it.name,
-        title: it.name,
-        original_name: it.origin_name || it.name,
-        original_title: it.origin_name || it.name,
-        poster: it.poster || '',
-        year: it.year ? String(it.year) : '',
-        release_date: it.year ? `${it.year}-01-01` : '',
-        rating: it.kp_rating || it.imdb_rating || 0,
-        vote_average: it.kp_rating || it.imdb_rating || 0,
-        type: isSeries ? 'series' : 'movie',
-        media_type: isSeries ? 'tv' : 'movie',
-        search_score: it.search_score ?? 0,
-      };
-    });
+    const results = filtered.map(it => mapLiftwItem(it, undefined, it.search_score ?? 0)).filter(Boolean);
 
     const response = c.json({ results }, 200, {
       'Cache-Control': 'public, max-age=1800, s-maxage=3600',
@@ -1185,32 +1197,6 @@ const GENRE_ID_TO_LIFTW: Record<string, string> = {
   '10766': 'Мыльная опера',
   '10767': 'Ток-шоу',
   '10768': 'Военный',
-};
-
-const mapLiftwItem = (item: any, isTv: boolean) => {
-  if (!item || !item.id) return null;
-  const rawRating = item.imdb_rating || item.kp_rating || 0;
-  const numRating = typeof rawRating === 'number' ? rawRating : (parseFloat(rawRating) || 0);
-  const year = item.year || 0;
-  return {
-    id: `liftw_${item.id}`,
-    liftw_id: item.id,
-    title: item.name,
-    name: item.name,
-    original_title: item.origin_name || item.name,
-    original_name: item.origin_name || item.name,
-    poster: item.poster || '',
-    backdrop_path: null,
-    poster_path: null,
-    vote_average: numRating,
-    rating: numRating,
-    release_date: year ? `${year}-01-01` : '',
-    year: year ? String(year) : '',
-    type: isTv ? 'series' : 'movie',
-    isLiftwOnly: true,
-    quality: item.quality || '',
-    serial_status: item.serial_status || '',
-  };
 };
 
 // --- AGGREGATED TRAILER FEED (replaces 23 client-side TMDB requests with 1 server-side batch) ---

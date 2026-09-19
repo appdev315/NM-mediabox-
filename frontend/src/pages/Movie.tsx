@@ -19,6 +19,7 @@ import { clientCache } from '../utils/clientCache';
 import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
 import { getAvailability, setAvailability, useAvailabilityVersion } from '../utils/availability';
 import { AvailBadge } from '../components/AvailBadge';
+import { sortNumericKeys, buildLiftwQuery } from '../utils/mediaUtils';
 
 export function Movie() {
   const { id } = useParams();
@@ -114,12 +115,7 @@ export function Movie() {
 
   const sortedSeasons = useMemo<string[]>(() => {
     if (liftwEpisodes && Object.keys(liftwEpisodes).length > 0) {
-      return Object.keys(liftwEpisodes).sort((a, b) => {
-        const numA = parseInt(a, 10);
-        const numB = parseInt(b, 10);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-      });
+      return sortNumericKeys(Object.keys(liftwEpisodes));
     }
     // Fallback to TMDB seasons metadata if available
     if (movie?.seasons && Array.isArray(movie.seasons)) {
@@ -228,22 +224,12 @@ export function Movie() {
   const sortedEpisodes = useMemo<string[]>(() => {
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
     if (liftwEpisodes?.[currentSeason] && Array.isArray(liftwEpisodes[currentSeason])) {
-      return liftwEpisodes[currentSeason].slice().sort((a: string, b: string) => {
-        const numA = parseInt(String(a), 10);
-        const numB = parseInt(String(b), 10);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-      });
+      return sortNumericKeys(liftwEpisodes[currentSeason]);
     }
     // Fallback to TMDB season details if loaded
     const metaKeys = Object.keys(seasonEpisodesMeta);
     if (metaKeys.length > 0) {
-      return metaKeys.sort((a, b) => {
-        const numA = parseInt(a, 10);
-        const numB = parseInt(b, 10);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-      });
+      return sortNumericKeys(metaKeys);
     }
     // Fallback to TMDB episode_count
     if (movie?.seasons && Array.isArray(movie.seasons)) {
@@ -681,20 +667,21 @@ export function Movie() {
       const ruTitle = (movie as any)?.title_ru || (language === 'ru-RU' ? ((movie as any)?.title || (movie as any)?.name) : '') || queryParams.title;
 
       // Fetch stream from Liftw
-      const liftwQuery = new URLSearchParams({
+      const effectiveLiftwId = (movie as any)?.liftw_id || 
+        (location.state as any)?.liftw_id || 
+        (String(id).startsWith('liftw_') ? String(id).replace(/^liftw_/, '') : undefined);
+
+      const baseQuery = buildLiftwQuery({
         title: queryParams.title,
         year: queryParams.year,
         type: queryParams.type,
         tmdb: queryParams.tmdb,
         title_ru: ruTitle,
-        original_title: originalTitle
+        original_title: originalTitle,
+        liftw_id: effectiveLiftwId,
+        language
       });
-      const effectiveLiftwId = (movie as any)?.liftw_id || 
-        (location.state as any)?.liftw_id || 
-        (String(id).startsWith('liftw_') ? String(id).replace(/^liftw_/, '') : undefined);
-      if (effectiveLiftwId) {
-        liftwQuery.append('liftw_id', String(effectiveLiftwId));
-      }
+      const liftwQuery = new URLSearchParams(baseQuery);
       if (forceRefresh) {
         if (id) {
           clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
@@ -803,20 +790,10 @@ export function Movie() {
 
           if (liftwData.episodes) {
             setLiftwEpisodes(liftwData.episodes);
-            const initSortedSeasons = Object.keys(liftwData.episodes).sort((a, b) => {
-              const numA = parseInt(a, 10);
-              const numB = parseInt(b, 10);
-              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            const initSortedSeasons = sortNumericKeys(Object.keys(liftwData.episodes));
             const firstSeason = initSortedSeasons[0] || '1';
             const firstSeasonEpisodes = liftwData.episodes[firstSeason] || [];
-            const sortedFirstSeasonEps = firstSeasonEpisodes.slice().sort((a: string, b: string) => {
-              const numA = parseInt(a, 10);
-              const numB = parseInt(b, 10);
-              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-              return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            const sortedFirstSeasonEps = sortNumericKeys(firstSeasonEpisodes);
             const firstEpisode = sortedFirstSeasonEps[0] || '1';
 
             const targetS = activeSeasonRef.current || firstSeason;
@@ -1361,12 +1338,7 @@ export function Movie() {
                   onChange={(e) => {
                     const season = e.target.value;
                     const availableEpisodes = Array.isArray(liftwEpisodes?.[season]) ? liftwEpisodes[season] : ['1'];
-                    const sortedAvail = availableEpisodes.slice().sort((a: any, b: any) => {
-                      const numA = parseInt(String(a), 10);
-                      const numB = parseInt(String(b), 10);
-                      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
-                    });
+                    const sortedAvail = sortNumericKeys(availableEpisodes);
                     const defaultEpisode = sortedAvail[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                     userSelectedRef.current = true;
