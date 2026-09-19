@@ -154,11 +154,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           }
         }
         if (data.event === 'playerReady') {
-          if (targetEpisode?.season && targetEpisode?.episode) {
-            sendPlayCommands(targetEpisode.season, targetEpisode.episode);
-          } else {
-            sendPlayCommands();
-          }
+          // Never send 'playlist go' here: the iframe URL already carries the
+          // target season/episode (server-rendered), and donor's changeEpisode()
+          // destroys/recreates the player — go on every ready would loop forever.
+          // Episode switches are handled by the targetEpisode effect below.
+          sendPlayCommands();
         }
         // When playback commences, clear any pending fallback reload
         if (
