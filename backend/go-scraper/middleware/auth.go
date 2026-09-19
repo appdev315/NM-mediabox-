@@ -124,10 +124,3 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
-
-func CheckAdultAccess(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// App is completely free, pass through
-		next(w, r)
-	}
-}

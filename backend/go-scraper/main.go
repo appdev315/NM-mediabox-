@@ -175,19 +175,13 @@ func main() {
 	mux.HandleFunc("/api/tmdb/", streamer.TMDBApiHandler)
 
 	// Adult endpoints
-	mux.HandleFunc("/api/adult/search", middleware.CheckAdultAccess(searchHandler))
-	mux.HandleFunc("/api/adult/details", middleware.CheckAdultAccess(detailsHandler))
-	mux.HandleFunc("/api/adult/stream", middleware.CheckAdultAccess(detailsHandler))
+	mux.HandleFunc("/api/adult/search", searchHandler)
+	mux.HandleFunc("/api/adult/details", detailsHandler)
 
 	// Stream and proxy handlers
 	mux.HandleFunc("/api/radio/stations", streamer.RadioStationsHandler)
-	mux.HandleFunc("/api/proxy/stream", streamer.ProxyStreamHandler)
 	mux.HandleFunc("/api/proxy", streamer.ProxyTVHandler)
-	mux.HandleFunc("/proxy/stream", streamer.ProxyStreamHandler)
-	mux.HandleFunc("/proxy", streamer.ProxyTVHandler)
-	mux.HandleFunc("/api/stream", streamer.StreamApiHandler)
 	mux.HandleFunc("/api/liftw", streamer.LiftwApiHandler)
-	mux.HandleFunc("/api/report-missing", streamer.ReportMissingHandler)
 
 	// Apply global middleware chain: Gzip -> RateLimiter -> BotGuard -> Metrics -> CORS -> Mux
 	rateLimiter := middleware.RateLimiterMiddleware(10*time.Minute, 150)
