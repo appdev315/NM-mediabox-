@@ -66,7 +66,7 @@ const MovieCard = React.memo(function MovieCard({
             </span>
           </div>
         )}
-        {item.isAdult && (
+        {isAdultItem && (
           <div className="absolute top-2 left-2 z-20">
             <span className="bg-red-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 border border-red-500/40">
               {t('adultCategory') || '18+'}
@@ -98,7 +98,7 @@ const MovieCard = React.memo(function MovieCard({
               return;
             }
             e.currentTarget.onerror = null;
-            e.currentTarget.src = item.isAdult
+            e.currentTarget.src = isAdultItem
               ? 'https://placehold.co/400x300/242f3d/ffffff?text=18+'
               : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="%23242f3d"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23ffffff" font-size="18" font-family="sans-serif">No Poster</text></svg>';
           }}
@@ -108,7 +108,7 @@ const MovieCard = React.memo(function MovieCard({
             {item.duration}
           </div>
         )}
-        {!item.isAdult && <AvailBadge type={targetMediaType} id={item.id} />}
+        {!isAdultItem && <AvailBadge type={targetMediaType} id={item.id} />}
       </div>
       <div className="mt-1 px-1">
         <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
