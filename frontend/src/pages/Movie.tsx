@@ -19,7 +19,7 @@ import { clientCache } from '../utils/clientCache';
 import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
 import { getAvailability, setAvailability, useAvailabilityVersion } from '../utils/availability';
 import { AvailBadge } from '../components/AvailBadge';
-import { sortNumericKeys, buildLiftwQuery } from '../utils/mediaUtils';
+import { sortNumericKeys, buildLiftwQuery, isRussianOrigin, isNonRussianLang } from '../utils/mediaUtils';
 
 export function Movie() {
   const { id } = useParams();
@@ -285,15 +285,19 @@ export function Movie() {
   const allCast = useMemo(() => movie?.credits?.cast || [], [movie?.credits?.cast]);
   const cast = useMemo(() => showAllCast ? allCast.slice(0, 15) : allCast.slice(0, 6), [allCast, showAllCast]);
   const availVersion = useAvailabilityVersion();
-  // Available-first ordering (unknown stays in place, nothing hidden)
+  // Available-first ordering (unknown stays in place, nothing hidden).
+  // Non-Russian UIs additionally hide domestic titles.
   const displayedRecommendations = useMemo(() => {
     const rank = (r: any) => {
       const s = getAvailability(r?.type, r?.id);
       return s === 'available' ? 0 : s === 'missing' ? 2 : 1;
     };
-    return [...recommendations].sort((a, b) => rank(a) - rank(b));
+    const list = isNonRussianLang(language)
+      ? recommendations.filter((r: any) => !isRussianOrigin(r))
+      : recommendations;
+    return [...list].sort((a, b) => rank(a) - rank(b));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recommendations, availVersion]);
+  }, [recommendations, availVersion, language]);
   const ratingPct = useMemo(() => movie?.rating ? Math.round(movie.rating * 10) : 0, [movie?.rating]);
   const isUnreleased = useMemo(() => {
     if (movie?.isUpcoming) return true;

@@ -43,8 +43,7 @@ export function buildLiftwQuery(params: LiftwQueryParams): string {
   return new URLSearchParams(queryParams).toString();
 }
 
-export function deduplicateMediaList<T extends { id?: any; title?: string; name?: string }>(list: T[]): T[] {
-  const seenIds = new Set<string>();
+export function deduplicateMediaList<T extends { id?: any; title?: string; name?: string }>(list: T[]): T[] {  const seenIds = new Set<string>();
   const seenTitles = new Set<string>();
 
   return list.filter((item) => {
@@ -57,4 +56,26 @@ export function deduplicateMediaList<T extends { id?: any; title?: string; name?
     if (normTitle) seenTitles.add(normTitle);
     return true;
   });
+}
+
+// Domestic-origin detector shared by catalog backstops. Mirrors the backend
+// isRussianOrigin(): TMDB markers first, then the request-free Liftw rule —
+// a Cyrillic display title combined with an empty/non-Latin origin name.
+export function isRussianOrigin(item: any): boolean {
+  if (!item) return false;
+  if (item.original_language === 'ru') return true;
+  const oc = item.origin_country;
+  if (Array.isArray(oc) && (oc.includes('RU') || oc.includes('SU'))) return true;
+  const pc = item.production_countries;
+  if (Array.isArray(pc) && pc.some((c: any) => c?.iso_3166_1 === 'RU' || c?.iso_3166_1 === 'SU')) return true;
+  const countries = item.country || item.countries;
+  if (Array.isArray(countries) && countries.some((c: any) => /^(Россия|СССР|Russia|Soviet Union)$/i.test(String(c).trim()))) return true;
+  const origin = (item.original_name || item.original_title || item.origin_name || '').trim();
+  const title = (item.title || item.name || '').trim();
+  if (/[а-яё]/i.test(title) && !/[a-z]/i.test(origin)) return true;
+  return false;
+}
+
+export function isNonRussianLang(lang: string): boolean {
+  return !String(lang || '').toLowerCase().startsWith('ru');
 }

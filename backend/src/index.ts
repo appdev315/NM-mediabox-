@@ -1002,17 +1002,40 @@ const mapLiftwItem = (item: any, isTv?: boolean, searchScore?: number) => {
   };
 };
 
+// Non-Russian UI languages hide domestic titles. Detection is heuristic and
+// request-free: foreign catalog entries carry a Latin origin_name, domestic
+// ones carry an empty or Cyrillic-only origin with a Cyrillic display title.
+export function isRussianOrigin(item: any): boolean {
+  if (!item) return false;
+  if (item.original_language === 'ru') return true;
+  const oc = item.origin_country;
+  if (Array.isArray(oc) && (oc.includes('RU') || oc.includes('SU'))) return true;
+  const pc = item.production_countries;
+  if (Array.isArray(pc) && pc.some((cc: any) => cc?.iso_3166_1 === 'RU' || cc?.iso_3166_1 === 'SU')) return true;
+  const countries = item.country || item.countries;
+  if (Array.isArray(countries) && countries.some((cc: any) => /^(Россия|СССР|Russia|Soviet Union)$/i.test(String(cc).trim()))) return true;
+  const origin = (item.original_name || item.original_title || item.origin_name || '').trim();
+  const title = (item.title || item.name || '').trim();
+  if (/[а-яё]/i.test(title) && !/[a-z]/i.test(origin)) return true;
+  return false;
+}
+
+export function isNonRussianLang(lang: string): boolean {
+  return !String(lang || '').toLowerCase().startsWith('ru');
+}
+
 // --- DIRECT LIFTW CATALOG SEARCH ---
 app.get('/api/search/liftw', async (c: Context) => {
   const query = (c.req.query('q') || c.req.query('query') || '').trim();
   const vType = c.req.query('type') || '';
+  const lang = c.req.query('lang') || 'ru-RU';
   if (!query) {
     return c.json({ results: [] });
   }
 
   const edgeCache = (caches as any).default;
   const parsedUrl = new URL(c.req.url);
-  const cacheKeyUrl = `${parsedUrl.origin}/api/search/liftw?q=${encodeURIComponent(query.toLowerCase())}&type=${encodeURIComponent(vType)}`;
+  const cacheKeyUrl = `${parsedUrl.origin}/api/search/liftw?q=${encodeURIComponent(query.toLowerCase())}&type=${encodeURIComponent(vType)}&lang=${encodeURIComponent(lang)}`;
   const cacheReq = new Request(cacheKeyUrl, { method: 'GET' });
 
   try {
@@ -1041,7 +1064,10 @@ app.get('/api/search/liftw', async (c: Context) => {
       filtered = items.filter(it => [3, 4, 5, 7].includes(it.type));
     }
 
-    const results = filtered.map(it => mapLiftwItem(it, undefined, it.search_score ?? 0)).filter(Boolean);
+    const results = filtered
+      .map(it => mapLiftwItem(it, undefined, it.search_score ?? 0))
+      .filter(Boolean)
+      .filter((it: any) => !isNonRussianLang(lang) || !isRussianOrigin(it));
 
     const response = c.json({ results }, 200, {
       'Cache-Control': 'public, max-age=1800, s-maxage=3600',
@@ -1290,6 +1316,7 @@ app.get('/api/feed/trailers', async (c: Context) => {
           mediaType: type,
           title: item.title || item.name || item.original_title || item.original_name || 'Без названия',
           originalTitle: item.original_title || item.original_name || '',
+          original_language: item.original_language || '',
           year,
           rating: Number((item.vote_average || 0).toFixed(1)),
           genreNames: genres,
@@ -1304,7 +1331,9 @@ app.get('/api/feed/trailers', async (c: Context) => {
     });
 
     const settled = await Promise.all(videoPromises);
-    const result = settled.filter((item): item is NonNullable<typeof item> => item !== null);
+    const result = settled
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .filter((item) => !isNonRussianLang(lang) || !isRussianOrigin({ ...item, original_title: item.originalTitle }));
 
     const response = c.json(result, 200, {
       'Cache-Control': 'public, max-age=3600, s-maxage=7200',
@@ -1338,6 +1367,8 @@ app.get('/api/feed/home', async (c: Context) => {
   const liftwType = isTv ? 'serial' : 'film';
   const liftwCategory = isTv ? 'series' : 'films';
 
+  const hideDomestic = isNonRussianLang(lang);
+
   try {
     const genreCategories = isTv ? [
       { id: '10759', name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure', liftwGenre: 'Боевик' },
@@ -1366,14 +1397,18 @@ app.get('/api/feed/home', async (c: Context) => {
 
     const genrePromises = genreCategories.map(async (cat) => {
       try {
-        const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=14&sort=popular`, {
+        const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=24&sort=popular`, {
           headers: LIFTW_HEADERS,
           signal: AbortSignal.timeout(4500),
         });
         if (!res.ok) return null;
         const data = await res.json() as any[];
         if (!Array.isArray(data) || data.length === 0) return null;
-        const items = data.map(item => mapLiftwItem(item, isTv)).filter(Boolean);
+        const items = data
+          .map(item => mapLiftwItem(item, isTv))
+          .filter(Boolean)
+          .filter((it: any) => !hideDomestic || !isRussianOrigin(it))
+          .slice(0, 14);
         return {
           id: cat.id,
           name: cat.name,
@@ -1386,7 +1421,7 @@ app.get('/api/feed/home', async (c: Context) => {
     });
 
     const [trendingRes, ...genreResults] = await Promise.all([
-      fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=16`, {
+      fetch(`https://api.liftw.ws/list?type=${liftwType}&last=true&limit=${hideDomestic ? 32 : 16}`, {
         headers: LIFTW_HEADERS,
         signal: AbortSignal.timeout(4500),
       }).then(r => r.ok ? r.json() as Promise<any[]> : []).catch(() => []),
@@ -1394,7 +1429,11 @@ app.get('/api/feed/home', async (c: Context) => {
     ]);
 
     const trendingItems = Array.isArray(trendingRes)
-      ? trendingRes.map(item => mapLiftwItem(item, isTv)).filter(Boolean)
+      ? trendingRes
+        .map(item => mapLiftwItem(item, isTv))
+        .filter(Boolean)
+        .filter((it: any) => !hideDomestic || !isRussianOrigin(it))
+        .slice(0, 16)
       : [];
 
     const validGenres = genreResults.filter((g): g is NonNullable<typeof g> => !!g && g.rawResults.length > 0);
@@ -1428,6 +1467,11 @@ app.get('/api/catalog/list', async (c: Context) => {
   const limit = Math.min(30, Math.max(1, parseInt(c.req.query('limit') || '20', 10) || 20));
   const genreParam = c.req.query('genre') || '';
   const sortBy = c.req.query('sort') || c.req.query('sortBy') || 'popularity.desc';
+  const lang = c.req.query('lang') || 'ru-RU';
+  const hideDomestic = isNonRussianLang(lang);
+  // Overfetch for non-Russian UIs so rows stay full after domestic filtering.
+  // Edge cache splits by full URL, so lang-specific responses never mix.
+  const fetchLimit = hideDomestic ? Math.min(30, limit * 2) : limit;
 
   const edgeCache = (caches as any).default;
   const cacheReq = new Request(c.req.url, { method: 'GET' });
@@ -1444,11 +1488,11 @@ app.get('/api/catalog/list', async (c: Context) => {
 
   let liftwUrl = '';
   if (targetGenre) {
-    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(targetGenre)}&page=${page}&limit=${limit}&sort=popular`;
+    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(targetGenre)}&page=${page}&limit=${fetchLimit}&sort=popular`;
   } else if (sortBy.includes('date') || sortBy.includes('new') || genreParam === 'trending') {
-    liftwUrl = `https://api.liftw.ws/list?type=${liftwType}&page=${page}&limit=${limit}&last=true`;
+    liftwUrl = `https://api.liftw.ws/list?type=${liftwType}&page=${page}&limit=${fetchLimit}&last=true`;
   } else {
-    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&page=${page}&limit=${limit}&sort=popular`;
+    liftwUrl = `https://api.liftw.ws/list/categories?category=${liftwCategory}&page=${page}&limit=${fetchLimit}&sort=popular`;
   }
 
   try {
@@ -1464,7 +1508,11 @@ app.get('/api/catalog/list', async (c: Context) => {
       return c.json([], 200);
     }
 
-    const items = data.map(item => mapLiftwItem(item, isTv)).filter(Boolean);
+    const items = data
+      .map(item => mapLiftwItem(item, isTv))
+      .filter(Boolean)
+      .filter((it: any) => !hideDomestic || !isRussianOrigin(it))
+      .slice(0, limit);
 
     const response = c.json(items, 200, {
       'Cache-Control': 'public, max-age=1800, s-maxage=43200',

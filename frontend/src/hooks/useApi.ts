@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
-import { deduplicateMediaList } from '../utils/mediaUtils';
+import { deduplicateMediaList, isRussianOrigin, isNonRussianLang } from '../utils/mediaUtils';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
@@ -357,7 +357,7 @@ export function useApi() {
 
     return withLoading(async () => {
       try {
-        const url = `${CF_API_BASE}/search/liftw?q=${encodeURIComponent(cleanTitle)}`;
+        const url = `${CF_API_BASE}/search/liftw?q=${encodeURIComponent(cleanTitle)}&lang=${encodeURIComponent(language)}`;
         const res = await fetch(url, { signal });
         if (!res.ok) return [];
         const data = await res.json() as { results?: any[] };
@@ -367,7 +367,8 @@ export function useApi() {
           throw new DOMException('Search aborted', 'AbortError');
         }
 
-        return list.map((item: any) => ({
+        const visible = isNonRussianLang(language) ? list.filter((it: any) => !isRussianOrigin(it)) : list;
+        return visible.map((item: any) => ({
           id: item.id,
           liftw_id: item.liftw_id,
           title: item.title || item.name,
@@ -388,11 +389,11 @@ export function useApi() {
         return [];
       }
     });
-  }, [withLoading]);
+  }, [withLoading, language]);
 
   const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
-      const cacheKey = `catalog_list_v7_movie_${page}_${genreId || ''}_${sortBy}`;
+      const cacheKey = `catalog_list_v8_movie_${page}_${genreId || ''}_${sortBy}_${language}`;
       const cached = clientCache.get<any[]>(cacheKey);
       if (cached) return cached;
 
@@ -402,6 +403,7 @@ export function useApi() {
           page: String(page),
           genre: genreId ? String(genreId) : '',
           sort: sortBy,
+          lang: language,
         });
         const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
           signal: AbortSignal.timeout(7000),
@@ -409,18 +411,19 @@ export function useApi() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            clientCache.set(cacheKey, data, 86400);
-            return data;
+            const visible = isNonRussianLang(language) ? data.filter((it: any) => !isRussianOrigin(it)) : data;
+            clientCache.set(cacheKey, visible, 86400);
+            return visible;
           }
         }
       } catch (_) {}
       return [];
     });
-  }, [withLoading]);
+  }, [withLoading, language]);
 
   const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
-      const cacheKey = `catalog_list_v7_tv_${page}_${genreId || ''}_${sortBy}`;
+      const cacheKey = `catalog_list_v8_tv_${page}_${genreId || ''}_${sortBy}_${language}`;
       const cached = clientCache.get<any[]>(cacheKey);
       if (cached) return cached;
 
@@ -430,6 +433,7 @@ export function useApi() {
           page: String(page),
           genre: genreId ? String(genreId) : '',
           sort: sortBy,
+          lang: language,
         });
         const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
           signal: AbortSignal.timeout(7000),
@@ -437,14 +441,15 @@ export function useApi() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            clientCache.set(cacheKey, data, 86400);
-            return data;
+            const visible = isNonRussianLang(language) ? data.filter((it: any) => !isRussianOrigin(it)) : data;
+            clientCache.set(cacheKey, visible, 86400);
+            return visible;
           }
         }
       } catch (_) {}
       return [];
     });
-  }, [withLoading]);
+  }, [withLoading, language]);
 
   const fetchGenres = useCallback(async (type: 'movie' | 'tv'): Promise<Genre[]> => {
     try {
@@ -619,12 +624,15 @@ export function useApi() {
         if (cfFeedRes.ok) {
           const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
           if (Array.isArray(feedData?.trending) && Array.isArray(feedData?.genres) && feedData.genres.length > 0) {
-            const trendingItems = deduplicateMediaList(feedData.trending);
+            // Client-side backstop: backend filters by lang, this covers stale caches.
+            const hideDomestic = isNonRussianLang(language);
+            const visible = (list: any[]) => hideDomestic ? list.filter((it: any) => !isRussianOrigin(it)) : list;
+            const trendingItems = deduplicateMediaList(visible(feedData.trending));
             const genreSections = feedData.genres.map((g) => ({
               id: g.id,
               name: g.name,
               genreId: g.genreId,
-              items: deduplicateMediaList(g.rawResults || []),
+              items: deduplicateMediaList(visible(g.rawResults || [])),
             }));
 
             const sections = [
@@ -671,6 +679,7 @@ export function useApi() {
               genre: String(g.id),
               page: '1',
               limit: '12',
+              lang: language,
             });
             const res = await fetch(`${CF_API_BASE}/catalog/list?${queryParams.toString()}`, {
               signal: AbortSignal.timeout(6000),
@@ -678,7 +687,8 @@ export function useApi() {
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data) && data.length > 0) {
-                const mapped = deduplicateMediaList(data);
+                const visible = isNonRussianLang(language) ? data.filter((it: any) => !isRussianOrigin(it)) : data;
+                const mapped = deduplicateMediaList(visible);
                 return {
                   id: String(g.id),
                   name: g.name,
@@ -699,7 +709,7 @@ export function useApi() {
       console.error('Failed to fetch additional categories:', e);
       return [];
     }
-  }, [fetchGenres]);
+  }, [fetchGenres, language]);
 
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
     const cleanQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120)) || 'popular';

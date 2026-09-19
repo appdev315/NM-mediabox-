@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApi, type Genre, CF_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream } from '../utils/streamPreloader';
-import { deduplicateMediaList } from '../utils/mediaUtils';
+import { deduplicateMediaList, isRussianOrigin, isNonRussianLang } from '../utils/mediaUtils';
 import { AvailBadge } from '../components/AvailBadge';
 import { useLanguage } from '../context/LanguageContext';
 import { TrailerFeed } from '../components/TrailerFeed';
@@ -260,11 +260,16 @@ export function Home() {
   }, [setScrollY]);
 
   const sanitizeSections = useCallback((secs: any[]) => {
+    // Client-side backstop for non-Russian UIs: backend filters by lang,
+    // this covers stale caches holding unfiltered lists.
+    const hideDomestic = isNonRussianLang(language);
     return (secs || []).map((sec: any) => ({
       ...sec,
-      items: deduplicateMediaList(sec.items || []),
+      items: deduplicateMediaList(
+        hideDomestic ? (sec.items || []).filter((it: any) => !isRussianOrigin(it)) : (sec.items || [])
+      ),
     }));
-  }, []);
+  }, [language]);
 
   const handleLoadMoreCategories = async () => {
     if (loadingMoreCategories) return;
