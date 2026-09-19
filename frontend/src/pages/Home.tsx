@@ -39,15 +39,17 @@ const MovieCard = React.memo(function MovieCard({
     return `${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
   }, [item.poster]);
 
+  const isAdultItem = item.isAdult || item.type === 'adult' || String(item.id).startsWith('ep_') || String(item.id).startsWith('rt_');
+
   return (
     <div 
       onPointerDown={() => {
-        if (!item.isAdult) prewarmStream(item.id, item);
+        if (!isAdultItem) prewarmStream(item.id, item);
       }}
       onClick={(e) => {
         e.stopPropagation();
         (document.activeElement as HTMLElement)?.blur();
-        if (!item.isAdult) prewarmStream(item.id, item);
+        if (!isAdultItem) prewarmStream(item.id, item);
         onNavigate(item.id, targetMediaType, undefined, {
           title: item.title || item.name,
           year: item.year,
@@ -345,7 +347,8 @@ export function Home() {
                 duration: v.duration,
                 views: v.views,
                 rating: v.rating,
-                type: 'adult'
+                type: 'adult',
+                isAdult: true
               }));
               setItems(adultItems);
             } catch (err) {
@@ -457,7 +460,7 @@ export function Home() {
 
   const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string, meta?: any) => {
     if (mediaType === 'adult') {
-      navigate(`/adult/${id}`);
+      navigate(`/adult/${id}`, { state: { title: meta?.title } });
       return;
     }
     const countryQuery = country ? `&country=${country}` : '';

@@ -29,6 +29,16 @@ export function prewarmStream(
 ): Promise<any> {
   if (!id) return Promise.resolve(null);
 
+  const strId = String(id);
+  if (
+    item.type === 'adult' || 
+    (item as any).isAdult || 
+    strId.startsWith('ep_') || 
+    strId.startsWith('rt_')
+  ) {
+    return Promise.resolve(null);
+  }
+
   const rawType = item.type || 'movie';
   const resolvedType = (rawType === 'series' || rawType === 'tv') ? 'tv' : 'movie';
   const streamCacheKey = `liftw_stream_v2_${id}_${resolvedType}`;

@@ -609,6 +609,16 @@ app.get('/api/liftw', async (c: Context) => {
     return c.json({ error: 'Title or liftw_id is required' }, 400);
   }
 
+  // Fast reject non-cinema / adult queries from hitting liftw movie donor
+  if (
+    vType === 'adult' || 
+    tmdb.startsWith('ep_') || 
+    tmdb.startsWith('rt_') ||
+    (liftwIdParam && (liftwIdParam.startsWith('ep_') || liftwIdParam.startsWith('rt_')))
+  ) {
+    return c.json({ error: 'Adult streams not supported on liftw cinema donor' }, 404);
+  }
+
   const canonicalType = (vType === 'tv' || vType === 'series') ? 'tv' : 'movie';
   const parsedUrl = new URL(c.req.url);
 
@@ -853,9 +863,12 @@ app.get('/api/liftw', async (c: Context) => {
   // Autonomous Sysadmin Incident logger (non-blocking via executionCtx)
   const recordIncident = (failType: string, status: string, note?: string) => {
     if (!c.env.DB) return;
-    // Guard: Only record incidents for verified catalog items with tmdb or liftw_id.
-    // Arbitrary user search terms (especially adult keywords or typos) must not pollute parsing_incidents.
-    if (!tmdb && !liftwIdParam) return;
+    // Guard: Only record incidents for verified cinema catalog items with numeric TMDB or numeric Liftw ID.
+    // Arbitrary user search terms, adult keywords (ep_*, rt_*), or non-catalog items must NEVER pollute parsing_incidents.
+    const isNumericTmdb = Boolean(tmdb && /^\d+$/.test(tmdb));
+    const isNumericLiftw = Boolean(liftwIdParam && /^\d+$/.test(liftwIdParam));
+    if (!isNumericTmdb && !isNumericLiftw) return;
+    if (vType === 'adult' || tmdb.startsWith('ep_') || tmdb.startsWith('rt_')) return;
     c.executionCtx.waitUntil((async () => {
       try {
         await c.env.DB.prepare(

@@ -35,8 +35,9 @@ export function AdultVideo() {
 
         if (data) {
           stopAudio();
-          setDetails(data);
-          trackOpen('adult', data.title || 'Video', String(data.id || id));
+          const videoTitle = location.state?.title || data.title || 'Video';
+          setDetails({ ...data, title: videoTitle });
+          trackOpen('adult', videoTitle, String(data.id || id));
 
           // Save to adult history
           try {
@@ -44,7 +45,7 @@ export function AdultVideo() {
             hist = hist.filter((item: any) => item.id !== data.id);
             hist.unshift({
               id: data.id,
-              title: data.title || 'Video',
+              title: videoTitle,
               poster: data.poster || '',
               duration: data.duration || '',
               type: 'adult'
@@ -135,7 +136,7 @@ export function AdultVideo() {
                   <React.Fragment key={v.id}>
                     <div 
                       className="cursor-pointer"
-                      onClick={() => navigate(`/adult/${v.id}`, { state: location.state })}
+                      onClick={() => navigate(`/adult/${v.id}`, { state: { ...location.state, title: v.title } })}
                     >
                       <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
                         <img 

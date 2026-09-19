@@ -62,7 +62,7 @@ export function AdultFavorites() {
               <div 
                 key={`${v.id}-${idx}`} 
                 className="cursor-pointer active:scale-95 transition-transform group relative"
-                onClick={() => navigate(`/adult/${v.id}`)}
+                onClick={() => navigate(`/adult/${v.id}`, { state: { title: v.title } })}
               >
                 <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative shadow-lg group-hover:shadow-xl transition-shadow bg-[var(--hint-color)]">
                   <img 

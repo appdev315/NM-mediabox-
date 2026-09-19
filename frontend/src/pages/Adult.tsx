@@ -382,7 +382,7 @@ export function Adult() {
               <React.Fragment key={`${v.id}-${idx}`}>
                 <div 
                   className="cursor-pointer"
-                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || country || category } })}
+                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || country || category, title: v.title } })}
                 >
                   <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
                     <img 
