@@ -14,6 +14,7 @@ export interface StreamItemMeta {
   original_title?: string;
   original_name?: string;
   title_ru?: string;
+  liftw_id?: string | number;
   release_date?: string;
   isUpcoming?: boolean;
 }
@@ -77,14 +78,19 @@ export function prewarmStream(
   const ru = language === 'ru-RU' ? (item.title_ru || title) : '';
 
   const rawYear = item.year || (item.release_date ? String(item.release_date).slice(0, 4) : '');
-  const bgQuery = new URLSearchParams({
+  const bgQueryParams: Record<string, string> = {
     title,
     year: String(rawYear || ''),
     type: resolvedType,
     tmdb: String(id),
     title_ru: ru,
     original_title: orig,
-  }).toString();
+  };
+  const effectiveLiftwId = item.liftw_id || (String(id).startsWith('liftw_') ? String(id).replace(/^liftw_/, '') : undefined);
+  if (effectiveLiftwId) {
+    bgQueryParams.liftw_id = String(effectiveLiftwId);
+  }
+  const bgQuery = new URLSearchParams(bgQueryParams).toString();
 
   const promise = (async () => {
     try {

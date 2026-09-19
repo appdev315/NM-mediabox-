@@ -143,13 +143,14 @@ export function Movie() {
 
   // Fetch TMDB episode details (air_date, names) for the active season
   useEffect(() => {
-    if (!id || !isTvSeries || String(id).startsWith('liftw_')) return;
+    const tmdbId = movie?.id && !String(movie.id).startsWith('liftw_') ? movie.id : (!String(id).startsWith('liftw_') ? id : null);
+    if (!tmdbId || !isTvSeries) return;
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
     const sNum = parseInt(currentSeason, 10);
     if (isNaN(sNum) || sNum <= 0) return;
 
     let isSubscribed = true;
-    fetchSeasonDetails(id, sNum).then((data: any) => {
+    fetchSeasonDetails(tmdbId, sNum).then((data: any) => {
       if (!isSubscribed || !data?.episodes) return;
       const metaMap: Record<string, { air_date?: string; name?: string }> = {};
       data.episodes.forEach((ep: any) => {
@@ -166,7 +167,7 @@ export function Movie() {
     return () => {
       isSubscribed = false;
     };
-  }, [id, isTvSeries, activeSeason, sortedSeasons, fetchSeasonDetails]);
+  }, [id, movie?.id, isTvSeries, activeSeason, sortedSeasons, fetchSeasonDetails]);
 
   const formatAirDate = useCallback((dateStr?: string) => {
     if (!dateStr) return '';
@@ -354,7 +355,13 @@ export function Movie() {
         if (!data) return;
 
         // Timecode tracking for playback position resilience
-        if (data.event === 'timeupdate' || data.type === 'timeupdate' || data.event === 'time' || data.type === 'time') {
+        if (
+          data.event === 'timeupdate' || 
+          data.type === 'timeupdate' || 
+          data.event === 'time' || 
+          data.type === 'time' || 
+          data.event === 'viewProgress'
+        ) {
           const time = data.time || data.currentTime || data.position;
           if (typeof time === 'number' && time > 0 && currentMediaKey) {
             saveTimecode(currentMediaKey, time);
@@ -1120,19 +1127,7 @@ export function Movie() {
                   ▶ {t('watchTrailerOfficial') || t('playTrailer') || 'Смотреть трейлер'}
                 </button>
               )}
-              <button
-                onClick={() => {
-                  if (id) {
-                    clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
-                  }
-                  handleWatch(true);
-                }}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow flex items-center justify-center gap-2 cursor-pointer border border-blue-500/30 hover:border-blue-500/60"
-                style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
-              >
-                🔄 {t('retry') || 'Обновить и повторить поиск'}
-              </button>
-              
+
               <button
                 onClick={() => navigate('/')}
                 className="text-xs font-semibold opacity-70 hover:opacity-100 transition-opacity mt-1 cursor-pointer"

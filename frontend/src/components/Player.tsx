@@ -99,41 +99,15 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const hasReceivedPlayerMessageRef = useRef(false);
   const fallbackNavTimerRef = useRef<any>(null);
 
-  if (activeSourceKeyRef.current !== sourceKey) {
+  const lastTargetEpKeyRef = useRef('');
+  const targetEpKey = targetEpisode ? `${targetEpisode.season}_${targetEpisode.episode}` : '';
+
+  if (activeSourceKeyRef.current !== sourceKey || (targetEpKey && targetEpKey !== lastTargetEpKeyRef.current)) {
     activeSourceKeyRef.current = sourceKey;
+    lastTargetEpKeyRef.current = targetEpKey;
     setLockedSrc(currentUrl);
     hasReceivedPlayerMessageRef.current = false;
   }
-
-  // Fallback timer: if postMessage burst does not confirm episode change within 12s, fallback to updating lockedSrc
-  useEffect(() => {
-    if (!targetEpisode) return;
-
-    // Do not run fallback reload on initial episode mount (lockedSrc already embeds initial episode)
-    const isInitialSeasonEp = initialEpisodeRef.current &&
-      targetEpisode.season === initialEpisodeRef.current.season &&
-      targetEpisode.episode === initialEpisodeRef.current.episode;
-    if (isInitialSeasonEp) return;
-
-    if (fallbackNavTimerRef.current) {
-      clearTimeout(fallbackNavTimerRef.current);
-      fallbackNavTimerRef.current = null;
-    }
-
-    fallbackNavTimerRef.current = setTimeout(() => {
-      // Only fallback reload if sync wasn't confirmed and player isn't responding via postMessage
-      if (!syncDoneRef.current && !hasReceivedPlayerMessageRef.current) {
-        setLockedSrc(currentUrl);
-      }
-    }, 12000);
-
-    return () => {
-      if (fallbackNavTimerRef.current) {
-        clearTimeout(fallbackNavTimerRef.current);
-        fallbackNavTimerRef.current = null;
-      }
-    };
-  }, [targetEpisode, currentUrl]);
 
   // Verified donor commands: adFree (player-venom) + playlist hook/go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
@@ -208,23 +182,24 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (!data || typeof data !== 'object') return;
+        hasReceivedPlayerMessageRef.current = true;
 
         if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
-          // Note: Do NOT set syncDoneRef.current = true or clear sync timers here!
-          // Zenith embed passively posts { event: 'changeEpisode', season: 1, episode: '1' }
-          // during initial HTML parse before player-venom is downloaded or ready to autoplay.
-          if (fallbackNavTimerRef.current && currentTargetRef.current.season && currentTargetRef.current.episode) {
+          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
             const sCur = parseInt(currentTargetRef.current.season, 10);
             const eCur = parseInt(currentTargetRef.current.episode, 10);
             const sMsg = parseInt(s, 10);
             const eMsg = parseInt(e, 10);
             if (!isNaN(sCur) && !isNaN(eCur) && sCur === sMsg && eCur === eMsg) {
-              clearTimeout(fallbackNavTimerRef.current);
-              fallbackNavTimerRef.current = null;
+              syncDoneRef.current = true;
+              clearSyncTimers();
+              if (fallbackNavTimerRef.current) {
+                clearTimeout(fallbackNavTimerRef.current);
+                fallbackNavTimerRef.current = null;
+              }
             }
           }
         }
@@ -236,8 +211,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             sendPlayCommands();
           }
         }
-        // Genuine playback verification: only stop retries once playback or ad actually commences
-        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate') {
+        // Genuine playback verification: stop retries once playback or ad actually commences
+        if (
+          data.event === 'adStart' || 
+          data.event === 'startWatching' || 
+          data.event === 'timeupdate' || 
+          data.event === 'viewProgress' || 
+          data.event === 'play'
+        ) {
           syncDoneRef.current = true;
           clearSyncTimers();
           if (fallbackNavTimerRef.current) {
@@ -310,12 +291,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     setIframeLoaded(true);
     onReady?.();
 
-    // Single transport: if episode already selected by user, run burst; otherwise send adFree for movies
-    if (targetEpisode) {
-      startSyncBurst(targetEpisode.season, targetEpisode.episode);
-    } else {
-      sendPlayCommands();
-    }
+    // The iframe URL already embeds target season and episode in its src query params.
+    // Send single play/adFree handshake once on mount without race-inducing episode bursts.
+    sendPlayCommands();
   };
 
   // Power-Optimized WakeLock Lifecycle Management
