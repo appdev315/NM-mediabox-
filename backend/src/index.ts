@@ -1024,6 +1024,16 @@ export function isNonRussianLang(lang: string): boolean {
   return !String(lang || '').toLowerCase().startsWith('ru');
 }
 
+// Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
+// (forced reset without waiting for s-maxage TTLs to expire).
+const EDGE_CACHE_NS = 'cv2';
+
+export function edgeCacheKey(c: any, url?: string): Request {
+  const raw = url || c.req.url;
+  const sep = raw.includes('?') ? '&' : '?';
+  return new Request(`${raw}${sep}cv=${EDGE_CACHE_NS}`, { method: 'GET' });
+}
+
 // --- DIRECT LIFTW CATALOG SEARCH ---
 app.get('/api/search/liftw', async (c: Context) => {
   const query = (c.req.query('q') || c.req.query('query') || '').trim();
@@ -1036,7 +1046,7 @@ app.get('/api/search/liftw', async (c: Context) => {
   const edgeCache = (caches as any).default;
   const parsedUrl = new URL(c.req.url);
   const cacheKeyUrl = `${parsedUrl.origin}/api/search/liftw?q=${encodeURIComponent(query.toLowerCase())}&type=${encodeURIComponent(vType)}&lang=${encodeURIComponent(lang)}`;
-  const cacheReq = new Request(cacheKeyUrl, { method: 'GET' });
+  const cacheReq = edgeCacheKey(c, cacheKeyUrl);
 
   try {
     const cached = await edgeCache.match(cacheReq);
@@ -1231,7 +1241,7 @@ app.get('/api/feed/trailers', async (c: Context) => {
   const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
 
   const edgeCache = (caches as any).default;
-  const cacheReq = new Request(c.req.url, { method: 'GET' });
+  const cacheReq = edgeCacheKey(c);
 
   try {
     const cachedResponse = await edgeCache.match(cacheReq);
@@ -1354,7 +1364,7 @@ app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
   const lang = c.req.query('lang') || 'ru-RU';
   const edgeCache = (caches as any).default;
-  const cacheReq = new Request(c.req.url, { method: 'GET' });
+  const cacheReq = edgeCacheKey(c);
 
   try {
     const cachedResponse = await edgeCache.match(cacheReq);
@@ -1474,7 +1484,7 @@ app.get('/api/catalog/list', async (c: Context) => {
   const fetchLimit = hideDomestic ? Math.min(30, limit * 2) : limit;
 
   const edgeCache = (caches as any).default;
-  const cacheReq = new Request(c.req.url, { method: 'GET' });
+  const cacheReq = edgeCacheKey(c);
 
   try {
     const cachedResponse = await edgeCache.match(cacheReq);
