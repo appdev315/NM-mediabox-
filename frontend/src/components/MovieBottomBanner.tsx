@@ -58,7 +58,7 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
           <div className="flex justify-center items-center w-[728px] h-[90px] max-w-full rounded-xl overflow-hidden bg-[#12141a]/60 border border-white/10 shadow-lg">
             <iframe
               ref={iframeRef}
-              src={`/adsterra-movie-leaderboard?v=1&slot=${slotId}`}
+              src={`/adsterra-movie-leaderboard.html?v=1&slot=${slotId}`}
               width="728"
               height="90"
               scrolling="no"
@@ -72,7 +72,7 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
           <div className="flex justify-center items-center w-[320px] h-[50px] max-w-full rounded-xl overflow-hidden bg-[#12141a]/60 border border-white/10 shadow-md">
             <iframe
               ref={iframeRef}
-              src={`/adsterra-movie-mobile-banner?v=1&slot=${slotId}`}
+              src={`/adsterra-movie-mobile-banner.html?v=1&slot=${slotId}`}
               width="320"
               height="50"
               scrolling="no"
