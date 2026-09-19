@@ -160,43 +160,31 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [targetEpisode, currentUrl]);
 
-  // Verified donor commands: adFree (player-venom) + playlist hook/go (embed page).
+  // Verified donor commands: adFree (player-venom) + playlist go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        // 1. Establish Zenith hook handshake
-        iframeRef.current.contentWindow.postMessage('playlist hook', '*');
-
-        // 2. Skip donor's VAST ad-wait and trigger instant playback
+        // 1. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
           '*'
         );
 
-        // 3. For series: command target season and episode if provided
+        // 2. For series: command target season and episode if provided
         if (targetSeason || targetEp) {
           const sNum = parseInt(targetSeason || '1', 10);
           const eNum = parseInt(targetEp || '1', 10);
-          const eStr = String(targetEp || '1');
           iframeRef.current.contentWindow.postMessage(
             { event: 'playlist go', season: sNum, episode: eNum },
             '*'
           );
-          iframeRef.current.contentWindow.postMessage(
-            { event: 'playlist go', season: sNum, episode: eStr },
-            '*'
-          );
-          iframeRef.current.contentWindow.postMessage(
-            'playlist hooked play',
-            '*'
-          );
-        } else {
-          // For movies or initial autoplay
-          iframeRef.current.contentWindow.postMessage(
-            'playlist hooked play',
-            '*'
-          );
         }
+
+        // 3. Command play
+        iframeRef.current.contentWindow.postMessage(
+          'playlist hooked play',
+          '*'
+        );
       }
     } catch (_) {}
   }, []);
@@ -222,7 +210,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
     fireSync();
 
-    const retryDelays = [200, 500, 1000, 1800, 2600, 4200];
+    const retryDelays = [300, 800, 1600, 3000];
     retryDelays.forEach(delay => {
       syncTimersRef.current.push(setTimeout(fireSync, delay));
     });
@@ -239,18 +227,19 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
-          // Note: Do NOT set syncDoneRef.current = true or clear sync timers here!
-          // Zenith embed passively posts { event: 'changeEpisode', season: 1, episode: '1' }
-          // during initial HTML parse before player-venom is downloaded or ready to autoplay.
-          if (fallbackNavTimerRef.current && currentTargetRef.current.season && currentTargetRef.current.episode) {
+          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
             if (s === currentTargetRef.current.season && e === currentTargetRef.current.episode) {
-              clearTimeout(fallbackNavTimerRef.current);
-              fallbackNavTimerRef.current = null;
+              syncDoneRef.current = true;
+              clearSyncTimers();
+              if (fallbackNavTimerRef.current) {
+                clearTimeout(fallbackNavTimerRef.current);
+                fallbackNavTimerRef.current = null;
+              }
             }
           }
         }
         if (data.event === 'playerReady') {
-          // player-venom scripts loaded and mounted - fire immediate burst
+          // player-venom scripts loaded and mounted - fire immediate play command
           if (currentTargetRef.current.season || currentTargetRef.current.episode) {
             sendPlayCommands(currentTargetRef.current.season, currentTargetRef.current.episode);
           } else {
@@ -284,7 +273,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       const token = targetEpisode.token ?? Date.now();
       if (token !== lastTargetTokenRef.current) {
         lastTargetTokenRef.current = token;
-        startSyncBurst(targetEpisode.season, targetEpisode.episode);
+        // Skip burst if player already mounts with this exact season and episode in URL query params
+        const isInitialSeasonEp = initialEpisodeRef.current &&
+          targetEpisode.season === initialEpisodeRef.current.season &&
+          targetEpisode.episode === initialEpisodeRef.current.episode;
+        if (!isInitialSeasonEp) {
+          startSyncBurst(targetEpisode.season, targetEpisode.episode);
+        }
       }
     }
   }, [targetEpisode, startSyncBurst]);

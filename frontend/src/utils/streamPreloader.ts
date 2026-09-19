@@ -76,9 +76,10 @@ export function prewarmStream(
   const orig = item.original_title || item.original_name || '';
   const ru = language === 'ru-RU' ? (item.title_ru || title) : '';
 
+  const rawYear = item.year || (item.release_date ? String(item.release_date).slice(0, 4) : '');
   const bgQuery = new URLSearchParams({
     title,
-    year: String(item.year || ''),
+    year: String(rawYear || ''),
     type: resolvedType,
     tmdb: String(id),
     title_ru: ru,
@@ -87,14 +88,6 @@ export function prewarmStream(
 
   const promise = (async () => {
     try {
-      // Tracks whether at least one backend answered definitively
-      // (HTTP-level response without iframe = missing; throw/timeout = transient)
-      let sawDefinitiveMiss = false;
-      const tapDefinitive = (res: any) => {
-        if (res && !res.iframe) sawDefinitiveMiss = true;
-        return res;
-      };
-
       // 1. Query Cloudflare Edge (primary edge, 0 redundant backend hits)
       let data: any = null;
       try {
@@ -106,7 +99,6 @@ export function prewarmStream(
         });
         if (cfRes.ok) {
           const cfJson = await cfRes.json();
-          tapDefinitive(cfJson);
           if (cfJson && cfJson.iframe) {
             data = cfJson;
           }
@@ -117,9 +109,6 @@ export function prewarmStream(
         const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies
         clientCache.set(streamCacheKey, data, ttlSeconds);
         setAvailability(resolvedType, id, 'available');
-      } else if (sawDefinitiveMiss) {
-        // Negative cache (2h): repeat opens skip network until expiry or manual retry
-        setAvailability(resolvedType, id, 'missing');
       }
       return data;
     } catch (_) {

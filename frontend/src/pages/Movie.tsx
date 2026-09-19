@@ -539,11 +539,11 @@ export function Movie() {
         }
 
         prewarmStream(id, {
-          title: d?.title || d?.name || '',
-          year: d?.year || '',
+          title: d?.name || d?.title || '',
+          year: d?.year || (d?.first_air_date ? d.first_air_date.slice(0, 4) : (d?.release_date ? d.release_date.slice(0, 4) : '')),
           type: resolvedType,
-          original_title: d?.original_title || '',
-          title_ru: (d as any)?.title_ru || (language === 'ru-RU' ? (d?.title || '') : ''),
+          original_title: d?.original_name || d?.original_title || '',
+          title_ru: (d as any)?.title_ru || (language === 'ru-RU' ? (d?.name || d?.title || '') : ''),
           release_date: d?.release_date || d?.first_air_date || '',
           isUpcoming: Boolean(d?.isUpcoming),
         }, language).then(streamData => {
@@ -659,9 +659,10 @@ export function Movie() {
     }, 100);
 
     try {
+      const rawYear = (movie as any).year || ((movie as any).first_air_date ? String((movie as any).first_air_date).slice(0, 4) : ((movie as any).release_date ? String((movie as any).release_date).slice(0, 4) : ''));
       const queryParams: Record<string, string> = {
-        title: (movie as any).title || (movie as any).name || '',
-        year: (movie as any).year || '',
+        title: (movie as any).name || (movie as any).title || '',
+        year: rawYear || '',
         type: mediaType,
         tmdb: (movie as any).id?.toString() || '',
         imdb: (movie as any).imdb_id || ''
@@ -740,10 +741,7 @@ export function Movie() {
           liftwData = await inFlightStreamMap.get(streamCacheKey);
         }
 
-        // Fresh negative signal (missing ≤2h): skip network unless user forces retry
-        const freshMiss = !forceRefresh && !liftwData && getAvailability(mediaType, id) === 'missing';
-
-        if (!liftwData && !freshMiss) {
+        if (!liftwData) {
           const tryFetchLiftw = async (baseUrl: string, timeoutMs: number) => {
             const timeoutCtrl = new AbortController();
             const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
