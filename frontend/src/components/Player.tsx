@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { WebApp } from '../telegram';
+import { useLanguage } from '../context/LanguageContext';
 
 export interface TargetEpisode {
   season: string;
@@ -19,6 +20,7 @@ interface PlayerProps {
 }
 
 export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange }: PlayerProps) {
+  const { t } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
@@ -633,7 +635,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}
         >
           <span className="text-base">🔄</span>
-          <span>Поверните телефон для полного экрана</span>
+          <span>{t('rotateDeviceHint')}</span>
         </div>
       )}
     </div>
