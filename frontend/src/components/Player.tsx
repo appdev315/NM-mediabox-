@@ -643,7 +643,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           }}
           aria-label="Во весь экран"
           title="Во весь экран"
-          className="absolute bottom-0 right-0 w-7 h-7 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
+          className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
           style={{ touchAction: 'manipulation' }}
         />
       )}
