@@ -391,17 +391,11 @@ export function Adult() {
                       alt="" 
                       loading="lazy"
                       decoding="async"
+                      referrerPolicy="no-referrer"
                       onError={(e) => {
                         const img = e.currentTarget;
-                        const src = img.src;
-                        if (src.includes('thumb-cdn77.xvideos-cdn.com')) {
-                          img.src = src.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
-                        } else if (src.includes('thumbs-gcore.xvideos-cdn.com')) {
-                          img.src = src.replace('thumbs-gcore.xvideos-cdn.com', 'static-ss.xvideos-cdn.com');
-                        } else {
-                          img.onerror = null;
-                          img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
-                        }
+                        img.onerror = null;
+                        img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
                       }}
                     />
                     <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">

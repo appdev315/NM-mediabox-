@@ -83,6 +83,7 @@ const MovieCard = React.memo(function MovieCard({
           className="w-full h-full object-cover"
           loading="lazy"
           decoding="async"
+          referrerPolicy="no-referrer"
           onError={(e) => {
             const currentSrc = e.currentTarget.src;
             if (currentSrc && currentSrc.includes('image.tmdb.org') && !e.currentTarget.dataset.proxied) {
@@ -92,10 +93,6 @@ const MovieCard = React.memo(function MovieCard({
                 e.currentTarget.src = `${CF_API_BASE}/image?path=${match[0]}`;
                 return;
               }
-            }
-            if (currentSrc && currentSrc.includes('thumb-cdn77.xvideos-cdn.com')) {
-              e.currentTarget.src = currentSrc.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
-              return;
             }
             e.currentTarget.onerror = null;
             e.currentTarget.src = isAdultItem

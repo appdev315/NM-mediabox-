@@ -85,19 +85,19 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		adultSearchCache.Delete(cacheKey)
 	}
 
-	xvideosRes := scraper.SearchXvideos(r.Context(), q, page)
-	if xvideosRes == nil {
-		xvideosRes = []types.Video{}
+	adultRes := scraper.SearchAdult(r.Context(), q, page)
+	if adultRes == nil {
+		adultRes = []types.Video{}
 	}
 
-	dataBytes, err := json.Marshal(xvideosRes)
+	dataBytes, err := json.Marshal(adultRes)
 	if err != nil {
 		w.Write([]byte("[]"))
 		return
 	}
 
 	// Store in cache with 30 min TTL only if results found
-	if len(xvideosRes) > 0 {
+	if len(adultRes) > 0 {
 		adultSearchCache.Store(cacheKey, adultCacheEntry{
 			data: string(dataBytes),
 			exp:  time.Now().Add(30 * time.Minute),
@@ -125,7 +125,7 @@ func detailsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	details := scraper.XvideosDetails(id)
+	details := scraper.AdultDetails(id)
 
 	if details != nil {
 		dataBytes, err := json.Marshal(details)

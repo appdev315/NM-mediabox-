@@ -1100,7 +1100,7 @@ export function useApi() {
       return streamData;
     }
 
-    // 2. Secondary fallback: Express / Go backend for legacy xvideos IDs
+    // 2. Secondary fallback: Go backend details API
     try {
       const initData = WebApp?.initData || '';
       const headers = { 

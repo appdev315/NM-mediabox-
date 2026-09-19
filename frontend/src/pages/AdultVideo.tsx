@@ -87,7 +87,7 @@ export function AdultVideo() {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loadingVideo')}</div>;
   }
 
-  if (!details || (!details.iframe && !details.mp4)) {
+  if (!details || !details.iframe) {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('videoNotFound')}</div>;
   }
 
@@ -102,17 +102,7 @@ export function AdultVideo() {
         <div id="video-player-container">
 
           <div className="relative w-full md:w-[80%] mx-auto aspect-video rounded-lg overflow-hidden bg-black shadow-xl mb-8 flex items-center justify-center">
-            {details.mp4 ? (
-              <video
-                src={details.mp4}
-                className="w-full h-full object-contain"
-                controls
-                autoPlay
-                playsInline
-              />
-            ) : details.iframe ? (
-              <Player iframeUrl={details.iframe} mirrors={details.mirrors} />
-            ) : null}
+            <Player iframeUrl={details.iframe} mirrors={details.mirrors} />
           </div>
         </div>
         
@@ -145,17 +135,11 @@ export function AdultVideo() {
                           alt="" 
                           loading="lazy"
                           decoding="async"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             const img = e.currentTarget;
-                            const src = img.src;
-                            if (src.includes('thumb-cdn77.xvideos-cdn.com')) {
-                              img.src = src.replace('thumb-cdn77.xvideos-cdn.com', 'thumbs-gcore.xvideos-cdn.com');
-                            } else if (src.includes('thumbs-gcore.xvideos-cdn.com')) {
-                              img.src = src.replace('thumbs-gcore.xvideos-cdn.com', 'static-ss.xvideos-cdn.com');
-                            } else {
-                              img.onerror = null;
-                              img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
-                            }
+                            img.onerror = null;
+                            img.src = 'https://placehold.co/400x300/242f3d/ffffff?text=No+Preview';
                           }}
                         />
                         <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">

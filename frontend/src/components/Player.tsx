@@ -27,50 +27,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   useEffect(() => { iframeLoadedRef.current = iframeLoaded; }, [iframeLoaded]);
   const [mirrorIndex, setMirrorIndex] = useState(0);
 
-  // Determine provider type
-  const provider = useMemo(() => {
-    if (iframeUrl.includes('xvideos') || iframeUrl.includes('xv-ru')) return 'xvideos';
-    return 'generic';
-  }, [iframeUrl]);
-
-  // Compute full mirror list (xvideos.com first, xv-ru purged due to Cloudflare 429)
+  // Compute full mirror list
   const activeMirrors = useMemo(() => {
     if (mirrors && mirrors.length > 0) {
-      return mirrors
-        .map(m => m.replace('www.xv-ru.com', 'www.xvideos.com'))
-        .filter(m => !m.includes('xv-ru.com'));
-    }
-
-    if (provider === 'xvideos') {
-      const match = iframeUrl.match(/\/embedframe\/([^/?#]+)/);
-      const id = match ? match[1] : '';
-      if (id) {
-        return [
-          `https://www.xvideos.com/embedframe/${id}`,
-          `https://www.xvideos2.com/embedframe/${id}`,
-          `https://www.xvideos3.com/embedframe/${id}`,
-          `https://www.xvideos.es/embedframe/${id}`
-        ];
-      }
+      return mirrors;
     }
     return [iframeUrl];
-  }, [iframeUrl, mirrors, provider]);
+  }, [iframeUrl, mirrors]);
 
-  // Read stored working mirror preference on launch, purging any stale xv-ru
-  useEffect(() => {
-    if (provider !== 'generic') {
-      const savedDomain = localStorage.getItem(`preferred_mirror_${provider}`);
-      if (savedDomain && savedDomain.includes('xv-ru')) {
-        localStorage.removeItem(`preferred_mirror_${provider}`);
-      } else if (savedDomain) {
-        const foundIdx = activeMirrors.findIndex(m => m.includes(savedDomain));
-        if (foundIdx !== -1 && foundIdx !== mirrorIndex) {
-          setMirrorIndex(foundIdx);
-          return;
-        }
-      }
-    }
-  }, [activeMirrors, provider, mirrorIndex]);
 
   const rawUrl = activeMirrors[mirrorIndex] || iframeUrl;
 
@@ -343,12 +307,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const handleIframeLoad = () => {
     setIframeLoaded(true);
     onReady?.();
-    if (provider !== 'generic') {
-      try {
-        const parsed = new URL(lockedSrc);
-        localStorage.setItem(`preferred_mirror_${provider}`, parsed.hostname);
-      } catch (e) {}
-    }
 
     // Single transport: if episode already selected by user, run burst; otherwise send adFree for movies
     if (targetEpisode) {
