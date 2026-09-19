@@ -880,7 +880,9 @@ export function Movie() {
     }
   };
 
-  const displayTitle = movie?.title || movie?.name || '';
+  const displayTitle = (language !== 'ru-RU' && (movie?.original_title || movie?.original_name))
+    ? (movie.original_title || movie.original_name)
+    : (movie?.title || movie?.name || '');
   const displayYear = movie?.year || (movie?.release_date ? movie.release_date.slice(0, 4) : '') || (movie?.first_air_date ? movie.first_air_date.slice(0, 4) : '');
   const seoTitle = displayTitle ? `${displayTitle}${displayYear ? ` (${displayYear})` : ''} — MediaBox` : 'MediaBox';
 

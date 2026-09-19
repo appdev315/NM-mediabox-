@@ -704,21 +704,28 @@ export function useApi() {
               const query = cleanOrigin || cleanRu;
               const year = lData.year || 0;
 
+              const isTv = (lData.liftwType === 3 || lData.type === 3 || (lData.episodes && Object.keys(lData.episodes).length > 0));
+              const resolvedType: 'movie' | 'tv' = isTv ? 'tv' : type;
+
               if (query) {
                 try {
-                  const searchRes = await tmdbFetch(`/search/${type}`, { query, ...(year > 0 ? { year } : {}) });
+                  const searchRes = await tmdbFetch(`/search/${resolvedType}`, { query, ...(year > 0 ? { year } : {}) });
                   const bestMatch = searchRes?.results?.[0];
                   if (bestMatch?.id) {
-                    const tmdbDetails = await fetchMovieDetails(bestMatch.id, type);
-                    return { ...tmdbDetails, liftw_id: liftwId };
+                    const tmdbDetails = await fetchMovieDetails(bestMatch.id, resolvedType);
+                    return { ...tmdbDetails, liftw_id: liftwId, episodes: lData.episodes || tmdbDetails.episodes };
                   }
                 } catch (_) {}
               }
 
+              const liftwTitle = (language !== 'ru-RU' && (lData.origin_name || lData.name))
+                ? (lData.origin_name || lData.name)
+                : lData.name;
+
               const liftwDetails = {
                 id: `liftw_${liftwId}`,
-                title: lData.name,
-                name: lData.name,
+                title: liftwTitle,
+                name: liftwTitle,
                 original_title: lData.origin_name || lData.name,
                 poster: lData.poster || '',
                 year: lData.year || '',
@@ -729,7 +736,7 @@ export function useApi() {
                 genres: (lData.info?.genre || []).map((g: string, idx: number) => ({ id: idx, name: g })),
                 cast: (lData.info?.actors || []).map((a: string, idx: number) => ({ id: idx, name: a })),
                 directors: (lData.info?.director || []).map((d: string, idx: number) => ({ id: idx, name: d })),
-                type: type === 'tv' ? 'series' : 'movie',
+                type: resolvedType === 'tv' ? 'series' : 'movie',
                 isLiftwOnly: true,
                 liftw_id: liftwId,
                 iframe: lData.iframe,

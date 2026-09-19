@@ -25,9 +25,13 @@ const MovieCard = React.memo(function MovieCard({
   comingSoonText,
   onNavigate,
 }: MovieCardProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   if (!item || !item.id) return null;
   const targetMediaType = item.type || mediaType;
+
+  const itemTitle = (language !== 'ru-RU' && (item.origin_name || item.original_title || item.original_name))
+    ? (item.origin_name || item.original_title || item.original_name)
+    : (item.title || item.name);
 
   const posterSrcSet = React.useMemo(() => {
     if (!item.poster || typeof item.poster !== 'string') return undefined;
@@ -51,7 +55,7 @@ const MovieCard = React.memo(function MovieCard({
         (document.activeElement as HTMLElement)?.blur();
         if (!isAdultItem) prewarmStream(item.id, item);
         onNavigate(item.id, targetMediaType, undefined, {
-          title: item.title || item.name,
+          title: itemTitle,
           year: item.year,
           liftw_id: item.liftw_id
         });
@@ -108,7 +112,7 @@ const MovieCard = React.memo(function MovieCard({
         {!isAdultItem && <AvailBadge type={targetMediaType} id={item.id} />}
       </div>
       <div className="mt-1 px-1">
-        <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{item.title}</h3>
+        <h3 className="font-bold text-sm leading-tight line-clamp-1 break-words">{itemTitle}</h3>
         <p className="text-[11px] opacity-70 mt-1 font-medium flex items-center gap-1.5 flex-wrap">
           {item.rating && item.rating > 0 && (
             <span className="flex items-center gap-1">
