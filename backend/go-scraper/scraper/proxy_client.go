@@ -90,3 +90,45 @@ func GetDirectHTTPClient(timeout time.Duration) *http.Client {
 		Transport: directTransport,
 	}
 }
+
+var adultProxyIndex uint32
+
+func GetAdultHTTPClient(timeout time.Duration) *http.Client {
+	proxyUrlStr := os.Getenv("ADULT_PROXY_URL")
+	if proxyUrlStr == "" {
+		proxyUrlStr = os.Getenv("PROXY_URL")
+	}
+	if proxyUrlStr == "" {
+		return GetDirectHTTPClient(timeout)
+	}
+
+	proxies := strings.Split(proxyUrlStr, ",")
+	var proxyList []string
+	for _, p := range proxies {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			if !strings.HasPrefix(trimmed, "http://") && !strings.HasPrefix(trimmed, "https://") && !strings.HasPrefix(trimmed, "socks5://") {
+				trimmed = "http://" + trimmed
+			}
+			proxyList = append(proxyList, trimmed)
+		}
+	}
+
+	if len(proxyList) == 0 {
+		return GetDirectHTTPClient(timeout)
+	}
+
+	// Rotate proxy index (works for single rotating endpoint or multi-proxy carousel)
+	idx := atomic.AddUint32(&adultProxyIndex, 1) % uint32(len(proxyList))
+	selectedProxy := proxyList[idx]
+
+	proxyUrl, err := url.Parse(selectedProxy)
+	if err != nil {
+		return GetDirectHTTPClient(timeout)
+	}
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: getOrCreateTransport(proxyUrl),
+	}
+}

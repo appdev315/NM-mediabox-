@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -279,39 +280,38 @@ func doLiftwGetRequest(ctx context.Context, client *http.Client, targetUrl strin
 }
 
 func fetchLiftwData(ctx context.Context, targetUrl string) (*http.Response, string, error) {
-	// Stage 1: Try via Proxy (if PROXY_URL configured) with short 1.5s timeout
-	proxyClient := scraper.GetHTTPClient(1500 * time.Millisecond)
-	res, err := doLiftwGetRequest(ctx, proxyClient, targetUrl)
-	if err == nil && res.StatusCode == 200 {
-		return res, "proxy", nil
+	// Query liftw directly (fast 2.5s) to protect proxy bandwidth for adult catalog
+	directClient := scraper.GetDirectHTTPClient(2500 * time.Millisecond)
+	directRes, directErr := doLiftwGetRequest(ctx, directClient, targetUrl)
+	if directErr == nil && directRes.StatusCode == 200 {
+		return directRes, "direct", nil
 	}
 
-	proxyFailReason := ""
-	if err != nil {
-		proxyFailReason = err.Error()
-	} else if res != nil {
-		proxyFailReason = fmt.Sprintf("status code %d", res.StatusCode)
-		res.Body.Close()
+	directFailReason := ""
+	if directErr != nil {
+		directFailReason = directErr.Error()
+	} else if directRes != nil {
+		directFailReason = fmt.Sprintf("status code %d", directRes.StatusCode)
+		directRes.Body.Close()
 	}
 
-	// If context was cancelled (e.g. early exit because another candidate won), do not attempt stage 2
 	if ctx.Err() != nil {
 		return nil, "", ctx.Err()
 	}
 
-	// Stage 2: Immediate direct fallback without proxy (2.5s)
-	directClient := scraper.GetDirectHTTPClient(2500 * time.Millisecond)
-	directRes, directErr := doLiftwGetRequest(ctx, directClient, targetUrl)
-	if directErr != nil {
-		return nil, "", fmt.Errorf("proxy failed (%s); direct failed: %w", proxyFailReason, directErr)
-	}
-	if directRes.StatusCode != 200 {
-		code := directRes.StatusCode
-		directRes.Body.Close()
-		return nil, "", fmt.Errorf("proxy failed (%s); direct status code %d", proxyFailReason, code)
+	// Optional fallback to LIFTW_PROXY_URL only if explicitly provided
+	if liftwProxy := os.Getenv("LIFTW_PROXY_URL"); liftwProxy != "" {
+		proxyClient := scraper.GetHTTPClient(2000 * time.Millisecond)
+		res, err := doLiftwGetRequest(ctx, proxyClient, targetUrl)
+		if err == nil && res.StatusCode == 200 {
+			return res, "proxy", nil
+		}
+		if res != nil {
+			res.Body.Close()
+		}
 	}
 
-	return directRes, "direct", nil
+	return nil, "", fmt.Errorf("liftw direct failed: %s", directFailReason)
 }
 
 func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear int, validTypesMap map[int]bool, lastErr *string) *LiftwSearchItem {

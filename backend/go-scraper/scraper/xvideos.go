@@ -83,7 +83,7 @@ func interleaveVideos(lists ...[]types.Video) []types.Video {
 }
 
 func searchXvideosHtml(ctx context.Context, cleanQ string, page int) []types.Video {
-	client := GetHTTPClient(5 * time.Second)
+	client := GetAdultHTTPClient(5 * time.Second)
 	domains := []string{"www.xvideos.com", "www.xvideos2.com", "www.xvideos3.com", "www.xvideos.es"}
 
 	tagQ := strings.ReplaceAll(cleanQ, " ", "-")
@@ -202,7 +202,7 @@ func searchRedtube(ctx context.Context, query string, page int) []types.Video {
 		q = "popular"
 	}
 	apiUrl := fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
-	client := &http.Client{Timeout: 6 * time.Second}
+	client := GetAdultHTTPClient(5 * time.Second)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {
 		return nil
@@ -210,6 +210,20 @@ func searchRedtube(ctx context.Context, query string, page int) []types.Video {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	res, err := client.Do(req)
+	// Resilient fallback: if proxy fails (e.g. 402 bandwidth limit or timeout), retry direct
+	if err != nil || res == nil || res.StatusCode != 200 {
+		if res != nil {
+			res.Body.Close()
+		}
+		if ctx.Err() == nil {
+			directClient := GetDirectHTTPClient(3 * time.Second)
+			reqDirect, errD := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
+			if errD == nil {
+				reqDirect.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+				res, err = directClient.Do(reqDirect)
+			}
+		}
+	}
 	if err != nil || res == nil || res.StatusCode != 200 {
 		if res != nil {
 			res.Body.Close()
@@ -263,7 +277,7 @@ func searchEporner(ctx context.Context, query string, page int) []types.Video {
 		q = "popular"
 	}
 	apiUrl := fmt.Sprintf("https://www.eporner.com/api/v2/video/search/?query=%s&per_page=30&page=%d&thumbsize=medium&format=json", url.QueryEscape(q), page+1)
-	client := &http.Client{Timeout: 6 * time.Second}
+	client := GetAdultHTTPClient(5 * time.Second)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {
 		return nil
@@ -271,6 +285,20 @@ func searchEporner(ctx context.Context, query string, page int) []types.Video {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	res, err := client.Do(req)
+	// Resilient fallback: if proxy fails (e.g. 402 bandwidth limit or timeout), retry direct
+	if err != nil || res == nil || res.StatusCode != 200 {
+		if res != nil {
+			res.Body.Close()
+		}
+		if ctx.Err() == nil {
+			directClient := GetDirectHTTPClient(3 * time.Second)
+			reqDirect, errD := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
+			if errD == nil {
+				reqDirect.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+				res, err = directClient.Do(reqDirect)
+			}
+		}
+	}
 	if err != nil || res == nil || res.StatusCode != 200 {
 		if res != nil {
 			res.Body.Close()
