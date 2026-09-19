@@ -101,15 +101,6 @@ export function setAvailability(
   hydrate();
   mem.set(entryKey(type, id), { status, ts: Date.now() });
   persist();
-  emit();
-}
-
-export function clearAvailability(type: string | undefined, id: string | number): void {
-  hydrate();
-  if (mem.delete(entryKey(type, id))) {
-    persist();
-    emit();
-  }
 }
 
 function subscribe(listener: () => void): () => void {

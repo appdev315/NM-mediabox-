@@ -44,9 +44,7 @@ export function usePlaybackResilience(options: UsePlaybackResilienceOptions = {}
   }, [isOnline, mediaId, onReconnect, getSavedTimecode]);
 
   return {
-    isOnline,
     savedTimecode,
     saveTimecode,
-    getSavedTimecode,
   };
 }

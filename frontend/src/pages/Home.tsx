@@ -358,7 +358,7 @@ export function Home() {
             }
           } else {
             const fetchFn = activeTab === 'movie' ? fetchMovies : fetchSeries;
-            const results = await fetchFn(page, selectedGenre, undefined, sortBy);
+            const results = await fetchFn(page, selectedGenre, sortBy);
             if (page === 1) {
               setItems(results || []);
             } else {
@@ -612,7 +612,7 @@ export function Home() {
                   </div>
                   {sIdx === 1 && (
                     <div className="my-6">
-                      <BannerAd variant="wide" type="adult" />
+                      <BannerAd />
                     </div>
                   )}
                   {sIdx === 2 && (

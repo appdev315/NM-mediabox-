@@ -84,7 +84,7 @@ function scheduleFlush() {
   }
 }
 
-export function track(event_type: string, payload: Partial<AnalyticsPayload> = {}, immediate = false) {
+function track(event_type: string, payload: Partial<AnalyticsPayload> = {}, immediate = false) {
   queue.push({ event_type, ...payload });
   if (immediate || queue.length >= MAX_BATCH) {
     flush();

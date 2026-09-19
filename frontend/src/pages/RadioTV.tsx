@@ -1073,7 +1073,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   {/* Exactly 1 Secret Room Ad Banner embedded seamlessly at index 8 */}
                   {idx === 8 && (
                     <div className="col-span-full w-full flex justify-center my-2">
-                      <BannerAd variant="wide" type="adult" />
+                      <BannerAd />
                     </div>
                   )}
                 </React.Fragment>

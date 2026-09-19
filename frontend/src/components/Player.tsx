@@ -12,7 +12,6 @@ interface PlayerProps {
   iframeUrl: string;
   mirrors?: string[];
   initialTimecode?: number;
-  mediaId?: string | number;
   onReady?: () => void;
   targetEpisode?: TargetEpisode | null;
   onEpisodeChange?: (season: string, episode: string) => void;

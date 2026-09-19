@@ -23,7 +23,6 @@ interface HomeState {
   setIsSearchOpen: (open: boolean) => void;
   scrollY: number;
   setScrollY: (y: number) => void;
-  resetHomeState: () => void;
 }
 
 const HomeStateContext = createContext<HomeState | undefined>(undefined);
@@ -88,24 +87,6 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsSearchOpenState(open);
   };
 
-  const resetHomeState = () => {
-    setActiveTabState('movie');
-    setItems([]);
-    setHomeSections([]);
-    setPage(1);
-    setSelectedGenreState('');
-    setSearchQueryState('');
-    setIsSearchingState(false);
-    setIsSearchOpenState(false);
-    setScrollY(0);
-    localStorage.removeItem('mb_home_activeTab');
-    localStorage.removeItem('mb_home_items');
-    localStorage.removeItem('mb_home_page');
-    localStorage.removeItem('mb_home_selectedGenre');
-    localStorage.removeItem('mb_home_searchQuery');
-    localStorage.removeItem('mb_home_isSearching');
-  };
-
   return (
     <HomeStateContext.Provider
       value={{
@@ -127,7 +108,6 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsSearchOpen,
         scrollY,
         setScrollY,
-        resetHomeState,
       }}
     >
       {children}

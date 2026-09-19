@@ -17,10 +17,6 @@ export function Profile() {
   const cryptoAddress = (import.meta as any).env?.VITE_DONATION_TRC20 || 'TKA34UexUySwB4CTbPaam4WEKGQjb4sU1U';
   const user = WebApp.initDataUnsafe?.user;
 
-  useEffect(() => {
-    // Read showPrivate
-  }, [user?.id, user?.username]);
-
   if (activeMediaTab) {
     return (
       <div 

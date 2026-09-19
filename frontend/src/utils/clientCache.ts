@@ -276,16 +276,6 @@ export const clientCache = {
     try {
       localStorage.removeItem(fullKey);
     } catch (_) {}
-  },
-
-  clearExpired(): void {
-    const now = Date.now();
-    for (const [key, entry] of memoryCache.entries()) {
-      if (now >= entry.expiry) {
-        memoryCache.delete(key);
-        idbRemove(key);
-      }
-    }
   }
 };
 

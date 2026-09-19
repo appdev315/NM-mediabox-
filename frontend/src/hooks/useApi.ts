@@ -16,7 +16,7 @@ export const getTmdbImageUrl = (path: string | null | undefined, size: 'w185' | 
   return `${CF_API_BASE}/image?path=/t/p/${size}${cleanPath}`;
 };
 
-export interface TMDBMovie {
+interface TMDBMovie {
   id: number;
   title?: string;
   name?: string;
@@ -129,244 +129,21 @@ export function fixMixedScript(text: string): string {
   }).join(' ');
 }
 
-const YO_REPLACEMENTS: [RegExp, string][] = [
-  [/рублев/gi, 'рублёв'],
-  [/зелен/gi, 'зелён'],
-  [/черн/gi, 'чёрн'],
-  [/темн/gi, 'тёмн'],
-  [/елк/gi, 'ёлк'],
-  [/крестн/gi, 'крёстн'],
-  [/звезд/gi, 'звёзд'],
-  [/мертв/gi, 'мёртв'],
-  [/слез/gi, 'слёз'],
-  [/влюблен/gi, 'влюблён'],
-  [/королев/gi, 'королёв'],
-  [/потемкин/gi, 'потёмкин'],
-  [/вертолет/gi, 'вертолёт'],
-  [/самолет/gi, 'самолёт'],
-  [/полет/gi, 'полёт'],
-  [/огнем\b/gi, 'огнём'],
-  [/огнен/gi, 'огнён'],
-  [/партнер/gi, 'партнёр'],
-  [/тренер/gi, 'тренёр'],
-  [/тяжел/gi, 'тяжёл'],
-  [/актер/gi, 'актёр'],
-  [/боксер/gi, 'боксёр'],
-  [/шофер/gi, 'шофёр'],
-  [/стажер/gi, 'стажёр'],
-  [/режиссер/gi, 'режиссёр'],
-  [/дирижер/gi, 'дирижёр'],
-  [/шахтер/gi, 'шахтёр'],
-  [/наемник/gi, 'наёмник'],
-  [/приемн/gi, 'приёмн'],
-  [/съемк/gi, 'съёмк'],
-  [/воробьев/gi, 'воробьёв'],
-  [/соловьев/gi, 'соловьёв'],
-  [/\bо чем\b/gi, 'о чём'],
-  [/\bчем\b/gi, 'чём'],
-  [/\bеще\b/gi, 'ещё'],
-  [/\блед\b/gi, 'лёд'],
-  [/\bпес\b/gi, 'пёс'],
-  [/\bсчет\b/gi, 'счёт'],
-  [/\bчерт\b/gi, 'чёрт'],
-  [/\bмед\b/gi, 'мёд'],
-  [/\bжелт/gi, 'жёлт'],
-  [/\bкотел\b/gi, 'котёл'],
-  [/\борел\b/gi, 'орёл'],
-  [/\bкозел\b/gi, 'козёл'],
-  [/\bперекрест/gi, 'перекрёст'],
-  [/\bвсе\b/gi, 'всё'],
-  [/\bсвое\b/gi, 'своё'],
-  [/\bее\b/gi, 'её']
-];
-
-function preserveCaseReplace(text: string, re: RegExp, targetWord: string): string {
-  return text.replace(re, (match) => {
-    if (match[0] === match[0].toUpperCase()) {
-      return targetWord[0].toUpperCase() + targetWord.slice(1);
-    }
-    return targetWord.toLowerCase();
-  });
-}
-
-const RU_TO_EN_MAP: Record<string, string> = {
-  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh', з: 'z',
-  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
-  с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh',
-  щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
-};
-
-/**
- * Deterministic RU→EN transliteration for an extra search variant
- * (user typed Cyrillic, donor/TMDB entry is Latin-only).
- */
-export function transliterateRuToEn(text: string): string {
-  return (text || '').split('').map((ch) => {
-    const lower = ch.toLowerCase();
-    const mapped = RU_TO_EN_MAP[lower];
-    if (mapped === undefined) return ch;
-    if (ch !== lower && mapped.length > 0) {
-      return mapped[0].toUpperCase() + mapped.slice(1);
-    }
-    return mapped;
-  }).join('');
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = Math.min(a.length, 48);
-  const n = Math.min(b.length, 48);
-  if (m === 0) return n;
-  if (n === 0) return m;
-  let prev = new Array<number>(n + 1);
-  for (let j = 0; j <= n; j++) prev[j] = j;
-  for (let i = 1; i <= m; i++) {
-    let cur = new Array<number>(n + 1);
-    cur[0] = i;
-    const ca = a.charCodeAt(i - 1);
-    for (let j = 1; j <= n; j++) {
-      const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-    }
-    prev = cur;
-  }
-  return prev[n];
-}
-
-/**
- * Generates orthographic search variants to seamlessly bridge E and Ё.
- */
-export function generateSearchVariants(text: string): string[] {
-  const clean = fixMixedScript(text).trim();
-  const variants = new Set<string>([clean]);
-
-  if (/[ёЁ]/.test(clean)) {
-    variants.add(clean.replace(/ё/g, 'е').replace(/Ё/g, 'Е'));
-  }
-
-  if (/[еЕ]/.test(clean)) {
-    // 1. High-confidence dictionary replacements
-    let yoText = clean;
-    for (const [re, rep] of YO_REPLACEMENTS) {
-      yoText = preserveCaseReplace(yoText, re, rep);
-    }
-    if (yoText !== clean) {
-      variants.add(yoText);
-    }
-
-    // 2. Global replacement of all Cyrillic 'e' with 'ё'
-    const allYo = clean.replace(/е/g, 'ё').replace(/Е/g, 'Ё');
-    variants.add(allYo);
-
-    // 3. Word-by-word substitution for phrases with up to 5 words
-    const words = clean.split(/\s+/);
-    if (words.length > 1 && words.length <= 5) {
-      for (let i = 0; i < words.length; i++) {
-        if (/[еЕ]/.test(words[i])) {
-          const variantWords = [...words];
-          variantWords[i] = variantWords[i].replace(/е/g, 'ё').replace(/Е/g, 'Ё');
-          variants.add(variantWords.join(' '));
-        }
-      }
-    }
-  }
-
-  return Array.from(variants);
-}
-
-function normalizeForRelevance(str: string): string {
-  return (str || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Ranks combined results ensuring exact/prefix matches and higher popularity appear on top.
- */
-export function rankSearchResults(items: TMDBMovie[], query: string): TMDBMovie[] {
-  const normQ = normalizeForRelevance(query);
-  const qWords = normQ.split(' ').filter(Boolean);
-
-  return [...items].sort((a, b) => {
-    const titleA = a.title || a.name || '';
-    const titleB = b.title || b.name || '';
-    const normA = normalizeForRelevance(titleA);
-    const normB = normalizeForRelevance(titleB);
-
-    let scoreA = (a.popularity || 0) + (a.vote_count || 0) * 0.1;
-    let scoreB = (b.popularity || 0) + (b.vote_count || 0) * 0.1;
-
-    if (normA === normQ) scoreA += 1000;
-    if (normB === normQ) scoreB += 1000;
-
-    if (normA.startsWith(normQ)) scoreA += 500;
-    if (normB.startsWith(normQ)) scoreB += 500;
-
-    if (normQ.startsWith(normA) && normA.length >= 3) scoreA += 600;
-    if (normQ.startsWith(normB) && normB.length >= 3) scoreB += 600;
-
-    let matchCountA = 0;
-    let matchCountB = 0;
-    for (const qw of qWords) {
-      if (qw.length > 2) {
-        if (normA.includes(qw)) matchCountA++;
-        if (normB.includes(qw)) matchCountB++;
-      }
-    }
-    scoreA += matchCountA * 200;
-    scoreB += matchCountB * 200;
-
-    // Typo tolerance (0 requests): small bonus when nothing else matched
-    if (matchCountA === 0 && normQ.length >= 3 && normA.length >= 3) {
-      const d = levenshtein(normQ, normA);
-      scoreA += d <= 2 ? 120 : d === 3 ? 60 : 0;
-    }
-    if (matchCountB === 0 && normQ.length >= 3 && normB.length >= 3) {
-      const d = levenshtein(normQ, normB);
-      scoreB += d <= 2 ? 120 : d === 3 ? 60 : 0;
-    }
-
-    return scoreB - scoreA;
-  });
-}
-
 export function useApi() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { language } = useLanguage();
 
   const withLoading = useCallback(async <T>(fn: () => Promise<T>): Promise<T> => {
     setLoading(true);
-    setError(null);
     try {
       return await fn();
     } catch (err: any) {
       console.error('API Error:', err);
-      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const request = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    return withLoading(async () => {
-      const initData = WebApp?.initData || '';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(initData ? { 'Authorization': `Bearer ${initData}` } : {}),
-        ...(options.headers as Record<string, string>),
-      };
-      // request always goes to CF API BASE for user data
-      const response = await fetch(`${CF_API_BASE}${endpoint}`, { ...options, headers });
-      if (!response.ok) {
-        let msg = `Ошибка: ${response.status}`;
-        try {
-          const errBody = await response.json();
-          if (errBody.error) msg += ` - ${errBody.error}`;
-        } catch (e) { }
-        throw new Error(msg);
-      }
-      return await response.json();
-    });
-  }, [withLoading]);
 
   const tmdbFetch = useCallback(async (endpoint: string, params: Record<string, string | number> = {}, ttlSeconds: number = 3600, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
@@ -571,13 +348,6 @@ export function useApi() {
     };
   };
 
-  const fetchTrending = useCallback(async (type: 'movie' | 'tv') => {
-    return withLoading(async () => {
-      const data = await tmdbFetch(`/trending/${type}/day`);
-      return (data?.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
-    });
-  }, [tmdbFetch, withLoading]);
-
   const searchContent = useCallback(async (rawQuery: string, signal?: AbortSignal) => {
     const { title } = parseSearchQuery(rawQuery);
     const cleanTitle = title.slice(0, 120).trim();
@@ -619,7 +389,7 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, _countryCode?: string, sortBy: string = 'popularity.desc') => {
+  const fetchMovies = useCallback(async (page: number = 1, genreId?: string | number, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
       const cacheKey = `catalog_list_v7_movie_${page}_${genreId || ''}_${sortBy}`;
       const cached = clientCache.get<any[]>(cacheKey);
@@ -647,7 +417,7 @@ export function useApi() {
     });
   }, [withLoading]);
 
-  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, _countryCode?: string, sortBy: string = 'popularity.desc') => {
+  const fetchSeries = useCallback(async (page: number = 1, genreId?: string | number, sortBy: string = 'popularity.desc') => {
     return withLoading(async () => {
       const cacheKey = `catalog_list_v7_tv_${page}_${genreId || ''}_${sortBy}`;
       const cached = clientCache.get<any[]>(cacheKey);
@@ -1107,5 +877,5 @@ export function useApi() {
     });
   }, [language, withLoading]);
 
-  return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading, error };
+  return { searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading };
 }

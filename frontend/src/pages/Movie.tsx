@@ -381,11 +381,7 @@ export function Movie() {
           if (id) {
             clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
           }
-          if (sources.length > 1 && sources[1]?.url) {
-            setIframeUrl(sources[1].url);
-          } else {
-            setContentUnavailable(true);
-          }
+          setContentUnavailable(true);
 
           if (!isHealingRef.current) {
             isHealingRef.current = true;
@@ -1299,26 +1295,6 @@ export function Movie() {
               </span>
             </div>
           )}
-          {language !== 'ru-RU' && sources.length > 1 && !isExtracting && iframeUrl && (
-            <div className="flex flex-wrap justify-center items-center gap-2 mb-3">
-              {sources.map((src) => (
-                <button
-                  key={src.url}
-                  onClick={() => {
-                    userSelectedRef.current = true;
-                    setIframeUrl(src.url);
-                  }}
-                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 shadow-sm cursor-pointer flex items-center gap-1.5 ${
-                    iframeUrl === src.url 
-                      ? 'bg-[var(--button-color)] text-white shadow-md scale-105 ring-2 ring-blue-400/30' 
-                      : 'bg-[var(--hint-color)] text-gray-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {src.label || (t('player1') || 'Плеер 1')}
-                </button>
-              ))}
-            </div>
-          )}
           {(isExtracting || iframeUrl) && (
             <div className={`relative w-full ${isPlayerFullscreen ? 'z-[99999]' : 'md:w-[80%] mx-auto mt-2 mb-8'}`}>
               {/* Audio language hint pointing to gear in iframe top-right */}
@@ -1357,7 +1333,6 @@ export function Movie() {
                       <Player 
                         iframeUrl={iframeUrl} 
                         initialTimecode={savedTimecode || undefined} 
-                        mediaId={id} 
                         targetEpisode={mediaType === 'tv' ? targetEpisode : undefined}
                         onFullscreenChange={setIsPlayerFullscreen}
                         onEpisodeChange={(s, e) => {
@@ -1475,7 +1450,7 @@ export function Movie() {
         {/* Secret Room Banner (In watch mode, between player and cast) */}
         {(isExtracting || iframeUrl) && (
           <div className="my-4">
-            <BannerAd variant="wide" type="adult" />
+            <BannerAd />
           </div>
         )}
 
