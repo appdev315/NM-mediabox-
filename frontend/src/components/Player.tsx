@@ -92,57 +92,44 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
 
-  // Locked src state: freezes initial currentUrl for the active sourceKey so that
-  // subsequent season/episode changes are handled via postMessage bursts without iframe DOM teardown.
+  // Locked src state: freezes initial currentUrl for the active sourceKey and season.
+  // Season switch reloads iframe (donor only serves 1 season per HTML document).
+  // Episode switch within same season is handled seamlessly via 'playlist go' without iframe reload.
   const [lockedSrc, setLockedSrc] = useState<string>(currentUrl);
   const activeSourceKeyRef = useRef(sourceKey);
-  const hasReceivedPlayerMessageRef = useRef(false);
+  const activeSeasonRef = useRef<string>(targetEpisode?.season || initialEpisodeRef.current?.season || '1');
   const fallbackNavTimerRef = useRef<any>(null);
 
-  const lastTargetEpKeyRef = useRef('');
-  const targetEpKey = targetEpisode ? `${targetEpisode.season}_${targetEpisode.episode}` : '';
-
-  if (activeSourceKeyRef.current !== sourceKey || (targetEpKey && targetEpKey !== lastTargetEpKeyRef.current)) {
+  // Reload iframe only when source changes OR when a different season is selected
+  const targetSeason = targetEpisode?.season;
+  if (
+    activeSourceKeyRef.current !== sourceKey || 
+    (targetSeason && targetSeason !== activeSeasonRef.current)
+  ) {
     activeSourceKeyRef.current = sourceKey;
-    lastTargetEpKeyRef.current = targetEpKey;
+    if (targetSeason) {
+      activeSeasonRef.current = targetSeason;
+    }
     setLockedSrc(currentUrl);
-    hasReceivedPlayerMessageRef.current = false;
   }
 
-  // Verified donor commands: adFree (player-venom) + playlist hook/go (embed page).
+  // Verified donor commands: adFree (player-venom) + playlist go (opts.playlist).
+  // Note: 'playlist hook' is intentionally excluded to preserve native autoPlay on stream change.
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        // 1. Establish Zenith hook handshake to prevent system player fallback and enable web controls
-        iframeRef.current.contentWindow.postMessage('playlist hook', '*');
-
-        // 2. Skip donor's VAST ad-wait and trigger instant playback
+        // 1. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
           '*'
         );
 
-        // 3. For series: command target season and episode if provided
+        // 2. For series: command target season and episode without race-inducing repeats
         if (targetSeason || targetEp) {
           const sNum = parseInt(targetSeason || '1', 10);
           const eNum = parseInt(targetEp || '1', 10);
-          const eStr = String(targetEp || '1');
           iframeRef.current.contentWindow.postMessage(
             { event: 'playlist go', season: sNum, episode: eNum },
-            '*'
-          );
-          iframeRef.current.contentWindow.postMessage(
-            { event: 'playlist go', season: sNum, episode: eStr },
-            '*'
-          );
-          iframeRef.current.contentWindow.postMessage(
-            'playlist hooked play',
-            '*'
-          );
-        } else {
-          // For movies or initial autoplay
-          iframeRef.current.contentWindow.postMessage(
-            'playlist hooked play',
             '*'
           );
         }
@@ -150,68 +137,31 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     } catch (_) {}
   }, []);
 
-  const syncDoneRef = useRef(false);
-  const syncTimersRef = useRef<any[]>([]);
-  const currentTargetRef = useRef<{ season?: string; episode?: string }>({});
-
-  const clearSyncTimers = useCallback(() => {
-    syncTimersRef.current.forEach((t) => {
-      try { clearTimeout(t); } catch (_) {}
-    });
-    syncTimersRef.current = [];
-  }, []);
-
-  const startSyncBurst = useCallback((targetSeason?: string, targetEp?: string) => {
-    clearSyncTimers();
-    syncDoneRef.current = false;
-    currentTargetRef.current = { season: targetSeason, episode: targetEp };
-    const fireSync = () => {
-      if (syncDoneRef.current) return;
-      sendPlayCommands(targetSeason, targetEp);
-    };
-    fireSync();
-
-    const retryDelays = [200, 500, 1000, 1800, 2600, 4200];
-    retryDelays.forEach(delay => {
-      syncTimersRef.current.push(setTimeout(fireSync, delay));
-    });
-  }, [clearSyncTimers, sendPlayCommands]);
-
-  // Listen for episode changes and playerReady signals inside embedded player
+  // Listen for episode changes and player events inside embedded player
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        hasReceivedPlayerMessageRef.current = true;
+        if (!data || typeof data !== 'object') return;
 
         if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
+          activeSeasonRef.current = s;
           onEpisodeChange?.(s, e);
-          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
-            const sCur = parseInt(currentTargetRef.current.season, 10);
-            const eCur = parseInt(currentTargetRef.current.episode, 10);
-            const sMsg = parseInt(s, 10);
-            const eMsg = parseInt(e, 10);
-            if (!isNaN(sCur) && !isNaN(eCur) && sCur === sMsg && eCur === eMsg) {
-              syncDoneRef.current = true;
-              clearSyncTimers();
-              if (fallbackNavTimerRef.current) {
-                clearTimeout(fallbackNavTimerRef.current);
-                fallbackNavTimerRef.current = null;
-              }
-            }
+          if (fallbackNavTimerRef.current) {
+            clearTimeout(fallbackNavTimerRef.current);
+            fallbackNavTimerRef.current = null;
           }
         }
         if (data.event === 'playerReady') {
-          // player-venom scripts loaded and mounted - fire immediate burst
-          if (currentTargetRef.current.season || currentTargetRef.current.episode) {
-            sendPlayCommands(currentTargetRef.current.season, currentTargetRef.current.episode);
+          if (targetEpisode?.season && targetEpisode?.episode) {
+            sendPlayCommands(targetEpisode.season, targetEpisode.episode);
           } else {
             sendPlayCommands();
           }
         }
-        // Genuine playback verification: stop retries once playback or ad actually commences
+        // When playback commences, clear any pending fallback reload
         if (
           data.event === 'adStart' || 
           data.event === 'startWatching' || 
@@ -219,8 +169,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           data.event === 'viewProgress' || 
           data.event === 'play'
         ) {
-          syncDoneRef.current = true;
-          clearSyncTimers();
           if (fallbackNavTimerRef.current) {
             clearTimeout(fallbackNavTimerRef.current);
             fallbackNavTimerRef.current = null;
@@ -232,35 +180,52 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     window.addEventListener('message', handlePlayerMessage);
     return () => {
       window.removeEventListener('message', handlePlayerMessage);
-      clearSyncTimers();
+      if (fallbackNavTimerRef.current) {
+        clearTimeout(fallbackNavTimerRef.current);
+        fallbackNavTimerRef.current = null;
+      }
     };
-  }, [onEpisodeChange, clearSyncTimers, sendPlayCommands]);
+  }, [onEpisodeChange, targetEpisode?.season, targetEpisode?.episode, sendPlayCommands]);
 
-  // Single trigger: fire burst only when user explicitly chooses an episode
+  // Single trigger: command episode within current season without reloading iframe
   const lastTargetTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (targetEpisode) {
-      const token = targetEpisode.token ?? Date.now();
-      if (token !== lastTargetTokenRef.current) {
-        lastTargetTokenRef.current = token;
-        // Skip burst if player already mounts with this exact season and episode in URL query params
-        const isInitialSeasonEp = initialEpisodeRef.current &&
-          targetEpisode.season === initialEpisodeRef.current.season &&
-          targetEpisode.episode === initialEpisodeRef.current.episode;
-        if (!isInitialSeasonEp) {
-          startSyncBurst(targetEpisode.season, targetEpisode.episode);
-        }
-      }
-    }
-  }, [targetEpisode, startSyncBurst]);
+    if (!targetEpisode) return;
+    const token = targetEpisode.token ?? Date.now();
+    if (token === lastTargetTokenRef.current) return;
+    lastTargetTokenRef.current = token;
 
-  // Cleanup pending sync bursts on unmount
+    // Skip if it's the initial episode mount (already rendered in iframe src URL)
+    const isInitialSeasonEp = initialEpisodeRef.current &&
+      targetEpisode.season === initialEpisodeRef.current.season &&
+      targetEpisode.episode === initialEpisodeRef.current.episode;
+    if (isInitialSeasonEp) return;
+
+    // If season changed, lockedSrc handled the reload synchronously
+    if (targetEpisode.season !== activeSeasonRef.current) return;
+
+    // In-place episode change within active season: send single command
+    sendPlayCommands(targetEpisode.season, targetEpisode.episode);
+
+    // Fallback: reload iframe only if player completely fails to respond within 3.5s
+    if (fallbackNavTimerRef.current) {
+      clearTimeout(fallbackNavTimerRef.current);
+    }
+    fallbackNavTimerRef.current = setTimeout(() => {
+      setLockedSrc(currentUrl);
+    }, 3500);
+  }, [targetEpisode, currentUrl, sendPlayCommands]);
+
+  // Cleanup fallback navigation timer on unmount
   useEffect(() => {
     return () => {
-      clearSyncTimers();
+      if (fallbackNavTimerRef.current) {
+        clearTimeout(fallbackNavTimerRef.current);
+        fallbackNavTimerRef.current = null;
+      }
     };
-  }, [clearSyncTimers]);
+  }, []);
 
   // Fallback timer for iframe
   useEffect(() => {
