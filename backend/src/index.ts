@@ -1213,6 +1213,128 @@ const mapLiftwItem = (item: any, isTv: boolean) => {
   };
 };
 
+// --- AGGREGATED TRAILER FEED (replaces 23 client-side TMDB requests with 1 server-side batch) ---
+app.get('/api/feed/trailers', async (c: Context) => {
+  const lang = c.req.query('lang') || 'ru-RU';
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = new Request(c.req.url, { method: 'GET' });
+
+  try {
+    const cachedResponse = await edgeCache.match(cacheReq);
+    if (cachedResponse) return cachedResponse;
+  } catch (_) {}
+
+  const TMDB_KEY = getTmdbKey(c);
+  if (!TMDB_KEY) {
+    return c.json({ error: 'TMDB API key not configured' }, 500);
+  }
+
+  const langCode = lang.split('-')[0].toLowerCase();
+
+  try {
+    // 1. Fetch trending + genre lists in parallel (2 TMDB requests)
+    const [trendingData, movieGenres, tvGenres] = await Promise.all([
+      fetch(`https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}&page=${page}`, {
+        signal: AbortSignal.timeout(6000),
+        cf: { cacheTtl: 1800, cacheEverything: true },
+      } as any).then(r => r.ok ? r.json() as Promise<any> : { results: [] }).catch(() => ({ results: [] })),
+      fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}`, {
+        signal: AbortSignal.timeout(4000),
+        cf: { cacheTtl: 86400, cacheEverything: true },
+      } as any).then(r => r.ok ? r.json() as Promise<any> : { genres: [] }).catch(() => ({ genres: [] })),
+      fetch(`https://api.themoviedb.org/3/genre/tv/list?api_key=${TMDB_KEY}&language=${encodeURIComponent(lang)}`, {
+        signal: AbortSignal.timeout(4000),
+        cf: { cacheTtl: 86400, cacheEverything: true },
+      } as any).then(r => r.ok ? r.json() as Promise<any> : { genres: [] }).catch(() => ({ genres: [] })),
+    ]);
+
+    const genreMap = new Map<number, string>();
+    for (const g of (movieGenres.genres || [])) genreMap.set(g.id, g.name);
+    for (const g of (tvGenres.genres || [])) genreMap.set(g.id, g.name);
+
+    const rawItems = ((trendingData.results || []) as any[]).filter(
+      (item: any) => item.media_type === 'movie' || item.media_type === 'tv'
+    );
+
+    // 2. Batch fetch video keys for all items in parallel (~20 TMDB requests, but server-side and cached)
+    const videoPromises = rawItems.map(async (item: any) => {
+      try {
+        const type = item.media_type === 'tv' ? 'tv' : 'movie';
+        const vRes = await fetch(
+          `https://api.themoviedb.org/3/${type}/${item.id}/videos?api_key=${TMDB_KEY}&include_video_language=${langCode},en,null`,
+          {
+            signal: AbortSignal.timeout(5000),
+            cf: { cacheTtl: 86400, cacheEverything: true },
+          } as any
+        );
+        if (!vRes.ok) return null;
+        const vData = await vRes.json() as any;
+        const videos = (vData?.results || []) as any[];
+        const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
+        if (!ytVideos.length) return null;
+
+        // Language-first trailer selection
+        const trailer =
+          ytVideos.find((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+          ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
+          ytVideos.find((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+          ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
+          ytVideos.find((v: any) => v.iso_639_1 === langCode) ||
+          ytVideos.find((v: any) => v.official && v.type === 'Trailer') ||
+          ytVideos.find((v: any) => v.type === 'Trailer') ||
+          ytVideos.find((v: any) => v.official && v.type === 'Teaser') ||
+          ytVideos.find((v: any) => v.type === 'Teaser') ||
+          ytVideos[0];
+
+        if (!trailer?.key) return null;
+
+        const genres = (item.genre_ids || [])
+          .map((gid: number) => genreMap.get(gid))
+          .filter(Boolean)
+          .slice(0, 3);
+
+        const dateStr = item.release_date || item.first_air_date || '';
+        const year = dateStr ? dateStr.split('-')[0] : '';
+
+        const imgProxy = new URL(c.req.url).origin + '/api/image?path=';
+        return {
+          id: item.id,
+          mediaType: type,
+          title: item.title || item.name || item.original_title || item.original_name || 'Без названия',
+          originalTitle: item.original_title || item.original_name || '',
+          year,
+          rating: Number((item.vote_average || 0).toFixed(1)),
+          genreNames: genres,
+          overview: item.overview || '',
+          poster: item.poster_path ? `${imgProxy}/t/p/w342${item.poster_path}` : '',
+          backdrop: item.backdrop_path ? `${imgProxy}/t/p/w780${item.backdrop_path}` : (item.poster_path ? `${imgProxy}/t/p/w342${item.poster_path}` : ''),
+          trailerKey: trailer.key,
+        };
+      } catch (_) {
+        return null;
+      }
+    });
+
+    const settled = await Promise.all(videoPromises);
+    const result = settled.filter((item): item is NonNullable<typeof item> => item !== null);
+
+    const response = c.json(result, 200, {
+      'Cache-Control': 'public, max-age=3600, s-maxage=7200',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+
+    return response;
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Failed to build trailer feed' }, 500);
+  }
+});
+
 app.get('/api/feed/home', async (c: Context) => {
   const type = (c.req.query('type') === 'tv' ? 'tv' : 'movie');
   const lang = c.req.query('lang') || 'ru-RU';

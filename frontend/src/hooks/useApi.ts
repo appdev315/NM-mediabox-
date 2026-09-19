@@ -797,6 +797,8 @@ export function useApi() {
   }, [tmdbFetch, withLoading, language]);
 
   const fetchSeasonDetails = useCallback(async (id: string | number, seasonNumber: number | string) => {
+    // Liftw-native IDs (liftw_*) are invalid for TMDB — skip to avoid 404 waste
+    if (String(id).startsWith('liftw_')) return null;
     const cacheKey = `tmdb_season_details_${id}_s${seasonNumber}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (cached) return cached;
@@ -813,6 +815,8 @@ export function useApi() {
   }, [tmdbFetch, language]);
 
   const fetchRecommendations = useCallback(async (id: string | number, type: 'movie' | 'tv', page: number = 1) => {
+    // Liftw-native IDs (liftw_*) are invalid for TMDB — skip to avoid 404 waste
+    if (String(id).startsWith('liftw_')) return [];
     try {
       const data = await tmdbFetch(`/${type}/${id}/recommendations`, { page });
       return (data?.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
@@ -1072,95 +1076,29 @@ export function useApi() {
 
   const fetchTrailerFeed = useCallback(async (page: number = 1): Promise<TrailerFeedItem[]> => {
     return withLoading(async () => {
-      const cacheKey = `trailer_feed_v3_${page}_${language}`;
+      const cacheKey = `trailer_feed_v4_${page}_${language}`;
       const cached = clientCache.get(cacheKey) as TrailerFeedItem[] | undefined;
       if (cached && Array.isArray(cached) && cached.length > 0) {
         return cached;
       }
 
-      // 1. Fetch trending items for this page
-      const trendingData = await tmdbFetch('/trending/all/day', { page });
-      const rawItems = (trendingData.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
+      // Single aggregated request to backend (replaces 23 individual TMDB calls)
+      const res = await fetch(
+        `${CF_API_BASE}/feed/trailers?page=${page}&lang=${encodeURIComponent(language)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!res.ok) {
+        console.warn('[TrailerFeed] Backend aggregation failed:', res.status);
+        return [];
+      }
 
-      // 2. Fetch genres to build name dictionary
-      const [movieGenres, tvGenres] = await Promise.all([
-        fetchGenres('movie').catch(() => []),
-        fetchGenres('tv').catch(() => [])
-      ]);
-      const genreMap = new Map<number, string>();
-      movieGenres.forEach(g => genreMap.set(g.id, g.name));
-      tvGenres.forEach(g => genreMap.set(g.id, g.name));
-
-      // 3. Batch fetch videos for each item in parallel (Edge cached)
-      const langCode = (language || 'ru-RU').split('-')[0].toLowerCase();
-      const videoPromises = rawItems.map(async (item: any) => {
-        try {
-          const type = item.media_type === 'tv' ? 'tv' : 'movie';
-          const vData = await tmdbFetch(`/${type}/${item.id}/videos`, {
-            include_video_language: `${langCode},en,null`
-          }, 86400);
-          const videos = vData?.results || [];
-          const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
-          if (!ytVideos.length) return null;
-
-          // Language-first prioritization:
-          // 1. Official trailer in user language
-          // 2. Dubbed/translated trailer in user language (RHS, Kinopoisk, etc., official: false on TMDB)
-          // 3. Official teaser in user language
-          // 4. Any teaser in user language
-          // 5. Any video in user language
-          // 6. Official trailer in original/English
-          // 7. Any trailer
-          // 8. Official teaser
-          // 9. Fallback to first available video
-          const trailer = 
-            ytVideos.find((v: any) => v.official && v.type === 'Trailer' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.type === 'Trailer' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.official && v.type === 'Teaser' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.type === 'Teaser' && v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.iso_639_1 === langCode) ||
-            ytVideos.find((v: any) => v.official && v.type === 'Trailer') ||
-            ytVideos.find((v: any) => v.type === 'Trailer') ||
-            ytVideos.find((v: any) => v.official && v.type === 'Teaser') ||
-            ytVideos.find((v: any) => v.type === 'Teaser') ||
-            ytVideos[0];
-
-          if (!trailer?.key) return null;
-
-          const genres = (item.genre_ids || [])
-            .map((gid: number) => genreMap.get(gid))
-            .filter(Boolean)
-            .slice(0, 3) as string[];
-
-          const dateStr = item.release_date || item.first_air_date || '';
-          const year = dateStr ? dateStr.split('-')[0] : '';
-
-          return {
-            id: item.id,
-            mediaType: type as 'movie' | 'tv',
-            title: item.title || item.name || item.original_title || item.original_name || 'Без названия',
-            originalTitle: item.original_title || item.original_name || '',
-            year,
-            rating: Number((item.vote_average || 0).toFixed(1)),
-            genreNames: genres,
-            overview: item.overview || '',
-            poster: item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : '',
-            backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w780') : (item.poster_path ? getTmdbImageUrl(item.poster_path, 'w342') : ''),
-            trailerKey: trailer.key
-          } as TrailerFeedItem;
-        } catch {
-          return null;
-        }
-      });
-
-      const settled = await Promise.all(videoPromises);
-      const result = settled.filter((item): item is TrailerFeedItem => item !== null);
-      if (result.length > 0) {
+      const result = (await res.json()) as TrailerFeedItem[];
+      if (Array.isArray(result) && result.length > 0) {
         clientCache.set(cacheKey, result, 3600); // 1 hour client cache
       }
       return result;
     });
-  }, [tmdbFetch, fetchGenres, language, withLoading]);
+  }, [language, withLoading]);
 
   return { request, fetchTrending, searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading, error };
 }

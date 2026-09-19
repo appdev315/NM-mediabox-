@@ -143,7 +143,7 @@ export function Movie() {
 
   // Fetch TMDB episode details (air_date, names) for the active season
   useEffect(() => {
-    if (!id || !isTvSeries) return;
+    if (!id || !isTvSeries || String(id).startsWith('liftw_')) return;
     const currentSeason = activeSeason || (sortedSeasons[0] || '1');
     const sNum = parseInt(currentSeason, 10);
     if (isNaN(sNum) || sNum <= 0) return;
@@ -556,12 +556,18 @@ export function Movie() {
         setRecPage(1);
         setHasMoreRecs(true);
         setLoadingMoreRecs(false);
-        fetchRecommendations(id, resolvedType, 1).then(recs => {
-          if (isMounted) {
-            setRecommendations(recs || []);
-            if (!recs || recs.length < 10) setHasMoreRecs(false);
-          }
-        }).catch(() => {});
+        // Skip TMDB recommendations for Liftw-native content (liftw_ IDs cause 404)
+        if (!String(id).startsWith('liftw_')) {
+          fetchRecommendations(id, resolvedType, 1).then(recs => {
+            if (isMounted) {
+              setRecommendations(recs || []);
+              if (!recs || recs.length < 10) setHasMoreRecs(false);
+            }
+          }).catch(() => {});
+        } else {
+          setRecommendations([]);
+          setHasMoreRecs(false);
+        }
       } catch (err) {
         console.error("Failed to load movie data", err);
       }
