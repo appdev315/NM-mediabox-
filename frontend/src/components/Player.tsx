@@ -169,31 +169,43 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [targetEpisode, currentUrl]);
 
-  // Verified donor commands: adFree (player-venom) + playlist go (embed page).
+  // Verified donor commands: adFree (player-venom) + playlist hook/go (embed page).
   const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
-        // 1. Skip donor's VAST ad-wait and trigger instant playback
+        // 1. Establish Zenith hook handshake to prevent system player fallback and enable web controls
+        iframeRef.current.contentWindow.postMessage('playlist hook', '*');
+
+        // 2. Skip donor's VAST ad-wait and trigger instant playback
         iframeRef.current.contentWindow.postMessage(
           { event: 'adFree', free: true },
           '*'
         );
 
-        // 2. For series: command target season and episode if provided
+        // 3. For series: command target season and episode if provided
         if (targetSeason || targetEp) {
           const sNum = parseInt(targetSeason || '1', 10);
           const eNum = parseInt(targetEp || '1', 10);
+          const eStr = String(targetEp || '1');
           iframeRef.current.contentWindow.postMessage(
             { event: 'playlist go', season: sNum, episode: eNum },
             '*'
           );
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'playlist go', season: sNum, episode: eStr },
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            'playlist hooked play',
+            '*'
+          );
+        } else {
+          // For movies or initial autoplay
+          iframeRef.current.contentWindow.postMessage(
+            'playlist hooked play',
+            '*'
+          );
         }
-
-        // 3. Command play
-        iframeRef.current.contentWindow.postMessage(
-          'playlist hooked play',
-          '*'
-        );
       }
     } catch (_) {}
   }, []);
@@ -219,7 +231,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
     fireSync();
 
-    const retryDelays = [300, 800, 1600, 3000];
+    const retryDelays = [200, 500, 1000, 1800, 2600, 4200];
     retryDelays.forEach(delay => {
       syncTimersRef.current.push(setTimeout(fireSync, delay));
     });
@@ -232,42 +244,34 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!data || typeof data !== 'object') return;
 
-        hasReceivedPlayerMessageRef.current = true;
-
-        // User pause or buffer stall: cancel pending sync retries immediately to avoid overriding pause
-        if (data.event === 'pause') {
-          clearSyncTimers();
-        }
-
         if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
-          if (currentTargetRef.current.season && currentTargetRef.current.episode) {
+          // Note: Do NOT set syncDoneRef.current = true or clear sync timers here!
+          // Zenith embed passively posts { event: 'changeEpisode', season: 1, episode: '1' }
+          // during initial HTML parse before player-venom is downloaded or ready to autoplay.
+          if (fallbackNavTimerRef.current && currentTargetRef.current.season && currentTargetRef.current.episode) {
             const sCur = parseInt(currentTargetRef.current.season, 10);
             const eCur = parseInt(currentTargetRef.current.episode, 10);
             const sMsg = parseInt(s, 10);
             const eMsg = parseInt(e, 10);
             if (!isNaN(sCur) && !isNaN(eCur) && sCur === sMsg && eCur === eMsg) {
-              syncDoneRef.current = true;
-              clearSyncTimers();
-              if (fallbackNavTimerRef.current) {
-                clearTimeout(fallbackNavTimerRef.current);
-                fallbackNavTimerRef.current = null;
-              }
+              clearTimeout(fallbackNavTimerRef.current);
+              fallbackNavTimerRef.current = null;
             }
           }
         }
         if (data.event === 'playerReady') {
-          // player-venom scripts loaded and mounted - fire immediate play command
+          // player-venom scripts loaded and mounted - fire immediate burst
           if (currentTargetRef.current.season || currentTargetRef.current.episode) {
             sendPlayCommands(currentTargetRef.current.season, currentTargetRef.current.episode);
           } else {
             sendPlayCommands();
           }
         }
-        // Genuine playback verification: stop retries once playback or ad actually commences
-        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate' || data.event === 'play') {
+        // Genuine playback verification: only stop retries once playback or ad actually commences
+        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate') {
           syncDoneRef.current = true;
           clearSyncTimers();
           if (fallbackNavTimerRef.current) {
@@ -346,8 +350,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       } catch (e) {}
     }
 
-    // Send single play/adFree command on mount without race-inducing episode bursts
-    sendPlayCommands();
+    // Single transport: if episode already selected by user, run burst; otherwise send adFree for movies
+    if (targetEpisode) {
+      startSyncBurst(targetEpisode.season, targetEpisode.episode);
+    } else {
+      sendPlayCommands();
+    }
   };
 
   // Power-Optimized WakeLock Lifecycle Management

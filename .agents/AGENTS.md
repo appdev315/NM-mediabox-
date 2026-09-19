@@ -79,3 +79,13 @@
 1. **ZERO UNSOLICITED UI MUTATION**:
    - The agent is STRICTLY PROHIBITED from adding, removing, modifying, or moving any user interface elements (cards, banners, buttons, links, funnels, modals, widgets, promotional blocks, or layout styling) without an explicit, direct command from the user.
    - Any visual UI changes, "improvements", or bridge/funnel integrations MUST be explicitly requested by the user. Self-willed interface decorations or funnel placements are strictly forbidden.
+
+## 10. Strict Prohibition of Mutating Video Player Handshakes, Buffer Auto-Recovery, and Core Web-Player Hooks
+1. **CRITICAL PRESERVATION OF WEB-PLAYER CONTROL HOOKS & HANDSHAKES**:
+   - The agent is STRICTLY FORBIDDEN from deleting, altering, commenting out, or disabling core player handshake signals (including `'playlist hook'`, `'playlist hooked play'`, `'adFree'`, and donor communication mechanisms) in embedded or custom players.
+   - Deleting or disabling these handshakes breaks web controls and forces mobile browsers (Safari/WebKit) to fall back into the native system player (e.g. Apple AVPlayer / QuickTime fullscreen), completely ruining the intended web app UX.
+2. **ZERO UNSOLICITED MUTATION OF BUFFER RECOVERY & RETRY CHAINS**:
+   - The agent is STRICTLY FORBIDDEN from binding destructive timer cancellations (such as `clearSyncTimers()` or resetting state machines) to standard video buffering, pause, or seeking events (`pause`, `waiting`, `seeking`), as HTML5 video elements routinely emit pause/waiting states during network stalls and buffer updates.
+   - Doing so destroys the automated playback recovery pipeline and causes streams to permanently freeze after pauses or buffer underruns.
+3. **SURGICAL ISOLATION OF TIMER DEFECTS**:
+   - When resolving race conditions or cold-start timeouts, the agent MUST ONLY adjust the specific offending safety timer or conditional guard without altering adjacent verified handshakes, retry intervals, or buffer pick-up mechanisms.
