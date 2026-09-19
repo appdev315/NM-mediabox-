@@ -130,16 +130,24 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   // subsequent season/episode changes are handled via postMessage bursts without iframe DOM teardown.
   const [lockedSrc, setLockedSrc] = useState<string>(currentUrl);
   const activeSourceKeyRef = useRef(sourceKey);
+  const hasReceivedPlayerMessageRef = useRef(false);
   const fallbackNavTimerRef = useRef<any>(null);
 
   if (activeSourceKeyRef.current !== sourceKey) {
     activeSourceKeyRef.current = sourceKey;
     setLockedSrc(currentUrl);
+    hasReceivedPlayerMessageRef.current = false;
   }
 
-  // Fallback timer: if postMessage burst does not confirm episode change within 4s, fallback to updating lockedSrc
+  // Fallback timer: if postMessage burst does not confirm episode change within 12s, fallback to updating lockedSrc
   useEffect(() => {
     if (!targetEpisode) return;
+
+    // Do not run fallback reload on initial episode mount (lockedSrc already embeds initial episode)
+    const isInitialSeasonEp = initialEpisodeRef.current &&
+      targetEpisode.season === initialEpisodeRef.current.season &&
+      targetEpisode.episode === initialEpisodeRef.current.episode;
+    if (isInitialSeasonEp) return;
 
     if (fallbackNavTimerRef.current) {
       clearTimeout(fallbackNavTimerRef.current);
@@ -147,10 +155,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     }
 
     fallbackNavTimerRef.current = setTimeout(() => {
-      if (!syncDoneRef.current) {
+      // Only fallback reload if sync wasn't confirmed and player isn't responding via postMessage
+      if (!syncDoneRef.current && !hasReceivedPlayerMessageRef.current) {
         setLockedSrc(currentUrl);
       }
-    }, 4000);
+    }, 12000);
 
     return () => {
       if (fallbackNavTimerRef.current) {
@@ -223,12 +232,23 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!data || typeof data !== 'object') return;
 
+        hasReceivedPlayerMessageRef.current = true;
+
+        // User pause or buffer stall: cancel pending sync retries immediately to avoid overriding pause
+        if (data.event === 'pause') {
+          clearSyncTimers();
+        }
+
         if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
           onEpisodeChange?.(s, e);
           if (currentTargetRef.current.season && currentTargetRef.current.episode) {
-            if (s === currentTargetRef.current.season && e === currentTargetRef.current.episode) {
+            const sCur = parseInt(currentTargetRef.current.season, 10);
+            const eCur = parseInt(currentTargetRef.current.episode, 10);
+            const sMsg = parseInt(s, 10);
+            const eMsg = parseInt(e, 10);
+            if (!isNaN(sCur) && !isNaN(eCur) && sCur === sMsg && eCur === eMsg) {
               syncDoneRef.current = true;
               clearSyncTimers();
               if (fallbackNavTimerRef.current) {
@@ -246,8 +266,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             sendPlayCommands();
           }
         }
-        // Genuine playback verification: only stop retries once playback or ad actually commences
-        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate') {
+        // Genuine playback verification: stop retries once playback or ad actually commences
+        if (data.event === 'adStart' || data.event === 'startWatching' || data.event === 'timeupdate' || data.event === 'play') {
           syncDoneRef.current = true;
           clearSyncTimers();
           if (fallbackNavTimerRef.current) {
@@ -326,12 +346,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       } catch (e) {}
     }
 
-    // Single transport: if episode already selected by user, run burst; otherwise send adFree for movies
-    if (targetEpisode) {
-      startSyncBurst(targetEpisode.season, targetEpisode.episode);
-    } else {
-      sendPlayCommands();
-    }
+    // Send single play/adFree command on mount without race-inducing episode bursts
+    sendPlayCommands();
   };
 
   // Power-Optimized WakeLock Lifecycle Management
