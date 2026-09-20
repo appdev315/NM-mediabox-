@@ -164,7 +164,29 @@ app.get('/api/analytics/stats', async (c: Context) => {
     const donorTotal = donorRow?.total || 0;
     const donorOk = donorRow?.ok || 0;
     const donorFail = donorRow?.fail || 0;
-    const donorRate = donorTotal > 0 ? Number(((donorOk / donorTotal) * 100).toFixed(1)) : 100.0;
+    const donorRate: number | null = donorTotal > 0 ? Number(((donorOk / donorTotal) * 100).toFixed(1)) : null;
+
+    const playbackErrTotalRow = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM analytics_events
+       WHERE event_type = 'error' AND item_type IN ('movie', 'tv') AND ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first() as { total?: number } | null;
+
+    const playbackErrTop = await c.env.DB.prepare(
+      `SELECT item_title, item_type, meta, COUNT(*) as cnt FROM analytics_events
+       WHERE event_type = 'error' AND item_type IN ('movie', 'tv') AND ts >= datetime('now', ?)
+       GROUP BY item_title, item_type, meta ORDER BY cnt DESC LIMIT 5`
+    ).bind(`-${since} hours`).all();
+
+    const radioErrTotalRow = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM analytics_events
+       WHERE event_type = 'error' AND item_type IN ('radio', 'tv_channel') AND ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first() as { total?: number } | null;
+
+    const radioErrTop = await c.env.DB.prepare(
+      `SELECT item_title, item_type, meta, COUNT(*) as cnt FROM analytics_events
+       WHERE event_type = 'error' AND item_type IN ('radio', 'tv_channel') AND ts >= datetime('now', ?)
+       GROUP BY item_title, item_type, meta ORDER BY cnt DESC LIMIT 5`
+    ).bind(`-${since} hours`).all();
 
 const COUNTRY_NAMES: Record<string, string> = {
   RU: '🇷🇺 Россия',
@@ -242,6 +264,14 @@ function formatCountry(code?: string): string {
           rate: donorRate
         }
       },
+      playbackErrors: {
+        total: playbackErrTotalRow?.total || 0,
+        top: (playbackErrTop.results || []).map((r: any) => ({ title: r.item_title, type: r.item_type, reason: r.meta, count: r.cnt }))
+      },
+      radioErrors: {
+        total: radioErrTotalRow?.total || 0,
+        top: (radioErrTop.results || []).map((r: any) => ({ title: r.item_title, type: r.item_type, reason: r.meta, count: r.cnt }))
+      },
       byCountry: (byCountry.results || []).map((r: any) => ({
         country: r.country,
         countryName: formatCountry(r.country),
@@ -281,7 +311,7 @@ app.get('/api/admin/incidents', async (c: Context) => {
     const autoFixed = totalRow?.auto_fixed || 0;
     const unresolved = totalRow?.unresolved || 0;
     const pending = totalRow?.pending || 0;
-    const fixRate = total > 0 ? Number(((autoFixed / total) * 100).toFixed(1)) : 100.0;
+    const fixRate: number | null = total > 0 ? Number(((autoFixed / total) * 100).toFixed(1)) : null;
 
     const topUnresolved = (await c.env.DB.prepare(
       `SELECT title, content_type, fail_type, heal_note, COUNT(*) as cnt
@@ -964,6 +994,7 @@ app.get('/api/liftw', async (c: Context) => {
 
     return response;
   } catch (err: any) {
+    recordDonorMetric('liftw_fail');
     recordIncident('timeout', 'unresolved', err?.message || 'stream resolve error');
     return c.json({ error: err?.message || 'failed to resolve stream' }, 500, {
       'Cache-Control': 'no-store, no-cache, must-revalidate',

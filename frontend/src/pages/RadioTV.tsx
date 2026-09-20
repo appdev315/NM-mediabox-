@@ -8,7 +8,7 @@ import { BannerAd } from '../components/BannerAd';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { triggerViewportExpand } from '../hooks/useViewportExpand';
-import { trackOpen } from '../utils/analytics';
+import { trackOpen, trackError } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
 
 // Get backend URL from environment or use default
@@ -135,6 +135,17 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [tvLoading, setTvLoading] = useState(false);
   const inFlightControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const tvErrorReportedRef = useRef<string | null>(null);
+
+  const reportTvError = useCallback((channel: Station | null, reason: string) => {
+    if (!channel) return;
+    const key = `${channel.id}::${reason}`;
+    if (tvErrorReportedRef.current === key) return;
+    tvErrorReportedRef.current = key;
+    try {
+      trackError('tv_channel', channel.name || '', String(channel.id), reason);
+    } catch (_) {}
+  }, []);
 
   const { playTrack, currentTrack, stop } = useAudioPlayer();
   const { t, language } = useLanguage();
@@ -557,6 +568,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     stop();
     setTvError(false);
     setTvLoading(true);
+    tvErrorReportedRef.current = null;
 
     // Unlock video element for mobile browsers (user interaction context)
     if (videoRef.current) {
@@ -671,6 +683,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
             if (!found) {
               setTvError(true);
               setTvLoading(false);
+              reportTvError(activeTvChannel, 'tv_timeout_15s');
             }
           });
         } else {
@@ -737,6 +750,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                           if (!found) {
                             setTvError(true);
                             setTvLoading(false);
+                            reportTvError(activeTvChannel, 'tv_hls_fatal_network');
                           }
                         });
                       } else {
@@ -769,6 +783,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                         if (!found) {
                           setTvError(true);
                           setTvLoading(false);
+                          reportTvError(activeTvChannel, 'tv_hls_fatal_media');
                         }
                       });
                     } else {
@@ -964,7 +979,7 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
                   controls
                   playsInline
                   className={`w-full h-full object-contain z-10 ${tvLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}
-                  onError={() => { setTvError(true); setTvLoading(false); }}
+                  onError={() => { setTvError(true); setTvLoading(false); reportTvError(activeTvChannel, 'tv_element_error'); }}
                   onCanPlay={() => setTvLoading(false)}
                   onPlaying={() => setTvLoading(false)}
                   onLoadStart={() => setTvLoading(true)}

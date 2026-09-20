@@ -6,6 +6,7 @@ interface AnalyticsPayload {
   item_type?: string;
   item_title?: string;
   item_id?: string;
+  meta?: string;
 }
 
 const FLUSH_INTERVAL_MS = 25 * 1000;
@@ -101,6 +102,15 @@ export function trackVisit() {
 export function trackOpen(item_type: string, item_title: string, item_id?: string) {
   // Batched: flushed every FLUSH_INTERVAL_MS or on page hide/close
   track('open', { item_type, item_title, item_id });
+}
+
+export function trackError(item_type: string, item_title: string, item_id: string | undefined, reason: string) {
+  // Immediate: playback failures must reach backend before tab close; never batched
+  try {
+    track('error', { item_type, item_title, item_id, meta: reason }, true);
+  } catch (_) {
+    /* analytics must never break the app */
+  }
 }
 
 if (typeof window !== 'undefined') {

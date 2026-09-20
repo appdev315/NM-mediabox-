@@ -13,7 +13,7 @@ import { PersonModal } from '../components/PersonModal';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
 import { useViewportExpand } from '../hooks/useViewportExpand';
-import { trackOpen } from '../utils/analytics';
+import { trackOpen, trackError } from '../utils/analytics';
 import { favoritesManager } from '../utils/favoritesManager';
 import { clientCache } from '../utils/clientCache';
 import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
@@ -50,6 +50,7 @@ export function Movie() {
   const activeSeasonRef = useRef<string>('');
   const activeEpisodeRef = useRef<string>('');
   const isHealingRef = useRef<boolean>(false);
+  const errorReportedRef = useRef<boolean>(false);
 
   // Validate media type
   const queryType = searchParams.get('type');
@@ -372,6 +373,10 @@ export function Movie() {
             clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
           }
           setContentUnavailable(true);
+          try {
+            const errTitle = (movie as any)?.title || (movie as any)?.name || (movie as any)?.original_title || '';
+            trackError(mediaType, errTitle, id ? String(id) : undefined, 'donor_not_found');
+          } catch (_) {}
 
           if (!isHealingRef.current) {
             isHealingRef.current = true;
@@ -651,6 +656,18 @@ export function Movie() {
     setSources([]);
     setContentUnavailable(false);
     userSelectedRef.current = false;
+    if (!forceRefresh) {
+      errorReportedRef.current = false;
+    }
+
+    const reportPlaybackError = (reason: string) => {
+      if (errorReportedRef.current) return;
+      errorReportedRef.current = true;
+      try {
+        const errTitle = (movie as any)?.title || (movie as any)?.name || (movie as any)?.original_title || '';
+        trackError(mediaType, errTitle, id ? String(id) : undefined, reason);
+      } catch (_) {}
+    };
     
     // Scroll to player placeholder immediately
     setTimeout(() => {
@@ -782,9 +799,11 @@ export function Movie() {
               if (id) setAvailability(mediaType, id, 'available');
             } else {
               if (id) setAvailability(mediaType, id, 'missing');
+              reportPlaybackError('liftw_empty');
             }
           } catch (e) {
             console.error("Liftw fetch failed", e);
+            reportPlaybackError('liftw_fetch_failed');
           }
         }
 
@@ -819,6 +838,7 @@ export function Movie() {
         }
       } catch (e) {
         console.error("fetchLiftw error", e);
+        reportPlaybackError('liftw_fetch_error');
       }
     };
 
@@ -831,6 +851,7 @@ export function Movie() {
       if (foundLiftw === null) {
         setIsExtracting(false);
         setContentUnavailable(true);
+        reportPlaybackError('liftw_timeout_10s');
       }
     }, 10000);
 
@@ -845,6 +866,7 @@ export function Movie() {
       setIsExtracting(false);
       if (foundLiftw === null) {
         setContentUnavailable(true);
+        reportPlaybackError('liftw_empty');
       }
     });
     } catch (err) {

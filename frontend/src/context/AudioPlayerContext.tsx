@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
+import { trackError } from '../utils/analytics';
 
 export interface Track {
   id: string;
@@ -211,6 +212,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             originalUrl: track.originalUrl
           }
         }));
+        try {
+          trackError('radio', track.title || '', String(track.id), 'radio_offline_6x');
+        } catch (_) {}
       }
       return;
     }
@@ -268,6 +272,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
                   originalUrl: track.originalUrl
                 }
               }));
+              try {
+                trackError('radio', track.title || '', String(track.id), 'radio_offline_6x_hls');
+              } catch (_) {}
             }
           }
         });
@@ -293,6 +300,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
                   originalUrl: track.originalUrl
                 }
               }));
+              try {
+                trackError('radio', track.title || '', String(track.id), 'radio_offline_6x');
+              } catch (_) {}
             }
           }
         }).finally(() => {

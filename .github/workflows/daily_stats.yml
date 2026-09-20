@@ -50,9 +50,9 @@ jobs:
             SERVER_ERRORS=$(($BANS + $RL + $INTERNAL))
             SERVER_TOTAL=$(($SUCCESS + $SERVER_ERRORS))
             if [ "$SERVER_TOTAL" -gt 0 ]; then
-              SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($SUCCESS / $SERVER_TOTAL) * 100}")
+              SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f%%\", ($SUCCESS / $SERVER_TOTAL) * 100}")
             else
-              SUCCESS_RATE="100.0"
+              SUCCESS_RATE="—"
             fi
 
             # Extract Recent Errors for 1-click copy block (HTML entity escaped to prevent Telegram 400 Bad Request)
@@ -63,11 +63,11 @@ jobs:
               LOG_BLOCK=$'\n\n📝 <b>Ошибки в логах (для передачи ИИ):</b>\n<code>\n'"${RECENT_ERRORS_RAW}"$'\n</code>'
             fi
             
-            STATS_MSG="📊 <b>Сводка Media-Box (За 3 часа)</b>
+            STATS_MSG="📊 <b>Трафик стриминга — Go (за 3 часа)</b>
 
           ⏳ <b>Аптайм:</b> ${HOURS}ч ${MINUTES}м
           👥 <b>Уникальных IP:</b> <b>${UNIQUE_IPS}</b>
-          🌐 <b>Запросов:</b> <b>${TOTAL}</b> | ✅ <b>Успех:</b> <b>${SUCCESS_RATE}%</b>
+          🌐 <b>Запросов:</b> <b>${TOTAL}</b> | ✅ <b>Успех:</b> <b>${SUCCESS_RATE}</b>
 
           📊 <b>Активность по разделам:</b>
           🎬 Фильмы: ${MOVIES} | 📺 Сериалы: ${SERIES}
@@ -96,15 +96,22 @@ jobs:
           if [ "$ANA_HTTP" -ne 200 ]; then
             echo "DONOR_BLOCK=" >> $GITHUB_ENV
             echo "ANALYTICS_BLOCK=" >> $GITHUB_ENV
+            echo "PLAYBACK_BLOCK=" >> $GITHUB_ENV
+            echo "RADIO_BLOCK=" >> $GITHUB_ENV
             exit 0
           fi
 
-          # Real Donor Stats from Cloudflare Workers D1
+          # Real Donor Stats from Cloudflare Workers D1 (rate is null when no requests)
           CF_LIFTW_REQ=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.requests // 0')
-          CF_LIFTW_RATE=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.rate // 100.0')
+          CF_LIFTW_RATE_RAW=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.rate // empty')
           CF_LIFTW_FAIL=$(echo "$ANA_BODY" | jq -r '.donorStats.liftw.fails // 0')
 
-          DONOR_BLOCK="\n\n📡 <b>Диагностика доноров:</b>\n🏎 <b>Liftw (Плеер 1):</b> ${CF_LIFTW_REQ} зап. | ${CF_LIFTW_RATE}% успех"
+          if [ -z "$CF_LIFTW_RATE_RAW" ] || [ "$CF_LIFTW_RATE_RAW" = "null" ]; then
+            CF_LIFTW_RATE_STR="нет данных"
+          else
+            CF_LIFTW_RATE_STR="${CF_LIFTW_RATE_RAW}% успех"
+          fi
+          DONOR_BLOCK="\n\n📡 <b>Диагностика доноров:</b>\n🏎 <b>Liftw (Плеер 1):</b> ${CF_LIFTW_REQ} зап. | ${CF_LIFTW_RATE_STR}"
           echo "DONOR_BLOCK<<EOF" >> $GITHUB_ENV
           echo -e "$DONOR_BLOCK" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -136,10 +143,52 @@ jobs:
           done < <(echo "$ANA_BODY" | jq -c '.topContent[]?' | head -6)
           [ -z "$CONTENT_BLOCK" ] && CONTENT_BLOCK="\n  Нет данных"
 
-          ANALYTICS_BLOCK="\n\n📈 <b>Аналитика (3 часа):</b>\n👥 Активных: ${ACTIVE} | 📱 Сессий: ${SESSIONS} | 🆕 Новых: ${NEW_USERS}\n\n🌍 <b>Страны входа:</b>${COUNTRIES_BLOCK}\n\n🎬 <b>Топ контента:</b>${CONTENT_BLOCK}"
+          ANALYTICS_BLOCK="\n\n📈 <b>Посетители — Cloudflare (3 часа):</b>\n👥 Активных: ${ACTIVE} | 📱 Сессий: ${SESSIONS} | 🆕 Новых: ${NEW_USERS}\n\n🌍 <b>Страны входа:</b>${COUNTRIES_BLOCK}\n\n🎬 <b>Топ контента:</b>${CONTENT_BLOCK}"
 
           echo "ANALYTICS_BLOCK<<EOF" >> $GITHUB_ENV
           echo -e "$ANALYTICS_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Client playback failures (cinema) from frontend telemetry
+          PLAY_TOTAL=$(echo "$ANA_BODY" | jq -r '.playbackErrors.total // 0')
+          PLAYBACK_LIST=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            PTITLE=$(echo "$line" | jq -r '.title // "—"' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            PTYPE=$(echo "$line" | jq -r '.type // "?"')
+            PREASON=$(echo "$line" | jq -r '.reason // "error"')
+            PCNT=$(echo "$line" | jq -r '.count')
+            PLAYBACK_LIST="${PLAYBACK_LIST}\n  • ${PTITLE} (${PTYPE} — ${PREASON}) (${PCNT}x)"
+          done < <(echo "$ANA_BODY" | jq -c '.playbackErrors.top[]?' | head -5)
+
+          if [ "$PLAY_TOTAL" -gt 0 ]; then
+            PLAYBACK_BLOCK="\n\n⚠️ <b>Сбои воспроизведения у клиентов (кино):</b> ${PLAY_TOTAL} шт.${PLAYBACK_LIST}"
+          else
+            PLAYBACK_BLOCK=""
+          fi
+          echo "PLAYBACK_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$PLAYBACK_BLOCK" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Client radio/TV failures (separate block) from frontend telemetry
+          RADIO_ERR_TOTAL=$(echo "$ANA_BODY" | jq -r '.radioErrors.total // 0')
+          RADIO_ERR_LIST=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            RTITLE=$(echo "$line" | jq -r '.title // "—"' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+            RTYPE=$(echo "$line" | jq -r '.type // "?"')
+            RREASON=$(echo "$line" | jq -r '.reason // "error"')
+            RCNT=$(echo "$line" | jq -r '.count')
+            RADIO_ERR_LIST="${RADIO_ERR_LIST}\n  • ${RTITLE} (${RTYPE} — ${RREASON}) (${RCNT}x)"
+          done < <(echo "$ANA_BODY" | jq -c '.radioErrors.top[]?' | head -5)
+
+          if [ "$RADIO_ERR_TOTAL" -gt 0 ]; then
+            RADIO_BLOCK="\n\n📻 <b>Сбои радио/ТВ у клиентов:</b> ${RADIO_ERR_TOTAL} шт.${RADIO_ERR_LIST}"
+          else
+            RADIO_BLOCK=""
+          fi
+          echo "RADIO_BLOCK<<EOF" >> $GITHUB_ENV
+          echo -e "$RADIO_BLOCK" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Fetch Sysadmin Incidents (Cloudflare D1)
@@ -159,7 +208,7 @@ jobs:
           TOTAL_INC=$(echo "$INC_BODY" | jq -r '.total // 0')
           AUTO_FIXED=$(echo "$INC_BODY" | jq -r '.autoFixed // 0')
           UNRESOLVED=$(echo "$INC_BODY" | jq -r '.unresolved // 0')
-          FIX_RATE=$(echo "$INC_BODY" | jq -r '.fixRate // 100')
+          FIX_RATE_RAW=$(echo "$INC_BODY" | jq -r '.fixRate // empty')
 
           UNRESOLVED_LIST=""
           while IFS= read -r line; do
@@ -177,7 +226,13 @@ jobs:
             QUEUE_STR=""
           fi
 
-          INCIDENTS_BLOCK="\n\n🤖 <b>Системный администратор (за 3 часа):</b>\n🔍 Сбоев парсинга: <b>${TOTAL_INC}</b>\n🛠 Автоматически исправлено: <b>${AUTO_FIXED} (${FIX_RATE}%)</b>\n⚠️ Нерешенных: <b>${UNRESOLVED}</b>${QUEUE_STR}"
+          if [ -z "$FIX_RATE_RAW" ] || [ "$FIX_RATE_RAW" = "null" ]; then
+            FIX_STR="—"
+          else
+            FIX_STR="${FIX_RATE_RAW}%"
+          fi
+
+          INCIDENTS_BLOCK="\n\n🤖 <b>Системный администратор (за 3 часа):</b>\n🔍 Сбоев парсинга: <b>${TOTAL_INC}</b>\n🛠 Автоматически исправлено: <b>${AUTO_FIXED} (${FIX_STR})</b>\n⚠️ Нерешенных: <b>${UNRESOLVED}</b>${QUEUE_STR}"
 
           echo "INCIDENTS_BLOCK<<EOF" >> $GITHUB_ENV
           echo -e "$INCIDENTS_BLOCK" >> $GITHUB_ENV
@@ -188,7 +243,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          MESSAGE="${ERROR_MSG:-$STATS_MSG}${DONOR_BLOCK}${ANALYTICS_BLOCK}${INCIDENTS_BLOCK}"
+          MESSAGE="${ERROR_MSG:-$STATS_MSG}${DONOR_BLOCK}${ANALYTICS_BLOCK}${PLAYBACK_BLOCK}${RADIO_BLOCK}${INCIDENTS_BLOCK}"
           TARGET_CHAT="${CHAT_ID:-484803732}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
