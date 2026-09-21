@@ -1057,7 +1057,7 @@ export function isNonRussianLang(lang: string): boolean {
 
 // Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
 // (forced reset without waiting for s-maxage TTLs to expire).
-const EDGE_CACHE_NS = 'cv2';
+const EDGE_CACHE_NS = 'cv3';
 
 export function edgeCacheKey(c: any, url?: string): Request {
   const raw = url || c.req.url;
@@ -1487,23 +1487,14 @@ app.get('/api/feed/home', async (c: Context) => {
       { id: '18', name: lang.startsWith('ru') ? 'Драмы' : 'Drama', liftwGenre: 'Драма' },
       { id: '53', name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller', liftwGenre: 'Триллер' },
       { id: '10765', name: lang.startsWith('ru') ? 'Фантастика и Фэнтези' : 'Sci-Fi & Fantasy', liftwGenre: 'Фантастика' },
-      { id: '9648', name: lang.startsWith('ru') ? 'Детективы' : 'Mystery', liftwGenre: 'Детектив' },
       { id: '16', name: lang.startsWith('ru') ? 'Мультсериалы' : 'Animation', liftwGenre: 'Мультфильм' },
-      { id: '80', name: lang.startsWith('ru') ? 'Криминал' : 'Crime', liftwGenre: 'Криминал' },
-      { id: '10751', name: lang.startsWith('ru') ? 'Семейные' : 'Family', liftwGenre: 'Семейный' },
     ] : [
       { id: '28', name: lang.startsWith('ru') ? 'Боевики' : 'Action', liftwGenre: 'Боевик' },
       { id: '35', name: lang.startsWith('ru') ? 'Комедии' : 'Comedy', liftwGenre: 'Комедия' },
       { id: '18', name: lang.startsWith('ru') ? 'Драмы' : 'Drama', liftwGenre: 'Драма' },
       { id: '53', name: lang.startsWith('ru') ? 'Триллеры' : 'Thriller', liftwGenre: 'Триллер' },
       { id: '878', name: lang.startsWith('ru') ? 'Фантастика' : 'Sci-Fi', liftwGenre: 'Фантастика' },
-      { id: '9648', name: lang.startsWith('ru') ? 'Детективы' : 'Mystery', liftwGenre: 'Детектив' },
-      { id: '12', name: lang.startsWith('ru') ? 'Приключения' : 'Adventure', liftwGenre: 'Приключения' },
       { id: '16', name: lang.startsWith('ru') ? 'Мультфильмы' : 'Animation', liftwGenre: 'Мультфильм' },
-      { id: '80', name: lang.startsWith('ru') ? 'Криминал' : 'Crime', liftwGenre: 'Криминал' },
-      { id: '27', name: lang.startsWith('ru') ? 'Ужасы' : 'Horror', liftwGenre: 'Ужасы' },
-      { id: '10751', name: lang.startsWith('ru') ? 'Семейные' : 'Family', liftwGenre: 'Семейный' },
-      { id: '10749', name: lang.startsWith('ru') ? 'Мелодрамы' : 'Romance', liftwGenre: 'Мелодрама' },
     ];
 
     const genrePromises = genreCategories.map(async (cat) => {
@@ -1559,7 +1550,10 @@ app.get('/api/feed/home', async (c: Context) => {
     });
 
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      // Guard: Only cache if at least one section has data (never cache a totally empty failure)
+      if (trendingItems.length > 0 || validGenres.length > 0) {
+        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      }
     } catch (_) {}
 
     return response;

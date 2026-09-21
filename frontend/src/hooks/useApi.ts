@@ -610,7 +610,7 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchCategorizedHome = useCallback(async (type: 'movie' | 'tv', silent = false) => {
-    const cacheKey = `categorized_home_v7_${type}_${language}`;
+    const cacheKey = `categorized_home_v8_${type}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (!silent && cached) {
       return cached;
@@ -619,7 +619,7 @@ export function useApi() {
     const fetcher = async () => {
       try {
         const cfFeedRes = await fetch(`${CF_API_BASE}/feed/home?type=${type}&lang=${encodeURIComponent(language)}&v=4`, {
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(15000),
         });
         if (cfFeedRes.ok) {
           const feedData = await cfFeedRes.json() as { trending: any[]; genres: { id: string; name: string; genreId: string; rawResults: any[] }[] };
@@ -636,7 +636,7 @@ export function useApi() {
             }));
 
             const sections = [
-              { id: 'trending', name: language === 'ru-RU' ? 'Популярное' : 'Popular', genreId: '', items: trendingItems },
+              ...(trendingItems.length > 0 ? [{ id: 'trending', name: language === 'ru-RU' ? 'Популярное' : 'Popular', genreId: '', items: trendingItems }] : []),
               ...genreSections.filter(s => s.items.length > 0)
             ];
 

@@ -372,7 +372,7 @@ export function Home() {
           setIsSearching(false);
           setHasMoreCategories(true);
 
-          const cacheKey = `categorized_home_v7_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+          const cacheKey = `categorized_home_v8_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
             // Instant 0ms render from client cache
