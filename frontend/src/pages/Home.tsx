@@ -10,6 +10,7 @@ import { TrailerFeed } from '../components/TrailerFeed';
 import { TrailerStoriesBar } from '../components/TrailerStoriesBar';
 import { WebApp } from '../telegram';
 import { useHomeState } from '../context/HomeStateContext';
+import { useResolvedPoster } from '../hooks/useResolvedPoster';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { BannerAd } from '../components/BannerAd';
 
@@ -27,6 +28,8 @@ const MovieCard = React.memo(function MovieCard({
   onNavigate,
 }: MovieCardProps) {
   const { t, language } = useLanguage();
+  const resolvedPoster = useResolvedPoster(item, language);
+  const displayPoster = resolvedPoster || item?.poster;
   if (!item || !item.id) return null;
   const targetMediaType = item.type || mediaType;
 
@@ -35,14 +38,14 @@ const MovieCard = React.memo(function MovieCard({
     : (item.title || item.name);
 
   const posterSrcSet = React.useMemo(() => {
-    if (!item.poster || typeof item.poster !== 'string') return undefined;
-    const match = item.poster.match(/\/t\/p\/[^\/]+(\/.+)$/);
+    if (!displayPoster || typeof displayPoster !== 'string') return undefined;
+    const match = displayPoster.match(/\/t\/p\/[^\/]+(\/.+)$/);
     if (!match) return undefined;
     const cleanPath = match[1];
-    const isProxied = item.poster.includes('/api/image') || item.poster.includes('workers.dev');
+    const isProxied = displayPoster.includes('/api/image') || displayPoster.includes('workers.dev');
     const base = isProxied ? `${CF_API_BASE}/image?path=/t/p` : 'https://image.tmdb.org/t/p';
     return `${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
-  }, [item.poster]);
+  }, [displayPoster]);
 
   const isAdultItem = item.isAdult || item.type === 'adult' || String(item.id).startsWith('ep_') || String(item.id).startsWith('rt_');
 
@@ -79,7 +82,7 @@ const MovieCard = React.memo(function MovieCard({
           </div>
         )}
         <img 
-          src={item.poster} 
+          src={displayPoster} 
           srcSet={posterSrcSet}
           sizes="(max-width: 640px) 170px, 342px"
           alt={item.title || item.name || 'Poster'} 

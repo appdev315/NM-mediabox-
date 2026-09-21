@@ -1125,6 +1125,76 @@ app.get('/api/search/liftw', async (c: Context) => {
   }
 });
 
+// --- TMDB POSTER RESOLVER (English covers for non-RU locales, Liftw inventory untouched) ---
+// Strict match only (exact year + normalized title equality). Anything else → 404
+// so the frontend keeps the donor poster instead of showing a wrong cover.
+app.get('/api/poster/resolve', async (c: Context) => {
+  const title = (c.req.query('title') || '').trim();
+  const yearStr = (c.req.query('year') || '').trim();
+  const vType = c.req.query('type') || 'movie';
+  if (!title) {
+    return c.json({ error: 'Title is required' }, 400);
+  }
+  if (!/^\d{4}$/.test(yearStr)) {
+    return c.json({ error: 'Year (YYYY) is required' }, 400);
+  }
+  const tmdbType = (vType === 'tv' || vType === 'series' || vType === 'serial') ? 'tv' : 'movie';
+  const targetYear = parseInt(yearStr, 10);
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = edgeCacheKey(c);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  const noMatch = () => c.json({ error: 'no matching poster' }, 404, {
+    // Short negative TTL: donor catalog grows, a later retry may match.
+    // (Edge caches 404s too, so keep it brief.)
+    'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  try {
+    const tmdbKey = getTmdbKey(c);
+    if (!tmdbKey) {
+      return c.json({ error: 'TMDB API key not configured' }, 500);
+    }
+    const searchUrl = `https://api.themoviedb.org/3/search/${tmdbType}?api_key=${encodeURIComponent(tmdbKey)}&query=${encodeURIComponent(title)}&year=${targetYear}&language=en-US&include_adult=false&page=1`;
+    const res = await fetch(searchUrl, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MediaBox-Edge/1.0' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return noMatch();
+    const data = await res.json() as { results?: any[] };
+    const normQuery = normString(title);
+
+    const match = (data.results || []).find((r: any) => {
+      if (!r?.poster_path || typeof r.poster_path !== 'string') return false;
+      const rYear = parseInt(String(r.release_date || r.first_air_date || '').slice(0, 4), 10);
+      if (rYear !== targetYear) return false;
+      const candidates = [r.title, r.name, r.original_title, r.original_name]
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        .map(normString);
+      return candidates.includes(normQuery);
+    });
+
+    if (!match) return noMatch();
+
+    const imgProxy = new URL(c.req.url).origin + '/api/image?path=';
+    const response = c.json({ poster: `${imgProxy}/t/p/w342${match.poster_path}` }, 200, {
+      'Cache-Control': 'public, max-age=2592000, s-maxage=2592000',
+      'Access-Control-Allow-Origin': '*',
+    });
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+    return response;
+  } catch (_) {
+    return noMatch();
+  }
+});
+
 // --- TMDB EDGE IMAGE PROXY (Global CDN & anti-blocking) ---
 app.get('/api/image', async (c: Context) => {
   const path = c.req.query('path');
