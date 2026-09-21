@@ -1057,7 +1057,7 @@ export function isNonRussianLang(lang: string): boolean {
 
 // Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
 // (forced reset without waiting for s-maxage TTLs to expire).
-const EDGE_CACHE_NS = 'cv3';
+const EDGE_CACHE_NS = 'cv4';
 
 export function edgeCacheKey(c: any, url?: string): Request {
   const raw = url || c.req.url;
@@ -1545,13 +1545,18 @@ app.get('/api/feed/home', async (c: Context) => {
       genres: validGenres,
     };
 
+    const isFullPayload = trendingItems.length > 0 && validGenres.length >= 4;
+
     const response = c.json(payload, 200, {
-      'Cache-Control': 'public, max-age=1800, s-maxage=43200',
+      'Cache-Control': isFullPayload
+        ? 'public, max-age=1800, s-maxage=43200'
+        : 'public, max-age=60, s-maxage=120',
     });
 
     try {
-      // Guard: Only cache if at least one section has data (never cache a totally empty failure)
-      if (trendingItems.length > 0 || validGenres.length > 0) {
+      // Guard: Only cache in Edge if response is full (trending present and >= 4 genres loaded).
+      // Degraded/partial payload is never locked into Edge cache for 12 hours.
+      if (isFullPayload) {
         c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
       }
     } catch (_) {}
