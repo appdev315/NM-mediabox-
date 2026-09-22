@@ -909,7 +909,7 @@ export function Movie() {
   const displayYear = movie?.year || (movie?.release_date ? movie.release_date.slice(0, 4) : '') || (movie?.first_air_date ? movie.first_air_date.slice(0, 4) : '');
   const seoTitle = displayTitle ? `${displayTitle}${displayYear ? ` (${displayYear})` : ''} — MediaBox` : 'MediaBox';
 
-  const rawOverview = movie?.overview || '';
+  const rawOverview = movie?.overview || movie?.description || '';
   const seoDescription = rawOverview.length > 0
     ? (rawOverview.length > 160 ? rawOverview.slice(0, 157).trim() + '...' : rawOverview)
     : `${displayTitle}${displayYear ? ` (${displayYear})` : ''} — MediaBox`;
@@ -1212,7 +1212,7 @@ export function Movie() {
         <div className="mb-6 space-y-1">
           <h3 className="font-extrabold text-base">{t('overview')}</h3>
           <p className="text-[14px] opacity-90 leading-relaxed font-medium">
-            {movie.description || t('descriptionMissing')}
+            {movie.description || movie.overview || t('descriptionMissing')}
           </p>
         </div>
 

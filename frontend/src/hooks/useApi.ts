@@ -313,6 +313,7 @@ export function useApi() {
     // Resolve Russian title: from TMDB translations or localized title or item.title_ru
     const ruTrans = item.translations?.translations?.find((t: any) => t.iso_639_1 === 'ru');
     const titleRu = ruTrans?.data?.title || ruTrans?.data?.name || item.title_ru || (language === 'ru-RU' ? (item.title || item.name) : '') || '';
+    const overviewText = item.overview || ruTrans?.data?.overview || '';
 
     return {
       id: item.id,
@@ -323,7 +324,8 @@ export function useApi() {
         ? getTmdbImageUrl(item.poster_path, 'w342') 
         : (item.poster || 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster'),
       backdrop: item.backdrop_path ? getTmdbImageUrl(item.backdrop_path, 'w780') : '',
-      description: item.overview || '',
+      overview: overviewText,
+      description: overviewText,
       tagline: item.tagline || '',
       runtime: item.runtime || (item.episode_run_time ? item.episode_run_time[0] : 0),
       certification: extractCertification(item),
@@ -462,7 +464,7 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv'): Promise<any> => {
-    const cacheKey = `movie_details_v2_${type}_${id}_${language}`;
+    const cacheKey = `movie_details_v3_${type}_${id}_${language}`;
     const cached = clientCache.get(cacheKey);
     if (cached) return cached;
 
@@ -489,7 +491,17 @@ export function useApi() {
                   const bestMatch = searchRes?.results?.[0];
                   if (bestMatch?.id) {
                     const tmdbDetails = await fetchMovieDetails(bestMatch.id, resolvedType);
-                    return { ...tmdbDetails, liftw_id: liftwId, episodes: lData.episodes || tmdbDetails.episodes };
+                    const mergedDetails = {
+                      ...tmdbDetails,
+                      overview: tmdbDetails.overview || tmdbDetails.description || lData.info?.description || '',
+                      description: tmdbDetails.description || tmdbDetails.overview || lData.info?.description || '',
+                      poster: tmdbDetails.poster && !tmdbDetails.poster.includes('placehold.co') ? tmdbDetails.poster : (lData.poster || tmdbDetails.poster),
+                      iframe: lData.iframe || tmdbDetails.iframe,
+                      liftw_id: liftwId,
+                      episodes: lData.episodes || tmdbDetails.episodes,
+                    };
+                    clientCache.set(cacheKey, mergedDetails, 86400);
+                    return mergedDetails;
                   }
                 } catch (_) {}
               }
@@ -498,6 +510,7 @@ export function useApi() {
                 ? (lData.origin_name || lData.name)
                 : lData.name;
 
+              const desc = lData.info?.description || '';
               const liftwDetails = {
                 id: `liftw_${liftwId}`,
                 title: liftwTitle,
@@ -506,7 +519,8 @@ export function useApi() {
                 poster: lData.poster || '',
                 year: lData.year || '',
                 release_date: lData.year ? `${lData.year}-01-01` : '',
-                overview: lData.info?.description || '',
+                overview: desc,
+                description: desc,
                 rating: lData.info?.imdb_rating || lData.info?.kp_rating || 0,
                 vote_average: lData.info?.imdb_rating || lData.info?.kp_rating || 0,
                 genres: (lData.info?.genre || []).map((g: string, idx: number) => ({ id: idx, name: g })),
@@ -537,7 +551,7 @@ export function useApi() {
         try {
           const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
           const altResult = mapTMDB(altData, altType === 'tv' ? 'series' : 'movie');
-          const altCacheKey = `movie_details_v2_${altType}_${id}_${language}`;
+          const altCacheKey = `movie_details_v3_${altType}_${id}_${language}`;
           clientCache.set(altCacheKey, altResult, 86400);
           return altResult;
         } catch (_) {
