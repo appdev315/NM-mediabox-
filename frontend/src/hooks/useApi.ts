@@ -602,7 +602,24 @@ export function useApi() {
     if (String(id).startsWith('liftw_')) return [];
     try {
       const data = await tmdbFetch(`/${type}/${id}/recommendations`, { page });
-      return (data?.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+      const recs = (data?.results || []).map((item: TMDBMovie) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+
+      // If TMDB recommendations have fewer than 10 results, backfill with similar titles
+      if (page === 1 && recs.length < 10) {
+        try {
+          const simData = await tmdbFetch(`/${type}/${id}/similar`, { page: 1 });
+          const existingIds = new Set(recs.map((it: any) => it.id));
+          for (const item of (simData?.results || [])) {
+            if (!existingIds.has(item.id)) {
+              recs.push(mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+              existingIds.add(item.id);
+            }
+            if (recs.length >= 10) break;
+          }
+        } catch (_) {}
+      }
+
+      return recs;
     } catch (err: any) {
       console.error('TMDB API Error:', err);
       return [];

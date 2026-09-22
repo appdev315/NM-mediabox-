@@ -40,6 +40,7 @@ export function Movie() {
   const [recPage, setRecPage] = useState(1);
   const [loadingMoreRecs, setLoadingMoreRecs] = useState(false);
   const [hasMoreRecs, setHasMoreRecs] = useState(true);
+  const [recTmdbId, setRecTmdbId] = useState<string | number | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [liftwEpisodes, setLiftwEpisodes] = useState<any>(null);
@@ -550,18 +551,40 @@ export function Movie() {
           }
         }).catch(() => {});
 
-        // Fetch recommendations in background without blocking stream prewarm
+        // Fetch recommendations in background using resolved TMDB ID (resolves even for liftw_ IDs)
         setRecPage(1);
         setHasMoreRecs(true);
         setLoadingMoreRecs(false);
-        // Skip TMDB recommendations for Liftw-native content (liftw_ IDs cause 404)
-        if (!String(id).startsWith('liftw_')) {
-          fetchRecommendations(id, resolvedType, 1).then(recs => {
+
+        let targetTmdbId: string | number | null = (d?.id && !String(d.id).startsWith('liftw_'))
+          ? d.id
+          : (!String(id).startsWith('liftw_') ? id : null);
+
+        // Fallback for rare liftw items without direct TMDB match: search by title
+        if (!targetTmdbId) {
+          const q = (d?.original_title || d?.title || d?.name || '').trim();
+          if (q) {
+            try {
+              const sRes = await searchContent(q);
+              const m = sRes?.find((it: any) => it?.id && !String(it.id).startsWith('liftw_'));
+              if (m?.id) {
+                targetTmdbId = m.id;
+              }
+            } catch (_) {}
+          }
+        }
+
+        setRecTmdbId(targetTmdbId);
+
+        if (targetTmdbId) {
+          fetchRecommendations(targetTmdbId, resolvedType, 1).then(recs => {
             if (isMounted) {
               setRecommendations(recs || []);
               if (!recs || recs.length < 10) setHasMoreRecs(false);
             }
-          }).catch(() => {});
+          }).catch(() => {
+            if (isMounted) setRecommendations([]);
+          });
         } else {
           setRecommendations([]);
           setHasMoreRecs(false);
@@ -577,14 +600,15 @@ export function Movie() {
     return () => {
       isMounted = false;
     };
-  }, [id, queryType, fetchMovieDetails, fetchRecommendations]);
+  }, [id, queryType, fetchMovieDetails, fetchRecommendations, searchContent]);
 
   const handleLoadMoreRecommendations = async () => {
-    if (loadingMoreRecs || !hasMoreRecs || !id) return;
+    const targetId = recTmdbId || (movie?.id && !String(movie.id).startsWith('liftw_') ? movie.id : (!String(id).startsWith('liftw_') ? id : null));
+    if (loadingMoreRecs || !hasMoreRecs || !targetId) return;
     setLoadingMoreRecs(true);
     const nextPage = recPage + 1;
     try {
-      const nextRecs = await fetchRecommendations(id, mediaType, nextPage);
+      const nextRecs = await fetchRecommendations(targetId, mediaType, nextPage);
       if (!nextRecs || nextRecs.length === 0) {
         setHasMoreRecs(false);
       } else {

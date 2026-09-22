@@ -1057,7 +1057,7 @@ export function isNonRussianLang(lang: string): boolean {
 
 // Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
 // (forced reset without waiting for s-maxage TTLs to expire).
-const EDGE_CACHE_NS = 'cv4';
+const EDGE_CACHE_NS = 'cv5';
 
 export function edgeCacheKey(c: any, url?: string): Request {
   const raw = url || c.req.url;
@@ -1126,8 +1126,25 @@ app.get('/api/search/liftw', async (c: Context) => {
 });
 
 // --- TMDB POSTER RESOLVER (English covers for non-RU locales, Liftw inventory untouched) ---
-// Strict match only (exact year + normalized title equality). Anything else → 404
-// so the frontend keeps the donor poster instead of showing a wrong cover.
+// Strips multi-word creator/director possessive prefixes ("Guy Ritchie's The Covenant" -> "The Covenant")
+// Single-word possessives like "Schindler's List", "Rosemary's Baby" are preserved.
+function stripCreatorPrefix(s: string): string {
+  if (!s) return '';
+  return s.replace(/^(?:marvel['’]s|disney['’]s|(?:[\p{L}\d.'’\-]+\s+){1,3}[\p{L}\d.'’\-]+['’]s)\s+/iu, '').trim();
+}
+
+function stripLeadingArticle(s: string): string {
+  if (!s) return '';
+  return s.replace(/^(?:the|a|an)\s+/iu, '').trim();
+}
+
+function stripSubtitle(s: string): string {
+  if (!s) return '';
+  return s.split(/[:\-–—]/)[0].trim();
+}
+
+// Strict match with tiered scoring: Tier 1 (exact / creator-stripped) > Tier 2 (article/subtitle).
+// Inside equal tier, popularity + vote_count acts as tiebreaker. Year match is strict (===).
 app.get('/api/poster/resolve', async (c: Context) => {
   const title = (c.req.query('title') || '').trim();
   const yearStr = (c.req.query('year') || '').trim();
@@ -1168,16 +1185,76 @@ app.get('/api/poster/resolve', async (c: Context) => {
     if (!res.ok) return noMatch();
     const data = await res.json() as { results?: any[] };
     const normQuery = normString(title);
+    const normQueryNoArt = normString(stripLeadingArticle(title));
+    const normQueryNoSub = normString(stripSubtitle(title));
 
-    const match = (data.results || []).find((r: any) => {
-      if (!r?.poster_path || typeof r.poster_path !== 'string') return false;
+    interface ScoredCandidate {
+      r: any;
+      tier: number;
+    }
+
+    const scored: ScoredCandidate[] = [];
+
+    for (const r of (data.results || [])) {
+      if (!r?.poster_path || typeof r.poster_path !== 'string') continue;
       const rYear = parseInt(String(r.release_date || r.first_air_date || '').slice(0, 4), 10);
-      if (rYear !== targetYear) return false;
-      const candidates = [r.title, r.name, r.original_title, r.original_name]
-        .filter((s): s is string => typeof s === 'string' && s.length > 0)
-        .map(normString);
-      return candidates.includes(normQuery);
+      if (rYear !== targetYear) continue; // Strict release year match
+
+      const candStrings = [r.title, r.name, r.original_title, r.original_name]
+        .filter((s): s is string => typeof s === 'string' && s.length > 0);
+
+      let itemTier = 0;
+
+      // Tier 1: exact full-query match OR exact creator-stripped match
+      for (const cs of candStrings) {
+        if (normString(cs) === normQuery) {
+          itemTier = 1;
+          break;
+        }
+        const noCreator = stripCreatorPrefix(cs);
+        if (noCreator && normString(noCreator) === normQuery) {
+          itemTier = 1;
+          break;
+        }
+      }
+
+      // Tier 2: variant without leading article or subtitle
+      if (itemTier === 0) {
+        for (const cs of candStrings) {
+          const noArt = stripLeadingArticle(cs);
+          const noSub = stripSubtitle(cs);
+          const noCreator = stripCreatorPrefix(cs);
+          const noCreatorNoArt = stripLeadingArticle(noCreator);
+          const noCreatorNoSub = stripSubtitle(noCreator);
+
+          const variants = [noArt, noSub, noCreatorNoArt, noCreatorNoSub]
+            .map(normString)
+            .filter(v => v.length >= 2);
+
+          if (variants.includes(normQuery) || variants.includes(normQueryNoArt) || variants.includes(normQueryNoSub)) {
+            itemTier = 2;
+            break;
+          }
+        }
+      }
+
+      if (itemTier > 0) {
+        scored.push({ r, tier: itemTier });
+      }
+    }
+
+    if (scored.length === 0) return noMatch();
+
+    // 1. Tier 1 (exact/creator-stripped) beats Tier 2 (article/subtitle)
+    // 2. Tiebreaker inside equal tier: popularity + min(vote_count, 5000) * 0.1
+    scored.sort((a, b) => {
+      if (a.tier !== b.tier) return a.tier - b.tier;
+      const popA = (Number(a.r.popularity) || 0) + Math.min(Number(a.r.vote_count) || 0, 5000) * 0.1;
+      const popB = (Number(b.r.popularity) || 0) + Math.min(Number(b.r.vote_count) || 0, 5000) * 0.1;
+      return popB - popA;
     });
+
+    const match = scored[0].r;
 
     if (!match) return noMatch();
 

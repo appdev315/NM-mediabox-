@@ -11,7 +11,7 @@ function normalizeKeyPart(s: string): string {
 }
 
 function cacheKeyFor(title: string, year: string, type: string): string {
-  return `poster_en_${normalizeKeyPart(title)}_${year}_${type}`;
+  return `poster_en_v2_${normalizeKeyPart(title)}_${year}_${type}`;
 }
 
 function isTmdbPoster(poster: unknown): boolean {
