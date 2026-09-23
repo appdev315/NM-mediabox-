@@ -249,6 +249,7 @@ export function Movie() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const episodesScrollRef = useRef<HTMLDivElement>(null);
   const userSelectedRef = useRef(false);
+  const userSelectedAtRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -406,6 +407,7 @@ export function Movie() {
     const season = activeSeason || sortedSeasons[0] || '1';
     handleSeasonEpisodeChange(season, episode);
     userSelectedRef.current = true;
+    userSelectedAtRef.current = Date.now();
     setTargetEpisode({ season, episode, token: Date.now() });
   };
 
@@ -491,6 +493,7 @@ export function Movie() {
       setIframeUrl(null);
       setTargetEpisode(null);
       userSelectedRef.current = false;
+      userSelectedAtRef.current = 0;
       setContentUnavailable(false);
       setMovie(null);
       setActiveSeason('');
@@ -1363,6 +1366,15 @@ export function Movie() {
                         targetEpisode={mediaType === 'tv' ? targetEpisode : undefined}
                         onFullscreenChange={setIsPlayerFullscreen}
                         onEpisodeChange={(s, e) => {
+                          // Echo guard: within 3.5s grace period after user click, ignore stale events that don't match target
+                          if (userSelectedAtRef.current && Date.now() - userSelectedAtRef.current < 3500) {
+                            if (targetEpisode && (s !== targetEpisode.season || e !== targetEpisode.episode)) {
+                              return;
+                            }
+                            // Target confirmed by player
+                            userSelectedAtRef.current = 0;
+                          }
+
                           activeSeasonRef.current = s;
                           activeEpisodeRef.current = e;
                           setActiveSeason(s);
@@ -1392,6 +1404,7 @@ export function Movie() {
                     const defaultEpisode = sortedAvail[0] || '1';
                     handleSeasonEpisodeChange(season, defaultEpisode);
                     userSelectedRef.current = true;
+                    userSelectedAtRef.current = Date.now();
                     setTargetEpisode({ season, episode: defaultEpisode, token: Date.now() });
                   }}
                   className="w-full px-4 py-2.5 rounded-xl appearance-none outline-none font-bold shadow-sm cursor-pointer border border-transparent focus:border-[var(--button-color)] transition-all"

@@ -91,24 +91,18 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     return `${cleanUrl}?start=${startSec}#t=${startSec}`;
   }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
 
-  // Locked src state: freezes initial currentUrl for the active sourceKey and season.
-  // Season switch reloads iframe (donor only serves 1 season per HTML document).
-  // Episode switch within same season is handled seamlessly via 'playlist go' without iframe reload.
+  // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
+  // verified fallback or season changes navigate iframe.src directly.
   const [lockedSrc, setLockedSrc] = useState<string>(currentUrl);
   const activeSourceKeyRef = useRef(sourceKey);
   const activeSeasonRef = useRef<string>(targetEpisode?.season || initialEpisodeRef.current?.season || '1');
+  const pendingTargetRef = useRef<{ season: string; episode: string } | null>(null);
   const fallbackNavTimerRef = useRef<any>(null);
 
-  // Reload iframe only when source changes OR when a different season is selected
-  const targetSeason = targetEpisode?.season;
-  if (
-    activeSourceKeyRef.current !== sourceKey || 
-    (targetSeason && targetSeason !== activeSeasonRef.current)
-  ) {
+  // Reload iframe when source URL/origin changes
+  if (activeSourceKeyRef.current !== sourceKey) {
     activeSourceKeyRef.current = sourceKey;
-    if (targetSeason) {
-      activeSeasonRef.current = targetSeason;
-    }
+    activeSeasonRef.current = targetEpisode?.season || initialEpisodeRef.current?.season || '1';
     setLockedSrc(currentUrl);
   }
 
@@ -146,21 +140,30 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         if (data.event === 'changeEpisode' && (data.season !== undefined || data.episode !== undefined)) {
           const s = String(data.season || '1');
           const e = String(data.episode || '1');
+
+          // Check if this confirms our pending episode switch
+          if (pendingTargetRef.current) {
+            if (s === pendingTargetRef.current.season && e === pendingTargetRef.current.episode) {
+              pendingTargetRef.current = null;
+              if (fallbackNavTimerRef.current) {
+                clearTimeout(fallbackNavTimerRef.current);
+                fallbackNavTimerRef.current = null;
+              }
+            }
+          }
+
           activeSeasonRef.current = s;
           onEpisodeChange?.(s, e);
-          if (fallbackNavTimerRef.current) {
-            clearTimeout(fallbackNavTimerRef.current);
-            fallbackNavTimerRef.current = null;
-          }
         }
         if (data.event === 'playerReady') {
-          // Never send 'playlist go' here: the iframe URL already carries the
-          // target season/episode (server-rendered), and donor's changeEpisode()
-          // destroys/recreates the player — go on every ready would loop forever.
-          // Episode switches are handled by the targetEpisode effect below.
+          // Send adFree handshake
           sendPlayCommands();
+          // If player became ready while an episode change is pending, dispatch command immediately
+          if (pendingTargetRef.current) {
+            sendPlayCommands(pendingTargetRef.current.season, pendingTargetRef.current.episode);
+          }
         }
-        // When playback commences, clear any pending fallback reload
+        // When playback commences, clear pending fallback reload ONLY IF no pending episode switch
         if (
           data.event === 'adStart' || 
           data.event === 'startWatching' || 
@@ -168,7 +171,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           data.event === 'viewProgress' || 
           data.event === 'play'
         ) {
-          if (fallbackNavTimerRef.current) {
+          if (!pendingTargetRef.current && fallbackNavTimerRef.current) {
             clearTimeout(fallbackNavTimerRef.current);
             fallbackNavTimerRef.current = null;
           }
@@ -186,7 +189,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, [onEpisodeChange, targetEpisode?.season, targetEpisode?.episode, sendPlayCommands]);
 
-  // Single trigger: command episode within current season without reloading iframe
+  // Single trigger: command episode switch with fast-path + verified fallback
   const lastTargetTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -201,19 +204,34 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       targetEpisode.episode === initialEpisodeRef.current.episode;
     if (isInitialSeasonEp) return;
 
-    // If season changed, lockedSrc handled the reload synchronously
-    if (targetEpisode.season !== activeSeasonRef.current) return;
+    // Season change requires direct iframe URL navigation
+    const isSeasonChange = targetEpisode.season !== activeSeasonRef.current;
+    if (isSeasonChange) {
+      activeSeasonRef.current = targetEpisode.season;
+      pendingTargetRef.current = null;
+      if (fallbackNavTimerRef.current) {
+        clearTimeout(fallbackNavTimerRef.current);
+        fallbackNavTimerRef.current = null;
+      }
+      setLockedSrc(currentUrl);
+      return;
+    }
 
-    // In-place episode change within active season: send single command
+    // Episode switch within same season:
+    // Fast-path: command playlist go without reloading iframe
+    pendingTargetRef.current = { season: targetEpisode.season, episode: targetEpisode.episode };
     sendPlayCommands(targetEpisode.season, targetEpisode.episode);
 
-    // Fallback: reload iframe only if player completely fails to respond within 3.5s
+    // Verified fallback: reload iframe with currentUrl if donor does not ack target episode within 1800ms
     if (fallbackNavTimerRef.current) {
       clearTimeout(fallbackNavTimerRef.current);
     }
     fallbackNavTimerRef.current = setTimeout(() => {
-      setLockedSrc(currentUrl);
-    }, 3500);
+      if (pendingTargetRef.current) {
+        setLockedSrc(currentUrl);
+      }
+      fallbackNavTimerRef.current = null;
+    }, 1800);
   }, [targetEpisode, currentUrl, sendPlayCommands]);
 
   // Cleanup fallback navigation timer on unmount
