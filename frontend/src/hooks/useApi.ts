@@ -178,7 +178,9 @@ export function useApi() {
           const url = `${CF_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
           const response = await fetch(url, { signal });
           if (!response.ok) {
-            throw new Error(`CF Proxy error: ${response.status}`);
+            const proxyErr: any = new Error(`CF Proxy error: ${response.status}`);
+            proxyErr.status = response.status;
+            throw proxyErr;
           }
           return await response.json();
         };
@@ -193,7 +195,9 @@ export function useApi() {
             }
           });
           if (!response.ok) {
-            throw new Error(`HF Proxy error: ${response.status}`);
+            const proxyErr: any = new Error(`HF Proxy error: ${response.status}`);
+            proxyErr.status = response.status;
+            throw proxyErr;
           }
           return await response.json();
         };
@@ -266,6 +270,11 @@ export function useApi() {
       } catch (err) {
         if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
         if (signal?.aborted || (err as any)?.name === 'AbortError') {
+          throw err;
+        }
+        // 404 is definitive (wrong id/type), not transient: fail fast without
+        // the 600ms retry so the movie/tv fallback fires immediately.
+        if ((err as any)?.status === 404) {
           throw err;
         }
         if (retryCount < 1) {
@@ -465,8 +474,16 @@ export function useApi() {
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv'): Promise<any> => {
     const cacheKey = `movie_details_v3_${type}_${id}_${language}`;
-    const cached = clientCache.get(cacheKey);
-    if (cached) return cached;
+    const cached = clientCache.get<any>(cacheKey);
+    if (cached) {
+      // Short negative cache: confirmed double-404, fail fast without network.
+      if ((cached as any).__notFound) {
+        const cachedMiss: any = new Error(`TMDB details not found for id ${id}`);
+        cachedMiss.code = 'NOT_FOUND';
+        throw cachedMiss;
+      }
+      return cached;
+    }
 
     return withLoading(async () => {
       // 1. If ID is a Liftw ID (prefixed with liftw_)
@@ -546,7 +563,12 @@ export function useApi() {
         clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
         return result;
       } catch (err: any) {
-        // Fallback: If 404 with movie type, try tv (series) type, and vice versa
+        // Transient failure (cold backend, timeout, 5xx): surface as-is so the
+        // caller shows a retry screen instead of burning a wrong-type request.
+        const isNotFound = (err as any)?.status === 404;
+        if (!isNotFound) throw err;
+        // Fallback: If 404 with movie type, try tv (series) type, and vice versa.
+        // 404s fail fast (no retry in tmdbFetch), so the penalty is one edge roundtrip.
         const altType = type === 'movie' ? 'tv' : 'movie';
         try {
           const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
@@ -554,8 +576,17 @@ export function useApi() {
           const altCacheKey = `movie_details_v3_${altType}_${id}_${language}`;
           clientCache.set(altCacheKey, altResult, 86400);
           return altResult;
-        } catch (_) {
-          throw err;
+        } catch (altErr: any) {
+          if ((altErr as any)?.status === 404) {
+            // Both types 404: the title really doesn't exist. Negative-cache
+            // both keys for 60s so repeated opens fail fast without network.
+            clientCache.set(cacheKey, { __notFound: true } as any, 60);
+            clientCache.set(`movie_details_v3_${altType}_${id}_${language}`, { __notFound: true } as any, 60);
+            const notFound: any = new Error(`TMDB details not found for id ${id}`);
+            notFound.code = 'NOT_FOUND';
+            throw notFound;
+          }
+          throw altErr;
         }
       }
     });

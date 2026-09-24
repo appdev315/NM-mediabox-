@@ -36,6 +36,10 @@ export function Movie() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
+  // loadError separates transient network failures ('network', retryable)
+  // from a confirmed TMDB 404 in both types ('not-found').
+  const [loadError, setLoadError] = useState<null | 'not-found' | 'network'>(null);
+  const [loadToken, setLoadToken] = useState(0);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [recPage, setRecPage] = useState(1);
   const [loadingMoreRecs, setLoadingMoreRecs] = useState(false);
@@ -496,6 +500,7 @@ export function Movie() {
       userSelectedAtRef.current = 0;
       setContentUnavailable(false);
       setMovie(null);
+      setLoadError(null);
       setActiveSeason('');
       setActiveEpisode('');
       activeSeasonRef.current = '';
@@ -503,7 +508,37 @@ export function Movie() {
       userSelectedRef.current = false;
       try {
         const initialType = (queryType === 'series' || queryType === 'tv') ? 'tv' : 'movie';
-        const details = await fetchMovieDetails(id, initialType);
+        const hasExplicitType = queryType === 'series' || queryType === 'tv' || queryType === 'movie';
+        let details: any;
+        if (hasExplicitType) {
+          details = await fetchMovieDetails(id, initialType);
+        } else {
+          // Bare /movie/:id link (Telegram startParam, SEO, manual URL): type is
+          // unknown, so race both types in parallel instead of paying for a
+          // guaranteed-404 sequential fallback on a cold backend.
+          const [movieRes, tvRes] = await Promise.allSettled([
+            fetchMovieDetails(id, 'movie'),
+            fetchMovieDetails(id, 'tv'),
+          ]);
+          const movieVal = movieRes.status === 'fulfilled' ? movieRes.value : null;
+          const tvVal = tvRes.status === 'fulfilled' ? tvRes.value : null;
+          details = movieVal ?? tvVal;
+          if (movieVal && tvVal) {
+            // Rare TMDB id collision across types: prefer the title match
+            // when the navigation provided an expected title.
+            const expectedTitle = ((location.state as any)?.title || '').toLowerCase().trim();
+            if (expectedTitle) {
+              const titleOf = (v: any) => String(v?.title || v?.name || '').toLowerCase();
+              if (!titleOf(movieVal).includes(expectedTitle) && titleOf(tvVal).includes(expectedTitle)) {
+                details = tvVal;
+              }
+            }
+          }
+          if (!details) {
+            const firstErr = movieRes.status === 'rejected' ? movieRes.reason : (tvRes as PromiseRejectedResult).reason;
+            throw firstErr ?? new Error('details not found');
+          }
+        }
         let d = details as any;
         if (!isMounted) return;
 
@@ -592,8 +627,13 @@ export function Movie() {
           setRecommendations([]);
           setHasMoreRecs(false);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load movie data", err);
+        if (!isMounted) return;
+        // A confirmed double-404 (fetchMovieDetails code NOT_FOUND) means the
+        // title really doesn't exist; anything else is transient (cold HF,
+        // edge timeout) and gets a retry screen instead of a false NotFound.
+        setLoadError(err?.code === 'NOT_FOUND' ? 'not-found' : 'network');
       }
     };
     
@@ -603,7 +643,7 @@ export function Movie() {
     return () => {
       isMounted = false;
     };
-  }, [id, queryType, fetchMovieDetails, fetchRecommendations, searchContent]);
+  }, [id, queryType, fetchMovieDetails, fetchRecommendations, searchContent, loadToken]);
 
   const handleLoadMoreRecommendations = async () => {
     const targetId = recTmdbId || (movie?.id && !String(movie.id).startsWith('liftw_') ? movie.id : (!String(id).startsWith('liftw_') ? id : null));
@@ -988,6 +1028,32 @@ export function Movie() {
       <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
         <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin mb-4" />
         <div className="font-medium opacity-50">{t('loading')}</div>
+      </div>
+    );
+  }
+
+  if (!movie && loadError === 'network') {
+    return (
+      <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh] text-center">
+        <div className="text-4xl mb-2">📡</div>
+        <div className="font-bold mb-1">{t('contentUnavailable') || 'Контент временно недоступен'}</div>
+        <div className="text-sm opacity-70 mb-4 max-w-xs">{t('contentUnavailableDesc') || 'Не удалось загрузить данные. Проверьте соединение и попробуйте ещё раз.'}</div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setLoadToken(v => v + 1)}
+            className="px-6 py-3 rounded-xl font-bold text-sm transition-transform active:scale-95 shadow"
+            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+          >
+            ↻ {t('retry') || 'Повторить'}
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 rounded-xl font-bold text-sm transition-opacity opacity-70 hover:opacity-100"
+            style={{ color: 'var(--text-color)' }}
+          >
+            ← {t('chooseAnother') || 'Выбрать другой фильм'}
+          </button>
+        </div>
       </div>
     );
   }
