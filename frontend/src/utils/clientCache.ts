@@ -238,13 +238,16 @@ export const clientCache = {
       } catch (_) {}
     } else if (key.includes('liftw_')) {
       try {
-        // Guard against localStorage 5MB quota: strip massive episodes tree, mirror only compact playback descriptor
+        // Guard against localStorage 5MB quota: mirror compact playback descriptor.
+        // episodes tree is kept: it is tiny (season -> [episode] strings, <1KB)
+        // and dropping it breaks series UI after F5 (sync get() reads only memory + localStorage).
         const streamData = data as any;
         const compactData = streamData && typeof streamData === 'object' ? {
           iframe: streamData.iframe,
           liftwId: streamData.liftwId,
           liftwType: streamData.liftwType,
           name: streamData.name,
+          episodes: streamData.episodes,
         } : data;
         const compactEntry: CacheEntry<any> = { data: compactData, expiry };
         localStorage.setItem(fullKey, JSON.stringify(compactEntry));
