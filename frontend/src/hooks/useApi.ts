@@ -213,53 +213,21 @@ export function useApi() {
         signal?.addEventListener('abort', forwardAbort, { once: true });
 
         // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
-        // Instant failover: If CF fails (4xx/5xx/network error), query HF immediately (0ms delay).
-        // Speculative parallel race: If CF takes > 1500ms, start HF in parallel so user never waits.
-        let hfTimer: ReturnType<typeof setTimeout> | undefined;
-        const cfPromise = fetchViaCFProxy(cfCtrl.signal);
-
-        const speculativeHfPromise = new Promise((resolve, reject) => {
-          hfTimer = setTimeout(() => {
-            fetchViaHFProxy(hfCtrl.signal).then(resolve).catch(reject);
-          }, 1500);
-        });
-
-        // Hard ceiling: a blackholed network (no RST, hanging socket) must never
-        // hang the UI forever — abort both proxies so this fetch always settles.
-        const hardTimeoutId = setTimeout(() => {
-          try { cfCtrl.abort(); } catch (_) {}
-          try { hfCtrl.abort(); } catch (_) {}
-        }, 12000);
-
         try {
-          data = await Promise.race([
-            cfPromise.then(res => {
-              if (hfTimer) clearTimeout(hfTimer);
-              hfCtrl.abort();
-              return res;
-            }),
-            cfPromise.catch(async () => {
-              // CF failed immediately! Clear speculative timer and call HF instantly
-              if (hfTimer) clearTimeout(hfTimer);
-              return await fetchViaHFProxy(hfCtrl.signal);
-            }),
-            speculativeHfPromise
-          ]);
-        } catch (raceErr) {
-          // External cancellation must not trigger a fresh network request
-          if (signal?.aborted) throw raceErr;
-          // Safety fallback with a bounded fresh signal (never hangs forever)
-          const fallbackCtrl = new AbortController();
-          const fallbackTimeout = setTimeout(() => {
-            try { fallbackCtrl.abort(); } catch (_) {}
-          }, 12000);
+          data = await fetchViaCFProxy(cfCtrl.signal);
+        } catch (cfErr: any) {
+          if (signal?.aborted || cfErr?.name === 'AbortError') throw cfErr;
+          // If TMDB returns 404, it is definitive (item does not exist) - fail fast
+          if (cfErr?.status === 404) throw cfErr;
+
+          // Failover to HF proxy for transient edge errors (5xx, network failure)
           try {
-            data = await fetchViaHFProxy(fallbackCtrl.signal);
-          } finally {
-            clearTimeout(fallbackTimeout);
+            data = await fetchViaHFProxy(hfCtrl.signal);
+          } catch (hfErr: any) {
+            if (signal?.aborted || hfErr?.name === 'AbortError') throw hfErr;
+            if (hfErr?.status === 404) throw hfErr;
+            throw cfErr; // preserve initial CF error if HF fails too
           }
-        } finally {
-          clearTimeout(hardTimeoutId);
         }
 
         if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
@@ -476,13 +444,12 @@ export function useApi() {
     const cacheKey = `movie_details_v3_${type}_${id}_${language}`;
     const cached = clientCache.get<any>(cacheKey);
     if (cached) {
-      // Short negative cache: confirmed double-404, fail fast without network.
+      // Auto-purge legacy negative cache entries so affected users heal instantly
       if ((cached as any).__notFound) {
-        const cachedMiss: any = new Error(`TMDB details not found for id ${id}`);
-        cachedMiss.code = 'NOT_FOUND';
-        throw cachedMiss;
+        clientCache.remove(cacheKey);
+      } else {
+        return cached;
       }
-      return cached;
     }
 
     return withLoading(async () => {
@@ -554,6 +521,11 @@ export function useApi() {
             }
           }
         } catch (_) {}
+
+        // Never pass raw liftw_ prefixed ID to TMDB endpoints (guaranteed 404)
+        const notFound: any = new Error(`Liftw details not found for id ${id}`);
+        notFound.code = 'NOT_FOUND';
+        throw notFound;
       }
 
       try {
@@ -578,10 +550,6 @@ export function useApi() {
           return altResult;
         } catch (altErr: any) {
           if ((altErr as any)?.status === 404) {
-            // Both types 404: the title really doesn't exist. Negative-cache
-            // both keys for 60s so repeated opens fail fast without network.
-            clientCache.set(cacheKey, { __notFound: true } as any, 60);
-            clientCache.set(`movie_details_v3_${altType}_${id}_${language}`, { __notFound: true } as any, 60);
             const notFound: any = new Error(`TMDB details not found for id ${id}`);
             notFound.code = 'NOT_FOUND';
             throw notFound;

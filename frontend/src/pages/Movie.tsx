@@ -36,6 +36,8 @@ export function Movie() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [movie, setMovie] = useState<any>(null);
+  // Dedicated initial loading state eliminates the first-render 404 flash
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   // loadError separates transient network failures ('network', retryable)
   // from a confirmed TMDB 404 in both types ('not-found').
   const [loadError, setLoadError] = useState<null | 'not-found' | 'network'>(null);
@@ -501,6 +503,7 @@ export function Movie() {
       setContentUnavailable(false);
       setMovie(null);
       setLoadError(null);
+      setIsInitialLoading(true);
       setActiveSeason('');
       setActiveEpisode('');
       activeSeasonRef.current = '';
@@ -510,7 +513,7 @@ export function Movie() {
         const initialType = (queryType === 'series' || queryType === 'tv') ? 'tv' : 'movie';
         const hasExplicitType = queryType === 'series' || queryType === 'tv' || queryType === 'movie';
         let details: any;
-        if (hasExplicitType) {
+        if (hasExplicitType || String(id).startsWith('liftw_')) {
           details = await fetchMovieDetails(id, initialType);
         } else {
           // Bare /movie/:id link (Telegram startParam, SEO, manual URL): type is
@@ -634,6 +637,10 @@ export function Movie() {
         // title really doesn't exist; anything else is transient (cold HF,
         // edge timeout) and gets a retry screen instead of a false NotFound.
         setLoadError(err?.code === 'NOT_FOUND' ? 'not-found' : 'network');
+      } finally {
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
       }
     };
     
@@ -1023,7 +1030,7 @@ export function Movie() {
     };
   }, [seoTitle, jsonLdData, movie]);
 
-  if (loading && !movie) {
+  if ((isInitialLoading || (loading && !movie)) && !movie) {
     return (
       <div className="p-4 pt-24 pb-20 flex flex-col items-center justify-center min-h-[50vh]">
         <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin mb-4" />
