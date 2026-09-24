@@ -731,7 +731,7 @@ app.get('/api/liftw', async (c: Context) => {
             info: info.info || null,
           };
           if (info.episodes) directResult.episodes = info.episodes;
-          const directCacheTtl = canonicalType === 'tv' ? 1800 : 2592000; // 30m for TV (rapid ongoing episode pickup), 30d for Movies
+          const directCacheTtl = canonicalType === 'tv' ? 1800 : 3600; // 30m TV, 1h Movies — donor poster URLs are short-lived signed links, long edge TTL would serve rotten posters
           const directHeaders: Record<string, string> = {
             'Cache-Control': `public, max-age=${directCacheTtl}, s-maxage=${directCacheTtl}`,
             'Access-Control-Allow-Origin': '*',

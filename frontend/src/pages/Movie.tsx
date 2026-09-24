@@ -1083,6 +1083,20 @@ export function Movie() {
           alt={movie.title || movie.name || 'Постер фильма'} 
           loading="lazy"
           className="w-full aspect-[16/9] max-h-[50vh] object-cover"
+          onError={(e) => {
+            // Donor poster URLs are short-lived signed links: try the alternate
+            // source once (backdrop <-> poster), then hide instead of a broken icon.
+            const el = e.currentTarget as HTMLImageElement & { dataset: DOMStringMap };
+            if (!el.dataset.fbk) {
+              el.dataset.fbk = '1';
+              const alt = el.src === movie.poster ? movie.backdrop : movie.poster;
+              if (alt && alt !== el.src) {
+                el.src = alt;
+                return;
+              }
+            }
+            el.style.display = 'none';
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/40 to-transparent"></div>
       </div>

@@ -471,7 +471,10 @@ export function useApi() {
 
               if (query) {
                 try {
-                  const searchRes = await tmdbFetch(`/search/${resolvedType}`, { query, ...(year > 0 ? { year } : {}) });
+                  // Bound the enrichment search: a blackholed edge socket must not
+                  // hang the card forever — on timeout fall through to liftwDetails
+                  // with donor episodes instead.
+                  const searchRes = await tmdbFetch(`/search/${resolvedType}`, { query, ...(year > 0 ? { year } : {}) }, 3600, AbortSignal.timeout(8000));
                   const bestMatch = searchRes?.results?.[0];
                   if (bestMatch?.id) {
                     const tmdbDetails = await fetchMovieDetails(bestMatch.id, resolvedType);
