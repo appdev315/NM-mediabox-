@@ -44,7 +44,7 @@ const MovieCard = React.memo(function MovieCard({
     const cleanPath = match[1];
     const isProxied = displayPoster.includes('/api/image') || displayPoster.includes('workers.dev');
     const base = isProxied ? `${CF_API_BASE}/image?path=/t/p` : 'https://image.tmdb.org/t/p';
-    return `${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
+    return `${base}/w154${cleanPath} 154w, ${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
   }, [displayPoster]);
 
   const isAdultItem = item.isAdult || item.type === 'adult' || String(item.id).startsWith('ep_') || String(item.id).startsWith('rt_');
@@ -84,7 +84,7 @@ const MovieCard = React.memo(function MovieCard({
         <img 
           src={displayPoster} 
           srcSet={posterSrcSet}
-          sizes="(max-width: 640px) 170px, 342px"
+          sizes="(max-width: 640px) 154px, 342px"
           alt={item.title || item.name || 'Poster'} 
           width={300}
           height={450}

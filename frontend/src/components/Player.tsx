@@ -222,7 +222,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     pendingTargetRef.current = { season: targetEpisode.season, episode: targetEpisode.episode };
     sendPlayCommands(targetEpisode.season, targetEpisode.episode);
 
-    // Verified fallback: reload iframe with currentUrl if donor does not ack target episode within 1800ms
+    // Verified fallback: reload iframe with currentUrl if donor does not ack target episode within 5000ms (resilient against high mobile RTT/packet loss)
     if (fallbackNavTimerRef.current) {
       clearTimeout(fallbackNavTimerRef.current);
     }
@@ -231,7 +231,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         setLockedSrc(currentUrl);
       }
       fallbackNavTimerRef.current = null;
-    }, 1800);
+    }, 5000);
   }, [targetEpisode, currentUrl, sendPlayCommands]);
 
   // Cleanup fallback navigation timer on unmount

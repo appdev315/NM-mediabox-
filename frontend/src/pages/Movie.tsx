@@ -618,14 +618,18 @@ export function Movie() {
         setRecTmdbId(targetTmdbId);
 
         if (targetTmdbId) {
-          fetchRecommendations(targetTmdbId, resolvedType, 1).then(recs => {
-            if (isMounted) {
-              setRecommendations(recs || []);
-              if (!recs || recs.length < 10) setHasMoreRecs(false);
-            }
-          }).catch(() => {
-            if (isMounted) setRecommendations([]);
-          });
+          // Defer recommendations to give 100% network socket priority to the video stream
+          setTimeout(() => {
+            if (!isMounted) return;
+            fetchRecommendations(targetTmdbId, resolvedType, 1).then(recs => {
+              if (isMounted) {
+                setRecommendations(recs || []);
+                if (!recs || recs.length < 10) setHasMoreRecs(false);
+              }
+            }).catch(() => {
+              if (isMounted) setRecommendations([]);
+            });
+          }, 1200);
         } else {
           setRecommendations([]);
           setHasMoreRecs(false);
@@ -827,6 +831,17 @@ export function Movie() {
         if (liftwData && !liftwData.iframe) {
           clientCache.remove(streamCacheKey);
           liftwData = null;
+        }
+
+        // Instant check: if movie details already carry verified iframe from fast-path, use it immediately (0ms)
+        if (!liftwData && !forceRefresh && (movie as any)?.iframe) {
+          liftwData = {
+            iframe: (movie as any).iframe,
+            episodes: (movie as any).episodes,
+            liftwId: (movie as any).liftw_id,
+            liftwType: (movie as any).liftwType,
+          };
+          clientCache.set(streamCacheKey, liftwData, mediaType === 'tv' ? 86400 : 2592000);
         }
 
         // If not cached, connect to in-flight prewarm stream if running
