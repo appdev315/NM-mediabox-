@@ -36,19 +36,9 @@ interface AudioSyncMessage {
   senderId: string;
 }
 
-// Dynamic Network Information helper with enhanced buffering for unstable mobile connections
+// Dynamic Network Information helper with optimized live buffer for radio streams (keeps playback at live-edge)
 const getOptimalBufferConfig = () => {
-  const conn = (navigator as any).connection;
-  const effectiveType = conn?.effectiveType || '4g';
-  switch (effectiveType) {
-    case 'slow-2g':
-    case '2g':
-      return { maxBufferLength: 180, maxMaxBufferLength: 360, backBufferLength: 30 };
-    case '3g':
-      return { maxBufferLength: 120, maxMaxBufferLength: 240, backBufferLength: 30 };
-    default:
-      return { maxBufferLength: 90, maxMaxBufferLength: 240, backBufferLength: 30 };
-  }
+  return { maxBufferLength: 20, maxMaxBufferLength: 35, backBufferLength: 10 };
 };
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
@@ -239,11 +229,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Prioritize direct station CDN for attempts 1-3.
-      // Switch to Go proxy if direct stream fails 4+ consecutive times.
+      // Prioritize direct station CDN for all secure HTTPS streams.
+      // Only fallback to proxy if stream is insecure HTTP (mixed-content block) and failed repeatedly.
       const rawUrl = track.originalUrl || track.url;
       let targetUrl = rawUrl;
-      if (reconnectAttemptRef.current >= 4 && !targetUrl.includes('/proxy')) {
+      if (reconnectAttemptRef.current >= 4 && rawUrl.startsWith('http://') && !targetUrl.includes('/proxy')) {
         targetUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(rawUrl)}`;
       }
 
@@ -627,7 +617,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [isPlaying, currentTrack]);
 
-  // Watchdog Heartbeat: Periodically inspect currentTime to auto-heal frozen streams
+  // Watchdog Heartbeat: Periodically inspect currentTime to auto-heal truly dead streams without dropping on brief network jitter
   useEffect(() => {
     const watchdogInterval = setInterval(() => {
       const audio = audioRef.current;
@@ -636,10 +626,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // If audio paused unintentionally (e.g. TCP stream drop by server after 2-3 mins)
+      // If audio paused unintentionally (e.g. minor buffer underrun), attempt soft play first
       if (audio.paused) {
         stalledCountRef.current++;
-        if (stalledCountRef.current >= 2) {
+        // Ticks 1-3 (up to 9s): Try soft resume on existing open socket
+        if (stalledCountRef.current <= 3) {
+          audio.play().catch(() => {});
+          return;
+        }
+        // Only if stuck for >= 12 seconds, trigger a reconnect
+        if (stalledCountRef.current >= 4) {
           stalledCountRef.current = 0;
           attemptReconnect('watchdog: audio element paused unexpectedly');
         }
@@ -647,10 +643,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
 
       const currentTime = audio.currentTime;
-      if (Math.abs(currentTime - lastTimeRef.current) < 0.05) {
+      const hasProgressed = Math.abs(currentTime - lastTimeRef.current) >= 0.05;
+      const isBufferingGrace = audio.readyState >= 2; // HAVE_CURRENT_DATA or HAVE_ENOUGH_DATA
+
+      if (!hasProgressed && !isBufferingGrace) {
         stalledCountRef.current++;
-        // Stalled for >= 5.0 seconds without forward progression -> Trigger auto-recovery
-        if (stalledCountRef.current >= 2) {
+        // Stalled for >= 12.0 seconds (4 ticks * 3s) without forward progression -> Trigger auto-recovery
+        if (stalledCountRef.current >= 4) {
           stalledCountRef.current = 0;
           attemptReconnect('watchdog: stream playback frozen');
         }
@@ -659,7 +658,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         lastTimeRef.current = currentTime;
         reconnectAttemptRef.current = 0; // Stream is moving forward reliably
       }
-    }, 2500);
+    }, 3000);
 
     return () => clearInterval(watchdogInterval);
   }, [attemptReconnect]);
@@ -810,9 +809,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           syncToPeers(currentTrackRef.current, false, false);
         }
       } else {
-        // Stream interrupted by server, network blip, or buffer underrun
-        console.warn('[Audio] Stream paused unexpectedly (server disconnect or buffer underrun), auto-reconnecting...');
-        attemptReconnect('unexpected stream pause');
+        // Stream paused due to buffer underrun, device interruption, or packet delay
+        // Do NOT drop the TCP stream immediately! Set buffering state and attempt soft resume
+        setIsBuffering(true);
+        setTimeout(() => {
+          const a = audioRef.current;
+          if (a && a.paused && !isUserPausedRef.current && isPlayingRef.current) {
+            a.play().catch(() => {});
+          }
+        }, 600);
       }
     };
 
