@@ -83,13 +83,10 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(50);
   const [brokenNotice, setBrokenNotice] = useState<string | null>(null);
-  const [brokenStationIds, setBrokenStationIds] = useState<Set<string>>(() => {
+  const [brokenStationIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('broken_radio_stations');
-      if (saved) {
-        const arr = JSON.parse(saved);
-        if (Array.isArray(arr)) return new Set(arr);
-      }
+      // Clean up legacy blacklist so stations that suffered temporary Bluetooth drops are unlocked
+      localStorage.removeItem('broken_radio_stations');
     } catch (_) {}
     return new Set();
   });
@@ -515,53 +512,24 @@ export function RadioTVContent({ activeTab }: { activeTab: 'radio' | 'tv' }) {
     }
   }, [playTrack]);
 
-  // Listen to station failure events from AudioPlayerContext to dynamically hide broken streams
+  // Listen to station failure events from AudioPlayerContext for transient user notifications without permanent catalog mutation
   useEffect(() => {
     const handleStationBroken = (e: Event) => {
       const customEvent = e as CustomEvent<{ id: string; title: string; url: string }>;
-      const brokenId = customEvent.detail?.id;
       const title = customEvent.detail?.title || '';
-      if (!brokenId) return;
+      if (!title) return;
 
-      console.warn(`[Radio] Station reported broken: ${title} (${brokenId})`);
-      setBrokenStationIds(prev => {
-        const next = new Set(prev);
-        next.add(brokenId);
-        try {
-          localStorage.setItem('broken_radio_stations', JSON.stringify(Array.from(next)));
-        } catch (_) {}
-        return next;
-      });
-
-      if (title) {
-        const desc = language === 'ru-RU' 
-          ? `Станция «${title}» временно недоступна и скрыта` 
-          : `Station "${title}" temporarily unavailable and hidden`;
-        setBrokenNotice(desc);
-        setTimeout(() => setBrokenNotice(null), 4500);
-      }
-
-      // Auto-advance to next working station if broken station is currently active
-      if (currentTrack?.id === brokenId) {
-        setStations(currentStations => {
-          const working = currentStations.filter(s => s.id !== brokenId && !brokenStationIds.has(s.id));
-          if (working.length > 0) {
-            const currentIndex = currentStations.findIndex(s => s.id === brokenId);
-            const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % working.length : 0;
-            const nextStation = working[nextIndex] || working[0];
-            if (nextStation) {
-              console.log(`[Radio] Auto-advancing to working station: ${nextStation.name}`);
-              handlePlayRadio(nextStation);
-            }
-          }
-          return currentStations;
-        });
-      }
+      console.warn(`[Radio] Station stream interrupted: ${title}`);
+      const desc = language === 'ru-RU' 
+        ? `Связь со станцией «${title}» прервана. Проверьте соединение.` 
+        : `Station "${title}" connection interrupted. Check connection.`;
+      setBrokenNotice(desc);
+      setTimeout(() => setBrokenNotice(null), 4500);
     };
 
     window.addEventListener('radio-station-broken', handleStationBroken);
     return () => window.removeEventListener('radio-station-broken', handleStationBroken);
-  }, [brokenStationIds, currentTrack, handlePlayRadio]);
+  }, [language]);
 
   const handlePlayTv = (channel: Station) => {
     // Stop global audio when TV plays

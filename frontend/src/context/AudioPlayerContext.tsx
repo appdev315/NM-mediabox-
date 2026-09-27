@@ -188,40 +188,32 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!track || !audio || track.type !== 'radio' || isUserPausedRef.current) return;
     if (isReconnectingRef.current) return;
 
-    if (reconnectAttemptRef.current >= 6) {
-      console.warn(`[Radio] Station ${track.title} marked offline after 6 failed attempts.`);
+    // Resilient retry schedule: 12 attempts over ~2.5 minutes (prevents killing station when walking away with Bluetooth headphones)
+    if (reconnectAttemptRef.current >= 12) {
+      console.warn(`[Radio] Station ${track.title} connection paused after 12 retries.`);
       setIsBuffering(false);
       setIsPlaying(false);
       isReconnectingRef.current = false;
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('radio-station-broken', {
-          detail: {
-            id: track.id,
-            title: track.title,
-            url: track.url,
-            originalUrl: track.originalUrl
-          }
-        }));
-        try {
-          trackError('radio', track.title || '', String(track.id), 'radio_offline_6x');
-        } catch (_) {}
-      }
+      try {
+        trackError('radio', track.title || '', String(track.id), 'radio_offline_12x');
+      } catch (_) {}
       return;
     }
 
     isReconnectingRef.current = true;
     reconnectAttemptRef.current++;
     setIsBuffering(true);
-    console.warn(`[Radio] ${reason} — reconnect attempt #${reconnectAttemptRef.current}`);
+    console.warn(`[Radio] ${reason} — reconnect attempt #${reconnectAttemptRef.current}/12`);
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
 
-    // Exponential backoff with random Jitter to prevent thundering herd
-    const jitter = (Math.random() - 0.5) * 300;
-    const baseBackoff = Math.min(4000, 300 * Math.pow(1.2, reconnectAttemptRef.current - 1));
-    const backoffMs = Math.max(200, baseBackoff + jitter);
+    // Gentle progressive backoff: 1.5s, 3s, 5s, 8s, 12s, max 15s (allows seamless Bluetooth/WiFi reconnection)
+    const backoffTable = [1500, 2500, 4000, 6000, 8000, 10000, 12000, 15000];
+    const baseBackoff = backoffTable[Math.min(reconnectAttemptRef.current - 1, backoffTable.length - 1)];
+    const jitter = (Math.random() - 0.5) * 500;
+    const backoffMs = Math.max(1000, baseBackoff + jitter);
 
     reconnectTimeoutRef.current = setTimeout(() => {
       if (isUserPausedRef.current) {
@@ -829,8 +821,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onError = () => {
-      console.error('[Audio] Playback error');
+      console.warn('[Audio] Playback error or device disconnect:', audio.error);
       if (currentTrackRef.current?.type === 'radio') {
+        // Mark device pause flag so onDeviceChange knows to resume seamlessly
+        isPausedByDeviceRef.current = true;
+        setIsBuffering(true);
         if (!isReconnectingRef.current && !isUserPausedRef.current) {
           attemptReconnect('playback error');
         }
@@ -863,12 +858,37 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Auto-resume when headphones are re-inserted
+    // Auto-resume when Bluetooth headphones or audio output devices reconnect
     const onDeviceChange = () => {
-      if (isPausedByDeviceRef.current && !isUserPausedRef.current && currentTrackRef.current) {
-        isPausedByDeviceRef.current = false;
-        togglePlayPause();
+      console.log('[Audio] Audio output device changed (Bluetooth/headphones)');
+      const track = currentTrackRef.current;
+      const audio = audioRef.current;
+      if (!track || !audio || isUserPausedRef.current) return;
+
+      // Re-engage Web Audio keep-alive oscillator for newly connected audio device
+      ensureAudioContextKeepAlive(true);
+
+      isPausedByDeviceRef.current = false;
+      reconnectAttemptRef.current = 0; // Reset retry counter on physical device reconnection
+      setIsBuffering(true);
+
+      // If audio element encountered a pipeline error while headphones were disconnected, clear and reload
+      if (audio.error) {
+        const rawUrl = track.originalUrl || track.url;
+        isRefreshingSrcRef.current = true;
+        audio.src = rawUrl;
+        audio.load();
+        isRefreshingSrcRef.current = false;
       }
+
+      audio.play().then(() => {
+        setIsPlaying(true);
+        setIsBuffering(false);
+        syncToPeers(track, true, false);
+      }).catch((err) => {
+        console.warn('[Audio] Device change play failed, triggering soft reconnect:', err);
+        attemptReconnect('device change resume');
+      });
     };
 
     audio.addEventListener('play', onPlay);
