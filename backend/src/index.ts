@@ -1472,7 +1472,8 @@ app.get('/api/feed/trailers', async (c: Context) => {
         if (!vRes.ok) return null;
         const vData = await vRes.json() as any;
         const videos = (vData?.results || []) as any[];
-        const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key);
+        const BLOCKED_YOUTUBE_KEYS = new Set(['m5keZCmBdtI']);
+        const ytVideos = videos.filter((v: any) => v.site === 'YouTube' && v.key && !BLOCKED_YOUTUBE_KEYS.has(v.key));
         if (!ytVideos.length) return null;
 
         // Language-first trailer selection

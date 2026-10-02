@@ -159,7 +159,7 @@ export function Home() {
     setIsSearching,
     isSearchOpen,
     setIsSearchOpen,
-    scrollY,
+    getScrollY,
     setScrollY
   } = useHomeState();
 
@@ -211,7 +211,7 @@ export function Home() {
   // Synchronous initial restore from client cache for 0ms loading state on tab switch
   useEffect(() => {
     if (searchQuery.trim().length === 0 && !selectedGenre && sortBy === 'popularity.desc' && page === 1 && homeSections.length === 0) {
-      const cacheKey = `categorized_home_v5_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
+      const cacheKey = `categorized_home_v8_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
       const cached = clientCache.get(cacheKey) as any[];
       if (Array.isArray(cached) && cached.length > 0) {
         setHomeSections(cached);
@@ -233,17 +233,18 @@ export function Home() {
     fetchGenres(activeTab === 'movie' ? 'movie' : 'tv').then(setGenres);
   }, [activeTab, fetchGenres, language]);
 
-  // Handle scroll position save and restore
+  // Handle scroll position save and restore without React re-render thrashing
   useEffect(() => {
     if (items.length > 0 || homeSections.length > 0) {
-      if (!hasRestoredScrollRef.current && scrollY > 0) {
-        window.scrollTo(0, scrollY);
+      const savedY = getScrollY ? getScrollY() : 0;
+      if (!hasRestoredScrollRef.current && savedY > 0) {
+        window.scrollTo(0, savedY);
         hasRestoredScrollRef.current = true;
       }
     }
-  }, [items, homeSections, scrollY]);
+  }, [items, homeSections, getScrollY]);
 
-  // Save scroll position on scroll with RAF throttling for 60/120fps UI performance
+  // Save scroll position on scroll directly into non-rendering ref (60/120fps smooth scrolling)
   useEffect(() => {
     let ticking = false;
     const handleScrollSave = () => {

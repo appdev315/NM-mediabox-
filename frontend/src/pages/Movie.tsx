@@ -271,7 +271,8 @@ export function Movie() {
   const trailerVideo = useMemo(() => {
     const results = movie?.videos?.results;
     if (!Array.isArray(results) || results.length === 0) return null;
-    const ytVideos = results.filter((v: any) => v.site === 'YouTube' && v.key);
+    const BLOCKED_KEYS = new Set(['m5keZCmBdtI']);
+    const ytVideos = results.filter((v: any) => v.site === 'YouTube' && v.key && !BLOCKED_KEYS.has(v.key));
     if (ytVideos.length === 0) return null;
 
     const langCode = (language || 'ru-RU').split('-')[0].toLowerCase();

@@ -22,6 +22,7 @@ interface HomeState {
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
   scrollY: number;
+  getScrollY: () => number;
   setScrollY: (y: number) => void;
 }
 
@@ -47,7 +48,12 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [searchQuery, setSearchQueryState] = useState<string>('');
   const [isSearching, setIsSearchingState] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpenState] = useState<boolean>(false);
-  const [scrollY, setScrollY] = useState<number>(0);
+  const scrollYRef = React.useRef<number>(0);
+
+  const getScrollY = React.useCallback(() => scrollYRef.current, []);
+  const setScrollY = React.useCallback((y: number) => {
+    scrollYRef.current = y;
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('mb_home_activeTab', activeTab);
@@ -62,7 +68,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSearchQueryState('');
     setIsSearchingState(false);
     setIsSearchOpenState(false);
-    setScrollY(0);
+    scrollYRef.current = 0;
   };
 
   const setSelectedGenre = (genre: string) => {
@@ -70,13 +76,13 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setPage(1);
     setItems([]);
     setHomeSections([]);
-    setScrollY(0);
+    scrollYRef.current = 0;
   };
 
   const setSearchQuery = (query: string) => {
     setSearchQueryState(query);
     setPage(1);
-    setScrollY(0);
+    scrollYRef.current = 0;
   };
 
   const setIsSearching = (searching: boolean) => {
@@ -106,7 +112,8 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsSearching,
         isSearchOpen,
         setIsSearchOpen,
-        scrollY,
+        scrollY: scrollYRef.current,
+        getScrollY,
         setScrollY,
       }}
     >

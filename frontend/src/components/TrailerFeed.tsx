@@ -99,6 +99,7 @@ export const TrailerFeed: React.FC<TrailerFeedProps> = ({ initialTrailerId, init
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
   const [favoriteMap, setFavoriteMap] = useState<Record<number, boolean>>({});
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -225,24 +226,10 @@ const MAX_FEED_ITEMS = 60;
     const container = containerRef.current;
     if (!container || cardRefs.current.length === 0) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const containerCenterY = containerRect.top + containerRect.height / 2;
-
-    let closestIdx = activeIndexRef.current;
-    let minDistance = Infinity;
-
-    for (let i = 0; i < cardRefs.current.length; i++) {
-      const card = cardRefs.current[i];
-      if (!card) continue;
-      const cardRect = card.getBoundingClientRect();
-      const cardCenterY = cardRect.top + cardRect.height / 2;
-      const distance = Math.abs(containerCenterY - cardCenterY);
-
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIdx = i;
-      }
-    }
+    const firstCard = cardRefs.current[0];
+    const cardHeight = firstCard ? firstCard.offsetHeight : container.clientHeight;
+    const cardSpacing = cardHeight + 24; // gap-6 is 24px
+    const closestIdx = Math.max(0, Math.min(cardRefs.current.length - 1, Math.round(container.scrollTop / cardSpacing)));
 
     if (closestIdx !== activeIndexRef.current) {
       activeIndexRef.current = closestIdx;
@@ -543,13 +530,28 @@ const MAX_FEED_ITEMS = 60;
                   {/* Media Video or Thumbnail */}
                   <div className="relative w-full flex-1 bg-black overflow-hidden">
                     {isActive ? (
-                      <iframe
-                        src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&playsinline=1&rel=0&controls=1&fs=1&enablejsapi=1`}
-                        title={`Trailer for ${item.title}`}
-                        className="w-full h-full border-0 absolute inset-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                        allowFullScreen
-                      />
+                      <>
+                        <iframe
+                          src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&playsinline=1&rel=0&controls=1&fs=1&enablejsapi=1${typeof window !== 'undefined' ? `&origin=${encodeURIComponent(window.location.origin)}` : ''}`}
+                          title={`Trailer for ${item.title}`}
+                          className="w-full h-full border-0 absolute inset-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                          allowFullScreen
+                        />
+                        {/* Floating Sound Toggle Pill */}
+                        <button
+                          onClick={() => {
+                            setIsMuted(prev => !prev);
+                            if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+                          }}
+                          className="absolute top-4 left-4 z-30 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95 shadow-lg cursor-pointer"
+                          title={isMuted ? (t('trailerSoundOn') || 'Включить звук') : (t('trailerSoundOff') || 'Без звука')}
+                          aria-label={isMuted ? (t('trailerSoundOn') || 'Включить звук') : (t('trailerSoundOff') || 'Без звука')}
+                        >
+                          <span>{isMuted ? '🔇' : '🔊'}</span>
+                          <span>{isMuted ? (t('trailerSoundOff') || 'Без звука') : (t('trailerSoundOn') || 'Звук')}</span>
+                        </button>
+                      </>
                     ) : (
                       <div
                         onClick={() => {
