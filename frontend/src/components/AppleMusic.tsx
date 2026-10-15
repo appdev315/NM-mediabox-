@@ -10,7 +10,7 @@ import { EqualizerModal } from './EqualizerModal';
 export function AppleMusic() {
   const { t } = useLanguage();
   const { loading, searchMusic } = useMusicApi();
-  const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,11 +30,7 @@ export function AppleMusic() {
     }
   });
 
-  // Full-screen player sheet state
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180);
-  const [volume, setVolume] = useState(1);
+
 
   // Sync favorites set
   const favIds = useMemo(() => new Set(favTracks.map(t => t.id)), [favTracks]);
@@ -197,23 +193,7 @@ export function AppleMusic() {
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
-  // Audio time listener for progress bar
-  useEffect(() => {
-    const audio = audioRef?.current;
-    if (!audio) return;
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-      if (audio.duration && !isNaN(audio.duration)) {
-        setDuration(audio.duration);
-      }
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-    };
-  }, [audioRef]);
 
   // Play track handler with adaptive stream resolution
   const handleSelectTrack = async (track: MusicTrack) => {
@@ -265,36 +245,7 @@ export function AppleMusic() {
     } catch (_) {}
   };
 
-  const handleNextTrack = () => {
-    nextTrack();
-  };
 
-  const handlePrevTrack = () => {
-    prevTrack();
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setCurrentTime(newTime);
-    if (audioRef?.current) {
-      audioRef.current.currentTime = newTime;
-    }
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseFloat(e.target.value);
-    setVolume(newVol);
-    if (audioRef?.current) {
-      audioRef.current.volume = newVol;
-    }
-  };
-
-  const formatTime = (secs: number) => {
-    if (isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   const isCurrentPlayingThis = (id: string) => currentTrack?.id === id && isPlaying;
 
@@ -582,242 +533,7 @@ export function AppleMusic() {
         )}
       </div>
 
-      {/* Apple Music Floating Mini-Player Bar */}
-      {currentTrack && !isExpanded && (
-        <div
-          onClick={() => setIsExpanded(true)}
-          className="fixed left-3 right-3 z-40 p-2.5 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-2xl border cursor-pointer active:scale-[0.99] transition-transform"
-          style={{
-            bottom: '76px',
-            backgroundColor: 'rgba(24, 24, 28, 0.92)',
-            borderColor: 'rgba(255, 255, 255, 0.12)'
-          }}
-        >
-          {/* Cover Art */}
-          <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
-            <img 
-              src={currentTrack.coverUrl} 
-              alt={currentTrack.title} 
-              className="w-full h-full object-cover" 
-            />
-          </div>
 
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm truncate text-white">
-              {currentTrack.title}
-            </div>
-            <div className="text-xs text-white/60 truncate">
-              {currentTrack.artist}
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={togglePlayPause}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
-            >
-              {isPlaying ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21" /></svg>
-              )}
-            </button>
-            <button
-              onClick={handleNextTrack}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 active:scale-90 transition-transform"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>
-            </button>
-          </div>
-
-          {/* Progress hairline */}
-          <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-white/10 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[#FA2D48] transition-all duration-300" 
-              style={{ width: `${(currentTime / (duration || 30)) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Full-Screen Apple Music Now Playing Sheet */}
-      {isExpanded && currentTrack && (
-        <div 
-          className="fixed inset-0 z-[100] flex flex-col justify-between p-6 animate-in slide-in-from-bottom duration-300 backdrop-blur-3xl overflow-y-auto"
-          style={{
-            backgroundColor: 'rgba(12, 12, 16, 0.98)',
-            paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
-            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
-          }}
-        >
-          {/* Top Bar: Dismiss Chevron, Title, Equalizer Button */}
-          <div className="flex items-center justify-between w-full">
-            <button
-              onClick={() => setIsExpanded(false)}
-              className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:text-white"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <span className="text-xs font-black tracking-widest uppercase text-white/50">MediaBox Music</span>
-            <button
-              onClick={() => setIsEqOpen(true)}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-base active:scale-90 transition-transform"
-              title={t('equalizer')}
-            >
-              🎚️
-            </button>
-          </div>
-
-          {/* Big Squircle Artwork with ambient shadow */}
-          <div className="flex flex-col items-center justify-center my-auto py-4">
-            <div 
-              className={`w-64 h-64 sm:w-80 sm:h-80 rounded-3xl overflow-hidden shadow-2xl border border-white/10 transition-transform duration-500 ${
-                isPlaying ? 'scale-100 shadow-[0_20px_50px_rgba(250,45,72,0.35)]' : 'scale-90 opacity-80'
-              }`}
-            >
-              <img 
-                src={currentTrack.coverUrl} 
-                alt={currentTrack.title} 
-                className="w-full h-full object-cover" 
-              />
-            </div>
-
-            {/* Quality pill & Equalizer shortcut */}
-            <button
-              onClick={() => setIsEqOpen(true)}
-              className="mt-4 px-3.5 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5 transition-colors active:scale-95"
-            >
-              <span>Lossless</span>
-              <span className="text-[#FA2D48] font-bold">🎚️ {t('equalizer')}</span>
-            </button>
-          </div>
-
-          {/* Track Details & Heart */}
-          <div className="w-full max-w-md mx-auto mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex-1 min-w-0 pr-4">
-                <h1 className="text-2xl font-black truncate text-white">{currentTrack.title}</h1>
-                <p className="text-base font-semibold text-white/70 truncate">{currentTrack.artist}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const asMusic: MusicTrack = {
-                      id: currentTrack.id,
-                      title: currentTrack.title,
-                      artist: currentTrack.artist,
-                      artworkUrl: currentTrack.coverUrl || '',
-                      audioUrl: currentTrack.url
-                    };
-                    audioOfflineManager.exportTrack(asMusic);
-                  }}
-                  className="p-1.5 text-white/70 hover:text-white transition-transform active:scale-90"
-                  title={t('music_to_files') || 'В Файлы'}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => {
-                    const asMusic: MusicTrack = {
-                      id: currentTrack.id,
-                      title: currentTrack.title,
-                      artist: currentTrack.artist,
-                      artworkUrl: currentTrack.coverUrl || '',
-                      audioUrl: currentTrack.url
-                    };
-                    toggleFav(asMusic);
-                  }}
-                  className="text-2xl transition-transform active:scale-125"
-                >
-                  {favIds.has(currentTrack.id) ? '❤️' : '🤍'}
-                </button>
-              </div>
-            </div>
-
-            {/* Scrubber slider */}
-            <div className="w-full flex flex-col gap-1 mb-6">
-              <input
-                type="range"
-                min="0"
-                max={duration || 30}
-                step="0.1"
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
-              />
-              <div className="flex justify-between text-[11px] font-semibold text-white/50">
-                <span>{formatTime(currentTime)}</span>
-                <span>-{formatTime(Math.max(0, (duration || 30) - currentTime))}</span>
-              </div>
-            </div>
-
-            {/* Media Controls */}
-            <div className="flex items-center justify-center gap-6 mb-6">
-              <button 
-                onClick={toggleShuffle}
-                className={`p-2.5 rounded-full transition-all active:scale-90 ${
-                  isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'text-white/40 hover:text-white/70'
-                }`}
-                title={t('music_shuffle')}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 3 21 3 21 8" />
-                  <line x1="4" y1="20" x2="21" y2="3" />
-                  <polyline points="21 16 21 21 16 21" />
-                  <line x1="15" y1="15" x2="21" y2="21" />
-                  <line x1="4" y1="4" x2="9" y2="9" />
-                </svg>
-              </button>
-
-              <button 
-                onClick={handlePrevTrack}
-                className="p-3 text-white/80 hover:text-white active:scale-90 transition-transform"
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" strokeWidth="2.5"/></svg>
-              </button>
-
-              <button 
-                onClick={togglePlayPause}
-                className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center shadow-xl active:scale-90 transition-transform"
-              >
-                {isPlaying ? (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                ) : (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21" /></svg>
-                )}
-              </button>
-
-              <button 
-                onClick={handleNextTrack}
-                className="p-3 text-white/80 hover:text-white active:scale-90 transition-transform"
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>
-              </button>
-            </div>
-
-            {/* Volume Slider */}
-            <div className="flex items-center gap-3 px-4">
-              <span className="text-white/40 text-xs">🔈</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="flex-1 accent-white h-1 bg-white/20 rounded-lg cursor-pointer"
-              />
-              <span className="text-white/40 text-xs">🔊</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Studio Equalizer Sheet */}
       <EqualizerModal isOpen={isEqOpen} onClose={() => setIsEqOpen(false)} />

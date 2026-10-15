@@ -13,6 +13,8 @@ import { Home } from './pages/Home';
 const Movie = lazy(() => import('./pages/Movie').then(m => ({ default: m.Movie })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Favorites = lazy(() => import('./pages/Favorites').then(m => ({ default: m.Favorites })));
+const Music = lazy(() => import('./pages/Music').then(m => ({ default: m.Music })));
+const Radio = lazy(() => import('./pages/Radio').then(m => ({ default: m.Radio })));
 import { Adult } from './pages/Adult';
 const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default: m.AdultVideo })));
 const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
@@ -93,6 +95,8 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
   const isSearchActive = isHome && (isSearchOpen || isSearching || Boolean(searchQuery));
   const isMovieActive = isHome && activeTab === 'movie' && !isSearchActive;
   const isSeriesActive = isHome && activeTab === 'series' && !isSearchActive;
+  const isMusicActive = location.pathname === '/music';
+  const isRadioActive = location.pathname === '/radio';
   const isFavActive = location.pathname === '/favorites';
   const isProfileActive = location.pathname === '/profile';
 
@@ -102,7 +106,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       label: t('movies') || 'Фильмы',
       isActive: isMovieActive,
       icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
           <line x1="7" y1="2" x2="7" y2="22"></line>
           <line x1="17" y1="2" x2="17" y2="22"></line>
@@ -125,7 +129,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       label: t('series') || 'Сериалы',
       isActive: isSeriesActive,
       icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
           <polyline points="17 2 12 7 7 2"></polyline>
         </svg>
@@ -138,11 +142,36 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       }
     },
     {
+      id: 'music',
+      label: t('tab_music') || 'Музыка',
+      isActive: isMusicActive,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+      ),
+      onClick: () => navigate('/music')
+    },
+    {
+      id: 'radio',
+      label: t('tab_radio') || 'Радио',
+      isActive: isRadioActive,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="2"></circle>
+          <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path>
+        </svg>
+      ),
+      onClick: () => navigate('/radio')
+    },
+    {
       id: 'favorites',
       label: t('myFavorites') || 'Избранное',
       isActive: isFavActive,
       icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
         </svg>
       ),
@@ -153,7 +182,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       label: t('search') || 'Поиск',
       isActive: isSearchActive,
       icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
@@ -172,7 +201,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       label: t('profile') || 'Профиль',
       isActive: isProfileActive,
       icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
           <circle cx="12" cy="7" r="4"></circle>
         </svg>
@@ -183,7 +212,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 border-t z-40 flex items-center justify-around px-1 py-1"
+      className="fixed bottom-0 left-0 right-0 border-t z-40 flex items-center justify-around px-0.5 py-1"
       style={{ 
         backgroundColor: 'var(--bg-color)', 
         borderColor: 'var(--hint-color)',
@@ -196,14 +225,14 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
           key={item.id}
           type="button"
           onClick={item.onClick}
-          className="flex-1 flex flex-col items-center justify-center py-1 gap-1 text-[11px] font-semibold transition-all cursor-pointer active:scale-95 border-none bg-transparent"
+          className="flex-1 flex flex-col items-center justify-center py-1 gap-0.5 text-[10px] font-semibold transition-all cursor-pointer active:scale-95 border-none bg-transparent"
           style={{ 
             color: item.isActive ? 'var(--button-color)' : 'var(--text-color)',
             opacity: item.isActive ? 1 : 0.6
           }}
         >
           {item.icon}
-          <span className="truncate max-w-[64px]">{item.label}</span>
+          <span className="truncate max-w-[50px]">{item.label}</span>
         </button>
       ))}
     </nav>
@@ -306,6 +335,8 @@ function MainApp() {
               <Route path="/" element={<Home />} />
               <Route path="/movies" element={<Home />} />
               <Route path="/movie/:id" element={<Movie />} />
+              <Route path="/music" element={<Music />} />
+              <Route path="/radio" element={<Radio />} />
               <Route path="/adult" element={<Adult />} />
               <Route path="/adult/:id" element={<AdultVideo />} />
               <Route path="/adult/favorites" element={<AdultFavorites />} />

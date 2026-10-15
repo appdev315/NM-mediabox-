@@ -479,15 +479,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       reconnectTimeoutRef.current = null;
     }
 
-    setCurrentTrack(track);
-    setIsBuffering(true);
-    syncToPeers(track, true, true);
-
-    // Clean up previous Hls instance
-    destroyHls();
-
-    audio.preload = 'auto';
-    
     let url = track.url;
     if (track.type === 'music') {
       try {
@@ -495,10 +486,23 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         if (cachedBlob) {
           url = cachedBlob;
         } else if (!url || url.includes('preview') || url.includes('mzstatic') || url.includes('itunes') || url.includes('dzcdn')) {
-          url = await resolveFullAudioUrl(track.artist, track.title, track.url);
+          const resolved = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id);
+          if (resolved) {
+            url = resolved;
+          }
         }
       } catch (_) {}
     }
+
+    const resolvedTrack: Track = { ...track, url };
+    setCurrentTrack(resolvedTrack);
+    setIsBuffering(true);
+    syncToPeers(resolvedTrack, true, true);
+
+    // Clean up previous Hls instance
+    destroyHls();
+
+    audio.preload = 'auto';
 
     const isHls = url.includes('.m3u8') || url.includes('/playlist');
       

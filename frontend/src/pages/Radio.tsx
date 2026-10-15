@@ -385,3 +385,20 @@ export function RadioContent() {
     </div>
   );
 }
+
+export function Radio() {
+  const { t } = useLanguage();
+  return (
+    <div 
+      className="p-4 flex flex-col gap-4 max-w-7xl mx-auto w-full min-h-screen"
+      style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 1rem))' }}
+    >
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-color)' }}>
+          {t('tab_radio') || 'Радио'}
+        </h1>
+      </div>
+      <RadioContent />
+    </div>
+  );
+}

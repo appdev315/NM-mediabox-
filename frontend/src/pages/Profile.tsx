@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
@@ -9,6 +10,7 @@ const RadioContent = lazy(() => import('./Radio').then(m => ({ default: m.RadioC
 const AppleMusic = lazy(() => import('../components/AppleMusic').then(m => ({ default: m.AppleMusic })));
 
 export function Profile() {
+  const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const [activeMediaTab, setActiveMediaTab] = useState<'radio' | 'music' | null>(null);
@@ -91,7 +93,7 @@ export function Profile() {
       {/* Radio & Music Buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={() => setActiveMediaTab('radio')}
+          onClick={() => navigate('/radio')}
           className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
           style={{ backgroundColor: 'var(--hint-color)' }}
         >
@@ -100,12 +102,12 @@ export function Profile() {
         </button>
 
         <button
-          onClick={() => setActiveMediaTab('music')}
+          onClick={() => navigate('/music')}
           className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
           style={{ backgroundColor: 'var(--hint-color)' }}
         >
           <span className="text-3xl">🎵</span>
-          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>MediaBox Music</span>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_music') || 'Музыка'}</span>
         </button>
       </div>
 

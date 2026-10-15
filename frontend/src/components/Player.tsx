@@ -372,10 +372,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, []);
 
-  const toggleWebFullscreen = useCallback(() => {
-    setIsWebFullscreen(prev => !prev);
-  }, []);
-
   const exitWebFullscreen = useCallback(() => {
     setIsWebFullscreen(false);
   }, []);
@@ -516,6 +512,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   useEffect(() => {
     WebApp.expand();
     WebApp.enableClosingConfirmation();
+    if (WebApp.disableVerticalSwipes) {
+      try { WebApp.disableVerticalSwipes(); } catch (_) {}
+    }
     
     const platform = WebApp.platform || 'unknown';
     const isMobile = ['android', 'android_x', 'ios'].includes(platform);
@@ -526,6 +525,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
     return () => {
       WebApp.disableClosingConfirmation();
+      if (WebApp.enableVerticalSwipes) {
+        try { WebApp.enableVerticalSwipes(); } catch (_) {}
+      }
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
       }
@@ -588,31 +590,24 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         referrerPolicy="strict-origin-when-cross-origin"
         allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
         allowFullScreen
-        style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', top: 0, left: 0 }}
+        style={{
+          border: 'none',
+          position: 'absolute',
+          top: isWebFullscreen ? 'max(8px, env(safe-area-inset-top, 8px))' : 0,
+          left: isWebFullscreen ? 'max(6px, env(safe-area-inset-left, 6px))' : 0,
+          right: isWebFullscreen ? 'max(10px, env(safe-area-inset-right, 10px))' : 0,
+          bottom: isWebFullscreen ? 'max(24px, env(safe-area-inset-bottom, 24px))' : 0,
+          width: isWebFullscreen ? 'calc(100% - max(6px, env(safe-area-inset-left, 6px)) - max(10px, env(safe-area-inset-right, 10px)))' : '100%',
+          height: isWebFullscreen ? 'calc(100% - max(8px, env(safe-area-inset-top, 8px)) - max(24px, env(safe-area-inset-bottom, 24px)))' : '100%',
+        }}
       />
 
-      {/* Transparent tap interceptor strictly on mobile devices in inline mode to prevent Apple AVPlayer stall. Unmounted in fullscreen to prevent blocking settings/controls. */}
-      {isMobileDevice && !isWebFullscreen && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleWebFullscreen();
-          }}
-          aria-label={t('fullscreen') || 'Во весь экран'}
-          title={t('fullscreen') || 'Во весь экран'}
-          className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
-          style={{ touchAction: 'manipulation' }}
-        />
-      )}
-
-      {/* Top area touch interceptor to wake up hidden controls in fullscreen on tap */}
+      {/* Center tap area to wake up hidden controls in fullscreen without blocking top-right gear or exit button */}
       {isWebFullscreen && (
         <div 
           onClick={resetControlsTimeout}
           onTouchStart={resetControlsTimeout}
-          className={`absolute top-0 left-0 right-0 h-16 z-30 ${showControls ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'}`}
+          className={`absolute top-0 left-24 right-24 h-14 z-30 ${showControls ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'}`}
           style={{ touchAction: 'manipulation' }}
           aria-hidden="true"
         />

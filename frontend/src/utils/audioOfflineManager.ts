@@ -156,12 +156,26 @@ class AudioOfflineManager {
 
   /**
    * Exports a single track to the native device files system.
-   * On iOS Safari / WebKit: opens native Share Sheet (Save to Files / CapCut / VN / AirDrop)
-   * On Desktop / Fallback: triggers native file download to Downloads folder.
+   * On Desktop (Mac / Windows / Linux): directly downloads MP3/M4A to Downloads folder.
+   * On iOS / Mobile: opens native Share Sheet (Save to Files / AirDrop / apps).
    */
-  async exportTrack(track: { title: string; artist: string; audioUrl: string }): Promise<boolean> {
-    if (!track.audioUrl) return false;
-    const blob = await this.getTrackBlob(track.audioUrl);
+  async exportTrack(track: { title: string; artist: string; audioUrl: string; id?: string }): Promise<boolean> {
+    if (!track) return false;
+    let targetUrl = track.audioUrl;
+
+    // Auto-resolve full stream if track is a preview or unresolved
+    if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn') || targetUrl.includes('mzstatic') || targetUrl.includes('itunes')) {
+      try {
+        const { resolveFullAudioUrl } = await import('../hooks/useMusicApi');
+        const resolved = await resolveFullAudioUrl(track.artist, track.title, targetUrl, track.id);
+        if (resolved) {
+          targetUrl = resolved;
+        }
+      } catch (_) {}
+    }
+
+    if (!targetUrl) return false;
+    const blob = await this.getTrackBlob(targetUrl);
     if (!blob) return false;
 
     const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
@@ -172,10 +186,14 @@ class AudioOfflineManager {
       .trim() || 'track';
     const filename = `${safeName}.${ext}`;
 
-    const file = new File([blob], filename, { type: mimeType });
+    const isMobile = typeof navigator !== 'undefined' && 
+      (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || 
+      (navigator.maxTouchPoints > 1 && window.innerWidth < 1024));
 
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    // Mobile-only: native share sheet for iOS "Save to Files"
+    if (isMobile && typeof navigator.share === 'function') {
       try {
+        const file = new File([blob], filename, { type: mimeType });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
@@ -185,10 +203,11 @@ class AudioOfflineManager {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return true;
-        console.warn('[AudioOffline] Share failed, falling back to download:', err);
+        console.warn('[AudioOffline] Share failed, falling back to direct download:', err);
       }
     }
 
+    // Desktop (Mac, Windows, Linux) or mobile fallback: direct browser download to Downloads folder
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objectUrl;
@@ -203,13 +222,28 @@ class AudioOfflineManager {
   /**
    * Exports multiple tracks to device files system
    */
-  async exportTracks(tracks: Array<{ title: string; artist: string; audioUrl: string }>): Promise<number> {
+  async exportTracks(tracks: Array<{ title: string; artist: string; audioUrl: string; id?: string }>): Promise<number> {
     if (!tracks || tracks.length === 0) return 0;
+
+    const isMobile = typeof navigator !== 'undefined' && 
+      (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || 
+      (navigator.maxTouchPoints > 1 && window.innerWidth < 1024));
 
     const files: File[] = [];
     for (const track of tracks) {
-      if (!track.audioUrl) continue;
-      const blob = await this.getTrackBlob(track.audioUrl);
+      let targetUrl = track.audioUrl;
+      if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn') || targetUrl.includes('mzstatic') || targetUrl.includes('itunes')) {
+        try {
+          const { resolveFullAudioUrl } = await import('../hooks/useMusicApi');
+          const resolved = await resolveFullAudioUrl(track.artist, track.title, targetUrl, track.id);
+          if (resolved) {
+            targetUrl = resolved;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetUrl) continue;
+      const blob = await this.getTrackBlob(targetUrl);
       if (!blob) continue;
       const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
       const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
@@ -222,7 +256,7 @@ class AudioOfflineManager {
 
     if (files.length === 0) return 0;
 
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    if (isMobile && typeof navigator.share === 'function') {
       try {
         if (navigator.canShare && navigator.canShare({ files })) {
           await navigator.share({
@@ -247,7 +281,7 @@ class AudioOfflineManager {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
       if (i < files.length - 1) {
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
       }
     }
     return files.length;

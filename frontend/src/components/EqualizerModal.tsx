@@ -62,7 +62,7 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
       onClick={onClose}
     >
       <div 
-        className="w-full sm:max-w-md bg-[#161618]/95 border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl backdrop-blur-2xl flex flex-col gap-4 text-white max-h-[90vh] overflow-y-auto no-scrollbar"
+        className="w-full sm:max-w-md max-w-[calc(100vw-32px)] bg-[#161618]/95 border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl backdrop-blur-2xl flex flex-col gap-4 text-white max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -98,18 +98,18 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* Presets Horizontal Pills */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 min-w-0 max-w-full">
           <div className="text-[11px] font-bold text-white/50 uppercase tracking-wider">
             {t('eq_preset')}
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar min-w-0 max-w-full">
             {Object.entries(EQUALIZER_PRESETS).map(([key, p]) => {
               const isSelected = settings.preset === key;
               return (
                 <button
                   key={key}
                   onClick={() => handlePresetSelect(key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 shrink-0 ${
                     isSelected
                       ? 'bg-white text-black border-white shadow-md'
                       : 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10'
@@ -124,13 +124,13 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* 3D Spatial Audio & Bass Boost Sliders */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-2xl border border-white/5">
+        <div className="grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-2xl border border-white/5 min-w-0">
           {/* 3D Spatial */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-bold flex items-center gap-1">
+              <span className="font-bold flex items-center gap-1 truncate">
                 <span>🌌</span>
-                <span>{t('eq_spatial_3d')}</span>
+                <span className="truncate">{t('eq_spatial_3d')}</span>
               </span>
               <span className="font-mono text-white/60 text-[11px]">{settings.spatialWidth}%</span>
             </div>
@@ -146,11 +146,11 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
           </div>
 
           {/* Bass Boost */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-bold flex items-center gap-1">
+              <span className="font-bold flex items-center gap-1 truncate">
                 <span>🔥</span>
-                <span>{t('eq_bass_boost')}</span>
+                <span className="truncate">{t('eq_bass_boost')}</span>
               </span>
               <span className="font-mono text-white/60 text-[11px]">+{settings.bassBoost} dB</span>
             </div>
@@ -167,22 +167,22 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* 5-Band Equalizer Vertical Sliders */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 min-w-0">
           <div className="flex justify-between items-center text-[11px] font-bold text-white/50 uppercase tracking-wider">
             <span>{t('eq_frequencies') || 'Частоты'}</span>
             <span>-12 dB ... +12 dB</span>
           </div>
 
-          <div className="flex items-center justify-between gap-2 p-3 bg-white/5 rounded-2xl border border-white/5">
+          <div className="grid grid-cols-5 gap-1.5 p-3 bg-white/5 rounded-2xl border border-white/5 min-w-0 overflow-hidden">
             {EQUALIZER_BANDS.map((band, idx) => {
               const currentVal = settings.bands[idx] ?? 0;
               return (
-                <div key={band.freq} className="flex-1 flex flex-col items-center gap-2">
+                <div key={band.freq} className="flex flex-col items-center gap-2 min-w-0">
                   <span className="text-[10px] font-mono text-white/60">
                     {currentVal > 0 ? `+${currentVal}` : currentVal}
                   </span>
 
-                  <div className="relative h-32 flex items-center justify-center">
+                  <div className="relative h-28 w-8 flex items-center justify-center overflow-visible">
                     <input
                       type="range"
                       min="-12"
@@ -190,13 +190,13 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
                       step="1"
                       value={currentVal}
                       onChange={(e) => handleBandChange(idx, Number(e.target.value))}
-                      className="accent-[#FA2D48] w-28 h-1.5 bg-white/20 rounded-lg cursor-pointer -rotate-90 origin-center"
+                      className="accent-[#FA2D48] w-24 h-1.5 bg-white/20 rounded-lg cursor-pointer -rotate-90 origin-center"
                     />
                   </div>
 
-                  <div className="text-center mt-1">
-                    <div className="text-xs font-bold text-white/90">{band.label}</div>
-                    <div className="text-[9px] text-white/40">{band.sub}</div>
+                  <div className="text-center mt-1 w-full">
+                    <div className="text-xs font-bold text-white/90 truncate">{band.label}</div>
+                    <div className="text-[9px] text-white/40 truncate">{band.sub}</div>
                   </div>
                 </div>
               );
