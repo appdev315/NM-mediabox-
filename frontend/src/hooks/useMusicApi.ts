@@ -118,16 +118,42 @@ const mapAppleEntryToTrack = (entry: any, index: number): MusicTrack | null => {
   };
 };
 
-export const COLLECTIONS = [
+export interface MusicCollectionDef {
+  id: string;
+  title: string;
+  icon: string;
+  feedUrl?: string;
+  deezerPlaylistId?: string;
+}
+
+export const COLLECTIONS: readonly MusicCollectionDef[] = [
   { id: 'hits', title: 'Суперхиты', icon: '🔥', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/json' },
   { id: 'russian', title: 'Русские хиты', icon: '🇷🇺', feedUrl: 'https://itunes.apple.com/ru/rss/topsongs/limit=100/json' },
+  { id: 'pop', title: 'Поп-хиты', icon: '✨', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=14/json' },
   { id: 'rock', title: 'Рок', icon: '🎸', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=21/json' },
   { id: 'electronic', title: 'Электроника', icon: '🎧', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=17/json' },
   { id: 'hiphop', title: 'Хип-Хоп', icon: '🎤', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=18/json' },
-  { id: 'chill', title: 'Chillout', icon: '🌙', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' }
+  { id: 'chill', title: 'Chillout', icon: '🌙', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' },
+  { id: 'rnb', title: 'R&B и Соул', icon: '🎷', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=15/json' },
+  { id: 'soundtrack', title: 'Саундтреки', icon: '🎬', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=16/json' },
+  { id: 'metal', title: 'Метал', icon: '⚡️', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=1153/json' },
+  { id: 'jazz', title: 'Джаз', icon: '🎺', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=11/json' },
+  { id: 'classical', title: 'Классика', icon: '🎻', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=5/json' },
+  { id: 'kpop', title: 'K-Pop', icon: '🌸', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=51/json' },
+  { id: 'latin', title: 'Латино', icon: '💃', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=12/json' },
+  { id: 'workout', title: 'Драйв и Спорт', icon: '💪', deezerPlaylistId: '1116189381' },
+  { id: 'deephouse', title: 'Deep House', icon: '🍸', deezerPlaylistId: '1111141961' },
+  { id: 'phonk', title: 'Фонк', icon: '🏎️', deezerPlaylistId: '1313621735' },
+  { id: 'retro90', title: 'Хиты 90-х', icon: '📼', deezerPlaylistId: '1099187311' },
+  { id: 'hits2000', title: 'Хиты 2000-х', icon: '💿', deezerPlaylistId: '1099188051' },
+  { id: 'lofi', title: 'Lofi Beats', icon: '☕️', deezerPlaylistId: '7766327382' },
+  { id: 'country', title: 'Кантри', icon: '🤠', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=6/json' },
+  { id: 'blues', title: 'Блюз', icon: '🪕', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=2/json' },
+  { id: 'dance', title: 'Club & Dance', icon: '🪩', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=17/json' },
+  { id: 'altrock', title: 'Альтернатива', icon: '⚡️', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' }
 ] as const;
 
-export type CollectionId = typeof COLLECTIONS[number]['id'];
+export type CollectionId = string;
 
 export const resolveFullAudioUrl = async (artist: string, title: string, fallbackUrl: string): Promise<string> => {
   const cleanArtist = artist.trim();
@@ -162,8 +188,61 @@ export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchPlaylistTracks = useCallback(async (playlistId: string): Promise<MusicTrack[]> => {
+    const cacheKey = `cache_deezer_playlist_tracks_${playlistId}`;
+    const cached = clientCache.get<MusicTrack[]>(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetchWithRetry(`https://api.deezer.com/playlist/${playlistId}/tracks?limit=100`, { maxRetries: 2 });
+      if (!res || !res.ok) {
+        setLoading(false);
+        return [];
+      }
+      const json = await res.json();
+      const raw = json?.data || [];
+      const tracks: MusicTrack[] = raw
+        .filter((t: any) => t && t.title)
+        .map((t: any, idx: number) => ({
+          id: `dz_${t.id || idx}`,
+          title: decodeHtmlEntities(t.title || ''),
+          artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
+          album: decodeHtmlEntities(t.album?.title || ''),
+          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
+          audioUrl: t.preview || '',
+          duration: typeof t.duration === 'number' ? t.duration : 180,
+          genre: 'Music',
+          isResolved: false
+        }));
+
+      if (tracks.length > 0) {
+        clientCache.set(cacheKey, tracks, 7200);
+      }
+
+      setLoading(false);
+      return tracks;
+    } catch (err: any) {
+      console.warn('[MusicApi] Fetch playlist tracks failed:', err);
+      setError(err?.message || 'Error fetching playlist tracks');
+      setLoading(false);
+      return [];
+    }
+  }, []);
+
   const fetchCollection = useCallback(async (collectionId: string = 'hits', limit = 50): Promise<MusicTrack[]> => {
     const col = COLLECTIONS.find(c => c.id === collectionId) || COLLECTIONS[0];
+    
+    // Support Deezer editorial curated playlists directly inside Collections
+    if (col.deezerPlaylistId) {
+      return fetchPlaylistTracks(col.deezerPlaylistId);
+    }
+
+    const feedUrl = col.feedUrl || COLLECTIONS[0].feedUrl!;
     const cacheKey = `cache_music_apple_collection_${col.id}_${limit}`;
     
     // Check RAM / LocalStorage cache first
@@ -177,7 +256,7 @@ export function useMusicApi() {
 
     try {
       let tracks: MusicTrack[] = [];
-      const res = await fetchWithRetry(col.feedUrl, { maxRetries: 2 });
+      const res = await fetchWithRetry(feedUrl, { maxRetries: 2 });
       if (res && res.ok) {
         const json = await res.json();
         const entries = json?.feed?.entry || [];
@@ -200,7 +279,7 @@ export function useMusicApi() {
       setLoading(false);
       return [];
     }
-  }, []);
+  }, [fetchPlaylistTracks]);
 
   const searchMusic = useCallback(async (query: string, limit = 35): Promise<MusicTrack[]> => {
     const trimmed = query.trim();
@@ -315,52 +394,6 @@ export function useMusicApi() {
     } catch (err: any) {
       console.warn('[MusicApi] Search playlists failed:', err);
       setError(err?.message || 'Error searching playlists');
-      setLoading(false);
-      return [];
-    }
-  }, []);
-
-  const fetchPlaylistTracks = useCallback(async (playlistId: string): Promise<MusicTrack[]> => {
-    const cacheKey = `cache_deezer_playlist_tracks_${playlistId}`;
-    const cached = clientCache.get<MusicTrack[]>(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      return cached;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetchWithRetry(`https://api.deezer.com/playlist/${playlistId}/tracks?limit=100`, { maxRetries: 2 });
-      if (!res || !res.ok) {
-        setLoading(false);
-        return [];
-      }
-      const json = await res.json();
-      const raw = json?.data || [];
-      const tracks: MusicTrack[] = raw
-        .filter((t: any) => t && t.title)
-        .map((t: any, idx: number) => ({
-          id: `dz_${t.id || idx}`,
-          title: decodeHtmlEntities(t.title || ''),
-          artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
-          album: decodeHtmlEntities(t.album?.title || ''),
-          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
-          audioUrl: t.preview || '',
-          duration: typeof t.duration === 'number' ? t.duration : 180,
-          genre: 'Music',
-          isResolved: false
-        }));
-
-      if (tracks.length > 0) {
-        clientCache.set(cacheKey, tracks, 7200);
-      }
-
-      setLoading(false);
-      return tracks;
-    } catch (err: any) {
-      console.warn('[MusicApi] Fetch playlist tracks failed:', err);
-      setError(err?.message || 'Error fetching playlist tracks');
       setLoading(false);
       return [];
     }

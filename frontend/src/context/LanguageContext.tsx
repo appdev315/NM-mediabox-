@@ -145,7 +145,10 @@ export const translations = {
   "music_tab_playlists": "Плейлисты",
   "music_playlist_tracks": "треков",
   "music_back_to_search": "Назад",
-  "music_no_playlists": "Плейлисты не найдены"
+  "music_no_playlists": "Плейлисты не найдены",
+  "music_catalog": "Каталог",
+  "music_all_collections": "Все подборки",
+  "music_load_more": "Ещё"
   },
   'en-US': {"iosInstallTitle": "Install on iPhone & iPad", "iosStep1": "In Safari, tap the Share button (box with arrow up) at the bottom", "iosStep2": "Scroll down and select \"Add to Home Screen\"", "iosStep3": "Tap \"Add\" in the top right corner", "gotIt": "Got it", "bannerMainBot": "Free movies right in your telegram", "bannerTelegram": "Secret room in tg", "bannerAdult": "Secret 18+ Section", "secretRoomTab": "Secret Room 🍓", "secretRoomRulesTitle": "3 Rules of the Secret Room:", "secretRoomRule1": "1. The first rule of the secret room — do not tell anyone about the secret room.", "secretRoomRule2": "2. The second rule of the secret room — do not tell anyone about the first rule of the secret room.", "secretRoomRule3": "3. The third rule of the secret room — I promise to subscribe to the TG bot )", "secretRoomWarning": "By clicking 'I Confirm', you acknowledge that you are at least 18 years of age and take full legal responsibility for viewing adult content. You agree not to distribute this content to minors.", "secretRoomConfirm": "✅ I Confirm", "secretRoomLeave": "❌ Leave Page", 
   "movies": "Movies",
@@ -347,7 +350,10 @@ export const translations = {
   "music_tab_playlists": "Playlists",
   "music_playlist_tracks": "tracks",
   "music_back_to_search": "Back",
-  "music_no_playlists": "No playlists found"
+  "music_no_playlists": "No playlists found",
+  "music_catalog": "Catalog",
+  "music_all_collections": "All collections",
+  "music_load_more": "More"
   }
 };
 

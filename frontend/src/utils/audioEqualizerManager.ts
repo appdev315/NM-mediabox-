@@ -69,6 +69,20 @@ class AudioEqualizerManager {
 
   constructor() {
     this.loadSettings();
+
+    if (typeof window !== 'undefined') {
+      try {
+        if ('audioSession' in navigator) {
+          (navigator as any).audioSession.type = 'playback';
+        }
+      } catch (_) {}
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.resumeContext();
+        }
+      });
+    }
   }
 
   private loadSettings() {
@@ -205,7 +219,7 @@ class AudioEqualizerManager {
    * Resumes AudioContext on user interaction if suspended by browser autoplay policy
    */
   public async resumeContext() {
-    if (this.audioContext && this.audioContext.state === 'suspended') {
+    if (this.audioContext && this.audioContext.state !== 'running') {
       try {
         await this.audioContext.resume();
       } catch (_) {}

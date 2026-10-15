@@ -76,8 +76,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isReconnectingRef = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
   const isRefreshingSrcRef = useRef(false);
@@ -108,30 +107,37 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     } catch (_) {}
   }, []);
 
-  // Mobile Keep-Alive: Inaudible 20Hz Web Audio oscillator prevents OS suspension during active playback
-  const ensureAudioContextKeepAlive = useCallback((force = false) => {
-    if (!force && (!isPlayingRef.current || !currentTrackRef.current)) return;
+  // Lockscreen Background Shield: Plays an inaudible 1s audio loop directly to hardware.
+  // In iOS Safari / WebKit and Android, this informs the OS media engine that native media playback is active,
+  // preventing iOS AVPlayer from suspending the background process and Web Audio nodes after 10-15s.
+  const startBackgroundShield = useCallback(() => {
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.value = 0.00001; // Silent inaudible carrier
-        osc.frequency.value = 20;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        oscillatorRef.current = osc;
-        audioContextRef.current = ctx;
-      } else if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(() => {});
+      if ('audioSession' in navigator) {
+        (navigator as any).audioSession.type = 'playback';
       }
-    } catch (e) {
-      // Ignore browsers without Web Audio support
-    }
+    } catch (_) {}
+
+    try {
+      if (!silentAudioRef.current && typeof document !== 'undefined') {
+        const el = document.createElement('audio');
+        el.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        el.loop = true;
+        el.volume = 0.001;
+        (el as any).playsInline = true;
+        el.setAttribute('playsinline', 'true');
+        el.setAttribute('x-webkit-airplay', 'deny');
+        silentAudioRef.current = el;
+      }
+      silentAudioRef.current?.play().catch(() => {});
+    } catch (_) {}
+  }, []);
+
+  const stopBackgroundShield = useCallback(() => {
+    try {
+      if (silentAudioRef.current) {
+        silentAudioRef.current.pause();
+      }
+    } catch (_) {}
   }, []);
 
   // Stable callbacks that read from refs instead of captured state
@@ -168,20 +174,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    // 5. Clean up Web Audio keep-alive oscillator to immediately release soundcard & tab speaker icon
-    if (oscillatorRef.current) {
-      try {
-        oscillatorRef.current.stop();
-        oscillatorRef.current.disconnect();
-      } catch (_) {}
-      oscillatorRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try {
-        audioContextRef.current.close().catch(() => {});
-      } catch (_) {}
-      audioContextRef.current = null;
-    }
+    // 5. Clean up background shield
+    stopBackgroundShield();
 
     // 6. Release system MediaSession lock
     if ('mediaSession' in navigator) {
@@ -339,10 +333,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       lastPauseTimeRef.current = Date.now();
       isPausedByDeviceRef.current = false;
       audio.pause();
-      // Suspend Web Audio keep-alive when paused so speaker icon turns off
-      if (audioContextRef.current && audioContextRef.current.state === 'running') {
-        audioContextRef.current.suspend().catch(() => {});
-      }
+      stopBackgroundShield();
       setIsPlaying(false);
       setIsBuffering(false);
       syncToPeers(track, false, false);
@@ -350,7 +341,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       isUserPausedRef.current = false;
       isPausedByDeviceRef.current = false;
       setIsBuffering(true);
-      ensureAudioContextKeepAlive();
+      startBackgroundShield();
       if (audioRef.current) {
         try {
           audioEqualizerManager.attachAudioElement(audioRef.current);
@@ -433,7 +424,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         });
       }
     }
-  }, [ensureAudioContextKeepAlive, syncToPeers, attemptReconnect]);
+  }, [startBackgroundShield, syncToPeers, attemptReconnect]);
 
   const playTrack = useCallback(async (track: Track, newQueue?: Track[]) => {
     if (newQueue && newQueue.length > 0) {
@@ -465,7 +456,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!audio) return;
 
     // New track
-    ensureAudioContextKeepAlive();
+    startBackgroundShield();
     if (audio) {
       try {
         audioEqualizerManager.attachAudioElement(audio);
@@ -574,7 +565,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       attemptReconnect('playTrack play error');
     });
     setIsPlaying(true);
-  }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive, syncToPeers]);
+  }, [attemptReconnect, togglePlayPause, startBackgroundShield, syncToPeers]);
 
   const nextTrack = useCallback(() => {
     const currentQueue = queueRef.current;
@@ -773,9 +764,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   // Background visibility & Tab Focus recovery
   useEffect(() => {
-    const handleVisibilityOrFocus = () => {
+    const handleVisibilityOrFocus = async () => {
       if (isAudioMasterRef.current && !document.hidden && isPlayingRef.current && !isUserPausedRef.current) {
-        ensureAudioContextKeepAlive();
+        startBackgroundShield();
+        await audioEqualizerManager.resumeContext();
         const audio = audioRef.current;
         if (audio && audio.paused && !isPausedByDeviceRef.current) {
           audio.play().catch(() => {
@@ -798,7 +790,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
-  }, [ensureAudioContextKeepAlive, attemptReconnect]);
+  }, [startBackgroundShield, attemptReconnect]);
 
   // Cross-Window Audio Synchronization via BroadcastChannel & LocalStorage
   useEffect(() => {
@@ -861,9 +853,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   // Resume or reaffirm audio when PWA window is focused via launchQueue or visibility change
   useEffect(() => {
-    const handlePwaFocus = () => {
+    const handlePwaFocus = async () => {
       if (isAudioMasterRef.current && isPlayingRef.current) {
-        ensureAudioContextKeepAlive();
+        startBackgroundShield();
+        await audioEqualizerManager.resumeContext();
         const audio = audioRef.current;
         if (audio && audio.paused && !isPausedByDeviceRef.current && !isUserPausedRef.current) {
           audio.play().catch(() => attemptReconnect('pwa focus auto-resume'));
@@ -878,7 +871,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('pwa-window-focused', handlePwaFocus);
     return () => window.removeEventListener('pwa-window-focused', handlePwaFocus);
-  }, [ensureAudioContextKeepAlive, attemptReconnect]);
+  }, [startBackgroundShield, attemptReconnect]);
 
   // Handle native audio events
   useEffect(() => {
@@ -1001,8 +994,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current;
       if (!track || !audio || isUserPausedRef.current) return;
 
-      // Re-engage Web Audio keep-alive oscillator for newly connected audio device
-      ensureAudioContextKeepAlive(true);
+      // Re-engage background shield and resume equalizer context for newly connected audio device
+      startBackgroundShield();
+      audioEqualizerManager.resumeContext();
 
       isPausedByDeviceRef.current = false;
       reconnectAttemptRef.current = 0; // Reset retry counter on physical device reconnection

@@ -26,7 +26,19 @@ export function AppleMusic() {
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [catalogVisibleCount, setCatalogVisibleCount] = useState(8);
   const searchAbortRef = useRef<number>(0);
+
+  const loadMoreCollections = useCallback(() => {
+    setCatalogVisibleCount(prev => Math.min(prev + 8, COLLECTIONS.length));
+  }, []);
+
+  const handleSelectCollectionFromCatalog = useCallback((colId: string) => {
+    try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+    setSelectedCollection(colId);
+    setIsCatalogOpen(false);
+  }, []);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
@@ -441,7 +453,17 @@ export function AppleMusic() {
 
       {/* Collections Pills Horizontal Scroller */}
       {activeTab === 'collections' && (
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-2 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto pb-3 mb-2 no-scrollbar items-center">
+          <button
+            onClick={() => {
+              setIsCatalogOpen(true);
+              try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+            }}
+            className="px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border bg-[#FA2D48]/20 hover:bg-[#FA2D48]/30 text-[#FA2D48] border-[#FA2D48]/40 flex items-center gap-1.5 active:scale-95 shadow-sm"
+          >
+            <span>🗂</span>
+            <span>{t('music_catalog')}</span>
+          </button>
           {COLLECTIONS.map(col => (
             <button
               key={col.id}
@@ -1103,6 +1125,87 @@ export function AppleMusic() {
 
       {/* Studio Equalizer Sheet */}
       <EqualizerModal isOpen={isEqOpen} onClose={() => setIsEqOpen(false)} />
+
+      {/* Collections Catalog Modal / Drawer */}
+      {isCatalogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-md animate-fade-in"
+          onClick={() => setIsCatalogOpen(false)}
+        >
+          <div
+            className="bg-[#1C1C1E] border-t border-white/15 rounded-t-3xl max-h-[85vh] flex flex-col p-4 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗂</span>
+                <h3 className="text-base font-extrabold text-white">{t('music_all_collections')}</h3>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-bold">
+                  {catalogVisibleCount} / {COLLECTIONS.length}
+                </span>
+              </div>
+              <button
+                onClick={() => setIsCatalogOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center text-sm font-bold active:scale-90 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Grid of Collection Cards with automatic infinite scroll on swipe down */}
+            <div
+              onScroll={(e) => {
+                const target = e.currentTarget;
+                if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
+                  if (catalogVisibleCount < COLLECTIONS.length) {
+                    loadMoreCollections();
+                  }
+                }
+              }}
+              className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-3 pb-8"
+            >
+              <div className="grid grid-cols-2 gap-2.5">
+                {COLLECTIONS.slice(0, catalogVisibleCount).map((col) => {
+                  const isSelected = selectedCollection === col.id;
+                  return (
+                    <button
+                      key={col.id}
+                      onClick={() => handleSelectCollectionFromCatalog(col.id)}
+                      className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all active:scale-[0.97] ${
+                        isSelected
+                          ? 'bg-white text-black border-white shadow-xl'
+                          : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                      }`}
+                    >
+                      <span className="text-2xl flex-shrink-0">{col.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-extrabold block truncate">
+                          {getCollectionTitle(col.id, col.title)}
+                        </span>
+                        <span className={`text-[10px] block truncate mt-0.5 font-medium ${isSelected ? 'text-black/60' : 'text-white/40'}`}>
+                          {col.deezerPlaylistId ? 'Плейлист' : 'Топ чарт'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Load More Button for manual tap or confirmation */}
+              {catalogVisibleCount < COLLECTIONS.length && (
+                <button
+                  onClick={loadMoreCollections}
+                  className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all border border-white/10 flex items-center justify-center gap-1.5 active:scale-95 mt-1"
+                >
+                  <span>↓</span>
+                  <span>{t('music_load_more')} ({catalogVisibleCount} из {COLLECTIONS.length})</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
