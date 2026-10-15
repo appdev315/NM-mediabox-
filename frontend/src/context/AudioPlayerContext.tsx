@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackError } from '../utils/analytics';
+import { audioEqualizerManager } from '../utils/audioEqualizerManager';
 
 export interface Track {
   id: string;
@@ -333,6 +334,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       isPausedByDeviceRef.current = false;
       setIsBuffering(true);
       ensureAudioContextKeepAlive();
+      if (audioRef.current) {
+        try {
+          audioEqualizerManager.attachAudioElement(audioRef.current);
+          audioEqualizerManager.resumeContext();
+        } catch (_) {}
+      }
 
       if (track.type === 'radio') {
         const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
@@ -442,6 +449,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     // New track
     ensureAudioContextKeepAlive();
+    if (audio) {
+      try {
+        audioEqualizerManager.attachAudioElement(audio);
+        audioEqualizerManager.resumeContext();
+      } catch (_) {}
+    }
     isUserPausedRef.current = false;
     reconnectAttemptRef.current = 0;
     isReconnectingRef.current = false;
@@ -1013,7 +1026,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   return (
     <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, queue, playTrack, togglePlayPause, nextTrack, prevTrack, stop, audioRef }}>
       {children}
-      <audio ref={audioRef} preload="auto" playsInline />
+      <audio ref={audioRef} preload="auto" playsInline crossOrigin="anonymous" />
     </AudioPlayerContext.Provider>
   );
 }

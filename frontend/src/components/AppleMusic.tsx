@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useMusicApi, COLLECTIONS, type CollectionId, type MusicTrack } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
+import { EqualizerModal } from './EqualizerModal';
 
 export function AppleMusic() {
+  const { t } = useLanguage();
   const { loading, fetchCollection, searchMusic } = useMusicApi();
   const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef } = useAudioPlayer();
 
@@ -16,6 +19,8 @@ export function AppleMusic() {
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
+  const [isEqOpen, setIsEqOpen] = useState(false);
+  const searchAbortRef = useRef<number>(0);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
@@ -127,20 +132,41 @@ export function AppleMusic() {
     };
   }, [selectedCollection, fetchCollection]);
 
-  // Search debounce
+  const performSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const reqId = ++searchAbortRef.current;
+    const results = await searchMusic(q, 35);
+    if (reqId === searchAbortRef.current) {
+      setSearchResults(results);
+    }
+  }, [searchMusic]);
+
+  // Search debounce: wait 700ms and require at least 2 chars to avoid querying on every letter
   useEffect(() => {
     const q = searchQuery.trim();
-    if (!q) {
+    if (q.length < 2) {
       setSearchResults([]);
       return;
     }
     const timer = setTimeout(() => {
-      searchMusic(q, 35).then(results => {
-        setSearchResults(results);
-      });
-    }, 350);
+      performSearch(q);
+    }, 700);
     return () => clearTimeout(timer);
-  }, [searchQuery, searchMusic]);
+  }, [searchQuery, performSearch]);
+
+  const getCollectionTitle = (id: string, defaultTitle: string) => {
+    if (id === 'hits') return t('col_hits') || defaultTitle;
+    if (id === 'russian') return t('col_russian') || defaultTitle;
+    if (id === 'rock') return t('col_rock') || defaultTitle;
+    if (id === 'electronic') return t('col_electronic') || defaultTitle;
+    if (id === 'hiphop') return t('col_hiphop') || defaultTitle;
+    if (id === 'chill') return t('col_chill') || defaultTitle;
+    return defaultTitle;
+  };
 
   // Audio time listener for progress bar
   useEffect(() => {
@@ -265,7 +291,7 @@ export function AppleMusic() {
             activeTab === 'collections' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
           }`}
         >
-          ✨ Подборки
+          ✨ {t('music_collections')}
         </button>
         <button
           onClick={() => setActiveTab('search')}
@@ -273,7 +299,7 @@ export function AppleMusic() {
             activeTab === 'search' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
           }`}
         >
-          🔍 Поиск
+          🔍 {t('music_search')}
         </button>
         <button
           onClick={() => setActiveTab('favorites')}
@@ -281,7 +307,7 @@ export function AppleMusic() {
             activeTab === 'favorites' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
           }`}
         >
-          ❤️ Любимые ({favTracks.length})
+          ❤️ {t('music_favorites')} ({favTracks.length})
         </button>
       </div>
 
@@ -298,7 +324,7 @@ export function AppleMusic() {
                   : 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10'
               }`}
             >
-              {col.icon} {col.title}
+              {col.icon} {getCollectionTitle(col.id, col.title)}
             </button>
           ))}
         </div>
@@ -308,7 +334,7 @@ export function AppleMusic() {
       {activeTab === 'favorites' && favTracks.length > 0 && (
         <div className="flex items-center justify-between px-3 py-2 mb-3 bg-white/5 rounded-2xl border border-white/5">
           <div className="text-xs font-semibold text-white/70 truncate mr-2">
-            {cacheStats.count > 0 ? `Кэш: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : 'Кэш пуст'}
+            {cacheStats.count > 0 ? `${t('music_cache')}: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : t('music_cache_empty')}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {cacheStats.count > 0 && (
@@ -319,7 +345,7 @@ export function AppleMusic() {
                 title="Экспорт аудиофайлов в приложение Файлы"
               >
                 <span>{isExporting ? '⏳' : '📥'}</span>
-                <span>{isExporting ? 'Экспорт...' : 'В Файлы'}</span>
+                <span>{isExporting ? t('music_exporting') : t('music_to_files')}</span>
               </button>
             )}
             {cacheStats.count > 0 && (
@@ -327,7 +353,7 @@ export function AppleMusic() {
                 onClick={handleClearCache}
                 className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/20 text-xs font-bold text-white/90 hover:text-red-400 border border-white/10 transition-colors active:scale-95"
               >
-                Очистить
+                {t('music_clear_cache')}
               </button>
             )}
           </div>
@@ -341,7 +367,13 @@ export function AppleMusic() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Исполнитель, группа или название трека..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+                performSearch(searchQuery);
+              }
+            }}
+            placeholder={t('music_search_placeholder')}
             className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
           />
           <div className="absolute left-3.5 top-3.5 text-white/50">
@@ -373,7 +405,7 @@ export function AppleMusic() {
           }}
         >
           <div className="absolute top-4 left-4 bg-[#FA2D48] px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider">
-            ХИТ ПОДБОРКИ
+            {t('music_hit_of_collection')}
           </div>
           <div className="mt-8 flex justify-between items-end">
             <div className="max-w-[75%]">
@@ -416,10 +448,8 @@ export function AppleMusic() {
               return (
                 <div className="text-center py-16 text-white/40 font-bold text-sm">
                   {activeTab === 'favorites' 
-                    ? 'Вы пока не сохранили ни одного трека ❤️' 
-                    : activeTab === 'search' && searchQuery 
-                    ? 'Ничего не найдено' 
-                    : 'Треки не найдены'}
+                    ? t('music_no_favorites') 
+                    : t('music_no_results')}
                 </div>
               );
             }
@@ -474,7 +504,7 @@ export function AppleMusic() {
                       </h3>
                       {isOffline && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-extrabold flex-shrink-0">
-                          ОФЛАЙН
+                          {t('music_offline')}
                         </span>
                       )}
                     </div>
@@ -588,7 +618,7 @@ export function AppleMusic() {
             paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
           }}
         >
-          {/* Top Bar: Dismiss Chevron & Title */}
+          {/* Top Bar: Dismiss Chevron, Title, Equalizer Button */}
           <div className="flex items-center justify-between w-full">
             <button
               onClick={() => setIsExpanded(false)}
@@ -597,7 +627,13 @@ export function AppleMusic() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
             <span className="text-xs font-black tracking-widest uppercase text-white/50">MediaBox Music</span>
-            <div className="w-10" />
+            <button
+              onClick={() => setIsEqOpen(true)}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-base active:scale-90 transition-transform"
+              title={t('equalizer')}
+            >
+              🎚️
+            </button>
           </div>
 
           {/* Big Squircle Artwork with ambient shadow */}
@@ -614,10 +650,14 @@ export function AppleMusic() {
               />
             </div>
 
-            {/* Quality pill */}
-            <div className="mt-4 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/70">
-              Lossless • 320 kbps Studio Audio
-            </div>
+            {/* Quality pill & Equalizer shortcut */}
+            <button
+              onClick={() => setIsEqOpen(true)}
+              className="mt-4 px-3.5 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5 transition-colors active:scale-95"
+            >
+              <span>Lossless • 320 kbps</span>
+              <span className="text-[#FA2D48] font-bold">🎚️ {t('equalizer')}</span>
+            </button>
           </div>
 
           {/* Track Details & Heart */}
@@ -728,6 +768,9 @@ export function AppleMusic() {
           </div>
         </div>
       )}
+
+      {/* Studio Equalizer Sheet */}
+      <EqualizerModal isOpen={isEqOpen} onClose={() => setIsEqOpen(false)} />
     </div>
   );
 }
