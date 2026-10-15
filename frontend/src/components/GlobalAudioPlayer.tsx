@@ -381,8 +381,8 @@ export function GlobalAudioPlayer() {
               </button>
             </div>
 
-            {/* Volume bar */}
-            <div className="flex items-center gap-3 px-4">
+            {/* Volume bar (hidden on mobile, visible on tablet/desktop) */}
+            <div className="hidden sm:flex items-center gap-3 px-4">
               <span className="text-white/40 text-xs">🔈</span>
               <input
                 type="range"

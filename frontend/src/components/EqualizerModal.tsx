@@ -58,7 +58,7 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in"
+      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in"
       onClick={onClose}
     >
       <div 
