@@ -85,3 +85,9 @@
    - The agent MUST execute strictly and exclusively the exact scope agreed upon in the approved plan.
    - Any refactoring, "cleanup", removal of existing logic, signals, hooks, or adjacent code modifications are permitted ONLY when explicitly requested by the user or strictly necessary to fulfill the approved plan.
    - Self-willed initiatives, unprompted optimizations, and unapproved modifications outside the plan are strictly forbidden.
+
+## 11. UI Laconicism & Prohibition of Verbose Explanations in Controls
+1. **STRICT PROHIBITION OF VERBOSE EXPLANATIONS IN UI CONTROLS**:
+   - The agent is STRICTLY PROHIBITED from embedding technical explanations, implementation details (e.g. library/API names, codecs, FPS, buffer info), parenthetical annotations, or instructional paragraphs inside buttons, radio options, checkboxes, and UI control labels.
+   - UI controls MUST adhere to macOS / Apple Human Interface Guidelines: laconic, clean, 1–3 words per control (e.g. «Звук системы», «Микрофон», «Оба источника», «Без звука», «Кадрировать», «Начать запись»).
+   - Technical implementations, capture engines, fallbacks, and internal plumbing MUST be handled silently under the hood without exposing internal engine choices or jargon to the user in basic workflows unless explicitly requested.

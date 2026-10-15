@@ -86,10 +86,12 @@ type redtubeSearchResponse struct {
 
 func searchRedtube(ctx context.Context, query string, page int) []types.Video {
 	q := strings.TrimSpace(query)
-	if q == "" {
-		q = "popular"
+	var apiUrl string
+	if q == "" || q == "popular" || q == "all" {
+		apiUrl = fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&page=%d&thumbsize=medium", page+1)
+	} else {
+		apiUrl = fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
 	}
-	apiUrl := fmt.Sprintf("https://api.redtube.com/?data=redtube.Videos.searchVideos&output=json&search=%s&page=%d&thumbsize=medium", url.QueryEscape(q), page+1)
 	client := GetAdultHTTPClient(5 * time.Second)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {
@@ -161,10 +163,12 @@ type epornerSearchResponse struct {
 
 func searchEporner(ctx context.Context, query string, page int) []types.Video {
 	q := strings.TrimSpace(query)
-	if q == "" {
-		q = "popular"
+	var apiUrl string
+	if q == "" || q == "popular" || q == "all" {
+		apiUrl = fmt.Sprintf("https://www.eporner.com/api/v2/video/search/?query=all&order=top-weekly&per_page=30&page=%d&thumbsize=medium&format=json", page+1)
+	} else {
+		apiUrl = fmt.Sprintf("https://www.eporner.com/api/v2/video/search/?query=%s&per_page=30&page=%d&thumbsize=medium&format=json", url.QueryEscape(q), page+1)
 	}
-	apiUrl := fmt.Sprintf("https://www.eporner.com/api/v2/video/search/?query=%s&per_page=30&page=%d&thumbsize=medium&format=json", url.QueryEscape(q), page+1)
 	client := GetAdultHTTPClient(5 * time.Second)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {

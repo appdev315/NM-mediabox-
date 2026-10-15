@@ -5,12 +5,13 @@ import { WebApp } from '../telegram';
 import { useLanguage, LANGUAGES_CONFIG } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
-const RadioTVContent = lazy(() => import('./RadioTV').then(m => ({ default: m.RadioTVContent })));
+const RadioContent = lazy(() => import('./Radio').then(m => ({ default: m.RadioContent })));
+const AppleMusic = lazy(() => import('../components/AppleMusic').then(m => ({ default: m.AppleMusic })));
 
 export function Profile() {
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  const [activeMediaTab, setActiveMediaTab] = useState<'tv' | 'radio' | null>(null);
+  const [activeMediaTab, setActiveMediaTab] = useState<'radio' | 'music' | null>(null);
 
   const isAdultApp = window.location.hostname === 'moviemaniak5555.xyz' || (window.location.hostname === 'localhost' && window.location.port === '3001') || window.location.search.includes('app=adult');
   const [showDonationModal, setShowDonationModal] = useState(false);
@@ -33,7 +34,7 @@ export function Profile() {
             <span>{t('profile') || 'Назад'}</span>
           </button>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-color)' }}>
-            {activeMediaTab === 'tv' ? (t('tab_tv') || 'Онлайн ТВ') : (t('tab_radio') || 'Радио')}
+            {activeMediaTab === 'music' ? (t('tab_music') || 'Apple Music') : (t('tab_radio') || 'Радио')}
           </h1>
         </div>
         <Suspense fallback={
@@ -41,7 +42,8 @@ export function Profile() {
             <div className="w-8 h-8 border-4 border-[var(--button-color)] border-t-transparent rounded-full animate-spin" />
           </div>
         }>
-          <RadioTVContent activeTab={activeMediaTab} />
+          {activeMediaTab === 'radio' && <RadioContent />}
+          {activeMediaTab === 'music' && <AppleMusic />}
         </Suspense>
       </div>
     );
@@ -86,17 +88,8 @@ export function Profile() {
         </div>
       </div>
 
-      {/* Online TV & Radio Buttons */}
+      {/* Radio & Music Buttons */}
       <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setActiveMediaTab('tv')}
-          className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
-          style={{ backgroundColor: 'var(--hint-color)' }}
-        >
-          <span className="text-3xl">📺</span>
-          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_tv') || 'Онлайн ТВ'}</span>
-        </button>
-
         <button
           onClick={() => setActiveMediaTab('radio')}
           className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
@@ -104,6 +97,15 @@ export function Profile() {
         >
           <span className="text-3xl">📻</span>
           <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_radio') || 'Радио'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveMediaTab('music')}
+          className="p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm cursor-pointer transition-transform active:scale-95 text-center border border-white/5"
+          style={{ backgroundColor: 'var(--hint-color)' }}
+        >
+          <span className="text-3xl">🎵</span>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_music') || 'Музыка'}</span>
         </button>
       </div>
 

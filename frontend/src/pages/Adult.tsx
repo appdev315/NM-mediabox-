@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
@@ -12,10 +12,8 @@ import { trackOpen } from '../utils/analytics';
 
 const CATEGORIES = [
   { id: '', label: 'All Categories' },
-  { id: 'popular', label: 'Popular' },
   { id: 'milf', label: 'MILF' },
   { id: 'teen', label: 'Teens' },
-  { id: 'japanese', label: 'Japanese' },
   { id: 'latina', label: 'Latina' },
   { id: 'amateur', label: 'Amateur' },
   { id: 'lesbian', label: 'Lesbian' },
@@ -25,8 +23,6 @@ const CATEGORIES = [
   { id: 'threesome', label: 'Threesome' },
   { id: 'pov', label: 'POV' },
   { id: 'hentai', label: 'Hentai' },
-  { id: 'russian', label: 'Russian' },
-  { id: 'asian', label: 'Asian' },
   { id: 'babe', label: 'Babe' },
   { id: 'anal', label: 'Anal' },
   { id: 'blonde', label: 'Blonde' },
@@ -106,7 +102,7 @@ const ADULT_COUNTRIES = [
   { id: 'romanian', labelRu: 'Румыния', labelEn: 'Romania' },
   { id: 'senegal', labelRu: 'Сенегал', labelEn: 'Senegal' },
   { id: 'serbian', labelRu: 'Сербия', labelEn: 'Serbia' },
-  { id: 'slovakia', labelRu: 'Словакия', labelEn: 'Slovakia' },
+  { id: 'slovak', labelRu: 'Словакия', labelEn: 'Slovakia' },
   { id: 'american', labelRu: 'США', labelEn: 'USA' },
   { id: 'thai', labelRu: 'Таиланд', labelEn: 'Thailand' },
   { id: 'taiwanese', labelRu: 'Тайвань', labelEn: 'Taiwan' },
@@ -132,12 +128,24 @@ export function Adult() {
   const { fetchAdultSearch } = useApi();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [country, setCountry] = useState('');
-  
-  // Initialize from location state if returning from video or default to popular
-  const initialCategory = (location.state as any)?.category || 'popular';
-  const [category, setCategory] = useState(initialCategory);
+  // Initialize from location state if returning from video or restore from sessionStorage
+  const navState = location.state as { category?: string; country?: string; query?: string; searchQuery?: string; title?: string } | undefined;
+  const isLegacyCountry = navState?.category && ADULT_COUNTRIES.some(c => c.id === navState.category);
+
+  const [query, setQuery] = useState(() => navState?.query ?? '');
+  const [country, setCountry] = useState(() => {
+    if (isLegacyCountry) return navState?.category || '';
+    if (navState?.country !== undefined) return navState.country;
+    try { return sessionStorage.getItem('adult_country') || ''; } catch (_) { return ''; }
+  });
+  const [category, setCategory] = useState(() => {
+    if (isLegacyCountry) return '';
+    if (navState?.category !== undefined) return navState.category === 'popular' ? '' : navState.category;
+    try { 
+      const stored = sessionStorage.getItem('adult_category') || '';
+      return stored === 'popular' ? '' : stored;
+    } catch (_) { return ''; }
+  });
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isRu = language === 'ru-RU';
@@ -152,7 +160,29 @@ export function Adult() {
     return localStorage.getItem('age_confirmed') === 'true';
   });
 
+  const activeReqIdRef = useRef(0);
+
+  const effectiveQuery = useMemo(() => {
+    const trimmedQ = query.trim();
+    if (trimmedQ) return trimmedQ;
+
+    const hasCountry = Boolean(country);
+    const hasCategory = Boolean(category);
+
+    if (hasCountry && hasCategory) {
+      return `${country} ${category}`;
+    }
+    if (hasCountry) {
+      return country;
+    }
+    if (hasCategory) {
+      return category;
+    }
+    return 'popular';
+  }, [category, country, query]);
+
   const loadVideos = useCallback(async (searchQuery: string, pageNum: number = 0, append: boolean = false, randomize: boolean = false) => {
+    const reqId = ++activeReqIdRef.current;
     if (append) {
       setIsLoadingMore(true);
     } else {
@@ -165,6 +195,8 @@ export function Adult() {
       const actualPage = (randomize && queryToFetch === 'popular') ? Math.floor(Math.random() * 4) : pageNum;
 
       const data = await fetchAdultSearch(queryToFetch, actualPage);
+      if (reqId !== activeReqIdRef.current) return;
+
       if (Array.isArray(data)) {
         // Randomize order if randomize is requested for popular
         const processed = (randomize && queryToFetch === 'popular') ? [...data].sort(() => Math.random() - 0.5) : data;
@@ -180,38 +212,35 @@ export function Adult() {
         }
       }
     } catch (e) {
-      console.error(e);
+      if (reqId === activeReqIdRef.current) {
+        console.error(e);
+      }
     } finally {
-      setLoading(false);
-      setIsLoadingMore(false);
+      if (reqId === activeReqIdRef.current) {
+        setLoading(false);
+        setIsLoadingMore(false);
+      }
     }
   }, [fetchAdultSearch]);
 
   useEffect(() => {
     if (hasAccess && ageConfirmed) {
-      loadVideos(category, 0, false, category === 'popular');
-      trackOpen('adult_catalog', category, 'catalog');
+      setPage(0);
+      const isInitialPopular = effectiveQuery === 'popular' && !query;
+      loadVideos(effectiveQuery, 0, false, isInitialPopular);
+      trackOpen('adult_catalog', effectiveQuery, country ? 'country' : (category ? 'category' : 'catalog'));
     } else {
       setLoading(false);
     }
-  }, [hasAccess, ageConfirmed, loadVideos, category]);
+  }, [hasAccess, ageConfirmed, effectiveQuery, loadVideos]);
 
   const loadMore = useCallback(() => {
     if (loading || isLoadingMore || !hasAccess || !ageConfirmed) return;
     
-    const activeTag = query || country || category;
-    if (!activeTag) {
-      // Infinite random mode
-      const randomCat = CATEGORIES[1 + Math.floor(Math.random() * (CATEGORIES.length - 1))].id;
-      const nextPage = page + 1;
-      setPage(nextPage);
-      loadVideos(randomCat, nextPage, true);
-    } else {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      loadVideos(activeTag, nextPage, true);
-    }
-  }, [loading, isLoadingMore, hasAccess, ageConfirmed, category, country, query, page]);
+    const nextPage = page + 1;
+    setPage(nextPage);
+    loadVideos(effectiveQuery, nextPage, true);
+  }, [loading, isLoadingMore, hasAccess, ageConfirmed, page, effectiveQuery, loadVideos]);
 
   useEffect(() => {
     let ticking = false;
@@ -238,36 +267,27 @@ export function Adult() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     (document.activeElement as HTMLElement)?.blur();
-    if (hasAccess) {
-      const activeTag = query || country || category;
-      trackOpen('adult_catalog', activeTag || 'search', 'search');
+    if (hasAccess && ageConfirmed) {
+      trackOpen('adult_catalog', effectiveQuery || 'search', 'search');
       setPage(0);
-      loadVideos(activeTag, 0, false);
+      loadVideos(effectiveQuery, 0, false);
     }
   };
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setCategory(val);
-    setCountry('');
+    try { sessionStorage.setItem('adult_category', val); } catch (_) {}
     setQuery('');
     setPage(0);
-    if (hasAccess) {
-      trackOpen('adult_catalog', val || 'popular', 'category');
-      loadVideos(val || 'popular', 0, false);
-    }
   };
 
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setCountry(val);
-    setCategory('');
+    try { sessionStorage.setItem('adult_country', val); } catch (_) {}
     setQuery('');
     setPage(0);
-    if (hasAccess) {
-      trackOpen('adult_catalog', val || 'all', 'country');
-      loadVideos(val, 0, false);
-    }
   };
 
   if (hasAccess && !ageConfirmed) {
@@ -294,7 +314,6 @@ export function Adult() {
               setAgeConfirmed(true);
               localStorage.setItem('age_confirmed', 'true');
               setPage(0);
-              loadVideos('popular', 0, false, true);
             }}
             className="w-full py-4 rounded-2xl font-bold text-lg active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
@@ -332,7 +351,7 @@ export function Adult() {
         >
           {CATEGORIES.map(c => (
             <option key={c.id} value={c.id}>
-              {c.id === '' ? t('allCategories') : (c.id === 'popular' ? t('popularCategory') : c.label)}
+              {c.id === '' ? t('allCategories') : c.label}
             </option>
           ))}
         </select>
@@ -371,10 +390,27 @@ export function Adult() {
         />
       </form>
 
-
-
       {loading && !isLoadingMore ? (
         <div className="flex justify-center py-20 opacity-50 font-medium">{t('loading')}</div>
+      ) : videos.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center opacity-70">
+          <p className="text-base font-semibold mb-3">{t('notFound')}</p>
+          <button
+            onClick={() => {
+              setCountry('');
+              setCategory('');
+              setQuery('');
+              try {
+                sessionStorage.removeItem('adult_country');
+                sessionStorage.removeItem('adult_category');
+              } catch (_) {}
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform"
+            style={{ backgroundColor: 'var(--button-color)', color: 'var(--button-text-color)' }}
+          >
+            {t('allCategories')}
+          </button>
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
@@ -382,7 +418,15 @@ export function Adult() {
               <React.Fragment key={`${v.id}-${idx}`}>
                 <div 
                   className="cursor-pointer"
-                  onClick={() => navigate(`/adult/${v.id}`, { state: { category: query || country || category, title: v.title } })}
+                  onClick={() => navigate(`/adult/${v.id}`, { 
+                    state: { 
+                      category, 
+                      country, 
+                      query, 
+                      searchQuery: effectiveQuery, 
+                      title: v.title 
+                    } 
+                  })}
                 >
                   <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
                     <img 

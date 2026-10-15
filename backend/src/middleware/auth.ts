@@ -88,7 +88,7 @@ export const tgAuthMiddleware = async (c: Context, next: Next) => {
   
   if (userString) {
     try {
-      c.set('tgUser', JSON.parse(decodeURIComponent(userString)));
+      c.set('tgUser', JSON.parse(userString));
     } catch (e) {
       console.error('Failed to parse user data:', e);
     }

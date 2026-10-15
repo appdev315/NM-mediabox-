@@ -5,7 +5,6 @@ const STORAGE_KEYS: Record<string, string> = {
   movie: 'favorites_movies',
   series: 'favorites_series',
   radio: 'favorites_radio',
-  tv: 'favorites_tv',
   adult: 'adult_favorites',
 };
 
@@ -13,7 +12,6 @@ const HISTORY_KEYS: Record<string, string> = {
   movie: 'history_movies',
   series: 'history_series',
   radio: 'history_radio',
-  tv: 'history_tv',
 };
 
 export const favoritesManager = {
@@ -47,6 +45,19 @@ export const favoritesManager = {
     const list = this.getHistory(type);
     const targetId = String(itemId);
     const updated = list.filter((i: any) => String(i.id) !== targetId);
+    try {
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {}
+    return updated;
+  },
+
+  // 1d. Add item to History Storage
+  addHistory(type: string, item: any): any[] {
+    const key = HISTORY_KEYS[type] || `history_${type}`;
+    const list = this.getHistory(type);
+    const targetId = String(item.id);
+    const filtered = list.filter((i: any) => String(i.id) !== targetId);
+    const updated = [item, ...filtered].slice(0, 50);
     try {
       localStorage.setItem(key, JSON.stringify(updated));
     } catch (e) {}

@@ -1,8 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { Header } from '../components/Header';
 import { WebApp } from '../telegram';
@@ -22,32 +21,23 @@ export function Favorites() {
   const [favMovies, setFavMovies] = useState<any[]>([]);
   const [favSeries, setFavSeries] = useState<any[]>([]);
   const [favRadio, setFavRadio] = useState<any[]>([]);
-  const [favTv, setFavTv] = useState<any[]>([]);
 
   const [historyMovies, setHistoryMovies] = useState<any[]>([]);
   const [historySeries, setHistorySeries] = useState<any[]>([]);
   const [historyRadio, setHistoryRadio] = useState<any[]>([]);
-  const [historyTv, setHistoryTv] = useState<any[]>([]);
 
   // Player states
   const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
-  const [activeTvChannel, setActiveTvChannel] = useState<any | null>(null);
-  const [tvError, setTvError] = useState(false);
-  const playerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const { initHls, destroyHls } = useHlsPlayer();
 
   const loadData = () => {
     // Instant 0ms load from LocalStorage
     setFavMovies(favoritesManager.getLocal('movie'));
     setFavSeries(favoritesManager.getLocal('series'));
     setFavRadio(favoritesManager.getLocal('radio'));
-    setFavTv(favoritesManager.getLocal('tv'));
 
     setHistoryMovies(favoritesManager.getHistory('movie'));
     setHistorySeries(favoritesManager.getHistory('series'));
     setHistoryRadio(favoritesManager.getHistory('radio'));
-    setHistoryTv(favoritesManager.getHistory('tv'));
   };
 
   useEffect(() => {
@@ -56,92 +46,20 @@ export function Favorites() {
     favoritesManager.hydrateFromCloud('movie').then(items => setFavMovies(items));
     favoritesManager.hydrateFromCloud('series').then(items => setFavSeries(items));
     favoritesManager.hydrateFromCloud('radio').then(items => setFavRadio(items));
-    favoritesManager.hydrateFromCloud('tv').then(items => setFavTv(items));
   }, []);
 
-  // Hls.js stream lifecycle for TV channels
-  useEffect(() => {
-    if (!activeTvChannel) {
-      destroyHls();
-      return;
-    }
-
-    const video = videoRef.current;
-    if (!video) return;
-
-    setTvError(false);
-    destroyHls();
-
-    const streamUrl = activeTvChannel.url;
-    const isHls = streamUrl.includes('.m3u8') || streamUrl.includes('/playlist') || streamUrl.includes('/proxy');
-    let isCancelled = false;
-
-    const startHls = async () => {
-      if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) {
-        const hls = await initHls({
-          url: streamUrl,
-          media: video,
-          config: {
-            manifestLoadingTimeOut: 15000,
-            levelLoadingTimeOut: 15000,
-            fragLoadingTimeOut: 15000,
-          },
-          onManifestParsed: () => {
-            if (!isCancelled) video.play().catch(() => {});
-          },
-          onError: (instance, data) => {
-            if (data.fatal) {
-              switch (data.type) {
-                case 'networkError':
-                  instance.startLoad();
-                  break;
-                case 'mediaError':
-                  instance.recoverMediaError();
-                  break;
-                default:
-                  setTvError(true);
-                  destroyHls();
-                  break;
-              }
-            }
-          },
-        });
-        if (hls) return;
-      }
-
-      if (!isCancelled && video) {
-        video.src = streamUrl;
-        video.load();
-        video.play().catch(() => {});
-      }
-    };
-    startHls();
-
-    return () => {
-      isCancelled = true;
-      destroyHls();
-      if (video) {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      }
-    };
-  }, [activeTvChannel, initHls, destroyHls]);
-
-  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'tv') => {
+  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio') => {
     e.stopPropagation();
     if (mode === 'favorites') {
       const updated = favoritesManager.remove(type, id);
       if (type === 'movie') setFavMovies(updated);
       else if (type === 'series') setFavSeries(updated);
       else if (type === 'radio') setFavRadio(updated);
-      else if (type === 'tv') setFavTv(updated);
     } else {
       const updated = favoritesManager.removeHistory(type, id);
       if (type === 'movie') setHistoryMovies(updated);
       else if (type === 'series') setHistorySeries(updated);
       else if (type === 'radio') setHistoryRadio(updated);
-      else if (type === 'tv') setHistoryTv(updated);
     }
     try {
       WebApp?.HapticFeedback?.impactOccurred('light');
@@ -156,11 +74,9 @@ export function Favorites() {
           localStorage.removeItem('favorites_movies');
           localStorage.removeItem('favorites_series');
           localStorage.removeItem('favorites_radio');
-          localStorage.removeItem('favorites_tv');
           setFavMovies([]);
           setFavSeries([]);
           setFavRadio([]);
-          setFavTv([]);
         } catch (e) {
           console.error(e);
         }
@@ -173,12 +89,9 @@ export function Favorites() {
           localStorage.removeItem('history_movies');
           localStorage.removeItem('history_series');
           localStorage.removeItem('history_radio');
-          localStorage.removeItem('history_tv');
           setHistoryMovies([]);
           setHistorySeries([]);
           setHistoryRadio([]);
-          setHistoryTv([]);
-          setActiveTvChannel(null);
         } catch (e) {
           console.error(e);
         }
@@ -187,7 +100,6 @@ export function Favorites() {
   };
 
   const handlePlayRadio = (station: any) => {
-    setActiveTvChannel(null);
     const finalUrl = station.url?.startsWith('http://')
       ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(station.url)}`
       : station.url;
@@ -200,15 +112,6 @@ export function Favorites() {
       coverUrl: station.logo,
       type: 'radio'
     });
-  };
-
-  const handlePlayTv = (channel: any) => {
-    stop();
-    setTvError(false);
-    setActiveTvChannel(channel);
-    setTimeout(() => {
-      playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
   };
 
   const renderTmdbList = (type: 'movie' | 'series') => {
@@ -265,17 +168,15 @@ export function Favorites() {
     );
   };
 
-  const renderRadioTvList = (type: 'radio' | 'tv') => {
+  const renderRadioList = () => {
     const brokenIds: string[] = (() => {
       try {
         const saved = localStorage.getItem('broken_radio_stations');
         return saved ? JSON.parse(saved) : [];
       } catch (_) { return []; }
     })();
-    const rawList = mode === 'favorites'
-      ? (type === 'radio' ? favRadio : favTv)
-      : (type === 'radio' ? historyRadio : historyTv);
-    const list = type === 'radio' ? rawList.filter((item: any) => !brokenIds.includes(item.id)) : rawList;
+    const rawList = mode === 'favorites' ? favRadio : historyRadio;
+    const list = rawList.filter((item: any) => !brokenIds.includes(item.id));
 
     if (list.length === 0) {
       return (
@@ -287,45 +188,14 @@ export function Favorites() {
     
     return (
       <div className="flex flex-col gap-3">
-        {activeTvChannel && activeTab === 'tv' && (
-          <div ref={playerRef} className="mb-6 rounded-2xl overflow-hidden shadow-xl border md:w-[80%] mx-auto scroll-mt-20" style={{ borderColor: 'var(--hint-color)' }}>
-            <div className="bg-black flex justify-between items-center p-3">
-              <div className="flex items-center gap-3">
-                {activeTvChannel.logo && <img src={activeTvChannel.logo} className="w-8 h-8 rounded-full" />}
-                <span className="font-bold text-white truncate">{activeTvChannel.name}</span>
-              </div>
-              <button onClick={() => setActiveTvChannel(null)} className="text-white opacity-70 hover:opacity-100 font-bold px-2">✕</button>
-            </div>
-            <div className="relative pt-[56.25%] bg-black flex items-center justify-center">
-              {tvError ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 text-center">
-                  <span className="text-3xl mb-2">⚠️</span>
-                  <p className="font-bold">Stream Unavailable</p>
-                </div>
-              ) : (
-                <video 
-                  ref={videoRef}
-                  autoPlay
-                  controls 
-                  playsInline
-                  className="absolute top-0 left-0 w-full h-full object-contain"
-                  onError={() => setTvError(true)}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {list.map((item: any) => {
-            const isRadioActive = activeTab === 'radio' && currentTrack?.id === item.id;
-            const isTvActive = activeTab === 'tv' && activeTvChannel?.id === item.id;
-            const isActive = isRadioActive || isTvActive;
+            const isActive = currentTrack?.id === item.id;
 
             return (
               <div 
                 key={item.id} 
-                onClick={() => type === 'radio' ? handlePlayRadio(item) : handlePlayTv(item)}
+                onClick={() => handlePlayRadio(item)}
                 className="p-2 rounded-xl flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer border relative hover:scale-[0.99]"
                 style={{ 
                   backgroundColor: 'var(--secondary-bg-color, rgba(100, 100, 100, 0.05))',
@@ -334,7 +204,7 @@ export function Favorites() {
               >
                 <button 
                   className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/80 rounded-full hover:scale-110 transition-transform shadow-md text-white font-bold leading-none flex items-center justify-center text-[10px] z-20 active:scale-95"
-                  onClick={(e) => removeItem(e, item.id, type)}
+                  onClick={(e) => removeItem(e, item.id, 'radio')}
                   title={mode === 'favorites' ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('removeFromHistory') || 'Удалить из истории')}
                 >
                   ✕
@@ -343,15 +213,14 @@ export function Favorites() {
                   {item.logo ? (
                     <img src={item.logo} alt={item.name} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                   ) : (
-                    <span className="text-2xl sm:text-3xl">{type === 'radio' ? '📻' : '📺'}</span>
+                    <span className="text-2xl sm:text-3xl">📻</span>
                   )}
                 </div>
                 <div className="w-full flex-1 min-w-0 mt-1">
                   <div className="font-bold truncate text-[10px] sm:text-xs px-1" style={{ color: 'var(--text-color)' }}>{item.name}</div>
-                  {type === 'tv' && item.group && <div className="text-[10px] opacity-60 truncate" style={{ color: 'var(--text-color)' }}>{item.group}</div>}
                 </div>
                 <div className="flex w-full justify-end items-center px-1 mt-auto">
-                  <span style={{ color: 'var(--text-color)' }} className="text-xs p-1">{isActive ? (type === 'radio' && !isPlaying ? '⏸' : '▶️') : '›'}</span>
+                  <span style={{ color: 'var(--text-color)' }} className="text-xs p-1">{isActive ? (!isPlaying ? '⏸' : '▶️') : '›'}</span>
                 </div>
               </div>
             );
@@ -362,8 +231,8 @@ export function Favorites() {
   };
 
   const currentList = mode === 'favorites'
-    ? (activeTab === 'movie' ? favMovies : activeTab === 'series' ? favSeries : activeTab === 'radio' ? favRadio : favTv)
-    : (activeTab === 'movie' ? historyMovies : activeTab === 'series' ? historySeries : activeTab === 'radio' ? historyRadio : historyTv);
+    ? (activeTab === 'movie' ? favMovies : activeTab === 'series' ? favSeries : favRadio)
+    : (activeTab === 'movie' ? historyMovies : activeTab === 'series' ? historySeries : historyRadio);
 
   const hasCurrentItems = currentList.length > 0;
 
@@ -429,8 +298,7 @@ export function Favorites() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
-          { id: 'radio', label: t('tab_radio') || 'Радио' },
-          { id: 'tv', label: t('tab_tv') || 'ТВ' }
+          { id: 'radio', label: t('tab_radio') || 'Радио' }
         ].map(tab => (
           <button 
             key={tab.id}
@@ -449,8 +317,7 @@ export function Favorites() {
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {activeTab === 'movie' && renderTmdbList('movie')}
         {activeTab === 'series' && renderTmdbList('series')}
-        {activeTab === 'radio' && renderRadioTvList('radio')}
-        {activeTab === 'tv' && renderRadioTvList('tv')}
+        {activeTab === 'radio' && renderRadioList()}
       </div>
     </div>
   );

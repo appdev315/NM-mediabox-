@@ -58,8 +58,8 @@ export function AdultVideo() {
         }
 
         // Fetch Related Videos using cached API helper
-        let cat = location.state?.category || 'teen';
-        if (cat === '') cat = 'milf'; // fallback if empty
+        let cat = location.state?.searchQuery || location.state?.category || location.state?.country || 'teen';
+        if (cat === '' || cat === 'popular') cat = 'teen';
         const relatedData = await fetchAdultSearch(cat, 0);
         if (!isCurrent) return;
         
@@ -189,7 +189,7 @@ export function AdultVideo() {
                       </span>
                     </div>
                     <span className="mt-2 text-xs sm:text-sm font-black text-white tracking-wide uppercase px-2 text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] line-clamp-1">
-                      {location.state?.category ? `«${location.state.category}»` : t('backToCatalog')}
+                      {location.state?.searchQuery || location.state?.category || location.state?.country ? `«${location.state?.searchQuery || location.state?.category || location.state?.country}»` : t('backToCatalog')}
                     </span>
                   </div>
 

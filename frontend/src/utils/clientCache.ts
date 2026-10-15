@@ -153,6 +153,9 @@ export const clientCache = {
       }
       memoryCache.delete(fullKey);
       idbRemove(fullKey);
+      try {
+        localStorage.removeItem(fullKey);
+      } catch (_) {}
     }
 
     // 2. Synchronous instant fallback for critical home feeds and streams before IndexedDB async cursor finishes
@@ -187,6 +190,9 @@ export const clientCache = {
       }
       memoryCache.delete(fullKey);
       idbRemove(fullKey);
+      try {
+        localStorage.removeItem(fullKey);
+      } catch (_) {}
       return null;
     }
 

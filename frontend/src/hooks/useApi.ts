@@ -763,7 +763,9 @@ export function useApi() {
   }, [fetchGenres, language]);
 
   const fetchAdultSearch = useCallback(async (query: string, pageNum: number = 0) => {
-    const cleanQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120)) || 'popular';
+    const rawQuery = ((query || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120));
+    const isPopular = !rawQuery || rawQuery === 'popular' || rawQuery === 'all';
+    const cleanQuery = isPopular ? 'popular' : rawQuery;
 
     const cacheKey = `adult_search_${cleanQuery}_${pageNum}`;
     const cached = clientCache.get<any[]>(cacheKey);
@@ -773,7 +775,9 @@ export function useApi() {
 
     // 1. Direct fast-path: Query Eporner open CDN API (CORS *, 100% uptime, zero 503)
     try {
-      const epUrl = `https://www.eporner.com/api/v2/video/search/?query=${encodeURIComponent(cleanQuery)}&per_page=30&page=${pageNum + 1}&thumbsize=medium&format=json`;
+      const epQuery = isPopular ? 'all' : cleanQuery;
+      const orderParam = isPopular ? '&order=top-weekly' : '';
+      const epUrl = `https://www.eporner.com/api/v2/video/search/?query=${encodeURIComponent(epQuery)}${orderParam}&per_page=30&page=${pageNum + 1}&thumbsize=medium&format=json`;
       const epRes = await fetch(epUrl, { signal: AbortSignal.timeout(4500) });
       if (epRes.ok) {
         const epData = await epRes.json() as any;

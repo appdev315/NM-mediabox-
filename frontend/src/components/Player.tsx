@@ -16,9 +16,10 @@ interface PlayerProps {
   targetEpisode?: TargetEpisode | null;
   onEpisodeChange?: (season: string, episode: string) => void;
   onFullscreenChange?: (isFullscreen: boolean) => void;
+  onClose?: () => void;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose }: PlayerProps) {
   const { t } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -379,6 +380,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     setIsWebFullscreen(false);
   }, []);
 
+  const handleExitFullscreenOrClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      exitWebFullscreen();
+    }
+  }, [onClose, exitWebFullscreen]);
+
   // Lock body scroll, manage global class, and configure Telegram WebApp when Web Fullscreen is active
   useEffect(() => {
     if (isWebFullscreen) {
@@ -390,7 +399,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       if (WebApp && WebApp.BackButton) {
         try {
           WebApp.BackButton.show();
-          WebApp.BackButton.onClick(exitWebFullscreen);
+          WebApp.BackButton.onClick(handleExitFullscreenOrClose);
         } catch (_) {}
       }
     } else {
@@ -398,8 +407,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       document.body.classList.remove('fullscreen-active');
       if (WebApp && WebApp.BackButton) {
         try {
-          // Unbind own exit listener without calling hide(), allowing global App.tsx router to keep page BackButton
-          WebApp.BackButton.offClick(exitWebFullscreen);
+          WebApp.BackButton.offClick(handleExitFullscreenOrClose);
         } catch (_) {}
       }
     }
@@ -409,11 +417,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       document.body.classList.remove('fullscreen-active');
       if (WebApp && WebApp.BackButton) {
         try {
-          WebApp.BackButton.offClick(exitWebFullscreen);
+          WebApp.BackButton.offClick(handleExitFullscreenOrClose);
         } catch (_) {}
       }
     };
-  }, [isWebFullscreen, exitWebFullscreen]);
+  }, [isWebFullscreen, handleExitFullscreenOrClose]);
 
   // Auto-expand to Web Fullscreen strictly upon rotating to landscape, and auto-collapse upon rotating back to portrait
   const wasLandscapeRef = useRef(false);
@@ -568,14 +576,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         />
       )}
 
-      {/* Floating exit button when in Web Fullscreen mode (desktop only, hidden on mobile phones) */}
-      {isWebFullscreen && !isMobileDevice && (
+      {/* Floating exit/close button when in Web Fullscreen mode (shown on all devices including mobile) */}
+      {isWebFullscreen && (
         <button
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            exitWebFullscreen();
+            handleExitFullscreenOrClose();
           }}
           className="absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
           style={{ 
@@ -584,7 +592,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           }}
         >
           <span className="text-sm leading-none">✕</span>
-          <span>Свернуть</span>
+          <span>{onClose ? (t('close') || 'Закрыть') : 'Свернуть'}</span>
         </button>
       )}
 

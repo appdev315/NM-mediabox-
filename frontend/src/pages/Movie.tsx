@@ -690,6 +690,32 @@ export function Movie() {
     triggerMovieAd();
   }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
+  const handleClosePlayer = useCallback(() => {
+    setIframeUrl(null);
+    setIsExtracting(false);
+    setIsPlayerFullscreen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!iframeUrl) return;
+
+    if (WebApp && WebApp.BackButton) {
+      const onBack = () => {
+        handleClosePlayer();
+      };
+      try {
+        WebApp.BackButton.show();
+        WebApp.BackButton.onClick(onBack);
+      } catch (_) {}
+
+      return () => {
+        try {
+          WebApp.BackButton.offClick(onBack);
+        } catch (_) {}
+      };
+    }
+  }, [iframeUrl, handleClosePlayer]);
+
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
     if (isUnreleased) {
@@ -1430,6 +1456,19 @@ export function Movie() {
           )}
           {(isExtracting || iframeUrl) && (
             <div className={`relative w-full ${isPlayerFullscreen ? 'z-[99999]' : 'md:w-[80%] mx-auto mt-2 mb-8'}`}>
+              {/* Close player button in inline mode */}
+              {iframeUrl && !isPlayerFullscreen && (
+                <div className="flex justify-between items-center mb-2 px-1">
+                  <button
+                    onClick={handleClosePlayer}
+                    className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-white/10 text-white"
+                  >
+                    <span>✕</span>
+                    <span>{t('close') || 'Закрыть плеер'}</span>
+                  </button>
+                </div>
+              )}
+
               {/* Audio language hint pointing to gear in iframe top-right */}
               {showAudioHint && !isExtracting && iframeUrl && !isPlayerFullscreen && (
                 <div
@@ -1468,6 +1507,7 @@ export function Movie() {
                         initialTimecode={savedTimecode || undefined} 
                         targetEpisode={mediaType === 'tv' ? targetEpisode : undefined}
                         onFullscreenChange={setIsPlayerFullscreen}
+                        onClose={handleClosePlayer}
                         onEpisodeChange={(s, e) => {
                           // Echo guard: within 3.5s grace period after user click, ignore stale events that don't match target
                           if (userSelectedAtRef.current && Date.now() - userSelectedAtRef.current < 3500) {
