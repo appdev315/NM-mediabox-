@@ -91,3 +91,20 @@
    - The agent is STRICTLY PROHIBITED from embedding technical explanations, implementation details (e.g. library/API names, codecs, FPS, buffer info), parenthetical annotations, or instructional paragraphs inside buttons, radio options, checkboxes, and UI control labels.
    - UI controls MUST adhere to macOS / Apple Human Interface Guidelines: laconic, clean, 1–3 words per control (e.g. «Звук системы», «Микрофон», «Оба источника», «Без звука», «Кадрировать», «Начать запись»).
    - Technical implementations, capture engines, fallbacks, and internal plumbing MUST be handled silently under the hood without exposing internal engine choices or jargon to the user in basic workflows unless explicitly requested.
+
+## 12. Mandatory Deep-Dive Codebase & Function Traceability Protocol (Zero-Assumption Mandate)
+1. **STRICT PROHIBITION OF ASSUMPTIONS & SPECULATION**:
+   - The agent is STRICTLY FORBIDDEN from guessing, assuming, or deducing the purpose, function, architecture, or behavior of any code, UI element, or data pipeline based on variable names, surface impressions, or incomplete observations.
+   - Every technical deduction, explanation, and architectural decision MUST be backed by empirical codebase facts obtained through comprehensive multi-file inspection.
+
+2. **MANDATORY FULL-PIPELINE TRACEABILITY BEFORE PLANNING**:
+   - Before drafting any plan, proposing any change, or modifying any code, the agent MUST trace the complete end-to-end lifecycle of the affected features and all adjacent systems:
+     - Frontend DOM elements, selectors, labels, and event listeners.
+     - Client-side payload serialization, state synchronization, and UI preview bindings.
+     - Backend route handlers, parameter decoders, validation guards, and database operations.
+     - Subprocesses, background worker threads, CLI flag generators, and inter-process communication (IPC/SSE).
+     - Downstream AI/ML pipelines (Whisper, LLMs, TTS, VideoToolbox/FFmpeg engines).
+   - If a control or parameter exists, the agent MUST locate and inspect all occurrences across the entire codebase to understand its exact purpose, role, and downstream consumers before proposing any modification, consolidation, or removal.
+
+3. **EMPIRICAL LOG & TRACEBACK AUDIT**:
+   - Diagnoses of system freezes, hangs, or failures MUST be corroborated by actual log files, process statuses, thread pools, and process lifecycle events. Speculative explanations without empirical log verification are strictly prohibited.

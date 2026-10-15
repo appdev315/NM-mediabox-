@@ -76,6 +76,36 @@ export function AppleMusic() {
     });
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportingTrackId, setExportingTrackId] = useState<string | null>(null);
+
+  const handleExportAll = async () => {
+    if (isExporting || favTracks.length === 0) return;
+    setIsExporting(true);
+    try {
+      try {
+        WebApp?.HapticFeedback?.impactOccurred('medium');
+      } catch (_) {}
+      await audioOfflineManager.exportTracks(favTracks);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportTrack = async (track: MusicTrack, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (exportingTrackId === track.id) return;
+    setExportingTrackId(track.id);
+    try {
+      try {
+        WebApp?.HapticFeedback?.selectionChanged();
+      } catch (_) {}
+      await audioOfflineManager.exportTrack(track);
+    } finally {
+      setExportingTrackId(null);
+    }
+  };
+
   const handleClearCache = async () => {
     try {
       WebApp?.HapticFeedback?.notificationOccurred('success');
@@ -276,18 +306,31 @@ export function AppleMusic() {
 
       {/* Favorites Cache Header Bar */}
       {activeTab === 'favorites' && favTracks.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-2 mb-3 bg-white/5 rounded-2xl border border-white/5">
-          <div className="text-xs font-semibold text-white/70">
-            {cacheStats.count > 0 ? `Кэш: ${cacheStats.count} аудио • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : 'Кэш пуст'}
+        <div className="flex items-center justify-between px-3 py-2 mb-3 bg-white/5 rounded-2xl border border-white/5">
+          <div className="text-xs font-semibold text-white/70 truncate mr-2">
+            {cacheStats.count > 0 ? `Кэш: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : 'Кэш пуст'}
           </div>
-          {cacheStats.count > 0 && (
-            <button
-              onClick={handleClearCache}
-              className="px-3 py-1 rounded-full bg-white/10 hover:bg-red-500/20 text-xs font-bold text-white/90 hover:text-red-400 border border-white/10 transition-colors active:scale-95"
-            >
-              Очистить кэш
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {cacheStats.count > 0 && (
+              <button
+                onClick={handleExportAll}
+                disabled={isExporting}
+                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/10 transition-colors active:scale-95 flex items-center gap-1"
+                title="Экспорт аудиофайлов в приложение Файлы"
+              >
+                <span>{isExporting ? '⏳' : '📥'}</span>
+                <span>{isExporting ? 'Экспорт...' : 'В Файлы'}</span>
+              </button>
+            )}
+            {cacheStats.count > 0 && (
+              <button
+                onClick={handleClearCache}
+                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/20 text-xs font-bold text-white/90 hover:text-red-400 border border-white/10 transition-colors active:scale-95"
+              >
+                Очистить
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -440,6 +483,26 @@ export function AppleMusic() {
                     </p>
                   </div>
 
+                  {/* Export Button (in Favorites tab) */}
+                  {activeTab === 'favorites' && (
+                    <button
+                      onClick={(e) => handleExportTrack(track, e)}
+                      disabled={exportingTrackId === track.id}
+                      className="p-2 text-white/50 hover:text-white transition-all active:scale-90 flex-shrink-0"
+                      title="Экспорт аудиофайла в Файлы"
+                    >
+                      {exportingTrackId === track.id ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+
                   {/* Favorite Heart Button */}
                   <button
                     onClick={(e) => toggleFav(track, e)}
@@ -564,21 +627,43 @@ export function AppleMusic() {
                 <h1 className="text-2xl font-black truncate text-white">{currentTrack.title}</h1>
                 <p className="text-base font-semibold text-white/70 truncate">{currentTrack.artist}</p>
               </div>
-              <button
-                onClick={() => {
-                  const asMusic: MusicTrack = {
-                    id: currentTrack.id,
-                    title: currentTrack.title,
-                    artist: currentTrack.artist,
-                    artworkUrl: currentTrack.coverUrl || '',
-                    audioUrl: currentTrack.url
-                  };
-                  toggleFav(asMusic);
-                }}
-                className="text-2xl transition-transform active:scale-125"
-              >
-                {favIds.has(currentTrack.id) ? '❤️' : '🤍'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    const asMusic: MusicTrack = {
+                      id: currentTrack.id,
+                      title: currentTrack.title,
+                      artist: currentTrack.artist,
+                      artworkUrl: currentTrack.coverUrl || '',
+                      audioUrl: currentTrack.url
+                    };
+                    audioOfflineManager.exportTrack(asMusic);
+                  }}
+                  className="p-1.5 text-white/70 hover:text-white transition-transform active:scale-90"
+                  title="Экспорт в Файлы"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    const asMusic: MusicTrack = {
+                      id: currentTrack.id,
+                      title: currentTrack.title,
+                      artist: currentTrack.artist,
+                      artworkUrl: currentTrack.coverUrl || '',
+                      audioUrl: currentTrack.url
+                    };
+                    toggleFav(asMusic);
+                  }}
+                  className="text-2xl transition-transform active:scale-125"
+                >
+                  {favIds.has(currentTrack.id) ? '❤️' : '🤍'}
+                </button>
+              </div>
             </div>
 
             {/* Scrubber slider */}

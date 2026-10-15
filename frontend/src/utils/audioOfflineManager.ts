@@ -128,6 +128,132 @@ class AudioOfflineManager {
   }
 
   /**
+   * Retrieves raw binary audio Blob from cache (or fetches directly if not cached)
+   */
+  async getTrackBlob(audioUrl: string): Promise<Blob | null> {
+    if (!audioUrl) return null;
+    if (this.isSupported()) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const match = await cache.match(audioUrl);
+        if (match) {
+          const blob = await match.blob();
+          if (blob && blob.size > 0) return blob;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      const response = await fetch(audioUrl, { mode: 'cors' });
+      if (response.ok) {
+        return await response.blob();
+      }
+    } catch (err) {
+      console.warn('[AudioOffline] Fetch blob failed:', err);
+    }
+    return null;
+  }
+
+  /**
+   * Exports a single track to the native device files system.
+   * On iOS Safari / WebKit: opens native Share Sheet (Save to Files / CapCut / VN / AirDrop)
+   * On Desktop / Fallback: triggers native file download to Downloads folder.
+   */
+  async exportTrack(track: { title: string; artist: string; audioUrl: string }): Promise<boolean> {
+    if (!track.audioUrl) return false;
+    const blob = await this.getTrackBlob(track.audioUrl);
+    if (!blob) return false;
+
+    const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
+    const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
+    const safeName = `${track.artist} - ${track.title}`
+      .replace(/[/\\?%*:|"<>]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim() || 'track';
+    const filename = `${safeName}.${ext}`;
+
+    const file = new File([blob], filename, { type: mimeType });
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `${track.artist} - ${track.title}`
+          });
+          return true;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return true;
+        console.warn('[AudioOffline] Share failed, falling back to download:', err);
+      }
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    return true;
+  }
+
+  /**
+   * Exports multiple tracks to device files system
+   */
+  async exportTracks(tracks: Array<{ title: string; artist: string; audioUrl: string }>): Promise<number> {
+    if (!tracks || tracks.length === 0) return 0;
+
+    const files: File[] = [];
+    for (const track of tracks) {
+      if (!track.audioUrl) continue;
+      const blob = await this.getTrackBlob(track.audioUrl);
+      if (!blob) continue;
+      const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
+      const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
+      const safeName = `${track.artist} - ${track.title}`
+        .replace(/[/\\?%*:|"<>]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim() || 'track';
+      files.push(new File([blob], `${safeName}.${ext}`, { type: mimeType }));
+    }
+
+    if (files.length === 0) return 0;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        if (navigator.canShare && navigator.canShare({ files })) {
+          await navigator.share({
+            files,
+            title: 'MediaBox Music'
+          });
+          return files.length;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return files.length;
+      }
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const objectUrl = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      if (i < files.length - 1) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+    return files.length;
+  }
+
+  /**
    * Helper to format bytes into readable string (e.g. "14.2 МБ")
    */
   formatBytes(bytes: number): string {
