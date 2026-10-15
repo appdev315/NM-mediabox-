@@ -12,6 +12,15 @@ export interface MusicTrack {
   duration?: number;
   releaseDate?: string;
   genre?: string;
+  isResolved?: boolean;
+}
+
+export interface MusicPlaylist {
+  id: string;
+  title: string;
+  trackCount: number;
+  coverUrl: string;
+  creator?: string;
 }
 
 const SAAVN_API_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
@@ -69,20 +78,85 @@ const mapSaavnSongToTrack = (song: any, index: number): MusicTrack | null => {
     audioUrl,
     duration: typeof song.duration === 'number' ? song.duration : parseInt(song.duration || '0', 10) || 180,
     releaseDate: String(song.year || song.releaseDate || ''),
-    genre: song.language || 'Music'
+    genre: song.language || 'Music',
+    isResolved: true
+  };
+};
+
+const mapAppleEntryToTrack = (entry: any, index: number): MusicTrack | null => {
+  const title = decodeHtmlEntities(entry['im:name']?.label || entry.title?.label || '');
+  const artist = decodeHtmlEntities(entry['im:artist']?.label || 'Unknown Artist');
+  if (!title) return null;
+
+  let previewUrl = '';
+  if (Array.isArray(entry.link)) {
+    const enclosure = entry.link.find((l: any) => l.attributes?.rel === 'enclosure');
+    if (enclosure?.attributes?.href) {
+      previewUrl = enclosure.attributes.href;
+    }
+  }
+
+  let rawImg = '';
+  if (Array.isArray(entry['im:image']) && entry['im:image'].length > 0) {
+    rawImg = entry['im:image'][entry['im:image'].length - 1]?.label || '';
+  }
+  const artworkUrl = rawImg ? rawImg.replace(/\/\d+x\d+bb\./, '/600x600bb.') : '';
+
+  const id = String(entry.id?.attributes?.['im:id'] || `apple_${index}_${Date.now()}`);
+
+  return {
+    id,
+    title,
+    artist,
+    album: decodeHtmlEntities(entry['im:collection']?.['im:name']?.label || ''),
+    artworkUrl,
+    audioUrl: previewUrl,
+    duration: 180,
+    releaseDate: entry['im:releaseDate']?.label || '',
+    genre: entry.category?.attributes?.label || 'Music',
+    isResolved: false
   };
 };
 
 export const COLLECTIONS = [
-  { id: 'hits', title: 'Суперхиты', icon: '🔥', query: 'Top Hits 2026', playlistId: '1081991857' },
-  { id: 'russian', title: 'Русские хиты', icon: '🇷🇺', query: 'Русские Хиты' },
-  { id: 'rock', title: 'Рок', icon: '🎸', query: 'Rock Classics Hits' },
-  { id: 'electronic', title: 'Электроника', icon: '🎧', query: 'Dance EDM Hits' },
-  { id: 'hiphop', title: 'Хип-Хоп', icon: '🎤', query: 'Hip Hop Rap Hits' },
-  { id: 'chill', title: 'Chillout', icon: '🌙', query: 'Chillout Relax Lo-Fi' }
+  { id: 'hits', title: 'Суперхиты', icon: '🔥', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/json' },
+  { id: 'russian', title: 'Русские хиты', icon: '🇷🇺', feedUrl: 'https://itunes.apple.com/ru/rss/topsongs/limit=100/json' },
+  { id: 'rock', title: 'Рок', icon: '🎸', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=21/json' },
+  { id: 'electronic', title: 'Электроника', icon: '🎧', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=17/json' },
+  { id: 'hiphop', title: 'Хип-Хоп', icon: '🎤', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=18/json' },
+  { id: 'chill', title: 'Chillout', icon: '🌙', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' }
 ] as const;
 
 export type CollectionId = typeof COLLECTIONS[number]['id'];
+
+export const resolveFullAudioUrl = async (artist: string, title: string, fallbackUrl: string): Promise<string> => {
+  const cleanArtist = artist.trim();
+  const cleanTitle = title.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
+  const cacheKey = `resolved_audio_${cleanArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
+
+  const cached = clientCache.get<string>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const q = `${cleanArtist} ${cleanTitle}`;
+    const res = await fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(q)}&limit=1`, { maxRetries: 1 });
+    if (res && res.ok) {
+      const data = await res.json();
+      const first = data?.data?.results?.[0];
+      if (first) {
+        const fullUrl = extractAudioUrl(first.downloadUrl);
+        if (fullUrl) {
+          clientCache.set(cacheKey, fullUrl, 86400); // Cache 24 hours
+          return fullUrl;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[MusicApi] Failed to resolve 320k stream, using fallback:', err);
+  }
+
+  return fallbackUrl;
+};
 
 export function useMusicApi() {
   const [loading, setLoading] = useState(false);
@@ -90,7 +164,7 @@ export function useMusicApi() {
 
   const fetchCollection = useCallback(async (collectionId: string = 'hits', limit = 50): Promise<MusicTrack[]> => {
     const col = COLLECTIONS.find(c => c.id === collectionId) || COLLECTIONS[0];
-    const cacheKey = `cache_music_collection_${col.id}_${limit}`;
+    const cacheKey = `cache_music_apple_collection_${col.id}_${limit}`;
     
     // Check RAM / LocalStorage cache first
     const cached = clientCache.get<MusicTrack[]>(cacheKey);
@@ -103,32 +177,14 @@ export function useMusicApi() {
 
     try {
       let tracks: MusicTrack[] = [];
-
-      // If playlistId exists, try curated playlist first
-      if ('playlistId' in col && col.playlistId) {
-        try {
-          const playlistRes = await fetchWithRetry(`${SAAVN_API_BASE}/playlists?id=${col.playlistId}`, { maxRetries: 1 });
-          if (playlistRes && playlistRes.ok) {
-            const playlistJson = await playlistRes.json();
-            const songs = playlistJson?.data?.songs || [];
-            tracks = songs
-              .map(mapSaavnSongToTrack)
-              .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-          }
-        } catch (_) {}
-      }
-
-      // Query collection search
-      if (tracks.length === 0) {
-        const url = `${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(col.query)}&limit=${limit}`;
-        const res = await fetchWithRetry(url, { maxRetries: 2 });
-        if (res && res.ok) {
-          const json = await res.json();
-          const results = json?.data?.results || [];
-          tracks = results
-            .map(mapSaavnSongToTrack)
-            .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-        }
+      const res = await fetchWithRetry(col.feedUrl, { maxRetries: 2 });
+      if (res && res.ok) {
+        const json = await res.json();
+        const entries = json?.feed?.entry || [];
+        tracks = entries
+          .slice(0, limit)
+          .map(mapAppleEntryToTrack)
+          .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
       }
 
       if (tracks.length > 0) {
@@ -160,7 +216,6 @@ export function useMusicApi() {
     setError(null);
 
     try {
-      // 1. Parallel requests: Artist search + Song search
       const [artistRes, songRes] = await Promise.allSettled([
         fetchWithRetry(`${SAAVN_API_BASE}/search/artists?query=${encodeURIComponent(trimmed)}&limit=3`, { maxRetries: 1 }),
         fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 2 })
@@ -172,7 +227,6 @@ export function useMusicApi() {
           const artistJson = await artistRes.value.json();
           const topArtist = artistJson?.data?.results?.[0];
           if (topArtist && topArtist.id) {
-            // Fetch top songs by this artist (prioritized discography)
             const songsByArtistRes = await fetchWithRetry(`${SAAVN_API_BASE}/artists?id=${topArtist.id}&songCount=30`, { maxRetries: 1 });
             if (songsByArtistRes && songsByArtistRes.ok) {
               const songsJson = await songsByArtistRes.json();
@@ -196,7 +250,6 @@ export function useMusicApi() {
         } catch (_) {}
       }
 
-      // 2. Merge: Artist top songs come FIRST, followed by song matches, with deduplication
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
       const merged: MusicTrack[] = [];
@@ -211,7 +264,6 @@ export function useMusicApi() {
       }
 
       if (merged.length > 0) {
-        // Cache search results for 2 hours
         clientCache.set(cacheKey, merged, 7200);
       }
 
@@ -225,11 +277,104 @@ export function useMusicApi() {
     }
   }, []);
 
+  const searchPlaylists = useCallback(async (query: string, limit = 20): Promise<MusicPlaylist[]> => {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const cacheKey = `cache_music_playlists_deezer_${trimmed.toLowerCase()}_${limit}`;
+    const cached = clientCache.get<MusicPlaylist[]>(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetchWithRetry(`https://api.deezer.com/search/playlist?q=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 2 });
+      if (!res || !res.ok) {
+        setLoading(false);
+        return [];
+      }
+      const json = await res.json();
+      const raw = json?.data || [];
+      const playlists: MusicPlaylist[] = raw.map((p: any) => ({
+        id: String(p.id),
+        title: decodeHtmlEntities(p.title || 'Playlist'),
+        trackCount: typeof p.nb_tracks === 'number' ? p.nb_tracks : 0,
+        coverUrl: p.picture_xl || p.picture_big || p.picture_medium || p.picture || '',
+        creator: p.user?.name || ''
+      }));
+
+      if (playlists.length > 0) {
+        clientCache.set(cacheKey, playlists, 7200);
+      }
+
+      setLoading(false);
+      return playlists;
+    } catch (err: any) {
+      console.warn('[MusicApi] Search playlists failed:', err);
+      setError(err?.message || 'Error searching playlists');
+      setLoading(false);
+      return [];
+    }
+  }, []);
+
+  const fetchPlaylistTracks = useCallback(async (playlistId: string): Promise<MusicTrack[]> => {
+    const cacheKey = `cache_deezer_playlist_tracks_${playlistId}`;
+    const cached = clientCache.get<MusicTrack[]>(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetchWithRetry(`https://api.deezer.com/playlist/${playlistId}/tracks?limit=100`, { maxRetries: 2 });
+      if (!res || !res.ok) {
+        setLoading(false);
+        return [];
+      }
+      const json = await res.json();
+      const raw = json?.data || [];
+      const tracks: MusicTrack[] = raw
+        .filter((t: any) => t && t.title)
+        .map((t: any, idx: number) => ({
+          id: `dz_${t.id || idx}`,
+          title: decodeHtmlEntities(t.title || ''),
+          artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
+          album: decodeHtmlEntities(t.album?.title || ''),
+          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
+          audioUrl: t.preview || '',
+          duration: typeof t.duration === 'number' ? t.duration : 180,
+          genre: 'Music',
+          isResolved: false
+        }));
+
+      if (tracks.length > 0) {
+        clientCache.set(cacheKey, tracks, 7200);
+      }
+
+      setLoading(false);
+      return tracks;
+    } catch (err: any) {
+      console.warn('[MusicApi] Fetch playlist tracks failed:', err);
+      setError(err?.message || 'Error fetching playlist tracks');
+      setLoading(false);
+      return [];
+    }
+  }, []);
+
   return {
     loading,
     error,
     fetchCollection,
     fetchTopCharts: fetchCollection,
-    searchMusic
+    searchMusic,
+    searchPlaylists,
+    fetchPlaylistTracks,
+    resolveFullAudioUrl
   };
 }
+

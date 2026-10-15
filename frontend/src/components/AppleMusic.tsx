@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useMusicApi, COLLECTIONS, type CollectionId, type MusicTrack } from '../hooks/useMusicApi';
+import { useMusicApi, COLLECTIONS, type CollectionId, type MusicTrack, type MusicPlaylist, resolveFullAudioUrl } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -9,7 +9,7 @@ import { EqualizerModal } from './EqualizerModal';
 
 export function AppleMusic() {
   const { t } = useLanguage();
-  const { loading, fetchCollection, searchMusic } = useMusicApi();
+  const { loading, fetchCollection, searchMusic, searchPlaylists, fetchPlaylistTracks } = useMusicApi();
   const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [selectedCollection, setSelectedCollection] = useState<CollectionId>('hits');
@@ -17,6 +17,11 @@ export function AppleMusic() {
   const [searchQuery, setSearchQuery] = useState('');
   const [collectionTracks, setCollectionTracks] = useState<MusicTrack[]>([]);
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
+  const [searchMode, setSearchMode] = useState<'tracks' | 'playlists'>('tracks');
+  const [playlistResults, setPlaylistResults] = useState<MusicPlaylist[]>([]);
+  const [activePlaylist, setActivePlaylist] = useState<MusicPlaylist | null>(null);
+  const [activePlaylistTracks, setActivePlaylistTracks] = useState<MusicTrack[]>([]);
+  const [loadingPlaylistTracks, setLoadingPlaylistTracks] = useState(false);
   const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
   const [isEqOpen, setIsEqOpen] = useState(false);
@@ -191,20 +196,29 @@ export function AppleMusic() {
     const q = query.trim();
     if (q.length < 2) {
       setSearchResults([]);
+      setPlaylistResults([]);
       return;
     }
     const reqId = ++searchAbortRef.current;
-    const results = await searchMusic(q, 35);
-    if (reqId === searchAbortRef.current) {
-      setSearchResults(results);
+    if (searchMode === 'playlists') {
+      const pResults = await searchPlaylists(q, 24);
+      if (reqId === searchAbortRef.current) {
+        setPlaylistResults(pResults);
+      }
+    } else {
+      const results = await searchMusic(q, 35);
+      if (reqId === searchAbortRef.current) {
+        setSearchResults(results);
+      }
     }
-  }, [searchMusic]);
+  }, [searchMusic, searchPlaylists, searchMode]);
 
   // Search debounce: wait 700ms and require at least 2 chars to avoid querying on every letter
   useEffect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
       setSearchResults([]);
+      setPlaylistResults([]);
       return;
     }
     const timer = setTimeout(() => {
@@ -212,6 +226,55 @@ export function AppleMusic() {
     }, 700);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
+
+  // Re-run search when searchMode switches if there is a query
+  useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      performSearch(searchQuery);
+    }
+  }, [searchMode]);
+
+  const handleOpenPlaylist = async (playlist: MusicPlaylist) => {
+    try {
+      WebApp?.HapticFeedback?.selectionChanged();
+    } catch (_) {}
+    setActivePlaylist(playlist);
+    setLoadingPlaylistTracks(true);
+    const tracks = await fetchPlaylistTracks(playlist.id);
+    setActivePlaylistTracks(tracks);
+    setLoadingPlaylistTracks(false);
+  };
+
+  const handleBackToPlaylists = () => {
+    try {
+      WebApp?.HapticFeedback?.selectionChanged();
+    } catch (_) {}
+    setActivePlaylist(null);
+    setActivePlaylistTracks([]);
+  };
+
+  const playAllFromPlaylist = (shuffle = false) => {
+    if (activePlaylistTracks.length === 0) return;
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('medium');
+    } catch (_) {}
+    const playlist = activePlaylistTracks.map(t => ({
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      url: t.audioUrl,
+      coverUrl: t.artworkUrl,
+      type: 'music' as const
+    }));
+    if (shuffle) {
+      if (!isShuffle) toggleShuffle();
+      const randIdx = Math.floor(Math.random() * playlist.length);
+      playTrack(playlist[randIdx], playlist);
+    } else {
+      if (isShuffle) toggleShuffle();
+      playTrack(playlist[0], playlist);
+    }
+  };
 
   const getCollectionTitle = (id: string, defaultTitle: string) => {
     if (id === 'hits') return t('col_hits') || defaultTitle;
@@ -247,11 +310,21 @@ export function AppleMusic() {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
 
-    // Check if offline audio is cached locally on device
-    const localBlobUrl = await audioOfflineManager.getTrackAudioUrl(track.audioUrl);
-    const effectiveAudioUrl = localBlobUrl || track.audioUrl;
+    // Resolve full 320 kbps stream if needed
+    let fullAudioUrl = track.audioUrl;
+    if (!track.isResolved && (!track.audioUrl || track.audioUrl.includes('preview') || track.audioUrl.includes('mzstatic') || track.audioUrl.includes('itunes') || track.audioUrl.includes('dzcdn'))) {
+      try {
+        fullAudioUrl = await resolveFullAudioUrl(track.artist, track.title, track.audioUrl);
+      } catch (_) {}
+    }
 
-    const currentList = activeTab === 'search' && searchResults.length > 0 
+    // Check if offline audio is cached locally on device
+    const localBlobUrl = await audioOfflineManager.getTrackAudioUrl(fullAudioUrl);
+    const effectiveAudioUrl = localBlobUrl || fullAudioUrl;
+
+    const currentList = activeTab === 'search' && activePlaylist && activePlaylistTracks.length > 0
+      ? activePlaylistTracks
+      : activeTab === 'search' && searchResults.length > 0 
       ? searchResults 
       : activeTab === 'favorites' 
       ? favTracks 
@@ -261,7 +334,7 @@ export function AppleMusic() {
       id: t.id,
       title: t.title,
       artist: t.artist,
-      url: t.audioUrl,
+      url: t.id === track.id ? fullAudioUrl : t.audioUrl,
       coverUrl: t.artworkUrl,
       type: 'music' as const
     }));
@@ -448,35 +521,116 @@ export function AppleMusic() {
         </div>
       )}
 
-      {/* Search Input Bar */}
+      {/* Search Input Bar & Mode Selector */}
       {activeTab === 'search' && (
-        <div className="relative mb-4">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-                performSearch(searchQuery);
-              }
-            }}
-            placeholder={t('music_search_placeholder')}
-            className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
-          />
-          <div className="absolute left-3.5 top-3.5 text-white/50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </div>
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-3 text-white/50 hover:text-white text-xs font-bold w-6 h-6 rounded-full bg-white/10 flex items-center justify-center"
-            >
-              ✕
-            </button>
+        <div className="flex flex-col gap-2.5 mb-4">
+          {activePlaylist ? (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleBackToPlaylists}
+                className="self-start px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <span>←</span>
+                <span>{t('music_back_to_search')}</span>
+              </button>
+
+              <div className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 shadow-md">
+                  {activePlaylist.coverUrl ? (
+                    <img src={activePlaylist.coverUrl} alt={activePlaylist.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-2xl">📑</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-extrabold text-white truncate">{activePlaylist.title}</h2>
+                  <p className="text-xs text-white/60 truncate mt-0.5">
+                    {activePlaylistTracks.length || activePlaylist.trackCount} {t('music_playlist_tracks')} {activePlaylist.creator ? `• ${activePlaylist.creator}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {activePlaylistTracks.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => playAllFromPlaylist(false)}
+                    className="flex-1 py-2 px-3 rounded-2xl bg-[#FA2D48] hover:bg-[#e0263e] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA2D48]/30 active:scale-95 transition-all"
+                  >
+                    <span>▶️</span>
+                    <span>{t('music_play_all')}</span>
+                  </button>
+                  <button
+                    onClick={() => playAllFromPlaylist(true)}
+                    className="flex-1 py-2 px-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 border border-white/10 active:scale-95 transition-all"
+                  >
+                    <span>🔀</span>
+                    <span>{t('music_shuffle')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                      performSearch(searchQuery);
+                    }
+                  }}
+                  placeholder={searchMode === 'playlists' ? 'Поиск плейлистов (рок, авто, chill...)' : t('music_search_placeholder')}
+                  className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
+                />
+                <div className="absolute left-3.5 top-3.5 text-white/50">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </div>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-3 text-white/50 hover:text-white text-xs font-bold w-6 h-6 rounded-full bg-white/10 flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Mode Switcher Segment: Tracks | Playlists */}
+              <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 gap-1">
+                <button
+                  onClick={() => {
+                    setSearchMode('tracks');
+                    try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+                  }}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    searchMode === 'tracks'
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'text-white/50 hover:text-white/80'
+                  }`}
+                >
+                  🎵 {t('music_tab_tracks')}
+                </button>
+                <button
+                  onClick={() => {
+                    setSearchMode('playlists');
+                    try { WebApp?.HapticFeedback?.selectionChanged(); } catch (_) {}
+                  }}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    searchMode === 'playlists'
+                      ? 'bg-white/15 text-white shadow-sm'
+                      : 'text-white/50 hover:text-white/80'
+                  }`}
+                >
+                  📑 {t('music_tab_playlists')}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -517,32 +671,73 @@ export function AppleMusic() {
         </div>
       )}
 
-      {/* Track List */}
-      <div className="flex flex-col gap-1.5">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-8 h-8 border-4 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold text-white/50">Загрузка треков...</span>
-          </div>
-        ) : (
-          (() => {
-            const list = activeTab === 'search' 
-              ? searchResults 
-              : activeTab === 'favorites' 
-              ? favTracks 
-              : collectionTracks;
-
-            if (list.length === 0) {
-              return (
-                <div className="text-center py-16 text-white/40 font-bold text-sm">
-                  {activeTab === 'favorites' 
-                    ? t('music_no_favorites') 
-                    : t('music_no_results')}
+      {/* If Search tab + Playlists mode + No active playlist selected, show Playlist Cards Grid */}
+      {activeTab === 'search' && !activePlaylist && searchMode === 'playlists' ? (
+        <div className="flex flex-col gap-2">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-8 h-8 border-4 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-white/50">Поиск плейлистов...</span>
+            </div>
+          ) : playlistResults.length === 0 ? (
+            <div className="text-center py-16 text-white/40 font-bold text-sm">
+              {searchQuery.trim().length >= 2 ? t('music_no_playlists') : 'Введите запрос для поиска плейлистов'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {playlistResults.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => handleOpenPlaylist(p)}
+                  className="bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-3 flex flex-col gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-white/10 shadow-md">
+                    {p.coverUrl ? (
+                      <img src={p.coverUrl} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">📑</div>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <h4 className="text-xs font-bold text-white truncate">{p.title}</h4>
+                    <p className="text-[10px] text-white/50 truncate mt-0.5">
+                      {p.trackCount} {t('music_playlist_tracks')} {p.creator ? `• ${p.creator}` : ''}
+                    </p>
+                  </div>
                 </div>
-              );
-            }
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Track List */
+        <div className="flex flex-col gap-1.5">
+          {loading || loadingPlaylistTracks ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-8 h-8 border-4 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-white/50">Загрузка треков...</span>
+            </div>
+          ) : (
+            (() => {
+              const list = activeTab === 'search' && activePlaylist
+                ? activePlaylistTracks
+                : activeTab === 'search' 
+                ? searchResults 
+                : activeTab === 'favorites' 
+                ? favTracks 
+                : collectionTracks;
 
-            return list.map((track, idx) => {
+              if (list.length === 0) {
+                return (
+                  <div className="text-center py-16 text-white/40 font-bold text-sm">
+                    {activeTab === 'favorites' 
+                      ? t('music_no_favorites') 
+                      : t('music_no_results')}
+                  </div>
+                );
+              }
+
+              return list.map((track, idx) => {
               const isThisPlaying = isCurrentPlayingThis(track.id);
               const isTrackSelected = currentTrack?.id === track.id;
               const isFav = favIds.has(track.id);
@@ -667,6 +862,7 @@ export function AppleMusic() {
           })()
         )}
       </div>
+    )}
 
       {/* Apple Music Floating Mini-Player Bar */}
       {currentTrack && !isExpanded && (

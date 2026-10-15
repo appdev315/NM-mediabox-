@@ -4,6 +4,7 @@ import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
+import { resolveFullAudioUrl } from '../hooks/useMusicApi';
 
 export interface Track {
   id: string;
@@ -497,6 +498,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         const cachedBlob = await audioOfflineManager.getTrackAudioUrl(track.url);
         if (cachedBlob) {
           url = cachedBlob;
+        } else if (!url || url.includes('preview') || url.includes('mzstatic') || url.includes('itunes') || url.includes('dzcdn')) {
+          url = await resolveFullAudioUrl(track.artist, track.title, track.url);
         }
       } catch (_) {}
     }
