@@ -128,17 +128,23 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         el.setAttribute('x-webkit-airplay', 'deny');
         silentAudioRef.current = el;
       }
+      if (silentAudioRef.current && !silentAudioRef.current.src) {
+        silentAudioRef.current.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      }
       silentAudioRef.current?.play().catch(() => {});
     } catch (_) {}
   }, []);
 
-  const stopBackgroundShield = useCallback(() => {
+  const stopBackgroundShield = useCallback((fullReset = false) => {
     try {
       if (silentAudioRef.current) {
         silentAudioRef.current.pause();
-        silentAudioRef.current.currentTime = 0;
-        silentAudioRef.current.removeAttribute('src');
-        silentAudioRef.current.load();
+        if (fullReset) {
+          silentAudioRef.current.currentTime = 0;
+          silentAudioRef.current.removeAttribute('src');
+          silentAudioRef.current.load();
+          silentAudioRef.current = null;
+        }
       }
     } catch (_) {}
   }, []);
@@ -178,7 +184,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
 
     // 5. Clean up background shield & release OS audio stream
-    stopBackgroundShield();
+    stopBackgroundShield(true);
     audioEqualizerManager.suspendContext();
 
     // 6. Release system MediaSession lock
@@ -337,8 +343,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       lastPauseTimeRef.current = Date.now();
       isPausedByDeviceRef.current = false;
       audio.pause();
-      stopBackgroundShield();
-      audioEqualizerManager.suspendContext();
+      stopBackgroundShield(false);
+      // Keep AudioContext active during temporary pause so lockscreen / remote unpause can resume audio immediately
       setIsPlaying(false);
       setIsBuffering(false);
       syncToPeers(track, false, false);
@@ -424,8 +430,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           setIsPlaying(true);
           setIsBuffering(false);
           syncToPeers(track, true, false);
-        }).catch(() => {
-          setIsBuffering(false);
+        }).catch((err) => {
+          console.warn('[Audio] Music unpause direct play failed, attempting soft reload:', err);
+          if (audio.src) {
+            audio.load();
+            audio.play().then(() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+              syncToPeers(track, true, false);
+            }).catch((err2) => {
+              console.warn('[Audio] Music unpause reload failed:', err2);
+              setIsBuffering(false);
+            });
+          } else {
+            setIsBuffering(false);
+          }
         });
       }
     }
@@ -624,12 +643,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     try {
       navigator.mediaSession.setActionHandler('play', () => {
-        if (!isPlayingRef.current) {
+        const audio = audioRef.current;
+        if (!isPlayingRef.current || (audio && audio.paused)) {
           togglePlayPause();
         }
       });
       navigator.mediaSession.setActionHandler('pause', () => {
-        if (isPlayingRef.current) {
+        const audio = audioRef.current;
+        if (isPlayingRef.current || (audio && !audio.paused)) {
           togglePlayPause();
         }
       });
@@ -915,8 +936,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPause = () => {
       if (isUserPausedRef.current || isRefreshingSrcRef.current) {
         setIsPlaying(false);
-        stopBackgroundShield();
-        audioEqualizerManager.suspendContext();
+        stopBackgroundShield(false);
+        // Do not suspend Web Audio context on pause, keeping audio output pipeline primed for lockscreen unpause
         if (isAudioMasterRef.current && currentTrackRef.current) {
           syncToPeers(currentTrackRef.current, false, false);
         }
