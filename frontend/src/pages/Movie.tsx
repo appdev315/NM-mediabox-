@@ -27,7 +27,7 @@ export function Movie() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, searchContent, loading } = useApi();
+  const { fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, searchContent, searchTmdb, loading } = useApi();
   const { t, language } = useLanguage();
   const { stop: stopAudio } = useAudioPlayer();
   const { triggerMovieAd } = useAdManager();
@@ -320,7 +320,6 @@ export function Movie() {
     return !isNaN(time) && time > Date.now();
   }, [movie?.isUpcoming, movie?.release_date, movie?.first_air_date, isTvSeries, movie?.seasons, movie?.status, liftwEpisodes]);
 
-
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -328,6 +327,31 @@ export function Movie() {
       }
     };
   }, []);
+
+  // Listen for non-blocking TMDB enrichment to instantly hydrate first-visit liftw cards without reload
+  useEffect(() => {
+    const handleEnriched = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && (detail.id === id || String(detail.id) === String(movie?.id))) {
+        const enrichedMovie = detail.movie || detail.details;
+        const resolvedTmdbId = detail.tmdbId || enrichedMovie?.tmdb_id;
+        if (enrichedMovie) {
+          setMovie((prev: any) => ({ ...(prev || {}), ...enrichedMovie }));
+        }
+        if (resolvedTmdbId && !recTmdbId) {
+          setRecTmdbId(resolvedTmdbId);
+          fetchRecommendations(resolvedTmdbId, mediaType, 1).then((recs: any) => {
+            if (recs && recs.length > 0) {
+              setRecommendations(recs);
+              if (recs.length >= 10) setHasMoreRecs(true);
+            }
+          }).catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('movie_enriched', handleEnriched);
+    return () => window.removeEventListener('movie_enriched', handleEnriched);
+  }, [id, movie?.id, mediaType, recTmdbId, fetchRecommendations]);
 
   // PostMessage event listener for timecode tracking and explicit 404/not_found stream fallback
   useEffect(() => {
@@ -598,18 +622,17 @@ export function Movie() {
         setHasMoreRecs(true);
         setLoadingMoreRecs(false);
 
-        let targetTmdbId: string | number | null = (d?.id && !String(d.id).startsWith('liftw_'))
-          ? d.id
-          : (!String(id).startsWith('liftw_') ? id : null);
+        let targetTmdbId: string | number | null = (d as any)?.tmdb_id
+          || ((d?.id && !String(d.id).startsWith('liftw_')) ? d.id : (!String(id).startsWith('liftw_') ? id : null));
 
-        // Fallback for rare liftw items without direct TMDB match: search by title
+        // Fallback for rare liftw items without direct TMDB match: search TMDB by title
         if (!targetTmdbId) {
           const q = (d?.original_title || d?.title || d?.name || '').trim();
           if (q) {
             try {
-              const sRes = await searchContent(q);
-              const m = sRes?.find((it: any) => it?.id && !String(it.id).startsWith('liftw_'));
-              if (m?.id) {
+              const sRes = await searchTmdb(q, resolvedType);
+              const m = sRes?.[0];
+              if (m?.id && !String(m.id).startsWith('liftw_')) {
                 targetTmdbId = m.id;
               }
             } catch (_) {}
@@ -619,18 +642,14 @@ export function Movie() {
         setRecTmdbId(targetTmdbId);
 
         if (targetTmdbId) {
-          // Defer recommendations to give 100% network socket priority to the video stream
-          setTimeout(() => {
-            if (!isMounted) return;
-            fetchRecommendations(targetTmdbId, resolvedType, 1).then(recs => {
-              if (isMounted) {
-                setRecommendations(recs || []);
-                if (!recs || recs.length < 10) setHasMoreRecs(false);
-              }
-            }).catch(() => {
-              if (isMounted) setRecommendations([]);
-            });
-          }, 1200);
+          fetchRecommendations(targetTmdbId, resolvedType, 1).then(recs => {
+            if (isMounted) {
+              setRecommendations(recs || []);
+              if (!recs || recs.length < 10) setHasMoreRecs(false);
+            }
+          }).catch(() => {
+            if (isMounted) setRecommendations([]);
+          });
         } else {
           setRecommendations([]);
           setHasMoreRecs(false);
@@ -1121,13 +1140,14 @@ export function Movie() {
 
       <div className="relative">
         <img 
+          key={movie.backdrop || movie.poster || movie.id}
           src={movie.backdrop || movie.poster} 
           alt={movie.title || movie.name || 'Постер фильма'} 
           loading="lazy"
           className="w-full aspect-[16/9] max-h-[50vh] object-cover"
           onError={(e) => {
             // Donor poster URLs are short-lived signed links: try the alternate
-            // source once (backdrop <-> poster), then hide instead of a broken icon.
+            // source once (backdrop <-> poster), then fallback to dark placeholder
             const el = e.currentTarget as HTMLImageElement & { dataset: DOMStringMap };
             if (!el.dataset.fbk) {
               el.dataset.fbk = '1';
@@ -1137,7 +1157,7 @@ export function Movie() {
                 return;
               }
             }
-            el.style.display = 'none';
+            el.src = 'https://placehold.co/800x450/1c2431/ffffff?text=No+Backdrop';
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-color)] via-[var(--bg-color)]/40 to-transparent"></div>
@@ -1197,7 +1217,7 @@ export function Movie() {
                   className="flex items-center gap-3 p-2 text-sm font-semibold rounded-lg hover:opacity-80 active:opacity-60 transition-all text-left"
                   style={{ color: '#0088cc' }}
                 >
-                  <span className="text-lg">🚀</span> Share to Telegram
+                  <span className="text-lg">🚀</span> {t('shareTelegram') || 'Share to Telegram'}
                 </button>
                 
                 <div className="h-px w-full" style={{ backgroundColor: 'var(--hint-color)' }}></div>
@@ -1208,14 +1228,14 @@ export function Movie() {
                     const webLink = `https://media-box.xyz/movie/${movie?.id}?type=${mediaType}`;
                     navigator.clipboard.writeText(webLink).then(() => {
                       WebApp.HapticFeedback.notificationOccurred('success');
-                      if (WebApp.showAlert) WebApp.showAlert('Link copied to clipboard!');
-                      else alert('Link copied to clipboard!');
+                      if (WebApp.showAlert) WebApp.showAlert(t('addressCopied') || 'Ссылка скопирована!');
+                      else alert(t('addressCopied') || 'Ссылка скопирована!');
                     });
                   }}
                   className="flex items-center gap-3 p-2 text-sm font-semibold rounded-lg hover:opacity-80 active:opacity-60 transition-all text-left"
                   style={{ color: 'var(--text-color)' }}
                 >
-                  <span className="text-lg">🔗</span> Copy Link
+                  <span className="text-lg">🔗</span> {t('copyLink') || 'Copy Link'}
                 </button>
               </div>
             )}
@@ -1374,7 +1394,7 @@ export function Movie() {
           </div>
         )}
 
-        {/* Recommendations / Рекомендуем также (Only on initial card before pressing Watch) */}
+        {/* Recommendations / Рекомендуем также */}
         {!isExtracting && !iframeUrl && recommendations.length > 0 && (
           <div className="relative border-t border-white/10 pt-4 mb-6">
             <div className="flex justify-between items-center mb-4">
@@ -1383,14 +1403,14 @@ export function Movie() {
                 <button 
                   onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
                   className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
-                  aria-label="Previous"
+                  aria-label={t('prev') || 'Previous'}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </button>
                 <button 
                   onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
                   className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
-                  aria-label="Next"
+                  aria-label={t('next') || 'Next'}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
@@ -1415,6 +1435,10 @@ export function Movie() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                       alt={rec.title}
                       loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                     <AvailBadge type={rec.type} id={rec.id} className="absolute top-1.5 left-1.5 z-20" />
@@ -1464,7 +1488,7 @@ export function Movie() {
                     className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-white/10 text-white"
                   >
                     <span>✕</span>
-                    <span>{t('close') || 'Закрыть плеер'}</span>
+                    <span>{t('close') || 'Закрыть'}</span>
                   </button>
                 </div>
               )}
@@ -1667,6 +1691,76 @@ export function Movie() {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recommendations / Рекомендуем также (In watch mode) */}
+        {(isExtracting || iframeUrl) && recommendations.length > 0 && (
+          <div className="mb-8 border-t border-white/10 pt-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-extrabold text-base">{t('recommendations')}</h3>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+                  aria-label={t('prev') || 'Previous'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button 
+                  onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+                  aria-label={t('next') || 'Next'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div ref={scrollRef} className="flex overflow-x-auto gap-4 pt-1 pb-6 snap-x scrollbar-thin">
+              {displayedRecommendations.map((rec) => (
+                <div 
+                  key={rec.id} 
+                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] snap-start cursor-pointer active:scale-95 transition-transform group card-hover rounded-xl relative z-10" 
+                  onPointerDown={() => prewarmStream(rec.id, rec, language)}
+                  onClick={() => {
+                    prewarmStream(rec.id, rec, language);
+                    setIframeUrl(null);
+                    setSources([]);
+                    navigate(`/movie/${rec.id}?type=${rec.type || 'movie'}`);
+                  }}
+                >
+                  <div className="relative overflow-hidden rounded-xl w-full aspect-[2/3] shadow-sm bg-[var(--hint-color)]">
+                    <img 
+                      src={rec.poster} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      alt={rec.title}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://placehold.co/300x450/242f3d/ffffff?text=No+Poster';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <AvailBadge type={rec.type} id={rec.id} className="absolute top-1.5 left-1.5 z-20" />
+                  </div>
+                  <p className="text-xs sm:text-sm mt-2 font-semibold truncate px-1 pb-1">{rec.title}</p>
+                </div>
+              ))}
+              {hasMoreRecs && (
+                <div 
+                  onClick={handleLoadMoreRecommendations}
+                  className="min-w-[140px] w-[140px] sm:min-w-[150px] sm:w-[150px] aspect-[2/3] snap-start cursor-pointer active:scale-95 transition-transform rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 flex flex-col items-center justify-center text-center p-3 gap-2 shrink-0 select-none shadow-sm"
+                  title={t('moreMovies') || 'Больше фильмов'}
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-lg">
+                    {loadingMoreRecs ? <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /> : '➕'}
+                  </div>
+                  <span className="text-xs font-bold text-white leading-tight">
+                    {t('moreMovies') || 'Больше фильмов'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

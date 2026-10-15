@@ -226,6 +226,18 @@ class AudioEqualizerManager {
     }
   }
 
+  /**
+   * Suspends AudioContext when playback pauses or stops to immediately release
+   * the OS hardware audio stream and turn off the browser tab audio indicator.
+   */
+  public async suspendContext() {
+    if (this.audioContext && this.audioContext.state === 'running') {
+      try {
+        await this.audioContext.suspend();
+      } catch (_) {}
+    }
+  }
+
   private applyParameters() {
     if (!this.audioContext) return;
 

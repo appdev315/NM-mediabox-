@@ -96,7 +96,7 @@ export function GlobalAudioPlayer() {
               color: isFav ? '#eab308' : 'var(--text-color)',
             }}
             title={isFav ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('addToFavorites') || 'В избранное')}
-            aria-label="В избранное"
+            aria-label={isFav ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('addToFavorites') || 'В избранное')}
           >
             {isFav ? '★' : '☆'}
           </button>
@@ -106,8 +106,8 @@ export function GlobalAudioPlayer() {
             onClick={prevTrack}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-transform"
             style={{ color: 'var(--text-color)' }}
-            title={t('prevTrailer') || 'Предыдущий трек'}
-            aria-label="Предыдущий трек"
+            title={t('prev') || 'Назад'}
+            aria-label={t('prev') || 'Назад'}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="19 20 9 12 19 4 19 20" />
@@ -120,8 +120,8 @@ export function GlobalAudioPlayer() {
             onClick={togglePlayPause}
             className="w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90"
             style={{ backgroundColor: 'var(--button-color, #3b82f6)', color: 'var(--button-text-color, #fff)' }}
-            title={isPlaying ? 'Пауза' : 'Воспроизведение'}
-            aria-label={isPlaying ? 'Пауза' : 'Воспроизведение'}
+            title={isPlaying ? (t('pause') || 'Пауза') : (t('play') || 'Воспроизвести')}
+            aria-label={isPlaying ? (t('pause') || 'Пауза') : (t('play') || 'Воспроизвести')}
           >
             {isPlaying ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -135,8 +135,8 @@ export function GlobalAudioPlayer() {
             onClick={nextTrack}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-transform"
             style={{ color: 'var(--text-color)' }}
-            title={t('nextTrailer') || 'Следующий трек'}
-            aria-label="Следующий трек"
+            title={t('next') || 'Вперед'}
+            aria-label={t('next') || 'Вперед'}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 4 15 12 5 20 5 4" />
@@ -150,7 +150,7 @@ export function GlobalAudioPlayer() {
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/30 transition-all active:scale-90 text-lg"
             style={{ color: 'var(--text-color)' }}
             title={t('close') || 'Закрыть'}
-            aria-label="Закрыть"
+            aria-label={t('close') || 'Закрыть'}
           >
             ✕
           </button>

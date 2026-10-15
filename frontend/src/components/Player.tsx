@@ -600,8 +600,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             e.stopPropagation();
             toggleWebFullscreen();
           }}
-          aria-label="Во весь экран"
-          title="Во весь экран"
+          aria-label={t('fullscreen') || 'Во весь экран'}
+          title={t('fullscreen') || 'Во весь экран'}
           className="absolute bottom-0 right-0 w-11 h-11 z-30 cursor-pointer opacity-0 active:opacity-20 bg-white/30 transition-opacity"
           style={{ touchAction: 'manipulation' }}
         />
@@ -636,7 +636,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           }}
         >
           <span className="text-sm leading-none">✕</span>
-          <span>{onClose ? (t('close') || 'Закрыть') : 'Свернуть'}</span>
+          <span>{onClose ? (t('close') || 'Закрыть') : (t('showLess') || 'Свернуть')}</span>
         </button>
       )}
 

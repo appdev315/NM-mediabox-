@@ -21,7 +21,11 @@ export const getTmdbImageUrl = (
     window.innerWidth <= 640 || 
     /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
   );
-  const targetSize = size || (isMobile ? 'w154' : 'w342');
+  const isDataSaver = typeof navigator !== 'undefined' && (
+    Boolean((navigator as any).connection?.saveData) || 
+    ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
+  );
+  const targetSize = size || (isDataSaver ? 'w92' : (isMobile ? 'w154' : 'w342'));
   return `${CF_API_BASE}/image?path=/t/p/${targetSize}${cleanPath}`;
 };
 
@@ -304,7 +308,11 @@ export function useApi() {
       window.innerWidth <= 640 || 
       /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
     );
-    const posterSize = isMobile ? 'w154' : 'w342';
+    const isDataSaver = typeof navigator !== 'undefined' && (
+      Boolean((navigator as any).connection?.saveData) || 
+      ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
+    );
+    const posterSize = isDataSaver ? 'w92' : (isMobile ? 'w154' : 'w342');
     const backdropSize = isMobile ? 'w300' : 'w780';
 
     return {
@@ -456,13 +464,53 @@ export function useApi() {
   }, [tmdbFetch]);
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv'): Promise<any> => {
-    const cacheKey = `movie_details_v3_${type}_${id}_${language}`;
-    const cached = clientCache.get<any>(cacheKey);
+    const cacheKey = `movie_details_v4_${type}_${id}_${language}`;
+    const cached = clientCache.get<any>(cacheKey) || await clientCache.getAsync<any>(cacheKey);
     if (cached) {
       // Auto-purge legacy negative cache entries so affected users heal instantly
       if ((cached as any).__notFound) {
         clientCache.remove(cacheKey);
       } else {
+        // Auto-heal: If cached item is a raw Liftw entry lacking TMDB enrichment
+        // (no tmdb_id or no description or no backdrop), trigger background enrichment
+        if (cached.isLiftwOnly && !cached.tmdb_id) {
+          const cleanQ = (cached.original_title || cached.name || cached.title || '').split('/')[0].replace(/\([^)]*\)/g, '').trim();
+          const cleanYear = Number(cached.year) || 0;
+          if (cleanQ) {
+            (async () => {
+              try {
+                const searchRes = await tmdbFetch(`/search/${type}`, { query: cleanQ, ...(cleanYear > 0 ? { year: cleanYear } : {}) }, 3600, AbortSignal.timeout(4500));
+                const bestMatch = searchRes?.results?.[0];
+                if (bestMatch?.id) {
+                  const tmdbDetails = await fetchMovieDetails(bestMatch.id, type);
+                  const mergedDetails = {
+                    ...tmdbDetails,
+                    id: cached.id,
+                    tmdb_id: bestMatch.id,
+                    overview: tmdbDetails.overview || tmdbDetails.description || cached.overview || '',
+                    description: tmdbDetails.description || tmdbDetails.overview || cached.description || '',
+                    poster: tmdbDetails.poster && !tmdbDetails.poster.includes('placehold.co') ? tmdbDetails.poster : (cached.poster || tmdbDetails.poster),
+                    backdrop: tmdbDetails.backdrop || cached.backdrop || '',
+                    iframe: cached.iframe || tmdbDetails.iframe,
+                    liftw_id: cached.liftw_id,
+                    episodes: cached.episodes || tmdbDetails.episodes,
+                  };
+                  clientCache.set(cacheKey, mergedDetails, 0);
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('movie_enriched', {
+                      detail: {
+                        id: cached.id,
+                        tmdbId: bestMatch.id,
+                        movie: mergedDetails,
+                        details: mergedDetails
+                      }
+                    }));
+                  }
+                }
+              } catch (_) {}
+            })();
+          }
+        }
         return cached;
       }
     }
@@ -511,8 +559,8 @@ export function useApi() {
                 episodes: lData.episodes,
               };
 
-              // Fast-Path: Immediately cache and return liftwDetails so video stream & player load with 0ms delay!
-              clientCache.set(cacheKey, liftwDetails, 86400);
+              // Fast-Path: Immediately cache on device permanently so video stream & player load with 0ms delay!
+              clientCache.set(cacheKey, liftwDetails, 0);
 
               // Non-blocking background TMDB enrichment: does not stall video playback or initial screen render
               if (query) {
@@ -524,14 +572,28 @@ export function useApi() {
                       const tmdbDetails = await fetchMovieDetails(bestMatch.id, resolvedType);
                       const mergedDetails = {
                         ...tmdbDetails,
+                        id: `liftw_${liftwId}`,
+                        tmdb_id: bestMatch.id,
                         overview: tmdbDetails.overview || tmdbDetails.description || lData.info?.description || '',
                         description: tmdbDetails.description || tmdbDetails.overview || lData.info?.description || '',
                         poster: tmdbDetails.poster && !tmdbDetails.poster.includes('placehold.co') ? tmdbDetails.poster : (lData.poster || tmdbDetails.poster),
+                        backdrop: tmdbDetails.backdrop || lData.backdrop || '',
                         iframe: lData.iframe || tmdbDetails.iframe,
                         liftw_id: liftwId,
                         episodes: lData.episodes || tmdbDetails.episodes,
                       };
-                      clientCache.set(cacheKey, mergedDetails, 86400);
+                      clientCache.set(cacheKey, mergedDetails, 0);
+
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('movie_enriched', {
+                          detail: {
+                            id: `liftw_${liftwId}`,
+                            tmdbId: bestMatch.id,
+                            movie: mergedDetails,
+                            details: mergedDetails
+                          }
+                        }));
+                      }
                     }
                   } catch (_) {}
                 })();
@@ -553,7 +615,7 @@ export function useApi() {
         const data = await tmdbFetch(`/${type}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings', include_video_language: 'ru,en,null' });
 
         const result = mapTMDB(data, type === 'tv' ? 'series' : 'movie');
-        clientCache.set(cacheKey, result, 86400); // 24 Hours TTL
+        clientCache.set(cacheKey, result, 0); // Permanent on-device cache until cleared
         return result;
       } catch (err: any) {
         // Transient failure (cold backend, timeout, 5xx): surface as-is so the
@@ -566,8 +628,8 @@ export function useApi() {
         try {
           const altData = await tmdbFetch(`/${altType}/${id}`, { append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,translations', include_video_language: 'ru,en,null' });
           const altResult = mapTMDB(altData, altType === 'tv' ? 'series' : 'movie');
-          const altCacheKey = `movie_details_v3_${altType}_${id}_${language}`;
-          clientCache.set(altCacheKey, altResult, 86400);
+          const altCacheKey = `movie_details_v4_${altType}_${id}_${language}`;
+          clientCache.set(altCacheKey, altResult, 0); // Permanent on-device cache until cleared
           return altResult;
         } catch (altErr: any) {
           if ((altErr as any)?.status === 404) {
@@ -768,7 +830,7 @@ export function useApi() {
     const cleanQuery = isPopular ? 'popular' : rawQuery;
 
     const cacheKey = `adult_search_${cleanQuery}_${pageNum}`;
-    const cached = clientCache.get<any[]>(cacheKey);
+    const cached = clientCache.get<any[]>(cacheKey) || await clientCache.getAsync<any[]>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -778,8 +840,13 @@ export function useApi() {
       const epQuery = isPopular ? 'all' : cleanQuery;
       const orderParam = isPopular ? '&order=top-weekly' : '';
       const epUrl = `https://www.eporner.com/api/v2/video/search/?query=${encodeURIComponent(epQuery)}${orderParam}&per_page=30&page=${pageNum + 1}&thumbsize=medium&format=json`;
-      const epRes = await fetch(epUrl, { signal: AbortSignal.timeout(4500) });
-      if (epRes.ok) {
+      let epRes = await fetch(epUrl, { signal: AbortSignal.timeout(7500) }).catch(() => null);
+      if (!epRes || !epRes.ok) {
+        // Fast retry once (in case of initial DNS/TLS handshake hiccup on cold categories)
+        await new Promise(r => setTimeout(r, 250));
+        epRes = await fetch(epUrl, { signal: AbortSignal.timeout(7500) }).catch(() => null);
+      }
+      if (epRes && epRes.ok) {
         const epData = await epRes.json() as any;
         if (epData && Array.isArray(epData.videos) && epData.videos.length > 0) {
           const results = epData.videos.map((v: any) => {
@@ -797,7 +864,7 @@ export function useApi() {
               href: v.url
             };
           });
-          clientCache.set(cacheKey, results, 3600);
+          clientCache.set(cacheKey, results, 0); // Permanent on-device cache until cleared
           return results;
         }
       }
@@ -813,12 +880,12 @@ export function useApi() {
       };
       const res = await fetch(`${EXPRESS_API_BASE}/adult/search?q=${encodeURIComponent(cleanQuery)}&page=${pageNum}`, { 
         headers,
-        signal: AbortSignal.timeout(4500)
+        signal: AbortSignal.timeout(7500)
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          clientCache.set(cacheKey, data, 3600);
+          clientCache.set(cacheKey, data, 0); // Permanent on-device cache until cleared
           return data;
         }
       }
@@ -913,5 +980,16 @@ export function useApi() {
     });
   }, [language, withLoading]);
 
-  return { searchContent, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading };
+  const searchTmdb = useCallback(async (query: string, type: 'movie' | 'tv' = 'movie') => {
+    const cleanQ = (query || '').trim();
+    if (!cleanQ) return [];
+    try {
+      const data = await tmdbFetch(`/search/${type}`, { query: cleanQ }, 3600, AbortSignal.timeout(4500));
+      return (data?.results || []).map((item: any) => mapTMDB(item, type === 'tv' ? 'series' : 'movie'));
+    } catch (_) {
+      return [];
+    }
+  }, [tmdbFetch]);
+
+  return { searchContent, searchTmdb, fetchMovies, fetchSeries, fetchGenres, fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, fetchCategorizedHome, fetchAdditionalCategories, fetchAdultSearch, fetchAdultStream, fetchTrailerFeed, loading };
 }

@@ -1717,4 +1717,104 @@ app.get('/api/catalog/list', async (c: Context) => {
   }
 });
 
+// --- MUSIC PROXY & SEARCH (7-DAY EDGE CACHE) ---
+app.get('/api/music/search', async (c: Context) => {
+  const query = (c.req.query('q') || '').trim();
+  const limit = Math.min(Math.max(Number(c.req.query('limit')) || 50, 10), 100);
+  if (!query) {
+    return c.json([], 200);
+  }
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = edgeCacheKey(c);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  try {
+    const encoded = encodeURIComponent(query);
+    const [artistRes, trackRes] = await Promise.allSettled([
+      fetch(`https://api.deezer.com/search/artist?q=${encoded}&limit=3`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(6000),
+      }),
+      fetch(`https://api.deezer.com/search?q=${encoded}&limit=${limit}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(6000),
+      }),
+    ]);
+
+    const tracks: any[] = [];
+    const seenTitles = new Set<string>();
+
+    const addTrack = (t: any) => {
+      if (!t || !t.id || !t.title) return;
+      const title = String(t.title || '').trim();
+      const artist = String(t.artist?.name || 'Unknown Artist').trim();
+      const normKey = `${artist.toLowerCase()} - ${title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
+      if (!seenTitles.has(normKey)) {
+        seenTitles.add(normKey);
+        tracks.push({
+          id: `dz_${t.id}`,
+          title,
+          artist,
+          album: t.album?.title || '',
+          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
+          audioUrl: t.preview || '',
+          duration: typeof t.duration === 'number' ? t.duration : 180,
+          genre: 'Music',
+          isResolved: false,
+        });
+      }
+    };
+
+    if (artistRes.status === 'fulfilled' && artistRes.value.ok) {
+      try {
+        const aData = await artistRes.value.json() as any;
+        const topArtist = aData?.data?.[0];
+        if (topArtist?.id) {
+          try {
+            const topSongsRes = await fetch(`https://api.deezer.com/artist/${topArtist.id}/top?limit=100`, {
+              headers: { 'User-Agent': 'Mozilla/5.0' },
+              signal: AbortSignal.timeout(5000),
+            });
+            if (topSongsRes.ok) {
+              const tsData = await topSongsRes.json() as any;
+              for (const t of (tsData?.data || [])) {
+                addTrack(t);
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
+    if (trackRes.status === 'fulfilled' && trackRes.value.ok) {
+      try {
+        const tData = await trackRes.value.json() as any;
+        for (const t of (tData?.data || [])) {
+          addTrack(t);
+        }
+      } catch (_) {}
+    }
+
+    const response = c.json(tracks, 200, {
+      'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    if (tracks.length > 0) {
+      try {
+        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      } catch (_) {}
+    }
+
+    return response;
+  } catch (_) {
+    return c.json([], 200);
+  }
+});
+
 export default app;
+

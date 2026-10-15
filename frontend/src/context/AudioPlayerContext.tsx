@@ -136,6 +136,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     try {
       if (silentAudioRef.current) {
         silentAudioRef.current.pause();
+        silentAudioRef.current.currentTime = 0;
+        silentAudioRef.current.removeAttribute('src');
+        silentAudioRef.current.load();
       }
     } catch (_) {}
   }, []);
@@ -174,8 +177,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    // 5. Clean up background shield
+    // 5. Clean up background shield & release OS audio stream
     stopBackgroundShield();
+    audioEqualizerManager.suspendContext();
 
     // 6. Release system MediaSession lock
     if ('mediaSession' in navigator) {
@@ -334,6 +338,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       isPausedByDeviceRef.current = false;
       audio.pause();
       stopBackgroundShield();
+      audioEqualizerManager.suspendContext();
       setIsPlaying(false);
       setIsBuffering(false);
       syncToPeers(track, false, false);
@@ -906,6 +911,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPause = () => {
       if (isUserPausedRef.current || isRefreshingSrcRef.current) {
         setIsPlaying(false);
+        stopBackgroundShield();
+        audioEqualizerManager.suspendContext();
         if (isAudioMasterRef.current && currentTrackRef.current) {
           syncToPeers(currentTrackRef.current, false, false);
         }
@@ -927,10 +934,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         if (!isUserPausedRef.current) {
           console.warn('[Audio] Radio stream ended by server, triggering auto-reconnect...');
           attemptReconnect('stream ended by server');
+        } else {
+          stopBackgroundShield();
+          audioEqualizerManager.suspendContext();
         }
       } else if (currentTrackRef.current?.type === 'music' && !isUserPausedRef.current) {
         console.log('[Audio] Music track finished, auto-advancing to next song in background');
         nextTrack();
+      } else {
+        stopBackgroundShield();
+        audioEqualizerManager.suspendContext();
       }
     };
 

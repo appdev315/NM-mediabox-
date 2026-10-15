@@ -38,7 +38,17 @@ function getDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-// Background sync from IndexedDB into memoryCache on startup (critical keys only, capped to 30 to prevent RAM bloating)
+// Request persistent storage from browser so OS/browser won't purge IndexedDB
+if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
+export const isExpired = (expiry?: number, now: number = Date.now()): boolean => {
+  if (!expiry || expiry === 0 || expiry >= Number.MAX_SAFE_INTEGER - 1000) return false;
+  return now >= expiry;
+};
+
+// Background sync from IndexedDB into memoryCache on startup (hydrates up to 200 recent entries for 0ms sync reads)
 async function initIndexedDBCache(): Promise<void> {
   try {
     const db = await getDB();
@@ -50,16 +60,13 @@ async function initIndexedDBCache(): Promise<void> {
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result as IDBCursorWithValue;
-      if (cursor && loadedCount < 15) {
+      if (cursor && loadedCount < 200) {
         const key = cursor.key as string;
         const entry = cursor.value as CacheEntry<any>;
-        if (entry && entry.expiry && now < entry.expiry) {
-          // Hydrate critical instant-load keys (home, genres, trending, and recent streams)
-          if (key.includes('home') || key.includes('genres') || key.includes('trending') || key.includes('liftw_')) {
-            if (!memoryCache.has(key)) {
-              memoryCache.set(key, entry);
-              loadedCount++;
-            }
+        if (entry && !isExpired(entry.expiry, now)) {
+          if (!memoryCache.has(key)) {
+            memoryCache.set(key, entry);
+            loadedCount++;
           }
         }
         cursor.continue();
@@ -124,7 +131,7 @@ async function idbRemove(fullKey: string): Promise<void> {
   } catch (e) {}
 }
 
-const MAX_MEMORY_ENTRIES = 30;
+const MAX_MEMORY_ENTRIES = 200;
 
 function enforceMemoryLRU(): void {
   while (memoryCache.size >= MAX_MEMORY_ENTRIES) {
@@ -145,7 +152,7 @@ export const clientCache = {
     // 1. Instant check in memory map (0ms Main Thread overhead)
     if (memoryCache.has(fullKey)) {
       const entry = memoryCache.get(fullKey)!;
-      if (now < entry.expiry) {
+      if (!isExpired(entry.expiry, now)) {
         // Re-insert to refresh LRU position
         memoryCache.delete(fullKey);
         memoryCache.set(fullKey, entry);
@@ -163,7 +170,7 @@ export const clientCache = {
       const fallbackStored = localStorage.getItem(fullKey);
       if (fallbackStored) {
         const entry: CacheEntry<T> = JSON.parse(fallbackStored);
-        if (now < entry.expiry) {
+        if (!isExpired(entry.expiry, now)) {
           memoryCache.set(fullKey, entry);
           enforceMemoryLRU();
           return entry.data as T;
@@ -183,7 +190,7 @@ export const clientCache = {
     // 1. Instant check in memory map (0ms Main Thread overhead)
     if (memoryCache.has(fullKey)) {
       const entry = memoryCache.get(fullKey)!;
-      if (now < entry.expiry) {
+      if (!isExpired(entry.expiry, now)) {
         memoryCache.delete(fullKey);
         memoryCache.set(fullKey, entry);
         return entry.data as T;
@@ -201,7 +208,7 @@ export const clientCache = {
       const fallbackStored = localStorage.getItem(fullKey);
       if (fallbackStored) {
         const entry: CacheEntry<T> = JSON.parse(fallbackStored);
-        if (now < entry.expiry) {
+        if (!isExpired(entry.expiry, now)) {
           enforceMemoryLRU();
           memoryCache.set(fullKey, entry);
           return entry.data as T;
@@ -214,8 +221,8 @@ export const clientCache = {
     // 3. Fast non-blocking read directly from IndexedDB disk (5-30ms)
     try {
       const entry = await idbGet<T>(fullKey);
-      if (entry && entry.expiry) {
-        if (now < entry.expiry) {
+      if (entry) {
+        if (!isExpired(entry.expiry, now)) {
           enforceMemoryLRU();
           memoryCache.set(fullKey, entry);
           return entry.data;
@@ -228,9 +235,12 @@ export const clientCache = {
     return null;
   },
 
-  set<T>(key: string, data: T, ttlSeconds: number = 172800): void {
+  set<T>(key: string, data: T, ttlSeconds: number = 0): void {
     const fullKey = CACHE_PREFIX + key;
-    const expiry = Date.now() + ttlSeconds * 1000;
+    // ttlSeconds === 0 means permanent storage until system clears
+    const expiry = (ttlSeconds && ttlSeconds > 0)
+      ? Date.now() + ttlSeconds * 1000
+      : Number.MAX_SAFE_INTEGER;
     const entry: CacheEntry<T> = { data, expiry };
 
     // 1. Memory Tier

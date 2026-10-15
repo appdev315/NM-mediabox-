@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { clientCache } from '../utils/clientCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { CF_API_BASE } from './useApi';
 
 export interface MusicTrack {
   id: string;
@@ -120,46 +121,7 @@ const mapSaavnSongToTrack = (song: any, index: number, isSlow = false): MusicTra
   };
 };
 
-const mapDeezerTrack = (t: any): MusicTrack | null => {
-  if (!t || !t.title) return null;
-  return {
-    id: `dz_${t.id}`,
-    title: decodeHtmlEntities(t.title || ''),
-    artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
-    album: decodeHtmlEntities(t.album?.title || ''),
-    artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
-    audioUrl: t.preview || '',
-    duration: typeof t.duration === 'number' ? t.duration : 180,
-    genre: 'Music',
-    isResolved: false
-  };
-};
 
-const parseDurationSeconds = (dur: string): number => {
-  if (!dur) return 180;
-  const parts = dur.split(':').map(p => parseInt(p, 10));
-  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-    return parts[0] * 60 + parts[1];
-  }
-  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-    return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  }
-  return 180;
-};
-
-const mapYtTrack = (v: any): MusicTrack | null => {
-  if (!v || !v.id || !v.title) return null;
-  return {
-    id: `yt_${v.id}`,
-    title: decodeHtmlEntities(v.title || ''),
-    artist: decodeHtmlEntities(v.author || 'YouTube Music'),
-    artworkUrl: `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
-    audioUrl: `https://invidious.schenkel.eti.br/api/v1/videos/${v.id}`,
-    duration: parseDurationSeconds(v.duration),
-    genre: 'Music',
-    isResolved: false
-  };
-};
 
 export const resolveFullAudioUrl = async (
   artist: string,
@@ -171,7 +133,7 @@ export const resolveFullAudioUrl = async (
   const cleanTitle = title.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
   const cacheKey = `resolved_audio_v2_${cleanArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
 
-  const cached = clientCache.get<string>(cacheKey);
+  const cached = clientCache.get<string>(cacheKey) || await clientCache.getAsync<string>(cacheKey);
   if (cached) return cached;
 
   const { isSlow } = getNetworkSpeed();
@@ -186,7 +148,7 @@ export const resolveFullAudioUrl = async (
       if (first) {
         const fullUrl = extractAudioUrl(first.downloadUrl, isSlow);
         if (fullUrl) {
-          clientCache.set(cacheKey, fullUrl, 86400);
+          clientCache.set(cacheKey, fullUrl, 0); // 0 = permanent on device
           return fullUrl;
         }
       }
@@ -216,7 +178,7 @@ export const resolveFullAudioUrl = async (
             const data = await invRes.json();
             const streamUrl = extractInvidiousAudio(data.adaptiveFormats, isSlow);
             if (streamUrl) {
-              clientCache.set(cacheKey, streamUrl, 21600);
+              clientCache.set(cacheKey, streamUrl, 0); // 0 = permanent on device
               return streamUrl;
             }
           }
@@ -230,16 +192,66 @@ export const resolveFullAudioUrl = async (
   return fallbackUrl;
 };
 
+const fetchDeezerJsonp = (url: string): Promise<any> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const callbackName = `dz_cb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, 4500);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      delete (window as any)[callbackName];
+    };
+
+    (window as any)[callbackName] = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    const separator = url.includes('?') ? '&' : '?';
+    script.src = `${url}${separator}output=jsonp&callback=${callbackName}`;
+    document.body.appendChild(script);
+  });
+};
+
+const mapDeezerTrack = (t: any): MusicTrack | null => {
+  if (!t || !t.id || !t.title) return null;
+  return {
+    id: `dz_${t.id}`,
+    title: String(t.title || '').trim(),
+    artist: String(t.artist?.name || 'Unknown Artist').trim(),
+    album: t.album?.title || '',
+    artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
+    audioUrl: t.preview || '',
+    duration: typeof t.duration === 'number' ? t.duration : 180,
+    genre: 'Music',
+    isResolved: false,
+  };
+};
+
 export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const searchMusic = useCallback(async (query: string, limit = 50): Promise<MusicTrack[]> => {
+  const searchMusic = useCallback(async (query: string, limit = 60): Promise<MusicTrack[]> => {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const cacheKey = `cache_hybrid_music_search_v2_${trimmed.toLowerCase()}_${limit}`;
-    const cached = clientCache.get<MusicTrack[]>(cacheKey);
+    const cacheKey = `cache_hybrid_music_search_v4_${trimmed.toLowerCase()}_${limit}`;
+    const cached = clientCache.get<MusicTrack[]>(cacheKey) || await clientCache.getAsync<MusicTrack[]>(cacheKey);
     if (cached && Array.isArray(cached) && cached.length > 0) {
       return cached;
     }
@@ -250,91 +262,17 @@ export function useMusicApi() {
     const { isSlow } = getNetworkSpeed();
 
     try {
-      // Step 1: Query Deezer Artist Search, Deezer Track Search, and YouTube Music in parallel
-      const [artistRes, dzTrackRes, ytRes, saavnRes] = await Promise.allSettled([
-        fetchWithRetry(`https://api.deezer.com/search/artist?q=${encodeURIComponent(trimmed)}&limit=3`, { maxRetries: 1 }),
-        fetchWithRetry(`https://api.deezer.com/search?q=${encodeURIComponent(trimmed)}&limit=100`, { maxRetries: 2 }),
-        fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encodeURIComponent(trimmed)}`, { maxRetries: 1 }),
-        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 1 })
+      // Step 1: Query in parallel:
+      // a) Cloudflare Edge proxy (with 7-day edge cache & no CORS restrictions)
+      // b) Direct Deezer JSONP in browser (instant 0ms server overhead, 100+ tracks)
+      // c) JioSaavn (320k direct download links)
+      const encoded = encodeURIComponent(trimmed);
+      const [cfRes, dzDirectRes, saavnRes] = await Promise.allSettled([
+        fetchWithRetry(`${CF_API_BASE}/music/search?q=${encoded}&limit=${limit}`, { maxRetries: 1 }),
+        fetchDeezerJsonp(`https://api.deezer.com/search?q=${encoded}&limit=100`),
+        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encoded}&limit=${limit}`, { maxRetries: 1 })
       ]);
 
-      let artistTracks: MusicTrack[] = [];
-      let matchedArtistName = '';
-
-      // If artist matches, fetch their full discography & top hits
-      if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
-        try {
-          const artistJson = await artistRes.value.json();
-          const topArtist = artistJson?.data?.[0];
-          if (topArtist && topArtist.id) {
-            matchedArtistName = topArtist.name || '';
-            const [topSongsRes, albumsRes] = await Promise.allSettled([
-              fetchWithRetry(`https://api.deezer.com/artist/${topArtist.id}/top?limit=100`, { maxRetries: 1 }),
-              fetchWithRetry(`https://api.deezer.com/artist/${topArtist.id}/albums?limit=15`, { maxRetries: 1 })
-            ]);
-
-            if (topSongsRes.status === 'fulfilled' && topSongsRes.value && topSongsRes.value.ok) {
-              const topSongsJson = await topSongsRes.value.json();
-              const rawTop = topSongsJson?.data || [];
-              const mapped = rawTop.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-              artistTracks.push(...mapped);
-            }
-
-            // Fetch tracklists for top albums to cover all discography songs
-            if (albumsRes.status === 'fulfilled' && albumsRes.value && albumsRes.value.ok) {
-              try {
-                const albumsJson = await albumsRes.value.json();
-                const albums = (albumsJson?.data || []).slice(0, 5);
-                const albumTrackPromises = albums.map((alb: any) =>
-                  fetchWithRetry(`https://api.deezer.com/album/${alb.id}/tracks?limit=50`, { maxRetries: 1 })
-                    .then(r => r && r.ok ? r.json() : null)
-                    .catch(() => null)
-                );
-                const albumTrackResults = await Promise.allSettled(albumTrackPromises);
-                for (const res of albumTrackResults) {
-                  if (res.status === 'fulfilled' && res.value?.data) {
-                    const mapped = res.value.data.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-                    artistTracks.push(...mapped);
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        } catch (_) {}
-      }
-
-      // Step 2: Parse general Deezer track results
-      let dzTracks: MusicTrack[] = [];
-      if (dzTrackRes.status === 'fulfilled' && dzTrackRes.value && dzTrackRes.value.ok) {
-        try {
-          const json = await dzTrackRes.value.json();
-          const raw = json?.data || [];
-          dzTracks = raw.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-        } catch (_) {}
-      }
-
-      // Step 3: Parse YouTube Music results (captures underground Russian rap, live sets, remixes)
-      let ytTracks: MusicTrack[] = [];
-      if (ytRes.status === 'fulfilled' && ytRes.value && ytRes.value.ok) {
-        try {
-          const rawYt = await ytRes.value.json();
-          if (Array.isArray(rawYt)) {
-            ytTracks = rawYt.map(mapYtTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-          }
-        } catch (_) {}
-      }
-
-      // Step 4: Parse Saavn tracks (high bitrate international pop/rock/indie)
-      let saavnTracks: MusicTrack[] = [];
-      if (saavnRes.status === 'fulfilled' && saavnRes.value && saavnRes.value.ok) {
-        try {
-          const json = await saavnRes.value.json();
-          const results = json?.data?.results || [];
-          saavnTracks = results.map((s: any, idx: number) => mapSaavnSongToTrack(s, idx, isSlow)).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-        } catch (_) {}
-      }
-
-      // Step 5: Merge with Artist Priority
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
       const merged: MusicTrack[] = [];
@@ -348,28 +286,42 @@ export function useMusicApi() {
         }
       };
 
-      // 1. Artist discography tracks first
-      for (const t of artistTracks) {
-        addTrack(t);
+      // 1. Add Cloudflare Worker / Edge tracks
+      if (cfRes.status === 'fulfilled' && cfRes.value && cfRes.value.ok) {
+        try {
+          const cfTracks = await cfRes.value.json();
+          if (Array.isArray(cfTracks)) {
+            for (const t of cfTracks) {
+              addTrack(t);
+            }
+          }
+        } catch (_) {}
       }
 
-      // 2. Tracks where artist directly matches query
-      if (matchedArtistName) {
-        const lowerMatched = matchedArtistName.toLowerCase();
-        for (const t of [...dzTracks, ...saavnTracks, ...ytTracks]) {
-          if (t.artist.toLowerCase().includes(lowerMatched)) {
-            addTrack(t);
-          }
+      // 2. Add direct client Deezer JSONP tracks
+      if (dzDirectRes.status === 'fulfilled' && dzDirectRes.value?.data) {
+        const list = Array.isArray(dzDirectRes.value.data) ? dzDirectRes.value.data : [];
+        for (const item of list) {
+          const t = mapDeezerTrack(item);
+          if (t) addTrack(t);
         }
       }
 
-      // 3. General query matches across all sources
-      for (const t of [...dzTracks, ...saavnTracks, ...ytTracks]) {
-        addTrack(t);
+      // 3. Add JioSaavn tracks (CDNs with 320k direct download links)
+      if (saavnRes.status === 'fulfilled' && saavnRes.value && saavnRes.value.ok) {
+        try {
+          const json = await saavnRes.value.json();
+          const results = json?.data?.results || [];
+          const saavnTracks = results.map((s: any, idx: number) => mapSaavnSongToTrack(s, idx, isSlow)).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+          for (const t of saavnTracks) {
+            addTrack(t);
+          }
+        } catch (_) {}
       }
 
       if (merged.length > 0) {
-        clientCache.set(cacheKey, merged, 7200);
+        // Permanent on-device cache until system/user manually clears storage
+        clientCache.set(cacheKey, merged, 0);
       }
 
       setLoading(false);
@@ -381,6 +333,7 @@ export function useMusicApi() {
       return [];
     }
   }, []);
+
 
   return {
     loading,

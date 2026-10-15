@@ -71,7 +71,6 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
             <span className="text-xl">🎚️</span>
             <div>
               <h2 className="text-base font-extrabold tracking-tight">{t('equalizer')}</h2>
-              <p className="text-[11px] text-white/50 font-medium">3D Spatial & Studio Mastering</p>
             </div>
           </div>
 
@@ -85,7 +84,7 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
                   : 'bg-white/10 text-white/50 border-white/10'
               }`}
             >
-              {settings.enabled ? t('eq_enabled') : 'Off'}
+              {settings.enabled ? t('eq_enabled') : (t('eq_disabled') || 'Выкл')}
             </button>
 
             {/* Close */}
@@ -170,7 +169,7 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         {/* 5-Band Equalizer Vertical Sliders */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center text-[11px] font-bold text-white/50 uppercase tracking-wider">
-            <span>Частоты</span>
+            <span>{t('eq_frequencies') || 'Частоты'}</span>
             <span>-12 dB ... +12 dB</span>
           </div>
 

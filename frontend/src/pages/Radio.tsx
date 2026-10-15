@@ -204,7 +204,7 @@ export function RadioContent() {
 
       if (parsed.length > 0) {
         setStations(parsed);
-        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 604800);
+        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 0); // Permanent on device until system clears
       }
       setLoading(false);
     } catch (e) {

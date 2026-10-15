@@ -44,6 +44,25 @@ const MovieCard = React.memo(function MovieCard({
     const cleanPath = match[1];
     const isProxied = displayPoster.includes('/api/image') || displayPoster.includes('workers.dev');
     const base = isProxied ? `${CF_API_BASE}/image?path=/t/p` : 'https://image.tmdb.org/t/p';
+
+    const isDataSaver = typeof navigator !== 'undefined' && (
+      Boolean((navigator as any).connection?.saveData) || 
+      ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
+    );
+
+    if (isDataSaver) {
+      return `${base}/w92${cleanPath} 92w, ${base}/w154${cleanPath} 154w`;
+    }
+
+    const isMobile = typeof window !== 'undefined' && (
+      window.innerWidth <= 640 || 
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+    );
+
+    if (isMobile) {
+      return `${base}/w154${cleanPath} 154w, ${base}/w185${cleanPath} 185w`;
+    }
+
     return `${base}/w154${cleanPath} 154w, ${base}/w185${cleanPath} 185w, ${base}/w342${cleanPath} 342w`;
   }, [displayPoster]);
 

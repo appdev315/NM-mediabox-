@@ -347,7 +347,7 @@ export function AppleMusic() {
                 performSearch(searchQuery);
               }
             }}
-            placeholder={t('music_search_placeholder') || 'Исполнитель или название песни...'}
+            placeholder={t('music_search_placeholder') || 'Исполнитель или трек'}
             className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
           />
           <div className="absolute left-3.5 top-3.5 text-white/50">
@@ -379,7 +379,7 @@ export function AppleMusic() {
                 onClick={handleExportAll}
                 disabled={isExporting}
                 className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/10 transition-colors active:scale-95 flex items-center gap-1"
-                title="Экспорт аудиофайлов в приложение Файлы"
+                title={t('music_to_files') || 'В Файлы'}
               >
                 <span>{isExporting ? '⏳' : '📥'}</span>
                 <span>{isExporting ? t('music_exporting') : t('music_to_files')}</span>
@@ -435,7 +435,7 @@ export function AppleMusic() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="w-8 h-8 border-4 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold text-white/50">Поиск треков и дискографии...</span>
+            <span className="text-xs font-semibold text-white/50">{t('searching') || 'Поиск...'}</span>
           </div>
         ) : (
           (() => {
@@ -449,7 +449,7 @@ export function AppleMusic() {
                     <span>
                       {searchQuery.trim().length >= 2
                         ? (t('music_no_results') || 'Ничего не найдено')
-                        : 'Введите имя исполнителя или песню (например: Гуф, АК-47, Linkin Park)'}
+                        : (t('music_search_prompt') || 'Поиск музыки')}
                     </span>
                   </div>
                 );
@@ -551,7 +551,7 @@ export function AppleMusic() {
                           onClick={(e) => handleExportTrack(track, e)}
                           disabled={exportingTrackId === track.id}
                           className="p-2 text-white/50 hover:text-white transition-all active:scale-90 flex-shrink-0"
-                          title="Экспорт аудиофайла в Файлы"
+                          title={t('music_to_files') || 'В Файлы'}
                         >
                           {exportingTrackId === track.id ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -689,7 +689,7 @@ export function AppleMusic() {
               onClick={() => setIsEqOpen(true)}
               className="mt-4 px-3.5 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5 transition-colors active:scale-95"
             >
-              <span>Lossless • 320 kbps</span>
+              <span>Lossless</span>
               <span className="text-[#FA2D48] font-bold">🎚️ {t('equalizer')}</span>
             </button>
           </div>
@@ -714,7 +714,7 @@ export function AppleMusic() {
                     audioOfflineManager.exportTrack(asMusic);
                   }}
                   className="p-1.5 text-white/70 hover:text-white transition-transform active:scale-90"
-                  title="Экспорт в Файлы"
+                  title={t('music_to_files') || 'В Файлы'}
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

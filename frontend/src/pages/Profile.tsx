@@ -31,7 +31,7 @@ export function Profile() {
             style={{ color: 'var(--text-color)' }}
           >
             <span>←</span>
-            <span>{t('profile') || 'Назад'}</span>
+            <span>{t('back') || 'Назад'}</span>
           </button>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-color)' }}>
             {activeMediaTab === 'music' ? 'MediaBox Music' : (t('tab_radio') || 'Радио')}
