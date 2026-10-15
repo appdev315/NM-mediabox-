@@ -17,7 +17,7 @@ const REGIONS = [
 
 export function AppleMusic() {
   const { loading, fetchTopCharts, searchMusic } = useMusicApi();
-  const { playTrack, currentTrack, isPlaying, togglePlayPause, audioRef } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef } = useAudioPlayer();
 
   const [region, setRegion] = useState(() => {
     const saved = localStorage.getItem('app_music_region');
@@ -46,7 +46,7 @@ export function AppleMusic() {
   // Full-screen player sheet state
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(30); // iTunes previews are 30s
+  const [duration, setDuration] = useState(180);
   const [volume, setVolume] = useState(1);
 
   // Sync favorites
@@ -126,14 +126,29 @@ export function AppleMusic() {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
 
+    const currentList = activeTab === 'search' && searchResults.length > 0 
+      ? searchResults 
+      : activeTab === 'favorites' 
+      ? favTracks 
+      : chartTracks;
+
+    const playlist = currentList.map(t => ({
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      url: t.audioUrl,
+      coverUrl: t.artworkUrl,
+      type: 'music' as const
+    }));
+
     playTrack({
       id: track.id,
       title: track.title,
       artist: track.artist,
       url: track.audioUrl,
       coverUrl: track.artworkUrl,
-      type: 'radio' // AudioPlayer recognizes stream
-    });
+      type: 'music'
+    }, playlist);
 
     // Save to history
     try {
@@ -149,29 +164,11 @@ export function AppleMusic() {
   };
 
   const handleNextTrack = () => {
-    const currentList = activeTab === 'search' && searchResults.length > 0 
-      ? searchResults 
-      : activeTab === 'favorites' 
-      ? favTracks 
-      : chartTracks;
-    
-    if (currentList.length === 0) return;
-    const currentIndex = currentList.findIndex(t => t.id === currentTrack?.id);
-    const nextIndex = (currentIndex + 1) % currentList.length;
-    handleSelectTrack(currentList[nextIndex]);
+    nextTrack();
   };
 
   const handlePrevTrack = () => {
-    const currentList = activeTab === 'search' && searchResults.length > 0 
-      ? searchResults 
-      : activeTab === 'favorites' 
-      ? favTracks 
-      : chartTracks;
-    
-    if (currentList.length === 0) return;
-    const currentIndex = currentList.findIndex(t => t.id === currentTrack?.id);
-    const prevIndex = (currentIndex - 1 + currentList.length) % currentList.length;
-    handleSelectTrack(currentList[prevIndex]);
+    prevTrack();
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -511,7 +508,7 @@ export function AppleMusic() {
 
             {/* Quality pill */}
             <div className="mt-4 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/70">
-              Apple Lossless • 256 kbps AAC
+              Lossless • 320 kbps Studio Audio
             </div>
           </div>
 

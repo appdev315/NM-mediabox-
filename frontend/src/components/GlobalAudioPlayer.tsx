@@ -4,7 +4,7 @@ import { favoritesManager } from '../utils/favoritesManager';
 import { WebApp } from '../telegram';
 
 export function GlobalAudioPlayer() {
-  const { currentTrack, isPlaying, isBuffering, togglePlayPause, stop } = useAudioPlayer();
+  const { currentTrack, isPlaying, isBuffering, togglePlayPause, nextTrack, prevTrack, stop } = useAudioPlayer();
   const [isFav, setIsFav] = useState(false);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function GlobalAudioPlayer() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         {/* Favorite */}
         <button
           onClick={toggleFavorite}
@@ -80,15 +80,32 @@ export function GlobalAudioPlayer() {
             color: isFav ? '#eab308' : 'var(--text-color)',
           }}
           title={isFav ? 'Удалить из избранного' : 'В избранное'}
+          aria-label="В избранное"
         >
           {isFav ? '★' : '☆'}
         </button>
 
-        {/* Prev (Play/Pause) */}
+        {/* Previous Track */}
+        <button
+          onClick={prevTrack}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-transform"
+          style={{ color: 'var(--text-color)' }}
+          title="Предыдущий трек"
+          aria-label="Предыдущий трек"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="19 20 9 12 19 4 19 20" />
+            <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" strokeWidth="2.5" />
+          </svg>
+        </button>
+
+        {/* Play/Pause */}
         <button
           onClick={togglePlayPause}
           className="w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90"
           style={{ backgroundColor: 'var(--button-color, #3b82f6)', color: 'var(--button-text-color, #fff)' }}
+          title={isPlaying ? 'Пауза' : 'Воспроизведение'}
+          aria-label={isPlaying ? 'Пауза' : 'Воспроизведение'}
         >
           {isPlaying ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -97,11 +114,27 @@ export function GlobalAudioPlayer() {
           )}
         </button>
 
-        {/* Next (Stop) */}
+        {/* Next Track */}
+        <button
+          onClick={nextTrack}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-transform"
+          style={{ color: 'var(--text-color)' }}
+          title="Следующий трек"
+          aria-label="Следующий трек"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 4 15 12 5 20 5 4" />
+            <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5" />
+          </svg>
+        </button>
+
+        {/* Close */}
         <button
           onClick={stop}
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/30 transition-all active:scale-90 text-lg"
           style={{ color: 'var(--text-color)' }}
+          title="Закрыть"
+          aria-label="Закрыть"
         >
           ✕
         </button>

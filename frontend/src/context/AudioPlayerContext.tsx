@@ -9,7 +9,7 @@ export interface Track {
   artist: string;
   url: string;
   coverUrl?: string;
-  type?: 'radio';
+  type?: 'radio' | 'music';
   originalUrl?: string; // Original URL for fallback if proxied URL fails
 }
 
@@ -17,8 +17,11 @@ interface AudioPlayerContextType {
   currentTrack: Track | null;
   isPlaying: boolean;
   isBuffering: boolean;
-  playTrack: (track: Track) => void;
+  queue: Track[];
+  playTrack: (track: Track, newQueue?: Track[]) => void;
   togglePlayPause: () => void;
+  nextTrack: () => void;
+  prevTrack: () => void;
   stop: (fromRemote?: boolean | unknown) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }
@@ -45,6 +48,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const queueRef = useRef<Track[]>([]);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
@@ -405,7 +411,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureAudioContextKeepAlive, syncToPeers, attemptReconnect]);
 
-  const playTrack = useCallback(async (track: Track) => {
+  const playTrack = useCallback(async (track: Track, newQueue?: Track[]) => {
+    if (newQueue && newQueue.length > 0) {
+      setQueue(newQueue);
+      queueRef.current = newQueue;
+    } else if (!queueRef.current.some(t => t.id === track.id)) {
+      const updated = [track, ...queueRef.current];
+      setQueue(updated);
+      queueRef.current = updated;
+    }
+
     // If same track, toggle play/pause
     if (currentTrackRef.current?.id === track.id) {
       togglePlayPause();
@@ -445,7 +460,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     // Clean up previous Hls instance
     destroyHls();
 
-    audio.preload = track.type === 'radio' ? 'auto' : 'none';
+    audio.preload = 'auto';
     
     const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
     const url = track.url;
@@ -520,6 +535,39 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setIsPlaying(true);
   }, [attemptReconnect, togglePlayPause, ensureAudioContextKeepAlive, syncToPeers]);
 
+  const nextTrack = useCallback(() => {
+    const currentQueue = queueRef.current;
+    if (!currentQueue || currentQueue.length === 0) return;
+    const current = currentTrackRef.current;
+    const currentIndex = current ? currentQueue.findIndex(t => t.id === current.id) : -1;
+    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    const target = currentQueue[nextIndex];
+    if (target) {
+      playTrack(target);
+    }
+  }, [playTrack]);
+
+  const prevTrack = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0;
+      if (audio.paused) {
+        audio.play().catch(() => {});
+      }
+      return;
+    }
+
+    const currentQueue = queueRef.current;
+    if (!currentQueue || currentQueue.length === 0) return;
+    const current = currentTrackRef.current;
+    const currentIndex = current ? currentQueue.findIndex(t => t.id === current.id) : -1;
+    const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
+    const target = currentQueue[prevIndex];
+    if (target) {
+      playTrack(target);
+    }
+  }, [playTrack]);
+
   // MediaSession Action Handlers: Persistent remote commands for iOS Lockscreen / Control Center / Desktop
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
@@ -538,6 +586,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('stop', () => {
         stop();
       });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        prevTrack();
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        nextTrack();
+      });
+      try {
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime != null && audioRef.current) {
+            audioRef.current.currentTime = details.seekTime;
+          }
+        });
+      } catch (_) {}
     } catch (_) {}
 
     return () => {
@@ -546,10 +607,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           navigator.mediaSession.setActionHandler('play', null);
           navigator.mediaSession.setActionHandler('pause', null);
           navigator.mediaSession.setActionHandler('stop', null);
+          navigator.mediaSession.setActionHandler('previoustrack', null);
+          navigator.mediaSession.setActionHandler('nexttrack', null);
+          try {
+            navigator.mediaSession.setActionHandler('seekto', null);
+          } catch (_) {}
         } catch (_) {}
       }
     };
-  }, [togglePlayPause, stop]);
+  }, [togglePlayPause, stop, prevTrack, nextTrack]);
 
   // MediaSession Metadata: Updates station info & artwork when current track changes
   useEffect(() => {
@@ -814,9 +880,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
 
     const onEnded = () => {
-      console.warn('[Audio] Stream ended by server, triggering auto-reconnect...');
-      if (currentTrackRef.current?.type === 'radio' && !isUserPausedRef.current) {
-        attemptReconnect('stream ended by server');
+      if (currentTrackRef.current?.type === 'radio') {
+        if (!isUserPausedRef.current) {
+          console.warn('[Audio] Radio stream ended by server, triggering auto-reconnect...');
+          attemptReconnect('stream ended by server');
+        }
+      } else if (currentTrackRef.current?.type === 'music' && !isUserPausedRef.current) {
+        console.log('[Audio] Music track finished, auto-advancing to next song in background');
+        nextTrack();
       }
     };
 
@@ -839,6 +910,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (currentTrackRef.current?.type === 'radio' && isPlayingRef.current && !isUserPausedRef.current && !audio.paused) {
         // Fast buffer rescue on stall
         setIsBuffering(true);
+      }
+    };
+
+    const onTimeUpdate = () => {
+      const a = audioRef.current;
+      const track = currentTrackRef.current;
+      if (!a || !track || track.type === 'radio' || !('mediaSession' in navigator)) return;
+      if (Number.isFinite(a.duration) && a.duration > 0 && 'setPositionState' in navigator.mediaSession) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: a.duration,
+            position: Math.min(a.currentTime, a.duration),
+            playbackRate: a.paused ? 0 : 1
+          });
+        } catch (_) {}
       }
     };
 
@@ -897,6 +983,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('error', onError);
     audio.addEventListener('stalled', onStalled);
     window.addEventListener('offline', onOffline);
@@ -912,6 +999,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('error', onError);
       audio.removeEventListener('stalled', onStalled);
       window.removeEventListener('offline', onOffline);
@@ -920,10 +1008,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange);
       }
     };
-  }, [currentTrack, attemptReconnect, togglePlayPause]);
+  }, [currentTrack, attemptReconnect, togglePlayPause, nextTrack]);
 
   return (
-    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, playTrack, togglePlayPause, stop, audioRef }}>
+    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, queue, playTrack, togglePlayPause, nextTrack, prevTrack, stop, audioRef }}>
       {children}
       <audio ref={audioRef} preload="auto" playsInline />
     </AudioPlayerContext.Provider>
