@@ -3,6 +3,7 @@ import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
+import { audioOfflineManager } from '../utils/audioOfflineManager';
 
 export interface Track {
   id: string;
@@ -19,6 +20,9 @@ interface AudioPlayerContextType {
   isPlaying: boolean;
   isBuffering: boolean;
   queue: Track[];
+  isShuffle: boolean;
+  toggleShuffle: () => void;
+  setQueue: (queue: Track[]) => void;
   playTrack: (track: Track, newQueue?: Track[]) => void;
   togglePlayPause: () => void;
   nextTrack: () => void;
@@ -52,6 +56,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Track[]>([]);
   const queueRef = useRef<Track[]>([]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const isShuffleRef = useRef(false);
+  useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
+
+  const toggleShuffle = useCallback(() => {
+    setIsShuffle(prev => !prev);
+  }, []);
+
+  const updateQueue = useCallback((newQueue: Track[]) => {
+    setQueue(newQueue);
+    queueRef.current = newQueue;
+  }, []);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
@@ -475,8 +491,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
     audio.preload = 'auto';
     
-    const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-    const url = track.url;
+    let url = track.url;
+    if (track.type === 'music') {
+      try {
+        const cachedBlob = await audioOfflineManager.getTrackAudioUrl(track.url);
+        if (cachedBlob) {
+          url = cachedBlob;
+        }
+      } catch (_) {}
+    }
+
+    const isHls = url.includes('.m3u8') || url.includes('/playlist');
       
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -553,7 +578,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (!currentQueue || currentQueue.length === 0) return;
     const current = currentTrackRef.current;
     const currentIndex = current ? currentQueue.findIndex(t => t.id === current.id) : -1;
-    const nextIndex = (currentIndex + 1) % currentQueue.length;
+    let nextIndex = 0;
+    if (isShuffleRef.current && currentQueue.length > 1) {
+      let rand = Math.floor(Math.random() * currentQueue.length);
+      if (rand === currentIndex) {
+        rand = (rand + 1) % currentQueue.length;
+      }
+      nextIndex = rand;
+    } else {
+      nextIndex = (currentIndex + 1) % currentQueue.length;
+    }
     const target = currentQueue[nextIndex];
     if (target) {
       playTrack(target);
@@ -1024,7 +1058,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [currentTrack, attemptReconnect, togglePlayPause, nextTrack]);
 
   return (
-    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, queue, playTrack, togglePlayPause, nextTrack, prevTrack, stop, audioRef }}>
+    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, queue, isShuffle, toggleShuffle, setQueue: updateQueue, playTrack, togglePlayPause, nextTrack, prevTrack, stop, audioRef }}>
       {children}
       <audio ref={audioRef} preload="auto" playsInline crossOrigin="anonymous" />
     </AudioPlayerContext.Provider>

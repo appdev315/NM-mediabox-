@@ -10,7 +10,7 @@ import { EqualizerModal } from './EqualizerModal';
 export function AppleMusic() {
   const { t } = useLanguage();
   const { loading, fetchCollection, searchMusic } = useMusicApi();
-  const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [selectedCollection, setSelectedCollection] = useState<CollectionId>('hits');
   const [activeTab, setActiveTab] = useState<'collections' | 'search' | 'favorites'>('collections');
@@ -20,6 +20,7 @@ export function AppleMusic() {
   const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
   const [isEqOpen, setIsEqOpen] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const searchAbortRef = useRef<number>(0);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
@@ -117,6 +118,60 @@ export function AppleMusic() {
     } catch (_) {}
     await audioOfflineManager.clearAudioCache();
     await refreshCacheStats();
+  };
+
+  const playAllFavorites = (shuffle = false) => {
+    if (favTracks.length === 0) return;
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('medium');
+    } catch (_) {}
+
+    const playlist = favTracks.map(t => ({
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      url: t.audioUrl,
+      coverUrl: t.artworkUrl,
+      type: 'music' as const
+    }));
+
+    if (shuffle) {
+      if (!isShuffle) toggleShuffle();
+      const randIdx = Math.floor(Math.random() * playlist.length);
+      playTrack(playlist[randIdx], playlist);
+    } else {
+      if (isShuffle) toggleShuffle();
+      playTrack(playlist[0], playlist);
+    }
+  };
+
+  const moveTrack = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= favTracks.length) return;
+
+    try {
+      WebApp?.HapticFeedback?.selectionChanged();
+    } catch (_) {}
+
+    const updated = [...favTracks];
+    const item = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = item;
+
+    setFavTracks(updated);
+    try {
+      localStorage.setItem('favorites_music', JSON.stringify(updated));
+    } catch (_) {}
+
+    const updatedQueue = updated.map(t => ({
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      url: t.audioUrl,
+      coverUrl: t.artworkUrl,
+      type: 'music' as const
+    }));
+    setQueue(updatedQueue);
   };
 
   // Load selected collection
@@ -360,6 +415,39 @@ export function AppleMusic() {
         </div>
       )}
 
+      {/* Favorites Playlist Action Bar */}
+      {activeTab === 'favorites' && favTracks.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => playAllFavorites(false)}
+            className="flex-1 py-2 px-3 rounded-2xl bg-[#FA2D48] hover:bg-[#e0263e] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA2D48]/30 active:scale-95 transition-all"
+          >
+            <span>▶️</span>
+            <span>{t('music_play_all')}</span>
+          </button>
+
+          <button
+            onClick={() => playAllFavorites(true)}
+            className="flex-1 py-2 px-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 border border-white/10 active:scale-95 transition-all"
+          >
+            <span>🔀</span>
+            <span>{t('music_shuffle')}</span>
+          </button>
+
+          <button
+            onClick={() => setIsReorderMode(prev => !prev)}
+            className={`py-2 px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border active:scale-95 transition-all ${
+              isReorderMode
+                ? 'bg-white text-black border-white shadow-md'
+                : 'bg-white/10 hover:bg-white/15 text-white/90 border-white/10'
+            }`}
+          >
+            <span>{isReorderMode ? '✓' : '⇅'}</span>
+            <span>{isReorderMode ? t('music_done') : t('music_reorder')}</span>
+          </button>
+        </div>
+      )}
+
       {/* Search Input Bar */}
       {activeTab === 'search' && (
         <div className="relative mb-4">
@@ -463,16 +551,24 @@ export function AppleMusic() {
               return (
                 <div
                   key={track.id}
-                  onClick={() => handleSelectTrack(track)}
+                  onClick={() => {
+                    if (isReorderMode && activeTab === 'favorites') return;
+                    handleSelectTrack(track);
+                  }}
                   className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all active:scale-[0.99] border ${
                     isTrackSelected 
                       ? 'bg-white/15 border-[#FA2D48]/50 shadow-md' 
                       : 'bg-white/5 hover:bg-white/10 border-white/5'
                   }`}
                 >
-                  {/* Rank number for Collections */}
+                  {/* Rank number for Collections or Reorder mode */}
                   {activeTab === 'collections' && (
                     <span className="w-6 text-center text-xs font-black text-white/40">
+                      {idx + 1}
+                    </span>
+                  )}
+                  {activeTab === 'favorites' && isReorderMode && (
+                    <span className="w-5 text-center text-xs font-black text-[#FA2D48]">
                       {idx + 1}
                     </span>
                   )}
@@ -513,34 +609,58 @@ export function AppleMusic() {
                     </p>
                   </div>
 
-                  {/* Export Button (in Favorites tab) */}
-                  {activeTab === 'favorites' && (
-                    <button
-                      onClick={(e) => handleExportTrack(track, e)}
-                      disabled={exportingTrackId === track.id}
-                      className="p-2 text-white/50 hover:text-white transition-all active:scale-90 flex-shrink-0"
-                      title="Экспорт аудиофайла в Файлы"
-                    >
-                      {exportingTrackId === track.id ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="7 10 12 15 17 10" />
-                          <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
+                  {/* Reorder Up/Down Controls or Export/Heart */}
+                  {activeTab === 'favorites' && isReorderMode ? (
+                    <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => moveTrack(idx, -1)}
+                        disabled={idx === 0}
+                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-20 flex items-center justify-center text-white text-xs font-black active:scale-90 transition-all"
+                        title={t('music_move_up')}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => moveTrack(idx, 1)}
+                        disabled={idx === favTracks.length - 1}
+                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-20 flex items-center justify-center text-white text-xs font-black active:scale-90 transition-all"
+                        title={t('music_move_down')}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Export Button (in Favorites tab) */}
+                      {activeTab === 'favorites' && (
+                        <button
+                          onClick={(e) => handleExportTrack(track, e)}
+                          disabled={exportingTrackId === track.id}
+                          className="p-2 text-white/50 hover:text-white transition-all active:scale-90 flex-shrink-0"
+                          title="Экспорт аудиофайла в Файлы"
+                        >
+                          {exportingTrackId === track.id ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          )}
+                        </button>
                       )}
-                    </button>
-                  )}
 
-                  {/* Favorite Heart Button */}
-                  <button
-                    onClick={(e) => toggleFav(track, e)}
-                    className="p-2 text-base transition-transform active:scale-125"
-                    style={{ color: isFav ? '#FA2D48' : 'rgba(255,255,255,0.3)' }}
-                  >
-                    {isFav ? '❤️' : '🤍'}
-                  </button>
+                      {/* Favorite Heart Button */}
+                      <button
+                        onClick={(e) => toggleFav(track, e)}
+                        className="p-2 text-base transition-transform active:scale-125"
+                        style={{ color: isFav ? '#FA2D48' : 'rgba(255,255,255,0.3)' }}
+                      >
+                        {isFav ? '❤️' : '🤍'}
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             });
@@ -724,7 +844,23 @@ export function AppleMusic() {
             </div>
 
             {/* Media Controls */}
-            <div className="flex items-center justify-center gap-8 mb-6">
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <button 
+                onClick={toggleShuffle}
+                className={`p-2.5 rounded-full transition-all active:scale-90 ${
+                  isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'text-white/40 hover:text-white/70'
+                }`}
+                title={t('music_shuffle')}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 3 21 3 21 8" />
+                  <line x1="4" y1="20" x2="21" y2="3" />
+                  <polyline points="21 16 21 21 16 21" />
+                  <line x1="15" y1="15" x2="21" y2="21" />
+                  <line x1="4" y1="4" x2="9" y2="9" />
+                </svg>
+              </button>
+
               <button 
                 onClick={handlePrevTrack}
                 className="p-3 text-white/80 hover:text-white active:scale-90 transition-transform"
