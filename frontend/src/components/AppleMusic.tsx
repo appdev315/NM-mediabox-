@@ -1,39 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useMusicApi, type MusicTrack } from '../hooks/useMusicApi';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMusicApi, COLLECTIONS, type CollectionId, type MusicTrack } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { WebApp } from '../telegram';
 import { favoritesManager } from '../utils/favoritesManager';
-
-const REGIONS = [
-  { code: 'ru', flag: '🇷🇺', name: 'Россия' },
-  { code: 'us', flag: '🇺🇸', name: 'США' },
-  { code: 'gb', flag: '🇬🇧', name: 'Великобритания' },
-  { code: 'de', flag: '🇩🇪', name: 'Германия' },
-  { code: 'fr', flag: '🇫🇷', name: 'Франция' },
-  { code: 'es', flag: '🇪🇸', name: 'Испания' },
-  { code: 'kz', flag: '🇰🇿', name: 'Казахстан' },
-  { code: 'by', flag: '🇧🇾', name: 'Беларусь' },
-];
+import { audioOfflineManager } from '../utils/audioOfflineManager';
 
 export function AppleMusic() {
-  const { loading, fetchTopCharts, searchMusic } = useMusicApi();
+  const { loading, fetchCollection, searchMusic } = useMusicApi();
   const { playTrack, currentTrack, isPlaying, togglePlayPause, nextTrack, prevTrack, audioRef } = useAudioPlayer();
 
-  const [region, setRegion] = useState(() => {
-    const saved = localStorage.getItem('app_music_region');
-    if (saved) return saved;
-    const tgLang = WebApp.initDataUnsafe?.user?.language_code;
-    if (tgLang === 'ru') return 'ru';
-    if (tgLang === 'de') return 'de';
-    if (tgLang === 'fr') return 'fr';
-    if (tgLang === 'es') return 'es';
-    return 'us';
-  });
-
-  const [activeTab, setActiveTab] = useState<'charts' | 'search' | 'favorites'>('charts');
+  const [selectedCollection, setSelectedCollection] = useState<CollectionId>('hits');
+  const [activeTab, setActiveTab] = useState<'collections' | 'search' | 'favorites'>('collections');
   const [searchQuery, setSearchQuery] = useState('');
-  const [chartTracks, setChartTracks] = useState<MusicTrack[]>([]);
+  const [collectionTracks, setCollectionTracks] = useState<MusicTrack[]>([]);
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
+  const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
+  const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
+
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
       const saved = localStorage.getItem('favorites_music');
@@ -52,6 +35,23 @@ export function AppleMusic() {
   // Sync favorites
   const favIds = useMemo(() => new Set(favTracks.map(t => t.id)), [favTracks]);
 
+  // Refresh audio offline cache stats
+  const refreshCacheStats = useCallback(async () => {
+    const stats = await audioOfflineManager.getAudioCacheStats();
+    setCacheStats(stats);
+    const urls = new Set<string>();
+    for (const t of favTracks) {
+      if (t.audioUrl && (await audioOfflineManager.isAudioCached(t.audioUrl))) {
+        urls.add(t.audioUrl);
+      }
+    }
+    setCachedUrls(urls);
+  }, [favTracks]);
+
+  useEffect(() => {
+    refreshCacheStats();
+  }, [refreshCacheStats]);
+
   const toggleFav = (track: MusicTrack, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
@@ -63,8 +63,11 @@ export function AppleMusic() {
       let updated: MusicTrack[];
       if (exists) {
         updated = prev.filter(t => t.id !== track.id);
+        audioOfflineManager.removeTrackAudio(track.audioUrl).then(refreshCacheStats);
       } else {
         updated = [track, ...prev];
+        // Automatically cache audio file on device
+        audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
       }
       try {
         localStorage.setItem('favorites_music', JSON.stringify(updated));
@@ -73,19 +76,26 @@ export function AppleMusic() {
     });
   };
 
-  // Load Charts on region change
+  const handleClearCache = async () => {
+    try {
+      WebApp?.HapticFeedback?.notificationOccurred('success');
+    } catch (_) {}
+    await audioOfflineManager.clearAudioCache();
+    await refreshCacheStats();
+  };
+
+  // Load selected collection
   useEffect(() => {
-    localStorage.setItem('app_music_region', region);
     let isCancelled = false;
-    fetchTopCharts(region, 50).then(tracks => {
+    fetchCollection(selectedCollection, 50).then(tracks => {
       if (!isCancelled) {
-        setChartTracks(tracks);
+        setCollectionTracks(tracks);
       }
     });
     return () => {
       isCancelled = true;
     };
-  }, [region, fetchTopCharts]);
+  }, [selectedCollection, fetchCollection]);
 
   // Search debounce
   useEffect(() => {
@@ -120,17 +130,21 @@ export function AppleMusic() {
     };
   }, [audioRef]);
 
-  // Play track handler
-  const handleSelectTrack = (track: MusicTrack) => {
+  // Play track handler with offline audio resolution
+  const handleSelectTrack = async (track: MusicTrack) => {
     try {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
+
+    // Check if offline audio is cached locally on device
+    const localBlobUrl = await audioOfflineManager.getTrackAudioUrl(track.audioUrl);
+    const effectiveAudioUrl = localBlobUrl || track.audioUrl;
 
     const currentList = activeTab === 'search' && searchResults.length > 0 
       ? searchResults 
       : activeTab === 'favorites' 
       ? favTracks 
-      : chartTracks;
+      : collectionTracks;
 
     const playlist = currentList.map(t => ({
       id: t.id,
@@ -145,7 +159,7 @@ export function AppleMusic() {
       id: track.id,
       title: track.title,
       artist: track.artist,
-      url: track.audioUrl,
+      url: effectiveAudioUrl,
       coverUrl: track.artworkUrl,
       type: 'music'
     }, playlist);
@@ -194,12 +208,12 @@ export function AppleMusic() {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const featuredTrack = chartTracks[0];
+  const featuredTrack = collectionTracks[0];
   const isCurrentPlayingThis = (id: string) => currentTrack?.id === id && isPlaying;
 
   return (
     <div className="flex flex-col min-h-full pb-32 text-white">
-      {/* Apple Music Header */}
+      {/* MediaBox Music Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-[#FA2D48] flex items-center justify-center shadow-lg shadow-[#FA2D48]/30">
@@ -208,33 +222,20 @@ export function AppleMusic() {
             </svg>
           </div>
           <div>
-            <span className="text-xl font-extrabold tracking-tight">Apple Music</span>
+            <span className="text-xl font-extrabold tracking-tight">MediaBox Music</span>
           </div>
         </div>
-
-        {/* Region selector */}
-        <select
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          className="bg-white/10 text-xs font-bold px-3 py-1.5 rounded-full border border-white/10 focus:outline-none"
-        >
-          {REGIONS.map(r => (
-            <option key={r.code} value={r.code} className="bg-[#1c1c1e] text-white">
-              {r.flag} {r.name}
-            </option>
-          ))}
-        </select>
       </div>
 
-      {/* Segmented Pills Navigation */}
-      <div className="flex p-1 bg-white/10 rounded-xl mb-4 backdrop-blur-md">
+      {/* Segmented Navigation */}
+      <div className="flex p-1 bg-white/10 rounded-xl mb-3 backdrop-blur-md">
         <button
-          onClick={() => setActiveTab('charts')}
+          onClick={() => setActiveTab('collections')}
           className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-            activeTab === 'charts' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
+            activeTab === 'collections' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
           }`}
         >
-          🔥 Чарты
+          ✨ Подборки
         </button>
         <button
           onClick={() => setActiveTab('search')}
@@ -254,6 +255,42 @@ export function AppleMusic() {
         </button>
       </div>
 
+      {/* Collections Pills Horizontal Scroller */}
+      {activeTab === 'collections' && (
+        <div className="flex gap-2 overflow-x-auto pb-3 mb-2 no-scrollbar">
+          {COLLECTIONS.map(col => (
+            <button
+              key={col.id}
+              onClick={() => setSelectedCollection(col.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                selectedCollection === col.id
+                  ? 'bg-white text-black border-white shadow-md'
+                  : 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10'
+              }`}
+            >
+              {col.icon} {col.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Favorites Cache Header Bar */}
+      {activeTab === 'favorites' && favTracks.length > 0 && (
+        <div className="flex items-center justify-between px-2 py-2 mb-3 bg-white/5 rounded-2xl border border-white/5">
+          <div className="text-xs font-semibold text-white/70">
+            {cacheStats.count > 0 ? `Кэш: ${cacheStats.count} аудио • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : 'Кэш пуст'}
+          </div>
+          {cacheStats.count > 0 && (
+            <button
+              onClick={handleClearCache}
+              className="px-3 py-1 rounded-full bg-white/10 hover:bg-red-500/20 text-xs font-bold text-white/90 hover:text-red-400 border border-white/10 transition-colors active:scale-95"
+            >
+              Очистить кэш
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Search Input Bar */}
       {activeTab === 'search' && (
         <div className="relative mb-4">
@@ -261,7 +298,7 @@ export function AppleMusic() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Треки, исполнители или альбомы..."
+            placeholder="Исполнитель, группа или название трека..."
             className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
           />
           <div className="absolute left-3.5 top-3.5 text-white/50">
@@ -281,8 +318,8 @@ export function AppleMusic() {
         </div>
       )}
 
-      {/* Featured #1 Track Hero Banner (Only on Charts tab) */}
-      {activeTab === 'charts' && featuredTrack && !loading && (
+      {/* Featured #1 Track Hero Banner (Only on Collections tab) */}
+      {activeTab === 'collections' && featuredTrack && !loading && (
         <div 
           onClick={() => handleSelectTrack(featuredTrack)}
           className="relative rounded-3xl overflow-hidden mb-6 p-5 cursor-pointer transition-transform active:scale-[0.98] shadow-2xl border border-white/10 flex flex-col justify-end min-h-[170px]"
@@ -293,7 +330,7 @@ export function AppleMusic() {
           }}
         >
           <div className="absolute top-4 left-4 bg-[#FA2D48] px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider">
-            № 1 В ЧАРТЕ
+            ХИТ ПОДБОРКИ
           </div>
           <div className="mt-8 flex justify-between items-end">
             <div className="max-w-[75%]">
@@ -330,7 +367,7 @@ export function AppleMusic() {
               ? searchResults 
               : activeTab === 'favorites' 
               ? favTracks 
-              : chartTracks;
+              : collectionTracks;
 
             if (list.length === 0) {
               return (
@@ -348,6 +385,7 @@ export function AppleMusic() {
               const isThisPlaying = isCurrentPlayingThis(track.id);
               const isTrackSelected = currentTrack?.id === track.id;
               const isFav = favIds.has(track.id);
+              const isOffline = cachedUrls.has(track.audioUrl);
 
               return (
                 <div
@@ -359,8 +397,8 @@ export function AppleMusic() {
                       : 'bg-white/5 hover:bg-white/10 border-white/5'
                   }`}
                 >
-                  {/* Rank number for Charts */}
-                  {activeTab === 'charts' && (
+                  {/* Rank number for Collections */}
+                  {activeTab === 'collections' && (
                     <span className="w-6 text-center text-xs font-black text-white/40">
                       {idx + 1}
                     </span>
@@ -387,9 +425,16 @@ export function AppleMusic() {
 
                   {/* Track Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className={`text-sm font-bold truncate ${isTrackSelected ? 'text-[#FA2D48]' : 'text-white'}`}>
-                      {track.title}
-                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className={`text-sm font-bold truncate ${isTrackSelected ? 'text-[#FA2D48]' : 'text-white'}`}>
+                        {track.title}
+                      </h3>
+                      {isOffline && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-extrabold flex-shrink-0">
+                          ОФЛАЙН
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-white/60 truncate mt-0.5">
                       {track.artist}
                     </p>
@@ -488,7 +533,7 @@ export function AppleMusic() {
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
-            <span className="text-xs font-black tracking-widest uppercase text-white/50">Apple Music</span>
+            <span className="text-xs font-black tracking-widest uppercase text-white/50">MediaBox Music</span>
             <div className="w-10" />
           </div>
 

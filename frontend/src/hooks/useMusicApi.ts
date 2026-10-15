@@ -73,13 +73,24 @@ const mapSaavnSongToTrack = (song: any, index: number): MusicTrack | null => {
   };
 };
 
+export const COLLECTIONS = [
+  { id: 'hits', title: 'Суперхиты', icon: '🔥', query: 'Top Hits 2026', playlistId: '1081991857' },
+  { id: 'russian', title: 'Русские хиты', icon: '🇷🇺', query: 'Русские Хиты' },
+  { id: 'rock', title: 'Рок', icon: '🎸', query: 'Rock Classics Hits' },
+  { id: 'electronic', title: 'Электроника', icon: '🎧', query: 'Dance EDM Hits' },
+  { id: 'hiphop', title: 'Хип-Хоп', icon: '🎤', query: 'Hip Hop Rap Hits' },
+  { id: 'chill', title: 'Chillout', icon: '🌙', query: 'Chillout Relax Lo-Fi' }
+] as const;
+
+export type CollectionId = typeof COLLECTIONS[number]['id'];
+
 export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTopCharts = useCallback(async (countryCode = 'us', limit = 50): Promise<MusicTrack[]> => {
-    const code = countryCode.toLowerCase();
-    const cacheKey = `cache_music_top_saavn_${code}_${limit}`;
+  const fetchCollection = useCallback(async (collectionId: string = 'hits', limit = 50): Promise<MusicTrack[]> => {
+    const col = COLLECTIONS.find(c => c.id === collectionId) || COLLECTIONS[0];
+    const cacheKey = `cache_music_collection_${col.id}_${limit}`;
     
     // Check RAM / LocalStorage cache first
     const cached = clientCache.get<MusicTrack[]>(cacheKey);
@@ -93,10 +104,10 @@ export function useMusicApi() {
     try {
       let tracks: MusicTrack[] = [];
 
-      // If US/GB or global, attempt curated English Hit Songs playlist first
-      if (code === 'us' || code === 'gb') {
+      // If playlistId exists, try curated playlist first
+      if ('playlistId' in col && col.playlistId) {
         try {
-          const playlistRes = await fetchWithRetry(`${SAAVN_API_BASE}/playlists?id=1081991857`, { maxRetries: 1 });
+          const playlistRes = await fetchWithRetry(`${SAAVN_API_BASE}/playlists?id=${col.playlistId}`, { maxRetries: 1 });
           if (playlistRes && playlistRes.ok) {
             const playlistJson = await playlistRes.json();
             const songs = playlistJson?.data?.songs || [];
@@ -107,20 +118,9 @@ export function useMusicApi() {
         } catch (_) {}
       }
 
-      // If playlist had no tracks or for other regions, query top chart search
+      // Query collection search
       if (tracks.length === 0) {
-        let chartQuery = 'Top Hits 2026';
-        if (code === 'ru' || code === 'kz' || code === 'by') {
-          chartQuery = 'Русские Хиты';
-        } else if (code === 'de') {
-          chartQuery = 'Top Hits Germany';
-        } else if (code === 'fr') {
-          chartQuery = 'Top Hits France';
-        } else if (code === 'es') {
-          chartQuery = 'Top Hits Spain';
-        }
-
-        const url = `${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(chartQuery)}&limit=${limit}`;
+        const url = `${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(col.query)}&limit=${limit}`;
         const res = await fetchWithRetry(url, { maxRetries: 2 });
         if (res && res.ok) {
           const json = await res.json();
@@ -132,15 +132,15 @@ export function useMusicApi() {
       }
 
       if (tracks.length > 0) {
-        // Cache charts for 6 hours
+        // Cache collections for 6 hours
         clientCache.set(cacheKey, tracks, 21600);
       }
 
       setLoading(false);
       return tracks;
     } catch (err: any) {
-      console.warn('[MusicApi] Top charts fetch failed:', err);
-      setError(err?.message || 'Error fetching charts');
+      console.warn('[MusicApi] Collection fetch failed:', err);
+      setError(err?.message || 'Error fetching collection');
       setLoading(false);
       return [];
     }
@@ -160,27 +160,63 @@ export function useMusicApi() {
     setError(null);
 
     try {
-      const url = `${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`;
-      const res = await fetchWithRetry(url, { maxRetries: 2 });
-      
-      if (!res || !res.ok) {
-        throw new Error(`Search failed with status: ${res?.status}`);
+      // 1. Parallel requests: Artist search + Song search
+      const [artistRes, songRes] = await Promise.allSettled([
+        fetchWithRetry(`${SAAVN_API_BASE}/search/artists?query=${encodeURIComponent(trimmed)}&limit=3`, { maxRetries: 1 }),
+        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 2 })
+      ]);
+
+      let artistTracks: MusicTrack[] = [];
+      if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
+        try {
+          const artistJson = await artistRes.value.json();
+          const topArtist = artistJson?.data?.results?.[0];
+          if (topArtist && topArtist.id) {
+            // Fetch top songs by this artist (prioritized discography)
+            const songsByArtistRes = await fetchWithRetry(`${SAAVN_API_BASE}/artists?id=${topArtist.id}&songCount=30`, { maxRetries: 1 });
+            if (songsByArtistRes && songsByArtistRes.ok) {
+              const songsJson = await songsByArtistRes.json();
+              const topSongs = songsJson?.data?.topSongs || [];
+              artistTracks = topSongs
+                .map(mapSaavnSongToTrack)
+                .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+            }
+          }
+        } catch (_) {}
       }
 
-      const json = await res.json();
-      const results = json?.data?.results || [];
+      let songTracks: MusicTrack[] = [];
+      if (songRes.status === 'fulfilled' && songRes.value && songRes.value.ok) {
+        try {
+          const json = await songRes.value.json();
+          const results = json?.data?.results || [];
+          songTracks = results
+            .map(mapSaavnSongToTrack)
+            .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+        } catch (_) {}
+      }
 
-      const tracks: MusicTrack[] = results
-        .map(mapSaavnSongToTrack)
-        .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+      // 2. Merge: Artist top songs come FIRST, followed by song matches, with deduplication
+      const seenIds = new Set<string>();
+      const seenTitles = new Set<string>();
+      const merged: MusicTrack[] = [];
 
-      if (tracks.length > 0) {
+      for (const t of [...artistTracks, ...songTracks]) {
+        const titleKey = `${t.artist.toLowerCase()} - ${t.title.toLowerCase()}`;
+        if (!seenIds.has(t.id) && !seenTitles.has(titleKey)) {
+          seenIds.add(t.id);
+          seenTitles.add(titleKey);
+          merged.push(t);
+        }
+      }
+
+      if (merged.length > 0) {
         // Cache search results for 2 hours
-        clientCache.set(cacheKey, tracks, 7200);
+        clientCache.set(cacheKey, merged, 7200);
       }
 
       setLoading(false);
-      return tracks;
+      return merged;
     } catch (err: any) {
       console.warn('[MusicApi] Search query failed:', err);
       setError(err?.message || 'Error searching tracks');
@@ -192,7 +228,8 @@ export function useMusicApi() {
   return {
     loading,
     error,
-    fetchTopCharts,
+    fetchCollection,
+    fetchTopCharts: fetchCollection,
     searchMusic
   };
 }

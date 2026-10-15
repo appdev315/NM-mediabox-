@@ -34,7 +34,7 @@ export function Profile() {
             <span>{t('profile') || 'Назад'}</span>
           </button>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-color)' }}>
-            {activeMediaTab === 'music' ? (t('tab_music') || 'Apple Music') : (t('tab_radio') || 'Радио')}
+            {activeMediaTab === 'music' ? 'MediaBox Music' : (t('tab_radio') || 'Радио')}
           </h1>
         </div>
         <Suspense fallback={
@@ -105,7 +105,7 @@ export function Profile() {
           style={{ backgroundColor: 'var(--hint-color)' }}
         >
           <span className="text-3xl">🎵</span>
-          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>{t('tab_music') || 'Музыка'}</span>
+          <span className="font-bold text-sm" style={{ color: 'var(--text-color)' }}>MediaBox Music</span>
         </button>
       </div>
 
