@@ -15,15 +15,31 @@ export interface MusicTrack {
   isResolved?: boolean;
 }
 
-export interface MusicPlaylist {
-  id: string;
-  title: string;
-  trackCount: number;
-  coverUrl: string;
-  creator?: string;
+export interface NetworkSpeedInfo {
+  isSlow: boolean;
+  effectiveType?: string;
+  saveData?: boolean;
 }
 
+export const getNetworkSpeed = (): NetworkSpeedInfo => {
+  if (typeof navigator === 'undefined') return { isSlow: false };
+  const nav = navigator as any;
+  const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+  if (!conn) return { isSlow: false };
+  const effectiveType = conn.effectiveType;
+  const saveData = Boolean(conn.saveData);
+  const isSlow = saveData || effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
+  return { isSlow, effectiveType, saveData };
+};
+
 const SAAVN_API_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
+
+const INVIDIOUS_INSTANCES = [
+  'https://invidious.schenkel.eti.br',
+  'https://yt.omada.cafe',
+  'https://invidious.kemonomimi.nl',
+  'https://echostreamz.com'
+];
 
 const decodeHtmlEntities = (str: string): string => {
   if (!str) return '';
@@ -43,12 +59,33 @@ const extractArtwork = (images?: Array<{ quality: string; url: string }>): strin
   return best?.url || '';
 };
 
-const extractAudioUrl = (downloadUrls?: Array<{ quality: string; url: string }>): string => {
+const extractAudioUrl = (downloadUrls?: Array<{ quality: string; url: string }>, isSlow = false): string => {
   if (!downloadUrls || downloadUrls.length === 0) return '';
+  if (isSlow) {
+    const low = downloadUrls.find(u => u.quality === '96kbps') ||
+                downloadUrls.find(u => u.quality === '48kbps') ||
+                downloadUrls.find(u => u.quality === '160kbps') ||
+                downloadUrls[0];
+    return low?.url || '';
+  }
   const best = downloadUrls.find(u => u.quality === '320kbps') ||
                downloadUrls.find(u => u.quality === '160kbps') ||
                downloadUrls[downloadUrls.length - 1];
   return best?.url || '';
+};
+
+const extractInvidiousAudio = (formats: any[], isSlow: boolean): string => {
+  if (!Array.isArray(formats)) return '';
+  const audioFormats = formats.filter(f => f && typeof f.type === 'string' && f.type.startsWith('audio') && f.url);
+  if (audioFormats.length === 0) return '';
+
+  audioFormats.sort((a, b) => (parseInt(a.bitrate || '0', 10) - parseInt(b.bitrate || '0', 10)));
+
+  if (isSlow) {
+    return audioFormats[0].url;
+  }
+  const highM4a = audioFormats.filter(f => f.type.includes('mp4') || f.container === 'm4a').pop();
+  return highM4a?.url || audioFormats[audioFormats.length - 1].url;
 };
 
 const extractArtistName = (item: any): string => {
@@ -64,8 +101,8 @@ const extractArtistName = (item: any): string => {
   return 'Unknown Artist';
 };
 
-const mapSaavnSongToTrack = (song: any, index: number): MusicTrack | null => {
-  const audioUrl = extractAudioUrl(song.downloadUrl);
+const mapSaavnSongToTrack = (song: any, index: number, isSlow = false): MusicTrack | null => {
+  const audioUrl = extractAudioUrl(song.downloadUrl, isSlow);
   const title = decodeHtmlEntities(song.name || song.title || '');
   if (!audioUrl || !title) return null;
 
@@ -83,86 +120,63 @@ const mapSaavnSongToTrack = (song: any, index: number): MusicTrack | null => {
   };
 };
 
-const mapAppleEntryToTrack = (entry: any, index: number): MusicTrack | null => {
-  const title = decodeHtmlEntities(entry['im:name']?.label || entry.title?.label || '');
-  const artist = decodeHtmlEntities(entry['im:artist']?.label || 'Unknown Artist');
-  if (!title) return null;
-
-  let previewUrl = '';
-  if (Array.isArray(entry.link)) {
-    const enclosure = entry.link.find((l: any) => l.attributes?.rel === 'enclosure');
-    if (enclosure?.attributes?.href) {
-      previewUrl = enclosure.attributes.href;
-    }
-  }
-
-  let rawImg = '';
-  if (Array.isArray(entry['im:image']) && entry['im:image'].length > 0) {
-    rawImg = entry['im:image'][entry['im:image'].length - 1]?.label || '';
-  }
-  const artworkUrl = rawImg ? rawImg.replace(/\/\d+x\d+bb\./, '/600x600bb.') : '';
-
-  const id = String(entry.id?.attributes?.['im:id'] || `apple_${index}_${Date.now()}`);
-
+const mapDeezerTrack = (t: any): MusicTrack | null => {
+  if (!t || !t.title) return null;
   return {
-    id,
-    title,
-    artist,
-    album: decodeHtmlEntities(entry['im:collection']?.['im:name']?.label || ''),
-    artworkUrl,
-    audioUrl: previewUrl,
-    duration: 180,
-    releaseDate: entry['im:releaseDate']?.label || '',
-    genre: entry.category?.attributes?.label || 'Music',
+    id: `dz_${t.id}`,
+    title: decodeHtmlEntities(t.title || ''),
+    artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
+    album: decodeHtmlEntities(t.album?.title || ''),
+    artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
+    audioUrl: t.preview || '',
+    duration: typeof t.duration === 'number' ? t.duration : 180,
+    genre: 'Music',
     isResolved: false
   };
 };
 
-export interface MusicCollectionDef {
-  id: string;
-  title: string;
-  icon: string;
-  feedUrl?: string;
-  deezerPlaylistId?: string;
-}
+const parseDurationSeconds = (dur: string): number => {
+  if (!dur) return 180;
+  const parts = dur.split(':').map(p => parseInt(p, 10));
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return parts[0] * 60 + parts[1];
+  }
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  return 180;
+};
 
-export const COLLECTIONS: readonly MusicCollectionDef[] = [
-  { id: 'hits', title: 'Суперхиты', icon: '🔥', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/json' },
-  { id: 'russian', title: 'Русские хиты', icon: '🇷🇺', feedUrl: 'https://itunes.apple.com/ru/rss/topsongs/limit=100/json' },
-  { id: 'pop', title: 'Поп-хиты', icon: '✨', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=14/json' },
-  { id: 'rock', title: 'Рок', icon: '🎸', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=21/json' },
-  { id: 'electronic', title: 'Электроника', icon: '🎧', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=17/json' },
-  { id: 'hiphop', title: 'Хип-Хоп', icon: '🎤', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=18/json' },
-  { id: 'chill', title: 'Chillout', icon: '🌙', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' },
-  { id: 'rnb', title: 'R&B и Соул', icon: '🎷', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=15/json' },
-  { id: 'soundtrack', title: 'Саундтреки', icon: '🎬', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=16/json' },
-  { id: 'metal', title: 'Метал', icon: '⚡️', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=1153/json' },
-  { id: 'jazz', title: 'Джаз', icon: '🎺', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=11/json' },
-  { id: 'classical', title: 'Классика', icon: '🎻', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=5/json' },
-  { id: 'kpop', title: 'K-Pop', icon: '🌸', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=51/json' },
-  { id: 'latin', title: 'Латино', icon: '💃', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=12/json' },
-  { id: 'workout', title: 'Драйв и Спорт', icon: '💪', deezerPlaylistId: '1116189381' },
-  { id: 'deephouse', title: 'Deep House', icon: '🍸', deezerPlaylistId: '1111141961' },
-  { id: 'phonk', title: 'Фонк', icon: '🏎️', deezerPlaylistId: '1313621735' },
-  { id: 'retro90', title: 'Хиты 90-х', icon: '📼', deezerPlaylistId: '1099187311' },
-  { id: 'hits2000', title: 'Хиты 2000-х', icon: '💿', deezerPlaylistId: '1099188051' },
-  { id: 'lofi', title: 'Lofi Beats', icon: '☕️', deezerPlaylistId: '7766327382' },
-  { id: 'country', title: 'Кантри', icon: '🤠', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=6/json' },
-  { id: 'blues', title: 'Блюз', icon: '🪕', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=2/json' },
-  { id: 'dance', title: 'Club & Dance', icon: '🪩', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=17/json' },
-  { id: 'altrock', title: 'Альтернатива', icon: '⚡️', feedUrl: 'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=20/json' }
-] as const;
+const mapYtTrack = (v: any): MusicTrack | null => {
+  if (!v || !v.id || !v.title) return null;
+  return {
+    id: `yt_${v.id}`,
+    title: decodeHtmlEntities(v.title || ''),
+    artist: decodeHtmlEntities(v.author || 'YouTube Music'),
+    artworkUrl: `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+    audioUrl: `https://invidious.schenkel.eti.br/api/v1/videos/${v.id}`,
+    duration: parseDurationSeconds(v.duration),
+    genre: 'Music',
+    isResolved: false
+  };
+};
 
-export type CollectionId = string;
-
-export const resolveFullAudioUrl = async (artist: string, title: string, fallbackUrl: string): Promise<string> => {
+export const resolveFullAudioUrl = async (
+  artist: string,
+  title: string,
+  fallbackUrl: string,
+  trackId?: string
+): Promise<string> => {
   const cleanArtist = artist.trim();
   const cleanTitle = title.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
-  const cacheKey = `resolved_audio_${cleanArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
+  const cacheKey = `resolved_audio_v2_${cleanArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
 
   const cached = clientCache.get<string>(cacheKey);
   if (cached) return cached;
 
+  const { isSlow } = getNetworkSpeed();
+
+  // 1. Try JioSaavn CDN (Instant 320k / 160k direct stream for charts/international tracks)
   try {
     const q = `${cleanArtist} ${cleanTitle}`;
     const res = await fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(q)}&limit=1`, { maxRetries: 1 });
@@ -170,16 +184,48 @@ export const resolveFullAudioUrl = async (artist: string, title: string, fallbac
       const data = await res.json();
       const first = data?.data?.results?.[0];
       if (first) {
-        const fullUrl = extractAudioUrl(first.downloadUrl);
+        const fullUrl = extractAudioUrl(first.downloadUrl, isSlow);
         if (fullUrl) {
-          clientCache.set(cacheKey, fullUrl, 86400); // Cache 24 hours
+          clientCache.set(cacheKey, fullUrl, 86400);
           return fullUrl;
         }
       }
     }
-  } catch (err) {
-    console.warn('[MusicApi] Failed to resolve 320k stream, using fallback:', err);
-  }
+  } catch (_) {}
+
+  // 2. Try YouTube Music + Invidious direct 206 audio stream (Covers all Russian rap, rock, obscure tracks)
+  try {
+    let videoId = '';
+    if (trackId && trackId.startsWith('yt_')) {
+      videoId = trackId.replace('yt_', '');
+    } else {
+      const ytSearch = await fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}`, { maxRetries: 1 });
+      if (ytSearch && ytSearch.ok) {
+        const results = await ytSearch.json();
+        if (Array.isArray(results) && results.length > 0) {
+          videoId = results[0].id;
+        }
+      }
+    }
+
+    if (videoId) {
+      for (const instance of INVIDIOUS_INSTANCES) {
+        try {
+          const invRes = await fetchWithRetry(`${instance}/api/v1/videos/${videoId}`, { maxRetries: 1 });
+          if (invRes && invRes.ok) {
+            const data = await invRes.json();
+            const streamUrl = extractInvidiousAudio(data.adaptiveFormats, isSlow);
+            if (streamUrl) {
+              clientCache.set(cacheKey, streamUrl, 21600);
+              return streamUrl;
+            }
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+  } catch (_) {}
 
   return fallbackUrl;
 };
@@ -188,104 +234,11 @@ export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPlaylistTracks = useCallback(async (playlistId: string): Promise<MusicTrack[]> => {
-    const cacheKey = `cache_deezer_playlist_tracks_${playlistId}`;
-    const cached = clientCache.get<MusicTrack[]>(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      return cached;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetchWithRetry(`https://api.deezer.com/playlist/${playlistId}/tracks?limit=100`, { maxRetries: 2 });
-      if (!res || !res.ok) {
-        setLoading(false);
-        return [];
-      }
-      const json = await res.json();
-      const raw = json?.data || [];
-      const tracks: MusicTrack[] = raw
-        .filter((t: any) => t && t.title)
-        .map((t: any, idx: number) => ({
-          id: `dz_${t.id || idx}`,
-          title: decodeHtmlEntities(t.title || ''),
-          artist: decodeHtmlEntities(t.artist?.name || 'Unknown Artist'),
-          album: decodeHtmlEntities(t.album?.title || ''),
-          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
-          audioUrl: t.preview || '',
-          duration: typeof t.duration === 'number' ? t.duration : 180,
-          genre: 'Music',
-          isResolved: false
-        }));
-
-      if (tracks.length > 0) {
-        clientCache.set(cacheKey, tracks, 7200);
-      }
-
-      setLoading(false);
-      return tracks;
-    } catch (err: any) {
-      console.warn('[MusicApi] Fetch playlist tracks failed:', err);
-      setError(err?.message || 'Error fetching playlist tracks');
-      setLoading(false);
-      return [];
-    }
-  }, []);
-
-  const fetchCollection = useCallback(async (collectionId: string = 'hits', limit = 50): Promise<MusicTrack[]> => {
-    const col = COLLECTIONS.find(c => c.id === collectionId) || COLLECTIONS[0];
-    
-    // Support Deezer editorial curated playlists directly inside Collections
-    if (col.deezerPlaylistId) {
-      return fetchPlaylistTracks(col.deezerPlaylistId);
-    }
-
-    const feedUrl = col.feedUrl || COLLECTIONS[0].feedUrl!;
-    const cacheKey = `cache_music_apple_collection_${col.id}_${limit}`;
-    
-    // Check RAM / LocalStorage cache first
-    const cached = clientCache.get<MusicTrack[]>(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      return cached;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      let tracks: MusicTrack[] = [];
-      const res = await fetchWithRetry(feedUrl, { maxRetries: 2 });
-      if (res && res.ok) {
-        const json = await res.json();
-        const entries = json?.feed?.entry || [];
-        tracks = entries
-          .slice(0, limit)
-          .map(mapAppleEntryToTrack)
-          .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-      }
-
-      if (tracks.length > 0) {
-        // Cache collections for 6 hours
-        clientCache.set(cacheKey, tracks, 21600);
-      }
-
-      setLoading(false);
-      return tracks;
-    } catch (err: any) {
-      console.warn('[MusicApi] Collection fetch failed:', err);
-      setError(err?.message || 'Error fetching collection');
-      setLoading(false);
-      return [];
-    }
-  }, [fetchPlaylistTracks]);
-
-  const searchMusic = useCallback(async (query: string, limit = 35): Promise<MusicTrack[]> => {
+  const searchMusic = useCallback(async (query: string, limit = 50): Promise<MusicTrack[]> => {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const cacheKey = `cache_music_search_saavn_${trimmed.toLowerCase()}_${limit}`;
+    const cacheKey = `cache_hybrid_music_search_v2_${trimmed.toLowerCase()}_${limit}`;
     const cached = clientCache.get<MusicTrack[]>(cacheKey);
     if (cached && Array.isArray(cached) && cached.length > 0) {
       return cached;
@@ -294,52 +247,125 @@ export function useMusicApi() {
     setLoading(true);
     setError(null);
 
+    const { isSlow } = getNetworkSpeed();
+
     try {
-      const [artistRes, songRes] = await Promise.allSettled([
-        fetchWithRetry(`${SAAVN_API_BASE}/search/artists?query=${encodeURIComponent(trimmed)}&limit=3`, { maxRetries: 1 }),
-        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 2 })
+      // Step 1: Query Deezer Artist Search, Deezer Track Search, and YouTube Music in parallel
+      const [artistRes, dzTrackRes, ytRes, saavnRes] = await Promise.allSettled([
+        fetchWithRetry(`https://api.deezer.com/search/artist?q=${encodeURIComponent(trimmed)}&limit=3`, { maxRetries: 1 }),
+        fetchWithRetry(`https://api.deezer.com/search?q=${encodeURIComponent(trimmed)}&limit=100`, { maxRetries: 2 }),
+        fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encodeURIComponent(trimmed)}`, { maxRetries: 1 }),
+        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 1 })
       ]);
 
       let artistTracks: MusicTrack[] = [];
+      let matchedArtistName = '';
+
+      // If artist matches, fetch their full discography & top hits
       if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
         try {
           const artistJson = await artistRes.value.json();
-          const topArtist = artistJson?.data?.results?.[0];
+          const topArtist = artistJson?.data?.[0];
           if (topArtist && topArtist.id) {
-            const songsByArtistRes = await fetchWithRetry(`${SAAVN_API_BASE}/artists?id=${topArtist.id}&songCount=30`, { maxRetries: 1 });
-            if (songsByArtistRes && songsByArtistRes.ok) {
-              const songsJson = await songsByArtistRes.json();
-              const topSongs = songsJson?.data?.topSongs || [];
-              artistTracks = topSongs
-                .map(mapSaavnSongToTrack)
-                .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+            matchedArtistName = topArtist.name || '';
+            const [topSongsRes, albumsRes] = await Promise.allSettled([
+              fetchWithRetry(`https://api.deezer.com/artist/${topArtist.id}/top?limit=100`, { maxRetries: 1 }),
+              fetchWithRetry(`https://api.deezer.com/artist/${topArtist.id}/albums?limit=15`, { maxRetries: 1 })
+            ]);
+
+            if (topSongsRes.status === 'fulfilled' && topSongsRes.value && topSongsRes.value.ok) {
+              const topSongsJson = await topSongsRes.value.json();
+              const rawTop = topSongsJson?.data || [];
+              const mapped = rawTop.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+              artistTracks.push(...mapped);
+            }
+
+            // Fetch tracklists for top albums to cover all discography songs
+            if (albumsRes.status === 'fulfilled' && albumsRes.value && albumsRes.value.ok) {
+              try {
+                const albumsJson = await albumsRes.value.json();
+                const albums = (albumsJson?.data || []).slice(0, 5);
+                const albumTrackPromises = albums.map((alb: any) =>
+                  fetchWithRetry(`https://api.deezer.com/album/${alb.id}/tracks?limit=50`, { maxRetries: 1 })
+                    .then(r => r && r.ok ? r.json() : null)
+                    .catch(() => null)
+                );
+                const albumTrackResults = await Promise.allSettled(albumTrackPromises);
+                for (const res of albumTrackResults) {
+                  if (res.status === 'fulfilled' && res.value?.data) {
+                    const mapped = res.value.data.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+                    artistTracks.push(...mapped);
+                  }
+                }
+              } catch (_) {}
             }
           }
         } catch (_) {}
       }
 
-      let songTracks: MusicTrack[] = [];
-      if (songRes.status === 'fulfilled' && songRes.value && songRes.value.ok) {
+      // Step 2: Parse general Deezer track results
+      let dzTracks: MusicTrack[] = [];
+      if (dzTrackRes.status === 'fulfilled' && dzTrackRes.value && dzTrackRes.value.ok) {
         try {
-          const json = await songRes.value.json();
-          const results = json?.data?.results || [];
-          songTracks = results
-            .map(mapSaavnSongToTrack)
-            .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+          const json = await dzTrackRes.value.json();
+          const raw = json?.data || [];
+          dzTracks = raw.map(mapDeezerTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
         } catch (_) {}
       }
 
+      // Step 3: Parse YouTube Music results (captures underground Russian rap, live sets, remixes)
+      let ytTracks: MusicTrack[] = [];
+      if (ytRes.status === 'fulfilled' && ytRes.value && ytRes.value.ok) {
+        try {
+          const rawYt = await ytRes.value.json();
+          if (Array.isArray(rawYt)) {
+            ytTracks = rawYt.map(mapYtTrack).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+          }
+        } catch (_) {}
+      }
+
+      // Step 4: Parse Saavn tracks (high bitrate international pop/rock/indie)
+      let saavnTracks: MusicTrack[] = [];
+      if (saavnRes.status === 'fulfilled' && saavnRes.value && saavnRes.value.ok) {
+        try {
+          const json = await saavnRes.value.json();
+          const results = json?.data?.results || [];
+          saavnTracks = results.map((s: any, idx: number) => mapSaavnSongToTrack(s, idx, isSlow)).filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+        } catch (_) {}
+      }
+
+      // Step 5: Merge with Artist Priority
       const seenIds = new Set<string>();
       const seenTitles = new Set<string>();
       const merged: MusicTrack[] = [];
 
-      for (const t of [...artistTracks, ...songTracks]) {
-        const titleKey = `${t.artist.toLowerCase()} - ${t.title.toLowerCase()}`;
+      const addTrack = (t: MusicTrack) => {
+        const titleKey = `${t.artist.toLowerCase()} - ${t.title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
         if (!seenIds.has(t.id) && !seenTitles.has(titleKey)) {
           seenIds.add(t.id);
           seenTitles.add(titleKey);
           merged.push(t);
         }
+      };
+
+      // 1. Artist discography tracks first
+      for (const t of artistTracks) {
+        addTrack(t);
+      }
+
+      // 2. Tracks where artist directly matches query
+      if (matchedArtistName) {
+        const lowerMatched = matchedArtistName.toLowerCase();
+        for (const t of [...dzTracks, ...saavnTracks, ...ytTracks]) {
+          if (t.artist.toLowerCase().includes(lowerMatched)) {
+            addTrack(t);
+          }
+        }
+      }
+
+      // 3. General query matches across all sources
+      for (const t of [...dzTracks, ...saavnTracks, ...ytTracks]) {
+        addTrack(t);
       }
 
       if (merged.length > 0) {
@@ -349,51 +375,8 @@ export function useMusicApi() {
       setLoading(false);
       return merged;
     } catch (err: any) {
-      console.warn('[MusicApi] Search query failed:', err);
+      console.warn('[MusicApi] Hybrid search failed:', err);
       setError(err?.message || 'Error searching tracks');
-      setLoading(false);
-      return [];
-    }
-  }, []);
-
-  const searchPlaylists = useCallback(async (query: string, limit = 20): Promise<MusicPlaylist[]> => {
-    const trimmed = query.trim();
-    if (!trimmed) return [];
-
-    const cacheKey = `cache_music_playlists_deezer_${trimmed.toLowerCase()}_${limit}`;
-    const cached = clientCache.get<MusicPlaylist[]>(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      return cached;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetchWithRetry(`https://api.deezer.com/search/playlist?q=${encodeURIComponent(trimmed)}&limit=${limit}`, { maxRetries: 2 });
-      if (!res || !res.ok) {
-        setLoading(false);
-        return [];
-      }
-      const json = await res.json();
-      const raw = json?.data || [];
-      const playlists: MusicPlaylist[] = raw.map((p: any) => ({
-        id: String(p.id),
-        title: decodeHtmlEntities(p.title || 'Playlist'),
-        trackCount: typeof p.nb_tracks === 'number' ? p.nb_tracks : 0,
-        coverUrl: p.picture_xl || p.picture_big || p.picture_medium || p.picture || '',
-        creator: p.user?.name || ''
-      }));
-
-      if (playlists.length > 0) {
-        clientCache.set(cacheKey, playlists, 7200);
-      }
-
-      setLoading(false);
-      return playlists;
-    } catch (err: any) {
-      console.warn('[MusicApi] Search playlists failed:', err);
-      setError(err?.message || 'Error searching playlists');
       setLoading(false);
       return [];
     }
@@ -402,12 +385,7 @@ export function useMusicApi() {
   return {
     loading,
     error,
-    fetchCollection,
-    fetchTopCharts: fetchCollection,
     searchMusic,
-    searchPlaylists,
-    fetchPlaylistTracks,
     resolveFullAudioUrl
   };
 }
-

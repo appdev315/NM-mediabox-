@@ -472,6 +472,36 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     }
   }, [isWebFullscreen, isLandscape]);
 
+  // Fullscreen controls auto-hide (fades out after 3.5 seconds of inactivity)
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimerRef = useRef<any>(null);
+
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimerRef.current) {
+      clearTimeout(controlsTimerRef.current);
+    }
+    controlsTimerRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    if (isWebFullscreen) {
+      resetControlsTimeout();
+    } else {
+      setShowControls(true);
+      if (controlsTimerRef.current) {
+        clearTimeout(controlsTimerRef.current);
+      }
+    }
+    return () => {
+      if (controlsTimerRef.current) {
+        clearTimeout(controlsTimerRef.current);
+      }
+    };
+  }, [isWebFullscreen, resetControlsTimeout]);
+
   // Escape key handler to exit Web Fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -535,6 +565,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   return (
     <div 
       ref={wrapperRef} 
+      onPointerMove={isWebFullscreen ? resetControlsTimeout : undefined}
       className={`player-wrapper bg-black flex flex-col justify-center items-center ${
         isWebFullscreen 
           ? 'fixed inset-0 overflow-hidden' 
@@ -576,7 +607,18 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         />
       )}
 
-      {/* Floating exit/close button when in Web Fullscreen mode (shown on all devices including mobile) */}
+      {/* Top area touch interceptor to wake up hidden controls in fullscreen on tap */}
+      {isWebFullscreen && (
+        <div 
+          onClick={resetControlsTimeout}
+          onTouchStart={resetControlsTimeout}
+          className={`absolute top-0 left-0 right-0 h-16 z-30 ${showControls ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'}`}
+          style={{ touchAction: 'manipulation' }}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Floating exit/close button when in Web Fullscreen mode (auto-hides after 3.5s of inactivity) */}
       {isWebFullscreen && (
         <button
           type="button"
@@ -585,7 +627,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             e.stopPropagation();
             handleExitFullscreenOrClose();
           }}
-          className="absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
+          className={`absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all duration-300 cursor-pointer select-none ${
+            showControls ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+          }`}
           style={{ 
             paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))',
             paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0.75rem))'
