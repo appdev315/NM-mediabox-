@@ -103,7 +103,7 @@ app.post('/api/analytics/track', async (c: Context) => {
         e.item_type || null,
         e.item_title || null,
         e.item_id || null,
-        e.meta ? JSON.stringify(e.meta) : null
+        e.meta ? (typeof e.meta === 'string' ? e.meta : JSON.stringify(e.meta)) : null
       )
     );
     await c.env.DB.batch(batch);
@@ -354,9 +354,11 @@ app.post('/api/cache/purge', async (c: Context) => {
   const type = String(body.type || c.req.query('type') || 'movie');
   const title = String(body.title || c.req.query('title') || '');
   const year = String(body.year || c.req.query('year') || '');
+  const rawLiftwId = String(body.liftw_id || body.liftwId || c.req.query('liftw_id') || c.req.query('liftwId') || '');
+  const liftwId = rawLiftwId ? rawLiftwId.replace(/^liftw_/, '') : '';
 
-  if (!tmdb && !title) {
-    return c.json({ error: 'tmdb or title is required for cache purge' }, 400);
+  if (!tmdb && !title && !liftwId) {
+    return c.json({ error: 'tmdb, title or liftw_id is required for cache purge' }, 400);
   }
 
   const canonicalType = (type === 'tv' || type === 'series') ? 'tv' : 'movie';
@@ -365,22 +367,30 @@ app.post('/api/cache/purge', async (c: Context) => {
 
   const purgedUrls: string[] = [];
 
-  // 1. Purge canonical Edge cache
-  if (tmdb) {
-    const canonicalUrl = `${parsedUrl.origin}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`;
-    try {
-      await edgeCache.delete(new Request(canonicalUrl, { method: 'GET' }));
-      purgedUrls.push(canonicalUrl);
-    } catch (_) {}
-  }
+  const origins = Array.from(new Set([parsedUrl.origin, 'https://media-box.xyz', 'https://www.media-box.xyz']));
 
-  // 2. Purge title-based legacy Edge cache if title provided
-  if (title) {
-    const titleUrl = `${parsedUrl.origin}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(year)}&type=${canonicalType}`;
-    try {
-      await edgeCache.delete(new Request(titleUrl, { method: 'GET' }));
-      purgedUrls.push(titleUrl);
-    } catch (_) {}
+  for (const orig of origins) {
+    if (liftwId) {
+      const liftwUrl = `${orig}/api/liftw?liftw_id=${encodeURIComponent(liftwId)}`;
+      try {
+        await edgeCache.delete(new Request(liftwUrl, { method: 'GET' }));
+        if (!purgedUrls.includes(liftwUrl)) purgedUrls.push(liftwUrl);
+      } catch (_) {}
+    }
+    if (tmdb) {
+      const canonicalUrl = `${orig}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`;
+      try {
+        await edgeCache.delete(new Request(canonicalUrl, { method: 'GET' }));
+        if (!purgedUrls.includes(canonicalUrl)) purgedUrls.push(canonicalUrl);
+      } catch (_) {}
+    }
+    if (title) {
+      const titleUrl = `${orig}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(year)}&type=${canonicalType}`;
+      try {
+        await edgeCache.delete(new Request(titleUrl, { method: 'GET' }));
+        if (!purgedUrls.includes(titleUrl)) purgedUrls.push(titleUrl);
+      } catch (_) {}
+    }
   }
 
   // 3. Ping HuggingFace microservice to purge its in-memory Go cache
@@ -579,7 +589,9 @@ function matchesWords(itemWords: string[], candWords: string[]): boolean {
   if (candWords.length === 0 || itemWords.length === 0) return false;
   if (candWords.length === 1) {
     const cw = candWords[0];
-    if (cw.length < 2) return false;
+    // Short single words ("он", "it", "up") match as a subsequence only inside
+    // equally short donor titles ("Оно" -> "Оно 2"), never inside long ones.
+    if (cw.length < 4) return itemWords.includes(cw) && itemWords.length <= 2;
     return itemWords.includes(cw);
   }
   for (let i = 0; i <= itemWords.length - candWords.length; i++) {
@@ -778,7 +790,7 @@ app.get('/api/liftw', async (c: Context) => {
   const rawCandidates = [title, titleRu, originalTitle].map(s => s.trim()).filter(Boolean);
   const candidates = expandTitleVariants(Array.from(new Set(rawCandidates)));
 
-  const searchCandidates = async (candList: string[], strictType = true): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
+  const searchCandidates = async (candList: string[], strictType = true, relaxedYear = false): Promise<{ id: number; type: number; name: string; origin_name: string; year: number } | null> => {
     const list = candList.slice(0, 8);
     if (list.length === 0) return null;
 
@@ -817,6 +829,7 @@ app.get('/api/liftw', async (c: Context) => {
       const itemWords = cleanWords(item.name || '');
       const origWords = cleanWords(item.origin_name || '');
       let isMatch = false;
+      let isExactTitle = false;
 
       for (const c of candList) {
         const cn = normString(c);
@@ -824,12 +837,14 @@ app.get('/api/liftw', async (c: Context) => {
         // 1. Full string match
         if (nameLower === cn || origLower === cn) {
           isMatch = true;
+          isExactTitle = true;
           break;
         }
         // 2. Slash-separated part match
         for (const part of (item.name || '').split('/')) {
           if (normString(part) === cn) {
             isMatch = true;
+            isExactTitle = true;
             break;
           }
         }
@@ -844,8 +859,12 @@ app.get('/api/liftw', async (c: Context) => {
       }
 
       if (isMatch) {
-        // Flexible +/- 2 year allowance for international festival & documentary release disparities
-        if (targetYear === 0 || (item.year >= targetYear - 2 && item.year <= targetYear + 2)) {
+        // Flexible +/- 2 year allowance for international festival & documentary release disparities.
+        // Step 4 auto-heal (relaxedYear, series only): exact title match tolerates a wider
+        // web-vs-broadcast syndication gap, capped at +/- 10 years to avoid remake collisions.
+        const yearMatches = targetYear === 0 || (item.year >= targetYear - 2 && item.year <= targetYear + 2);
+        const relaxedYearMatches = relaxedYear && isExactTitle && (targetYear === 0 || !item.year || Math.abs(item.year - targetYear) <= 10);
+        if (yearMatches || relaxedYearMatches) {
           return item;
         }
       }
@@ -856,6 +875,7 @@ app.get('/api/liftw', async (c: Context) => {
   // Step 1: Search direct candidates (strict type)
   let matchedItem = await searchCandidates(candidates, true);
   let healNote = '';
+  let tmdbAltCandidates: string[] = [];
 
   // Step 2: Fallback to TMDB Alternative Titles & Translations
   if (!matchedItem && tmdb) {
@@ -891,14 +911,14 @@ app.get('/api/liftw', async (c: Context) => {
 
         const cyr = moreCands.filter(s => /[а-яёА-ЯЁ]/.test(s));
         const lat = moreCands.filter(s => !/[а-яёА-ЯЁ]/.test(s));
-        const uniqueMore = expandTitleVariants(Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s)));
+        tmdbAltCandidates = expandTitleVariants(Array.from(new Set([...cyr, ...lat])).filter(s => !candidates.includes(s)));
 
-        matchedItem = await searchCandidates(uniqueMore, true);
+        matchedItem = await searchCandidates(tmdbAltCandidates, true);
         if (matchedItem) {
           healNote = 'TMDB alt titles (strict)';
         } else {
           // If still not matched with strict types, try relaxed types for alternative titles
-          matchedItem = await searchCandidates(uniqueMore, false);
+          matchedItem = await searchCandidates(tmdbAltCandidates, false);
           if (matchedItem) {
             healNote = 'TMDB alt titles (relaxed)';
           }
@@ -912,6 +932,18 @@ app.get('/api/liftw', async (c: Context) => {
     matchedItem = await searchCandidates(candidates, false);
     if (matchedItem) {
       healNote = 'Content type relaxed fallback';
+    }
+  }
+
+  // Step 4: Auto-Heal for series with web-vs-broadcast syndication year disparity (exact title match, relaxed year)
+  if (!matchedItem && isSeries) {
+    const allCands = Array.from(new Set([...candidates, ...tmdbAltCandidates]));
+    matchedItem = await searchCandidates(allCands, true, true);
+    if (!matchedItem) {
+      matchedItem = await searchCandidates(allCands, false, true);
+    }
+    if (matchedItem) {
+      healNote = 'Exact title match (relaxed year for TV)';
     }
   }
 
@@ -1192,7 +1224,7 @@ app.get('/api/poster/resolve', async (c: Context) => {
   const noMatch = () => c.json({ error: 'no matching poster' }, 404, {
     // Short negative TTL: donor catalog grows, a later retry may match.
     // (Edge caches 404s too, so keep it brief.)
-    'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+    'Cache-Control': 'public, max-age=300, s-maxage=900',
     'Access-Control-Allow-Origin': '*',
   });
 

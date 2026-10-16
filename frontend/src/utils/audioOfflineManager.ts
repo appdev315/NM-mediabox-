@@ -20,13 +20,21 @@ class AudioOfflineManager {
     try {
       const cache = await caches.open(CACHE_NAME);
       const existing = await cache.match(audioUrl);
-      if (existing) return true; // Already cached
+      if (existing) {
+        if (id) {
+          await cache.put(`https://offline.mediabox.local/track/${encodeURIComponent(id)}`, existing.clone());
+        }
+        return true;
+      }
 
       const response = await fetch(audioUrl, { mode: 'cors' });
       if (!response.ok) return false;
 
-      // Store in Cache Storage
+      // Store in Cache Storage by audioUrl and by track id
       await cache.put(audioUrl, response.clone());
+      if (id) {
+        await cache.put(`https://offline.mediabox.local/track/${encodeURIComponent(id)}`, response.clone());
+      }
       return true;
     } catch (err) {
       console.warn(`[AudioOffline] Failed to cache audio ${id}:`, err);
@@ -38,12 +46,18 @@ class AudioOfflineManager {
    * Retrieves locally cached audio as a blob Object URL for 0ms offline playback.
    * Returns null if track is not yet cached.
    */
-  async getTrackAudioUrl(audioUrl: string): Promise<string | null> {
-    if (!this.isSupported() || !audioUrl) return null;
+  async getTrackAudioUrl(urlOrId: string, trackId?: string): Promise<string | null> {
+    if (!this.isSupported() || (!urlOrId && !trackId)) return null;
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const match = await cache.match(audioUrl);
+      let match = urlOrId ? await cache.match(urlOrId) : null;
+      if (!match && trackId) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      }
+      if (!match && urlOrId && !urlOrId.startsWith('http')) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+      }
       if (!match) return null;
 
       const blob = await match.blob();
@@ -57,14 +71,20 @@ class AudioOfflineManager {
   }
 
   /**
-   * Checks if an audio URL is cached in local storage
+   * Checks if an audio URL or track ID is cached in local storage
    */
-  async isAudioCached(audioUrl: string): Promise<boolean> {
-    if (!this.isSupported() || !audioUrl) return false;
+  async isAudioCached(urlOrId: string, trackId?: string): Promise<boolean> {
+    if (!this.isSupported() || (!urlOrId && !trackId)) return false;
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const match = await cache.match(audioUrl);
+      let match = urlOrId ? await cache.match(urlOrId) : null;
+      if (!match && trackId) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      }
+      if (!match && urlOrId && !urlOrId.startsWith('http')) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+      }
       return Boolean(match);
     } catch (_) {
       return false;
@@ -72,14 +92,20 @@ class AudioOfflineManager {
   }
 
   /**
-   * Removes specific audio URL from local storage
+   * Removes specific audio URL or track ID from local storage
    */
-  async removeTrackAudio(audioUrl: string): Promise<void> {
-    if (!this.isSupported() || !audioUrl) return;
+  async removeTrackAudio(urlOrId: string, trackId?: string): Promise<void> {
+    if (!this.isSupported()) return;
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      await cache.delete(audioUrl);
+      if (urlOrId) await cache.delete(urlOrId);
+      if (trackId) {
+        await cache.delete(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      }
+      if (urlOrId && !urlOrId.startsWith('http')) {
+        await cache.delete(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+      }
     } catch (_) {}
   }
 

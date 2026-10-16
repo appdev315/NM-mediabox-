@@ -72,13 +72,20 @@ export const tgAuthMiddleware = async (c: Context, next: Next) => {
   }
   
   const initData = authHeader.split(' ')[1];
-  const botToken = c.env.TELEGRAM_BOT_TOKEN; 
-  
-  if (!botToken) {
-    return c.json({ error: 'Server misconfigured: TELEGRAM_BOT_TOKEN not set' }, 500);
+  const botTokenMain = (c.env as any).TELEGRAM_BOT_TOKEN || (c.env as any).BOT_TOKEN_MAIN || (c.env as any).BOT_TOKEN || '';
+  const botTokenAdult = (c.env as any).BOT_TOKEN_ADULT || '';
+
+  if (!botTokenMain && !botTokenAdult) {
+    return c.json({ error: 'Server misconfigured: BOT_TOKEN not set' }, 500);
   }
 
-  const isValid = await validateTelegramWebAppData(initData, botToken);
+  let isValid = false;
+  if (botTokenMain && (await validateTelegramWebAppData(initData, botTokenMain))) {
+    isValid = true;
+  } else if (botTokenAdult && (await validateTelegramWebAppData(initData, botTokenAdult))) {
+    isValid = true;
+  }
+
   if (!isValid) {
     return c.json({ error: 'Forbidden' }, 403);
   }

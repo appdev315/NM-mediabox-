@@ -10,7 +10,7 @@ import { EqualizerModal } from './EqualizerModal';
 export function AppleMusic() {
   const { t } = useLanguage();
   const { loading, searchMusic } = useMusicApi();
-  const { playTrack, currentTrack, isPlaying, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,8 +41,9 @@ export function AppleMusic() {
     setCacheStats(stats);
     const urls = new Set<string>();
     for (const t of favTracks) {
-      if (t.audioUrl && (await audioOfflineManager.isAudioCached(t.audioUrl))) {
-        urls.add(t.audioUrl);
+      if ((t.audioUrl || t.id) && (await audioOfflineManager.isAudioCached(t.audioUrl, t.id))) {
+        if (t.audioUrl) urls.add(t.audioUrl);
+        if (t.id) urls.add(t.id);
       }
     }
     setCachedUrls(urls);
@@ -63,7 +64,7 @@ export function AppleMusic() {
       let updated: MusicTrack[];
       if (exists) {
         updated = prev.filter(t => t.id !== track.id);
-        audioOfflineManager.removeTrackAudio(track.audioUrl).then(refreshCacheStats);
+        audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
       } else {
         updated = [track, ...prev];
         audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
@@ -407,14 +408,16 @@ export function AppleMusic() {
             return list.map((track, idx) => {
               const isThisPlaying = isCurrentPlayingThis(track.id);
               const isTrackSelected = currentTrack?.id === track.id;
+              const isResolving = Boolean(isTrackSelected && isBuffering && !isThisPlaying);
               const isFav = favIds.has(track.id);
-              const isOffline = cachedUrls.has(track.audioUrl);
+              const isOffline = cachedUrls.has(track.audioUrl) || cachedUrls.has(track.id);
 
               return (
                 <div
                   key={track.id}
                   onClick={() => {
                     if (isReorderMode && activeTab === 'favorites') return;
+                    if (isResolving) return; // prefetch in flight — ignore double-tap
                     handleSelectTrack(track);
                   }}
                   className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all active:scale-[0.99] border ${
@@ -445,6 +448,11 @@ export function AppleMusic() {
                           <span className="w-1 bg-[#FA2D48] animate-[bounce_0.8s_infinite] h-2/3 rounded-full" />
                           <span className="w-1 bg-[#FA2D48] animate-[bounce_1.2s_infinite] h-4/5 rounded-full" />
                         </div>
+                      </div>
+                    )}
+                    {isResolving && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
                       </div>
                     )}
                   </div>

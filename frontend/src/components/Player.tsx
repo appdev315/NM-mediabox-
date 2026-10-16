@@ -249,11 +249,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   useEffect(() => {
     setIframeLoaded(false);
 
-    const fallbackTimer = setTimeout(() => {
-      setIframeLoaded(true);
-      onReady?.();
-    }, 2000);
-
+    // Sentinel timer triggers mirror switch at 3500ms if iframe did not report load
     let sentinelTimer: any = null;
     if (activeMirrors.length > 1) {
       sentinelTimer = setTimeout(() => {
@@ -263,6 +259,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }
       }, 3500);
     }
+
+    // Fallback timer (5000ms): guarantees player UI unblocks if iframe never fires onload
+    const fallbackTimer = setTimeout(() => {
+      setIframeLoaded(true);
+      onReady?.();
+    }, 5000);
 
     return () => {
       clearTimeout(fallbackTimer);

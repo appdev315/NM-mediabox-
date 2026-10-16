@@ -1,13 +1,14 @@
 import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { QRCodeSVG } from 'qrcode.react';
 import { WebApp } from '../telegram';
 import { useLanguage, LANGUAGES_CONFIG } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
 const RadioContent = lazy(() => import('./Radio').then(m => ({ default: m.RadioContent })));
 const AppleMusic = lazy(() => import('../components/AppleMusic').then(m => ({ default: m.AppleMusic })));
+// QR library loads only when the donation modal opens (keeps Profile chunk lean)
+const DonationQR = lazy(() => import('qrcode.react').then(m => ({ default: m.QRCodeSVG })));
 
 export function Profile() {
   const navigate = useNavigate();
@@ -291,7 +292,9 @@ export function Profile() {
             
             <div className="flex flex-col items-center mb-6">
               <div className="bg-white p-4 rounded-2xl shadow-sm mb-4">
-                <QRCodeSVG value={cryptoAddress} size={200} level={"H"} />
+                <Suspense fallback={<div className="w-[200px] h-[200px] flex items-center justify-center"><div className="w-8 h-8 border-2 border-current opacity-30 border-t-transparent rounded-full animate-spin" /></div>}>
+                  <DonationQR value={cryptoAddress} size={200} level={"H"} />
+                </Suspense>
               </div>
               <p className="font-medium opacity-90 text-center mb-1" style={{ color: 'var(--text-color)' }}>USDT (TRC20)</p>
               <p className="text-xs opacity-60 text-center mb-4" style={{ color: 'var(--text-color)' }}>{t('scanQr') || 'Scan QR or copy the address below'}</p>

@@ -61,7 +61,65 @@ export const favoritesManager = {
     try {
       localStorage.setItem(key, JSON.stringify(updated));
     } catch (e) {}
+    // Non-blocking backup of watch position to Cloudflare D1
+    this.syncHistoryToCloud(type, item);
     return updated;
+  },
+
+  // 1e. Fire-and-forget watch-history backup (movie/series resume, radio/music recents)
+  async syncHistoryToCloud(type: string, item: any): Promise<void> {
+    try {
+      const initData = WebApp?.initData || '';
+      if (!initData) return;
+      await fetch(`${CF_API_BASE}/user/history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${initData}`,
+        },
+        body: JSON.stringify({
+          itemId: String(item.id ?? ''),
+          type,
+          timecode: typeof item.timecode === 'number' ? item.timecode : 0,
+        }),
+      });
+    } catch (_) {}
+  },
+
+  // 1f. Merge cloud resume positions into locally known items (cross-device continue)
+  async hydrateHistoryFromCloud(type: string): Promise<any[]> {
+    const localItems = this.getHistory(type);
+    try {
+      const initData = WebApp?.initData || '';
+      if (!initData) return localItems;
+      const res = await fetch(`${CF_API_BASE}/user/history`, {
+        headers: { 'Authorization': `Bearer ${initData}` },
+      });
+      if (!res.ok) return localItems;
+      const data = await res.json();
+      const rows: any[] = Array.isArray(data.history) ? data.history : [];
+      if (rows.length === 0) return localItems;
+      const byId = new Map(rows.map((r: any) => [String(r.item_id), r]));
+      let changed = false;
+      const merged = localItems.map((item: any) => {
+        const row = byId.get(String(item.id));
+        if (row && typeof row.timecode === 'number' && row.timecode > (item.timecode || 0)) {
+          changed = true;
+          return { ...item, timecode: row.timecode };
+        }
+        return item;
+      });
+      if (changed) {
+        const key = HISTORY_KEYS[type] || `history_${type}`;
+        try {
+          localStorage.setItem(key, JSON.stringify(merged));
+        } catch (_) {}
+        return merged;
+      }
+      return localItems;
+    } catch (_) {
+      return localItems;
+    }
   },
 
   // 2. Local Save + Background Cloud Sync

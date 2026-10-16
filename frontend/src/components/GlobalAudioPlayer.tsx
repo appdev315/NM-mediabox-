@@ -1,26 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
 import { WebApp } from '../telegram';
 import { EqualizerModal } from './EqualizerModal';
+import type { RefObject } from 'react';
 
-export function GlobalAudioPlayer() {
-  const { t } = useLanguage();
-  const { currentTrack, isPlaying, isBuffering, togglePlayPause, nextTrack, prevTrack, stop, audioRef, isShuffle, toggleShuffle } = useAudioPlayer();
-  const [isFav, setIsFav] = useState(false);
-  const [isEqOpen, setIsEqOpen] = useState(false);
-  const [isCardOpen, setIsCardOpen] = useState(false);
+// Isolated scrubber: timeupdate ticks (~4/s) re-render only this subtree,
+// not the whole mini-player / card sheet.
+const AudioProgressBar = memo(function AudioProgressBar({ audioRef }: { audioRef: RefObject<HTMLAudioElement | null> }) {
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180);
-  const [volume, setVolume] = useState(1);
-
-  useEffect(() => {
-    if (currentTrack?.id) {
-      setIsFav(favoritesManager.isFavorite('radio', currentTrack.id));
-    }
-  }, [currentTrack?.id]);
+  const [duration, setDuration] = useState(30);
 
   useEffect(() => {
     const audio = audioRef?.current;
@@ -38,6 +29,54 @@ export function GlobalAudioPlayer() {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
   }, [audioRef]);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    if (audioRef?.current) {
+      audioRef.current.currentTime = newTime;
+    }
+  };
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <div className="w-full flex flex-col gap-1 mb-6">
+      <input
+        type="range"
+        min="0"
+        max={duration || 30}
+        step="0.1"
+        value={currentTime}
+        onChange={handleSeek}
+        className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
+      />
+      <div className="flex justify-between text-[11px] font-semibold text-white/50">
+        <span>{formatTime(currentTime)}</span>
+        <span>-{formatTime(Math.max(0, (duration || 30) - currentTime))}</span>
+      </div>
+    </div>
+  );
+});
+
+export function GlobalAudioPlayer() {
+  const { t } = useLanguage();
+  const { currentTrack, isPlaying, isBuffering, togglePlayPause, nextTrack, prevTrack, stop, audioRef, isShuffle, toggleShuffle } = useAudioPlayer();
+  const [isFav, setIsFav] = useState(false);
+  const [isEqOpen, setIsEqOpen] = useState(false);
+  const [isCardOpen, setIsCardOpen] = useState(false);
+  const [volume, setVolume] = useState(1);
+
+  useEffect(() => {
+    if (currentTrack?.id) {
+      setIsFav(favoritesManager.isFavorite('radio', currentTrack.id));
+    }
+  }, [currentTrack?.id]);
 
   if (!currentTrack) return null;
 
@@ -62,27 +101,12 @@ export function GlobalAudioPlayer() {
     } catch (_) {}
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setCurrentTime(newTime);
-    if (audioRef?.current) {
-      audioRef.current.currentTime = newTime;
-    }
-  };
-
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVol = parseFloat(e.target.value);
     setVolume(newVol);
     if (audioRef?.current) {
       audioRef.current.volume = newVol;
     }
-  };
-
-  const formatTime = (secs: number) => {
-    if (isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   return (
@@ -298,21 +322,7 @@ export function GlobalAudioPlayer() {
 
             {/* Scrubber slider (for music) */}
             {currentTrack.type === 'music' && (
-              <div className="w-full flex flex-col gap-1 mb-6">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration || 30}
-                  step="0.1"
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                />
-                <div className="flex justify-between text-[11px] font-semibold text-white/50">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>-{formatTime(Math.max(0, (duration || 30) - currentTime))}</span>
-                </div>
-              </div>
+              <AudioProgressBar audioRef={audioRef} />
             )}
 
             {/* Media Controls */}

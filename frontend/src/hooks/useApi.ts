@@ -10,6 +10,38 @@ export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https:
 // In-flight request deduplication map to prevent redundant parallel network calls
 const inFlightRequests = new Map<string, Promise<any>>();
 
+// Device profile snapshot: UA never changes per session; viewport width and
+// network saver mode are cached and invalidated on resize/connection change
+// instead of being recomputed for every poster in every list render.
+const MOBILE_UA_RE = /Android|iPhone|iPad|iPod/i;
+const isMobileUA = typeof navigator !== 'undefined' && MOBILE_UA_RE.test(navigator.userAgent || '');
+
+let cachedViewportMobile: boolean | null = null;
+let cachedDataSaver: boolean | null = null;
+
+const computeViewportMobile = () =>
+  typeof window !== 'undefined' && window.innerWidth <= 640;
+
+const computeDataSaver = () =>
+  typeof navigator !== 'undefined' && (
+    Boolean((navigator as any).connection?.saveData) ||
+    ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
+  );
+
+if (typeof window !== 'undefined') {
+  cachedViewportMobile = computeViewportMobile();
+  window.addEventListener('resize', () => { cachedViewportMobile = computeViewportMobile(); }, { passive: true });
+  try {
+    (navigator as any)?.connection?.addEventListener?.('change', () => { cachedDataSaver = computeDataSaver(); });
+  } catch (_) {}
+}
+
+const isViewportMobile = () => cachedViewportMobile ?? computeViewportMobile();
+const isDataSaverMode = () => {
+  if (cachedDataSaver === null) cachedDataSaver = computeDataSaver();
+  return cachedDataSaver;
+};
+
 // TMDB Image helper (optimized: lightweight w154/w300 on mobile, routed through Cloudflare Edge proxy)
 export const getTmdbImageUrl = (
   path: string | null | undefined, 
@@ -17,14 +49,8 @@ export const getTmdbImageUrl = (
 ) => {
   if (!path) return '';
   const cleanPath = path.startsWith('/') ? path : '/' + path;
-  const isMobile = typeof window !== 'undefined' && (
-    window.innerWidth <= 640 || 
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
-  );
-  const isDataSaver = typeof navigator !== 'undefined' && (
-    Boolean((navigator as any).connection?.saveData) || 
-    ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
-  );
+  const isMobile = isMobileUA || isViewportMobile();
+  const isDataSaver = isDataSaverMode();
   const targetSize = size || (isDataSaver ? 'w92' : (isMobile ? 'w154' : 'w342'));
   return `${CF_API_BASE}/image?path=/t/p/${targetSize}${cleanPath}`;
 };
@@ -309,16 +335,8 @@ export function useApi() {
     const titleRu = ruTrans?.data?.title || ruTrans?.data?.name || item.title_ru || (language === 'ru-RU' ? (item.title || item.name) : '') || '';
     const overviewText = item.overview || ruTrans?.data?.overview || '';
 
-    const isMobile = typeof window !== 'undefined' && (
-      window.innerWidth <= 640 || 
-      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
-    );
-    const isDataSaver = typeof navigator !== 'undefined' && (
-      Boolean((navigator as any).connection?.saveData) || 
-      ['slow-2g', '2g'].includes((navigator as any).connection?.effectiveType)
-    );
-    const posterSize = isDataSaver ? 'w92' : (isMobile ? 'w154' : 'w342');
-    const backdropSize = isMobile ? 'w300' : 'w780';
+    const posterSize = isDataSaverMode() ? 'w92' : ((isMobileUA || isViewportMobile()) ? 'w154' : 'w342');
+    const backdropSize = (isMobileUA || isViewportMobile()) ? 'w300' : 'w780';
 
     return {
       id: item.id,

@@ -259,6 +259,7 @@ export function Movie() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHistorySyncRef = useRef<number>(0);
   const [contentUnavailable, setContentUnavailable] = useState(false);
 
   const formatRuntime = (minutes: number) => {
@@ -389,6 +390,14 @@ export function Movie() {
           const time = data.time || data.currentTime || data.position;
           if (typeof time === 'number' && time > 0 && currentMediaKey) {
             saveTimecode(currentMediaKey, time);
+            const now = Date.now();
+            if (now - lastHistorySyncRef.current > 15000 && movie?.id) {
+              lastHistorySyncRef.current = now;
+              favoritesManager.syncHistoryToCloud(favType, {
+                id: movie.id,
+                timecode: Math.floor(time)
+              });
+            }
           }
         }
 
@@ -423,7 +432,7 @@ export function Movie() {
 
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [currentMediaKey, iframeUrl, saveTimecode, sources]);
+  }, [currentMediaKey, favType, iframeUrl, movie?.id, saveTimecode, sources]);
 
   // Season browsing is silent — updates UI dropdowns without triggering video playback.
   const handleSeasonEpisodeChange = (season: string, episode: string) => {
@@ -750,21 +759,15 @@ export function Movie() {
 
     // Add to history
     try {
-      const historyKey = mediaType === 'tv' ? 'history_series' : 'history_movies';
-      let hist = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      hist = hist.filter((item: any) => item.id !== movie.id);
-      hist.unshift({
+      favoritesManager.addHistory(favType, {
         id: movie.id,
         title: movie.title,
         poster: movie.poster,
-        type: mediaType === 'tv' ? 'series' : 'movie',
+        type: favType,
         year: movie.year,
-        rating: movie.rating
+        rating: movie.rating,
+        timecode: savedTimecode || 0
       });
-      if (hist.length > 30) {
-        hist = hist.slice(0, 30);
-      }
-      localStorage.setItem(historyKey, JSON.stringify(hist));
     } catch (e) {
       console.error('Failed to save to history:', e);
     }

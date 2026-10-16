@@ -148,7 +148,7 @@ export const resolveFullAudioUrl = async (
       if (first) {
         const fullUrl = extractAudioUrl(first.downloadUrl, isSlow);
         if (fullUrl) {
-          clientCache.set(cacheKey, fullUrl, 0); // 0 = permanent on device
+          clientCache.set(cacheKey, fullUrl, 14400); // 4 hours TTL (Saavn CDN links carry expiring tokens too)
           return fullUrl;
         }
       }
@@ -178,7 +178,7 @@ export const resolveFullAudioUrl = async (
             const data = await invRes.json();
             const streamUrl = extractInvidiousAudio(data.adaptiveFormats, isSlow);
             if (streamUrl) {
-              clientCache.set(cacheKey, streamUrl, 0); // 0 = permanent on device
+              clientCache.set(cacheKey, streamUrl, 14400); // 4 hours TTL (prevents permanent 403 on expired googlevideo tokens)
               return streamUrl;
             }
           }

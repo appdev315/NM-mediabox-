@@ -424,7 +424,9 @@ export function Adult() {
                       country, 
                       query, 
                       searchQuery: effectiveQuery, 
-                      title: v.title 
+                      title: v.title,
+                      poster: v.poster,
+                      duration: v.duration
                     } 
                   })}
                 >

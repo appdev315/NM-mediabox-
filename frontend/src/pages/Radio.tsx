@@ -227,6 +227,7 @@ export function RadioContent() {
       title: station.name,
       artist: (station.group && station.group !== 'Radiopotok') ? station.group : 'Live Radio',
       url: finalUrl,
+      originalUrl: station.url,
       coverUrl: station.logo,
       type: 'radio'
     });

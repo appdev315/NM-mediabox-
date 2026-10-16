@@ -7,13 +7,15 @@
 interface CacheEntry<T> {
   data: T;
   expiry: number; // timestamp in ms
+  updatedAt?: number; // last write timestamp in ms (drives recency-ordered hydration)
 }
 
 const memoryCache = new Map<string, CacheEntry<any>>();
 const CACHE_PREFIX = 'mb_cache_';
 const DB_NAME = 'mediabox_cache_db';
 const STORE_NAME = 'kv_store';
-const DB_VERSION = 1;
+const UPDATED_INDEX = 'by_updated';
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -27,8 +29,14 @@ function getDB(): Promise<IDBDatabase> {
       const request = window.indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = (event: any) => {
         const db = event.target.result as IDBDatabase;
+        let store: IDBObjectStore;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
+          store = db.createObjectStore(STORE_NAME);
+        } else {
+          store = (event.target as any).transaction.objectStore(STORE_NAME);
+        }
+        if (!store.indexNames.contains(UPDATED_INDEX)) {
+          store.createIndex(UPDATED_INDEX, 'updatedAt', { unique: false });
         }
       };
       request.onsuccess = (event: any) => resolve(event.target.result as IDBDatabase);
@@ -48,13 +56,21 @@ export const isExpired = (expiry?: number, now: number = Date.now()): boolean =>
   return now >= expiry;
 };
 
-// Background sync from IndexedDB into memoryCache on startup (hydrates up to 200 recent entries for 0ms sync reads)
+// Background sync from IndexedDB into memoryCache on startup (hydrates the
+// 200 most recently written entries for 0ms sync reads on the first screen)
 async function initIndexedDBCache(): Promise<void> {
   try {
     const db = await getDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
-    const request = store.openCursor();
+    let request: IDBRequest;
+    try {
+      request = store.indexNames.contains(UPDATED_INDEX)
+        ? store.index(UPDATED_INDEX).openCursor(null, 'prev')
+        : store.openCursor();
+    } catch (_) {
+      request = store.openCursor();
+    }
     const now = Date.now();
     let loadedCount = 0;
 
@@ -242,7 +258,7 @@ export const clientCache = {
     const DEFAULT_TTL_SECONDS = 7 * 24 * 3600;
     const effectiveTtl = (ttlSeconds && ttlSeconds > 0) ? ttlSeconds : DEFAULT_TTL_SECONDS;
     const expiry = Date.now() + effectiveTtl * 1000;
-    const entry: CacheEntry<T> = { data, expiry };
+    const entry: CacheEntry<T> = { data, expiry, updatedAt: Date.now() };
 
     // 1. Memory Tier (skip eviction when updating an existing key)
     if (!memoryCache.has(fullKey)) {

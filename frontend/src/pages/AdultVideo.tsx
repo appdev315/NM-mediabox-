@@ -46,8 +46,8 @@ export function AdultVideo() {
             hist.unshift({
               id: data.id,
               title: videoTitle,
-              poster: data.poster || '',
-              duration: data.duration || '',
+              poster: location.state?.poster || data.poster || '',
+              duration: location.state?.duration || data.duration || '',
               type: 'adult'
             });
             if (hist.length > 30) hist = hist.slice(0, 30);
@@ -126,7 +126,7 @@ export function AdultVideo() {
                   <React.Fragment key={v.id}>
                     <div 
                       className="cursor-pointer"
-                      onClick={() => navigate(`/adult/${v.id}`, { state: { ...location.state, title: v.title } })}
+                      onClick={() => navigate(`/adult/${v.id}`, { state: { ...location.state, title: v.title, poster: v.poster, duration: v.duration } })}
                     >
                       <div className="aspect-[4/3] rounded-xl overflow-hidden mb-1.5 relative bg-[var(--hint-color)]">
                         <img 

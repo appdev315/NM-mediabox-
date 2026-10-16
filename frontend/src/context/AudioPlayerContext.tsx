@@ -50,6 +50,64 @@ const getOptimalBufferConfig = () => {
   return { maxBufferLength: 20, maxMaxBufferLength: 35, backBufferLength: 10 };
 };
 
+// Silent-prefetch helpers for music tracks (weak devices / unstable networks):
+// resolve the final stream URL first, then call audio.play() exactly once.
+const MUSIC_RESOLVE_TIMEOUT_MS = 9000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+function needsFullResolve(t: Track): boolean {
+  const u = t.url || '';
+  return !u || u.includes('preview') || u.includes('mzstatic') || u.includes('itunes')
+    || u.includes('dzcdn') || u.includes('invidious') || t.id.startsWith('yt_');
+}
+
+function isSlowLink(): boolean {
+  try {
+    const c = (navigator as any)?.connection;
+    if (!c) return false;
+    return Boolean(c.saveData) || c.effectiveType === 'slow-2g' || c.effectiveType === '2g';
+  } catch (_) {
+    return false;
+  }
+}
+
+function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): void {
+  try {
+    if (current.type !== 'music' || queue.length < 2 || isSlowLink()) return;
+    const idx = queue.findIndex((t) => t.id === current.id);
+    if (idx < 0) return;
+    let next: Track | undefined;
+    if (shuffle && queue.length > 1) {
+      let r = Math.floor(Math.random() * queue.length);
+      if (r === idx) r = (r + 1) % queue.length;
+      next = queue[r];
+    } else {
+      next = queue[(idx + 1) % queue.length];
+    }
+    if (!next || next.type !== 'music' || !next.url) return;
+    const target = next;
+    (async () => {
+      try {
+        let u = target.url;
+        if (needsFullResolve(target)) {
+          u = (await withTimeout(
+            resolveFullAudioUrl(target.artist, target.title, target.url, target.id).catch(() => target.url),
+            8000,
+            target.url
+          )) || target.url;
+        }
+        await audioOfflineManager.saveTrackAudio(target.id, u).catch(() => {});
+      } catch (_) {}
+    })();
+  } catch (_) {}
+}
+
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -82,6 +140,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const isRefreshingSrcRef = useRef(false);
   const lastPauseTimeRef = useRef(0);
   const activeBlobUrlRef = useRef<string | null>(null);
+  const musicResolveRef = useRef(0); // invalidates stale music prefetch pipelines
+  const resolvingIdRef = useRef<string | null>(null); // track id currently prefetching (double-tap guard)
 
   // Multi-window & PWA identity refs
   const tabIdRef = useRef(`tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
@@ -156,6 +216,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     isUserPausedRef.current = true;
     isPausedByDeviceRef.current = false;
     isAudioMasterRef.current = false;
+    musicResolveRef.current++;
+    resolvingIdRef.current = null;
 
     // 1. Broadcast stop command to any other active windows ONLY if initiated locally (prevents ping-pong loop)
     if (!isRemote) {
@@ -261,10 +323,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
 
       // Prioritize direct station CDN for all secure HTTPS streams.
-      // Only fallback to proxy if stream is insecure HTTP (mixed-content block) and failed repeatedly.
+      // After repeated failures, fall back to the proxy for any non-proxied
+      // URL (http mixed-content AND https without CORS headers — the latter
+      // would otherwise play silence through the Web Audio equalizer chain).
       const rawUrl = track.originalUrl || track.url;
       let targetUrl = rawUrl;
-      if (reconnectAttemptRef.current >= 4 && rawUrl.startsWith('http://') && !targetUrl.includes('/proxy')) {
+      if (reconnectAttemptRef.current >= 4 && !targetUrl.includes('/proxy')) {
         targetUrl = `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(rawUrl)}`;
       }
 
@@ -462,6 +526,95 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [startBackgroundShield, syncToPeers, attemptReconnect]);
 
+  // Silent prefetch for music: offline blob -> bounded full-stream resolve ->
+  // single audio.play() with the final URL. Never plays the preview aloud.
+  const startMusicTrack = useCallback(async (track: Track, audio: HTMLAudioElement, myToken: number) => {
+    const isStale = () => myToken !== musicResolveRef.current;
+    const finishResolving = () => {
+      if (musicResolveRef.current === myToken) resolvingIdRef.current = null;
+    };
+    try {
+      let finalUrl = '';
+      // 1. Offline blob first: instant on weak/unstable networks.
+      try {
+        const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
+        if (isStale()) {
+          if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
+          return;
+        }
+        if (blob) {
+          if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
+            try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+          }
+          activeBlobUrlRef.current = blob;
+          finalUrl = blob;
+        }
+      } catch (_) {}
+
+      // 2. Resolve the full stream when the stored URL is a 30s preview.
+      if (!finalUrl) {
+        if (needsFullResolve(track)) {
+          const resolved = await withTimeout(
+            resolveFullAudioUrl(track.artist, track.title, track.url, track.id).catch(() => track.url),
+            MUSIC_RESOLVE_TIMEOUT_MS,
+            track.url
+          );
+          if (isStale()) return;
+          finalUrl = resolved || track.url;
+        } else {
+          finalUrl = track.url;
+        }
+        // Opportunistic offline copy for the next launch (skip on metered/slow links).
+        if (!isSlowLink() && finalUrl && !finalUrl.startsWith('blob:')) {
+          audioOfflineManager.saveTrackAudio(track.id, finalUrl).catch(() => {});
+        }
+      }
+
+      if (isStale()) return;
+      if (!finalUrl) throw new Error('empty stream url');
+
+      // Cache-hot: the same bytes are already playing (e.g. instant replay).
+      if (audio.currentSrc === finalUrl && !audio.paused) {
+        finishResolving();
+        const hotTrack = { ...track, url: finalUrl };
+        setCurrentTrack(hotTrack);
+        setIsPlaying(true);
+        setIsBuffering(false);
+        syncToPeers(hotTrack, true, false);
+        return;
+      }
+
+      const resolvedTrack: Track = { ...track, url: finalUrl };
+      setCurrentTrack(resolvedTrack);
+      isRefreshingSrcRef.current = true;
+      audio.preload = 'auto';
+      audio.src = finalUrl;
+      audio.load();
+      isRefreshingSrcRef.current = false;
+      finishResolving();
+      try {
+        await audio.play();
+        if (isStale()) return;
+        setIsPlaying(true);
+        setIsBuffering(false);
+        syncToPeers(track, true, false);
+        prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current);
+      } catch (err) {
+        if (isStale()) return;
+        console.warn('[Audio] music play failed:', err);
+        setIsBuffering(false);
+        setIsPlaying(false);
+        syncToPeers(resolvedTrack, false, false);
+      }
+    } catch (e) {
+      if (isStale()) return;
+      finishResolving();
+      setIsBuffering(false);
+      setIsPlaying(false);
+      syncToPeers(track, false, false);
+    }
+  }, [syncToPeers]);
+
   const playTrack = useCallback(async (track: Track, newQueue?: Track[]) => {
     if (newQueue && newQueue.length > 0) {
       setQueue(newQueue);
@@ -472,11 +625,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       queueRef.current = updated;
     }
 
-    // If same track, toggle play/pause
-    if (currentTrackRef.current?.id === track.id) {
-      togglePlayPause();
-      return;
+    const requestedId = track.id;
+    // Same track: ignore double-taps while prefetching, retry when src was
+    // never set (failed resolve), otherwise toggle play/pause.
+    if (currentTrackRef.current?.id === requestedId && resolvingIdRef.current !== requestedId) {
+      const a = audioRef.current;
+      if (!(track.type === 'music' && a && !a.src)) {
+        togglePlayPause();
+        return;
+      }
     }
+    if (resolvingIdRef.current === requestedId) return;
 
     // Stop playback in any other open window/tab to prevent dual streams
     try {
@@ -487,37 +646,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     } catch (_) {}
 
     isAudioMasterRef.current = true;
+    const myToken = ++musicResolveRef.current;
+    resolvingIdRef.current = requestedId;
 
     const audio = audioRef.current;
-    if (!audio) return;
-
-    // Gesture-preserving immediate start (iOS Safari user activation):
-    // play the known bytes synchronously in the click task, then upgrade
-    // to the resolved/offline URL below when it differs.
-    let gestureKickStarted = false;
-    const kickIsHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
-    if (track.type === 'music' && track.url && !kickIsHls) {
-      try {
-        destroyHls();
-        setCurrentTrack(track);
-        setIsBuffering(true);
-        syncToPeers(track, true, true);
-        audio.preload = 'auto';
-        isRefreshingSrcRef.current = true;
-        audio.src = track.url;
-        audio.load();
-        isRefreshingSrcRef.current = false;
-        gestureKickStarted = true;
-        audio.play().then(() => {
-          if (currentTrackRef.current?.id === track.id) {
-            setIsPlaying(true);
-            setIsBuffering(false);
-            syncToPeers(track, true, false);
-          }
-        }).catch(() => {});
-      } catch (_) {
-        gestureKickStarted = false;
-      }
+    if (!audio) {
+      resolvingIdRef.current = null;
+      return;
     }
 
     // New track
@@ -539,55 +674,33 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       reconnectTimeoutRef.current = null;
     }
 
-    let url = track.url;
-    if (track.type === 'music') {
-      try {
-        const cachedBlob = await audioOfflineManager.getTrackAudioUrl(track.url);
-        if (cachedBlob) {
-          if (activeBlobUrlRef.current && activeBlobUrlRef.current !== cachedBlob) {
-            try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
-          }
-          activeBlobUrlRef.current = cachedBlob;
-          url = cachedBlob;
-        } else if (!url || url.includes('preview') || url.includes('mzstatic') || url.includes('itunes') || url.includes('dzcdn')) {
-          const resolved = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id);
-          if (resolved) {
-            url = resolved;
-          }
-        }
-      } catch (_) {}
-    }
-
-    const resolvedTrack: Track = { ...track, url };
-    const srcSwapNeeded = !gestureKickStarted || url !== track.url;
-    if (!srcSwapNeeded && !audio.paused) {
-      // Immediate kick already plays the same bytes — just confirm state.
-      setCurrentTrack(resolvedTrack);
-      setIsPlaying(true);
-      setIsBuffering(false);
-      syncToPeers(resolvedTrack, true, false);
-      return;
-    }
-    setCurrentTrack(resolvedTrack);
-    setIsBuffering(true);
-    syncToPeers(resolvedTrack, true, true);
-
     // Clean up previous Hls instance
     destroyHls();
 
+    // Instant row feedback (spinner, no sound yet) — the URL resolves silently below.
+    setCurrentTrack(track);
+    setIsBuffering(true);
+    syncToPeers(track, true, true);
+
+    if (track.type === 'music') {
+      await startMusicTrack(track, audio, myToken);
+      return;
+    }
+    resolvingIdRef.current = null;
+
     audio.preload = 'auto';
 
-    const isHls = url.includes('.m3u8') || url.includes('/playlist');
+    const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
       
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
         isRefreshingSrcRef.current = true;
-        audio.src = url;
+        audio.src = track.url;
         isRefreshingSrcRef.current = false;
       } else {
         const bufferCfg = getOptimalBufferConfig();
         const hls = await initHls({
-          url,
+          url: track.url,
           media: audio,
           config: {
             maxBufferLength: bufferCfg.maxBufferLength,
@@ -625,14 +738,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
         if (!hls) {
           isRefreshingSrcRef.current = true;
-          audio.src = url;
+          audio.src = track.url;
           audio.load();
           isRefreshingSrcRef.current = false;
         }
       }
     } else {
       isRefreshingSrcRef.current = true;
-      audio.src = url;
+      audio.src = track.url;
       audio.load();
       isRefreshingSrcRef.current = false;
     }
@@ -647,7 +760,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false);
       attemptReconnect('playTrack play error');
     });
-  }, [attemptReconnect, togglePlayPause, startBackgroundShield, syncToPeers]);
+  }, [attemptReconnect, togglePlayPause, startBackgroundShield, syncToPeers, startMusicTrack, initHls, destroyHls]);
 
   const nextTrack = useCallback(() => {
     const currentQueue = queueRef.current;

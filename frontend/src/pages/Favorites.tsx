@@ -46,6 +46,10 @@ export function Favorites() {
     favoritesManager.hydrateFromCloud('movie').then(items => setFavMovies(items));
     favoritesManager.hydrateFromCloud('series').then(items => setFavSeries(items));
     favoritesManager.hydrateFromCloud('radio').then(items => setFavRadio(items));
+    // Non-blocking merge of cloud resume positions into local history
+    favoritesManager.hydrateHistoryFromCloud('movie').then(items => setHistoryMovies(items));
+    favoritesManager.hydrateHistoryFromCloud('series').then(items => setHistorySeries(items));
+    favoritesManager.hydrateHistoryFromCloud('radio').then(items => setHistoryRadio(items));
   }, []);
 
   const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio') => {
