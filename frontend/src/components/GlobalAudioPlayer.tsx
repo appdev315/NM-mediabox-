@@ -70,7 +70,6 @@ export function GlobalAudioPlayer() {
   const [isFav, setIsFav] = useState(false);
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isCardOpen, setIsCardOpen] = useState(false);
-  const [volume, setVolume] = useState(1);
 
   useEffect(() => {
     if (currentTrack?.id) {
@@ -99,14 +98,6 @@ export function GlobalAudioPlayer() {
     try {
       WebApp?.HapticFeedback?.impactOccurred('light');
     } catch (_) {}
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseFloat(e.target.value);
-    setVolume(newVol);
-    if (audioRef?.current) {
-      audioRef.current.volume = newVol;
-    }
   };
 
   return (
@@ -372,21 +363,6 @@ export function GlobalAudioPlayer() {
               >
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>
               </button>
-            </div>
-
-            {/* Volume bar (hidden on mobile, visible on tablet/desktop) */}
-            <div className="hidden sm:flex items-center gap-3 px-4">
-              <span className="text-white/40 text-xs">🔈</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="w-full accent-white h-1.5 bg-white/20 rounded-lg cursor-pointer"
-              />
-              <span className="text-white/40 text-xs">🔊</span>
             </div>
           </div>
         </div>
