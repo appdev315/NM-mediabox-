@@ -134,17 +134,6 @@ export function GlobalAudioPlayer() {
 
         {/* Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {/* Equalizer */}
-          <button
-            onClick={() => setIsEqOpen(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-transform text-sm cursor-pointer"
-            style={{ color: 'var(--text-color)' }}
-            title={t('equalizer')}
-            aria-label={t('equalizer')}
-          >
-            🎚️
-          </button>
-
           {/* Favorite */}
           <button
             onClick={toggleFavorite}
@@ -225,7 +214,7 @@ export function GlobalAudioPlayer() {
             paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 1.5rem))'
           }}
         >
-          {/* Top Bar: Dismiss Chevron, Title, Equalizer Button */}
+          {/* Top Bar: Dismiss Chevron, Title */}
           <div className="flex items-center justify-between w-full">
             <button
               onClick={() => setIsCardOpen(false)}
@@ -236,13 +225,7 @@ export function GlobalAudioPlayer() {
             <span className="text-xs font-black tracking-widest uppercase text-white/50">
               {currentTrack.type === 'radio' ? (t('tab_radio') || 'MediaBox Radio') : 'MediaBox Music'}
             </span>
-            <button
-              onClick={() => setIsEqOpen(true)}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-base active:scale-90 transition-transform cursor-pointer"
-              title={t('equalizer')}
-            >
-              🎚️
-            </button>
+            <div className="w-10 h-10" />
           </div>
 
           {/* Big Squircle Artwork with ambient shadow */}

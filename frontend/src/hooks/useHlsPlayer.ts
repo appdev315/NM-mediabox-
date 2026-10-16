@@ -12,10 +12,13 @@ export interface SetupHlsOptions {
 
 export function useHlsPlayer() {
   const hlsRef = useRef<Hls | null>(null);
+  const initTokenRef = useRef(0);
 
   const destroyHls = useCallback(() => {
+    initTokenRef.current++;
     if (hlsRef.current) {
       try {
+        try { hlsRef.current.detachMedia(); } catch (_) {}
         hlsRef.current.destroy();
       } catch (e) {
         console.warn('[HLS] Error destroying instance:', e);
@@ -33,9 +36,11 @@ export function useHlsPlayer() {
   }: SetupHlsOptions): Promise<Hls | null> => {
     destroyHls();
     if (!media) return null;
+    const token = initTokenRef.current;
 
     try {
       const { default: HlsClass } = await import('hls.js');
+      if (token !== initTokenRef.current) return null;
       if (!HlsClass.isSupported()) return null;
 
       const hls = new HlsClass({

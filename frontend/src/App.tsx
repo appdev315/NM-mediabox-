@@ -281,6 +281,7 @@ function HardwareBackButtonHandler() {
   // Capacitor Android hardware back button
   useEffect(() => {
     let listenerHandle: any = null;
+    let cancelled = false;
     try {
       CapacitorApp.addListener('backButton', ({ canGoBack }) => {
         const isRoot = location.pathname === '/' || location.pathname === '/movies' || location.pathname === '/adult';
@@ -299,6 +300,10 @@ function HardwareBackButtonHandler() {
           navigate(location.pathname.startsWith('/adult') ? '/adult' : '/');
         }
       }).then(handle => {
+        if (cancelled) {
+          try { handle.remove(); } catch (_) {}
+          return;
+        }
         listenerHandle = handle;
       });
     } catch (e) {
@@ -306,6 +311,7 @@ function HardwareBackButtonHandler() {
     }
 
     return () => {
+      cancelled = true;
       if (listenerHandle && listenerHandle.remove) {
         listenerHandle.remove();
       }
@@ -421,6 +427,7 @@ export default function App() {
           triggerViewportExpand();
           if (window.visualViewport && window.visualViewport.height >= window.innerHeight - 10) {
             appViewportTimers.forEach(clearTimeout);
+            appViewportTimers = [];
           }
         }, delay);
         appViewportTimers.push(timer);

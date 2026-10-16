@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useMusicApi, type MusicTrack, resolveFullAudioUrl } from '../hooks/useMusicApi';
+import { useMusicApi, type MusicTrack } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -195,21 +195,13 @@ export function AppleMusic() {
 
 
 
-  // Play track handler with adaptive stream resolution
-  const handleSelectTrack = async (track: MusicTrack) => {
+  // Play track handler: starts synchronously in the click task so iOS Safari
+  // keeps the user-activation gesture. AudioPlayerContext resolves the full
+  // stream + offline blob in the background and upgrades src when needed.
+  const handleSelectTrack = (track: MusicTrack) => {
     try {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
-
-    let fullAudioUrl = track.audioUrl;
-    if (!track.isResolved && (!track.audioUrl || track.audioUrl.includes('preview') || track.audioUrl.includes('mzstatic') || track.audioUrl.includes('itunes') || track.audioUrl.includes('dzcdn') || track.id.startsWith('yt_') || track.audioUrl.includes('invidious'))) {
-      try {
-        fullAudioUrl = await resolveFullAudioUrl(track.artist, track.title, track.audioUrl, track.id);
-      } catch (_) {}
-    }
-
-    const localBlobUrl = await audioOfflineManager.getTrackAudioUrl(fullAudioUrl);
-    const effectiveAudioUrl = localBlobUrl || fullAudioUrl;
 
     const currentList = activeTab === 'search' && searchResults.length > 0 
       ? searchResults 
@@ -219,7 +211,7 @@ export function AppleMusic() {
       id: t.id,
       title: t.title,
       artist: t.artist,
-      url: t.id === track.id ? fullAudioUrl : t.audioUrl,
+      url: t.audioUrl,
       coverUrl: t.artworkUrl,
       type: 'music' as const
     }));
@@ -228,7 +220,7 @@ export function AppleMusic() {
       id: track.id,
       title: track.title,
       artist: track.artist,
-      url: effectiveAudioUrl,
+      url: track.audioUrl,
       coverUrl: track.artworkUrl,
       type: 'music'
     }, playlist);

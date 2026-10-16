@@ -474,7 +474,7 @@ export function Home() {
     if (trimmed.length < 2) return;
     searchDebounceRef.current = setTimeout(() => {
       submitSearch(val);
-    }, 2200);
+    }, 400);
   };
 
   const handleNavigate = useCallback((id: string | number, mediaType: string, country?: string, meta?: any) => {

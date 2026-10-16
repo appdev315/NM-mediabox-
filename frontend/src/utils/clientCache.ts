@@ -237,14 +237,17 @@ export const clientCache = {
 
   set<T>(key: string, data: T, ttlSeconds: number = 0): void {
     const fullKey = CACHE_PREFIX + key;
-    // ttlSeconds === 0 means permanent storage until system clears
-    const expiry = (ttlSeconds && ttlSeconds > 0)
-      ? Date.now() + ttlSeconds * 1000
-      : Number.MAX_SAFE_INTEGER;
+    // ttlSeconds === 0 historically meant permanent; cap it at 7 days so
+    // IndexedDB (which has no eviction) cannot grow unbounded.
+    const DEFAULT_TTL_SECONDS = 7 * 24 * 3600;
+    const effectiveTtl = (ttlSeconds && ttlSeconds > 0) ? ttlSeconds : DEFAULT_TTL_SECONDS;
+    const expiry = Date.now() + effectiveTtl * 1000;
     const entry: CacheEntry<T> = { data, expiry };
 
-    // 1. Memory Tier
-    enforceMemoryLRU();
+    // 1. Memory Tier (skip eviction when updating an existing key)
+    if (!memoryCache.has(fullKey)) {
+      enforceMemoryLRU();
+    }
     memoryCache.set(fullKey, entry);
 
     // 2. Synchronous mirror for critical feeds and compact stream descriptors (instant 0ms hydration on F5)

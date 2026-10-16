@@ -81,6 +81,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const stalledCountRef = useRef(0);
   const isRefreshingSrcRef = useRef(false);
   const lastPauseTimeRef = useRef(0);
+  const activeBlobUrlRef = useRef<string | null>(null);
 
   // Multi-window & PWA identity refs
   const tabIdRef = useRef(`tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
@@ -175,6 +176,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     // 3. Unconditionally destroy HLS instance if active
     destroyHls();
 
+    // 3b. Release any active blob object URL
+    if (activeBlobUrlRef.current) {
+      try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+      activeBlobUrlRef.current = null;
+    }
+
     // 4. Unconditionally pause, clear src, and unload the audio element
     const audio = audioRef.current;
     if (audio) {
@@ -203,12 +210,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return () => {
-      // Only tear down audio on unmount if this window is the active audio master
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      stopBackgroundShield(true);
       if (isAudioMasterRef.current) {
         stop();
       }
     };
-  }, [stop]);
+  }, [stop, stopBackgroundShield]);
 
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
@@ -324,13 +335,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   const togglePlayPause = useCallback(() => {
     if (!isAudioMasterRef.current) {
+      // Non-master tab: forward command to the master; master syncs state back.
+      // Do not flip local state optimistically — it desyncs UI from real audio.
       try {
         broadcastChannelRef.current?.postMessage({
           type: 'COMMAND_TOGGLE',
           senderId: tabIdRef.current
         });
       } catch (_) {}
-      setIsPlaying(prev => !prev);
       return;
     }
 
@@ -479,6 +491,35 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Gesture-preserving immediate start (iOS Safari user activation):
+    // play the known bytes synchronously in the click task, then upgrade
+    // to the resolved/offline URL below when it differs.
+    let gestureKickStarted = false;
+    const kickIsHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+    if (track.type === 'music' && track.url && !kickIsHls) {
+      try {
+        destroyHls();
+        setCurrentTrack(track);
+        setIsBuffering(true);
+        syncToPeers(track, true, true);
+        audio.preload = 'auto';
+        isRefreshingSrcRef.current = true;
+        audio.src = track.url;
+        audio.load();
+        isRefreshingSrcRef.current = false;
+        gestureKickStarted = true;
+        audio.play().then(() => {
+          if (currentTrackRef.current?.id === track.id) {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            syncToPeers(track, true, false);
+          }
+        }).catch(() => {});
+      } catch (_) {
+        gestureKickStarted = false;
+      }
+    }
+
     // New track
     startBackgroundShield();
     if (audio) {
@@ -503,6 +544,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       try {
         const cachedBlob = await audioOfflineManager.getTrackAudioUrl(track.url);
         if (cachedBlob) {
+          if (activeBlobUrlRef.current && activeBlobUrlRef.current !== cachedBlob) {
+            try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+          }
+          activeBlobUrlRef.current = cachedBlob;
           url = cachedBlob;
         } else if (!url || url.includes('preview') || url.includes('mzstatic') || url.includes('itunes') || url.includes('dzcdn')) {
           const resolved = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id);
@@ -514,6 +559,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
 
     const resolvedTrack: Track = { ...track, url };
+    const srcSwapNeeded = !gestureKickStarted || url !== track.url;
+    if (!srcSwapNeeded && !audio.paused) {
+      // Immediate kick already plays the same bytes — just confirm state.
+      setCurrentTrack(resolvedTrack);
+      setIsPlaying(true);
+      setIsBuffering(false);
+      syncToPeers(resolvedTrack, true, false);
+      return;
+    }
     setCurrentTrack(resolvedTrack);
     setIsBuffering(true);
     syncToPeers(resolvedTrack, true, true);
@@ -541,7 +595,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             backBufferLength: bufferCfg.backBufferLength,
             maxBufferHole: 0.5,
             startFragPrefetch: true,
-            maxBufferSize: 60 * 1024 * 1024,
+            maxBufferSize: 4 * 1024 * 1024,
             liveSyncDuration: 3,
             liveMaxLatencyDuration: 10,
             manifestLoadingMaxRetry: 10,
@@ -590,9 +644,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }).catch((err) => {
       console.warn('[Audio] playTrack error, delegating to attemptReconnect:', err);
       setIsBuffering(false);
+      setIsPlaying(false);
       attemptReconnect('playTrack play error');
     });
-    setIsPlaying(true);
   }, [attemptReconnect, togglePlayPause, startBackgroundShield, syncToPeers]);
 
   const nextTrack = useCallback(() => {
@@ -749,6 +803,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   // Watchdog Heartbeat: Periodically inspect currentTime to auto-heal truly dead streams without dropping on brief network jitter
   useEffect(() => {
     const watchdogInterval = setInterval(() => {
+      if (!isPlayingRef.current) return;
       const audio = audioRef.current;
       const track = currentTrackRef.current;
       if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current) {

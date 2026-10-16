@@ -16,7 +16,8 @@ type Bindings = {
 const verifyAdminAuth = (c: Context): boolean => {
   const authHeader = c.req.header('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  const secret = (c.env as Bindings).ADMIN_API_KEY || 'mb_admin_sec_2026';
+  const secret = (c.env as Bindings).ADMIN_API_KEY || '';
+  if (!secret) return false;
   return Boolean(token && token === secret);
 };
 
@@ -527,6 +528,10 @@ app.post('/api/user/history', async (c: Context) => {
   }
 
   try {
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO users (telegram_id, first_name) VALUES (?, ?)`
+    ).bind(user.id, user.first_name || 'User').run();
+
     await c.env.DB.prepare(`
       INSERT INTO history (telegram_id, item_id, type, timecode, updated_at) 
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -537,6 +542,25 @@ app.post('/api/user/history', async (c: Context) => {
   } catch (e) {
     console.error('D1 error on history:', e);
     return c.json({ error: 'Failed to save history' }, 500);
+  }
+});
+
+app.get('/api/user/history', async (c: Context) => {
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT item_id, type, timecode, updated_at FROM history WHERE telegram_id = ? ORDER BY updated_at DESC LIMIT 100`
+    ).bind(user.id).all();
+    return c.json({ history: results || [] });
+  } catch (e) {
+    console.error('D1 error on get history:', e);
+    return c.json({ error: 'Failed to get history' }, 500);
   }
 });
 
@@ -1299,6 +1323,9 @@ app.get('/api/image', async (c: Context) => {
     });
 
     if (!res.ok) {
+      if (res.status === 404) {
+        return c.text('Not found', 404);
+      }
       return c.text(`Image fetch error: ${res.status}`, 502);
     }
 
@@ -1326,6 +1353,13 @@ app.get('/api/tmdb/*', async (c: Context) => {
   const endpoint = url.pathname.replace(/^\/api\/tmdb/, '');
   if (!endpoint || endpoint === '/') {
     return c.json({ error: 'Endpoint required' }, 400);
+  }
+
+  // Whitelist public read-only TMDB endpoints to prevent quota abuse
+  const allowedPrefixes = ['/movie/', '/tv/', '/search/', '/genre/', '/trending/', '/person/', '/collection/', '/discover/', '/configuration'];
+  const isAllowed = endpoint === '/configuration' || allowedPrefixes.some((p) => endpoint === p || endpoint.startsWith(p));
+  if (!isAllowed) {
+    return c.json({ error: 'Endpoint not allowed' }, 403);
   }
 
   // Guard against oversized search queries (prevents HTTP 414 from TMDB)

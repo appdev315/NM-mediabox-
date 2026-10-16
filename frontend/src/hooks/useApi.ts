@@ -175,17 +175,30 @@ export function useApi() {
       return cached;
     }
 
-    // In-flight deduplication: reuse active pending promise for identical requests
-    if (inFlightRequests.has(cacheKey)) {
-      return inFlightRequests.get(cacheKey);
+    // In-flight deduplication: reuse active pending promise for identical requests.
+    // The shared network fetch is independent: a caller abort rejects only that
+    // caller's race, never the shared fetch (prevents stale live-search from
+    // killing a parallel consumer of the same key).
+    const raceWithSignal = <T>(shared: Promise<T>, sig?: AbortSignal): Promise<T> => {
+      if (!sig) return shared;
+      if (sig.aborted) return Promise.reject(new DOMException('Request aborted', 'AbortError'));
+      return new Promise<T>((resolve, reject) => {
+        const onAbort = () => reject(new DOMException('Request aborted', 'AbortError'));
+        sig.addEventListener('abort', onAbort, { once: true });
+        shared.then(
+          (v) => { sig.removeEventListener('abort', onAbort); resolve(v); },
+          (e) => { sig.removeEventListener('abort', onAbort); reject(e); }
+        );
+      });
+    };
+
+    const existingFlight = inFlightRequests.get(cacheKey);
+    if (existingFlight) {
+      return raceWithSignal(existingFlight, signal);
     }
 
     const executeFetch = async (retryCount = 0): Promise<any> => {
-      let forwardAbort: (() => void) | undefined;
       try {
-        if (signal?.aborted) {
-          throw new DOMException('Request aborted', 'AbortError');
-        }
         const fetchViaCFProxy = async (signal?: AbortSignal) => {
           const url = `${CF_API_BASE}/tmdb${endpoint}?${searchParams.toString()}`;
           const response = await fetch(url, { signal });
@@ -217,18 +230,12 @@ export function useApi() {
         let data;
         const cfCtrl = new AbortController();
         const hfCtrl = new AbortController();
-        // Forward external cancellation (e.g. stale live-search) to both proxies
-        forwardAbort = () => {
-          try { cfCtrl.abort(); } catch (_) {}
-          try { hfCtrl.abort(); } catch (_) {}
-        };
-        signal?.addEventListener('abort', forwardAbort, { once: true });
 
         // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
         try {
           data = await fetchViaCFProxy(cfCtrl.signal);
         } catch (cfErr: any) {
-          if (signal?.aborted || cfErr?.name === 'AbortError') throw cfErr;
+          if (cfErr?.name === 'AbortError') throw cfErr;
           // If TMDB returns 404, it is definitive (item does not exist) - fail fast
           if (cfErr?.status === 404) throw cfErr;
 
@@ -236,20 +243,18 @@ export function useApi() {
           try {
             data = await fetchViaHFProxy(hfCtrl.signal);
           } catch (hfErr: any) {
-            if (signal?.aborted || hfErr?.name === 'AbortError') throw hfErr;
+            if (hfErr?.name === 'AbortError') throw hfErr;
             if (hfErr?.status === 404) throw hfErr;
             throw cfErr; // preserve initial CF error if HF fails too
           }
         }
 
-        if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
-        if (data && !signal?.aborted) {
+        if (data) {
           clientCache.set(cacheKey, data, ttlSeconds);
         }
         return data;
       } catch (err) {
-        if (forwardAbort) signal?.removeEventListener('abort', forwardAbort);
-        if (signal?.aborted || (err as any)?.name === 'AbortError') {
+        if ((err as any)?.name === 'AbortError') {
           throw err;
         }
         // 404 is definitive (wrong id/type), not transient: fail fast without
@@ -269,7 +274,7 @@ export function useApi() {
       inFlightRequests.delete(cacheKey);
     });
     inFlightRequests.set(cacheKey, promise);
-    return promise;
+    return raceWithSignal(promise, signal);
   }, [language]);
 
   const extractCertification = (item: any) => {
@@ -559,8 +564,10 @@ export function useApi() {
                 episodes: lData.episodes,
               };
 
-              // Fast-Path: Immediately cache on device permanently so video stream & player load with 0ms delay!
-              clientCache.set(cacheKey, liftwDetails, 0);
+              // Fast-Path: cache liftw descriptor briefly (donor poster URLs are
+              // short-lived signed links) so playback starts instantly without
+              // serving a rotten poster hours later.
+              clientCache.set(cacheKey, liftwDetails, 3600);
 
               // Non-blocking background TMDB enrichment: does not stall video playback or initial screen render
               if (query) {
