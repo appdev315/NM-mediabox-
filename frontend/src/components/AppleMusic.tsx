@@ -345,14 +345,6 @@ export function AppleMusic() {
       {activeTab === 'favorites' && favTracks.length > 0 && (
         <div className="flex items-center gap-2 mb-3">
           <button
-            onClick={() => playAllFavorites(false)}
-            className="flex-1 py-2 px-3 rounded-2xl bg-[#FA2D48] hover:bg-[#e0263e] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA2D48]/30 active:scale-95 transition-all"
-          >
-            <span>▶️</span>
-            <span>{t('music_play_all')}</span>
-          </button>
-
-          <button
             onClick={() => playAllFavorites(true)}
             className="flex-1 py-2 px-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 border border-white/10 active:scale-95 transition-all"
           >
