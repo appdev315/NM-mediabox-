@@ -1483,18 +1483,6 @@ export function Movie() {
           )}
           {(isExtracting || iframeUrl) && (
             <div className={`relative w-full ${isPlayerFullscreen ? 'z-[99999]' : 'md:w-[80%] mx-auto mt-2 mb-8'}`}>
-              {/* Close player button in inline mode */}
-              {iframeUrl && !isPlayerFullscreen && (
-                <div className="flex justify-between items-center mb-2 px-1">
-                  <button
-                    onClick={handleClosePlayer}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-white/10 text-white"
-                  >
-                    <span>✕</span>
-                    <span>{t('close') || 'Закрыть'}</span>
-                  </button>
-                </div>
-              )}
 
               {/* Audio language hint pointing to gear in iframe top-right */}
               {showAudioHint && !isExtracting && iframeUrl && !isPlayerFullscreen && (
