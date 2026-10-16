@@ -1144,7 +1144,7 @@ export function Movie() {
       <div className="relative">
         <img 
           key={movie.backdrop || movie.poster || movie.id}
-          src={movie.backdrop || movie.poster} 
+          src={movie.backdrop || movie.poster || 'https://placehold.co/800x450/1c2431/ffffff?text=No+Backdrop'} 
           alt={movie.title || movie.name || 'Постер фильма'} 
           loading="lazy"
           className="w-full aspect-[16/9] max-h-[50vh] object-cover"

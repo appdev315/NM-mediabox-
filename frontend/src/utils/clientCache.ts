@@ -271,7 +271,7 @@ export const clientCache = {
       try {
         localStorage.setItem(fullKey, JSON.stringify(entry));
       } catch (_) {}
-    } else if (key.includes('liftw_')) {
+    } else if (key.startsWith('liftw_stream_') || key.includes('_stream_')) {
       try {
         // Guard against localStorage 5MB quota: mirror compact playback descriptor.
         // episodes tree is kept: it is tiny (season -> [episode] strings, <1KB)
@@ -291,7 +291,7 @@ export const clientCache = {
         const streamKeys: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const lk = localStorage.key(i);
-          if (lk && lk.startsWith(CACHE_PREFIX) && lk.includes('liftw_')) {
+          if (lk && lk.startsWith(CACHE_PREFIX) && (lk.includes('liftw_stream_') || lk.includes('_stream_'))) {
             streamKeys.push(lk);
           }
         }

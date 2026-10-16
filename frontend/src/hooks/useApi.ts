@@ -490,8 +490,9 @@ export function useApi() {
     const cacheKey = `movie_details_v4_${type}_${id}_${language}`;
     const cached = clientCache.get<any>(cacheKey) || await clientCache.getAsync<any>(cacheKey);
     if (cached) {
-      // Auto-purge legacy negative cache entries so affected users heal instantly
-      if ((cached as any).__notFound) {
+      // Auto-purge legacy negative cache entries or truncated stream-only descriptors so affected users heal instantly
+      const isCorrupted = !cached.title && !cached.name && !cached.original_title && !cached.poster;
+      if ((cached as any).__notFound || isCorrupted) {
         clientCache.remove(cacheKey);
       } else {
         // Auto-heal: If cached item is a raw Liftw entry lacking TMDB enrichment
