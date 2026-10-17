@@ -334,59 +334,84 @@ export function GlobalAudioPlayer() {
             )}
 
             {/* Media Controls */}
-            <div className="flex items-center justify-center gap-6 mb-6">
-              {currentTrack.type === 'music' && (
+            <div className="flex items-center justify-between w-full max-w-xs sm:max-w-sm mx-auto mb-6 px-1">
+              {/* Left: Shuffle */}
+              <div className="w-10 flex justify-start">
+                {currentTrack.type === 'music' ? (
+                  <button 
+                    onClick={toggleShuffle}
+                    className={`p-2.5 rounded-full transition-all active:scale-90 cursor-pointer ${
+                      isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'opacity-40 hover:opacity-70'
+                    }`}
+                    style={{ color: isShuffle ? '#FA2D48' : 'var(--text-color)' }}
+                    title={t('music_shuffle')}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 3 21 3 21 8" />
+                      <line x1="4" y1="20" x2="21" y2="3" />
+                      <polyline points="21 16 21 21 16 21" />
+                      <line x1="15" y1="15" x2="21" y2="21" />
+                      <line x1="4" y1="4" x2="9" y2="9" />
+                    </svg>
+                  </button>
+                ) : <div className="w-10" />}
+              </div>
+
+              {/* Center: Prev - Play/Pause - Next (strictly centered) */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6">
                 <button 
-                  onClick={toggleShuffle}
-                  className={`p-2.5 rounded-full transition-all active:scale-90 cursor-pointer ${
-                    isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'opacity-40 hover:opacity-70'
-                  }`}
-                  style={{ color: isShuffle ? '#FA2D48' : 'var(--text-color)' }}
-                  title={t('music_shuffle')}
+                  onClick={prevTrack}
+                  className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
+                  style={{ color: 'var(--text-color)' }}
+                  title={t('prev') || 'Назад'}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" strokeWidth="2.5"/></svg>
+                </button>
+
+                <button 
+                  onClick={togglePlayPause}
+                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--button-color, #FA2D48)',
+                    color: 'var(--button-text-color, #fff)'
+                  }}
+                  title={isPlaying ? (t('pause') || 'Пауза') : (t('play') || 'Воспроизвести')}
+                >
+                  {isPlaying ? (
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  ) : (
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" className="ml-1"><polygon points="5 3 19 12 5 21" /></svg>
+                  )}
+                </button>
+
+                <button 
+                  onClick={nextTrack}
+                  className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
+                  style={{ color: 'var(--text-color)' }}
+                  title={t('next') || 'Вперед'}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>
+                </button>
+              </div>
+
+              {/* Right: Return to playlist / favorites */}
+              <div className="w-10 flex justify-end">
+                <button
+                  onClick={() => setIsCardOpen(false)}
+                  className="p-2.5 rounded-full opacity-60 hover:opacity-100 active:scale-90 transition-all cursor-pointer"
+                  style={{ color: 'var(--text-color)' }}
+                  title={t('returnToList') || 'К плейлисту'}
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="16 3 21 3 21 8" />
-                    <line x1="4" y1="20" x2="21" y2="3" />
-                    <polyline points="21 16 21 21 16 21" />
-                    <line x1="15" y1="15" x2="21" y2="21" />
-                    <line x1="4" y1="4" x2="9" y2="9" />
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                    <line x1="3" y1="18" x2="3.01" y2="18" />
                   </svg>
                 </button>
-              )}
-
-              <button 
-                onClick={prevTrack}
-                className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
-                style={{ color: 'var(--text-color)' }}
-                title={t('prev') || 'Назад'}
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" strokeWidth="2.5"/></svg>
-              </button>
-
-              <button 
-                onClick={togglePlayPause}
-                className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--button-color, #FA2D48)',
-                  color: 'var(--button-text-color, #fff)'
-                }}
-                title={isPlaying ? (t('pause') || 'Пауза') : (t('play') || 'Воспроизвести')}
-              >
-                {isPlaying ? (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                ) : (
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" className="ml-1"><polygon points="5 3 19 12 5 21" /></svg>
-                )}
-              </button>
-
-              <button 
-                onClick={nextTrack}
-                className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
-                style={{ color: 'var(--text-color)' }}
-                title={t('next') || 'Вперед'}
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>
-              </button>
+              </div>
             </div>
           </div>
         </div>
