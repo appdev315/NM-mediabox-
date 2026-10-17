@@ -374,16 +374,20 @@ class AudioOfflineManager {
   }
 
   /**
-   * Helper to format bytes into readable string (e.g. "14.2 МБ")
+   * Helper to format bytes into a readable string with locale-aware units
+   * (ru: "14.2 МБ", others: "14.2 MB")
    */
-  formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 МБ';
+  formatBytes(bytes: number, language?: string): string {
+    const ru = typeof language === 'string' && language.startsWith('ru');
+    const mbUnit = ru ? 'МБ' : 'MB';
+    const kbUnit = ru ? 'КБ' : 'KB';
+    if (bytes === 0) return `0 ${mbUnit}`;
     const mb = bytes / (1024 * 1024);
     if (mb < 1) {
       const kb = Math.round(bytes / 1024);
-      return `${kb} КБ`;
+      return `${kb} ${kbUnit}`;
     }
-    return `${mb.toFixed(1)} МБ`;
+    return `${mb.toFixed(1)} ${mbUnit}`;
   }
 }
 

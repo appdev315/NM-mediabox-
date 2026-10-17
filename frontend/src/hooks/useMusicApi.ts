@@ -124,6 +124,7 @@ const mapSaavnSongToTrack = (song: any, index: number, isSlow = false): MusicTra
   const stableId = song.id
     ? String(song.id)
     : `saavn_${title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${rawArtist.toLowerCase().replace(/[^a-z0-9]/g, '') || index}`;
+  const dur = typeof song.duration === 'number' ? song.duration : parseInt(song.duration || '0', 10);
 
   return {
     id: stableId,
@@ -132,7 +133,7 @@ const mapSaavnSongToTrack = (song: any, index: number, isSlow = false): MusicTra
     album: decodeHtmlEntities(song.album?.name || ''),
     artworkUrl: extractArtwork(song.image),
     audioUrl,
-    duration: typeof song.duration === 'number' ? song.duration : parseInt(song.duration || '0', 10) || 180,
+    duration: dur > 0 ? dur : undefined, // no fake 3:00 badge for unknown durations
     releaseDate: String(song.year || song.releaseDate || ''),
     genre: song.language || 'Music',
     isResolved: true
@@ -182,15 +183,35 @@ export const resolveFullAudioUrl = async (
           const data = await res.json();
           const results = data?.data?.results;
           if (Array.isArray(results) && results.length > 0) {
-            const match = results.find((r: any) => {
-              const rTitle = (r.name || r.title || '').toLowerCase();
-              return rTitle.includes(cleanTitle.toLowerCase()) || cleanTitle.toLowerCase().includes(rTitle);
-            }) || results[0];
+            // Strict matching: prefer exact normalized title -> title+artist overlap ->
+            // duration-sane candidate -> only then blind first result
+            const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+            const normQueryTitle = norm(cleanTitle);
+            const normArtist = norm(primaryArtist);
+            const candidates = results
+              .map((r: any) => ({ r, url: extractAudioUrl(r.downloadUrl, isSlow) }))
+              .filter((c: any) => c.url)
+              .map((c: any) => {
+                const dur = typeof c.r.duration === 'number' ? c.r.duration : parseInt(c.r.duration || '0', 10) || 0;
+                const rTitle = norm(c.r.name || c.r.title || '');
+                const rArtists = norm(
+                  (c.r.primaryArtists || c.r.artists?.primary?.map((a: any) => a.name).join(', ') || '') +
+                  (c.r.singers || '')
+                );
+                return { ...c, dur, rTitle, rArtists };
+              })
+              .filter((c: any) => c.dur === 0 || c.dur >= 20); // reject 0s stubs / sub-20s cuts
 
-            const fullUrl = extractAudioUrl(match.downloadUrl, isSlow);
-            if (fullUrl) {
-              clientCache.set(cacheKey, fullUrl, 14400); // 4 hours TTL
-              return fullUrl;
+            const exactTitle = candidates.find((c: any) => c.rTitle === normQueryTitle);
+            const titleAndArtist = candidates.find((c: any) =>
+              (c.rTitle.includes(normQueryTitle) || normQueryTitle.includes(c.rTitle)) &&
+              c.rTitle.length > 0 && c.rArtists.includes(normArtist));
+            const saneCandidate = candidates.find((c: any) => c.dur >= 30 && c.dur <= 1200);
+            const match = exactTitle || titleAndArtist || saneCandidate || candidates[0];
+
+            if (match) {
+              clientCache.set(cacheKey, match.url, 14400); // 4 hours TTL
+              return match.url;
             }
           }
         }
@@ -209,7 +230,10 @@ export const resolveFullAudioUrl = async (
       if (ytSearch && ytSearch.ok) {
         const results = await ytSearch.json();
         if (Array.isArray(results) && results.length > 0) {
-          videoId = results[0].id;
+          // Avoid hour-long mixes: pick the first result with a sane track length (< 15 min),
+          // fall back to the first result only if none report duration
+          const sane = results.find((x: any) => { const d = parseYtDuration(x); return d > 0 && d <= 900; });
+          videoId = (sane || results[0]).id;
         }
       }
     }
@@ -237,16 +261,20 @@ export const resolveFullAudioUrl = async (
   return '';
 };
 
-const mapYtSongToTrack = (item: any): MusicTrack | null => {
-  if (!item || !item.id || !item.title) return null;
-  let dur = 180;
+const parseYtDuration = (item: any): number => {
   if (typeof item.duration === 'string') {
     const parts = item.duration.split(':').map(Number);
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) dur = parts[0] * 60 + parts[1];
-    else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) dur = parts[0] * 3600 + parts[1] * 60 + parts[2];
-  } else if (typeof item.lengthSeconds === 'number') {
-    dur = item.lengthSeconds;
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return parts[0] * 60 + parts[1];
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   }
+  if (typeof item.lengthSeconds === 'number' && item.lengthSeconds > 0) return item.lengthSeconds;
+  return 0; // unknown — UI hides the badge instead of showing a fake 3:00
+};
+
+const mapYtSongToTrack = (item: any): MusicTrack | null => {
+  if (!item || !item.id || !item.title) return null;
+  const dur = parseYtDuration(item);
+  if (dur > 0 && dur < 20) return null; // eliminate 0s previews / stubs entirely
   const rawTitle = decodeHtmlEntities(item.title);
   const cleanTitle = rawTitle
     .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
@@ -262,7 +290,7 @@ const mapYtSongToTrack = (item: any): MusicTrack | null => {
     album: 'YouTube Music',
     artworkUrl: `https://i.ytimg.com/vi/${item.id}/default.jpg`,
     audioUrl: '', // Resolves direct stream on click
-    duration: dur,
+    duration: dur > 0 ? dur : undefined,
     genre: 'Music',
     isResolved: false
   };
@@ -296,9 +324,16 @@ export function useMusicApi() {
         if (edgeRes && edgeRes.ok) {
           const edgeTracks = await edgeRes.json();
           if (Array.isArray(edgeTracks) && edgeTracks.length > 0) {
-            clientCache.set(cacheKey, edgeTracks, 86400);
+            // Normalize ids to the client format (strip the backend "saavn_" prefix) so that
+            // edge-served and fallback-served copies of the same song share one stable id —
+            // otherwise favorites / offline cache keyed by id diverge between the two paths
+            const normalized = edgeTracks.map((t: MusicTrack) => ({
+              ...t,
+              id: String(t.id || '').replace(/^saavn_/, ''),
+            }));
+            clientCache.set(cacheKey, normalized, 86400);
             setLoading(false);
-            return edgeTracks.slice(0, limit);
+            return normalized.slice(0, limit);
           }
         }
       } catch (_) {

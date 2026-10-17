@@ -1977,7 +1977,7 @@ app.get('/api/music/search', async (c: Context) => {
                 album: s.album?.name || '',
                 artworkUrl: img?.url || '',
                 audioUrl,
-                duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 180),
+                duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 0),
                 genre: s.language || 'Music',
                 isResolved: true,
               });
@@ -1992,7 +1992,7 @@ app.get('/api/music/search', async (c: Context) => {
         const ytList = await ytRes.value.json() as any[];
         if (Array.isArray(ytList)) {
           for (const item of ytList) {
-            let dur = 180;
+            let dur = 0;
             if (typeof item.duration === 'string') {
               const parts = item.duration.split(':').map(Number);
               if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) dur = parts[0] * 60 + parts[1];
@@ -2000,6 +2000,7 @@ app.get('/api/music/search', async (c: Context) => {
             } else if (typeof item.lengthSeconds === 'number') {
               dur = item.lengthSeconds;
             }
+            if (dur > 0 && dur < 20) continue; // eliminate 0s preview stubs
             const cleanTitle = (item.title || '')
               .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
               .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')

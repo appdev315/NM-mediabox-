@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
-import { EqualizerModal } from './EqualizerModal';
+import { getNetworkSpeed } from '../hooks/useMusicApi';
 
 const formatTrackDuration = (secs?: number | string): string => {
   if (!secs) return '';
@@ -18,7 +18,7 @@ const formatTrackDuration = (secs?: number | string): string => {
 };
 
 export function AppleMusic() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { loading, searchMusic, searchAlbums, fetchAlbumTracks } = useMusicApi();
   const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
@@ -31,9 +31,10 @@ export function AppleMusic() {
   const [loadingAlbum, setLoadingAlbum] = useState(false);
   const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
-  const [isEqOpen, setIsEqOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [unavailableToast, setUnavailableToast] = useState<string | null>(null);
+  const [recentTracks, setRecentTracks] = useState<MusicTrack[]>([]);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<number>(0);
   const albumRequestRef = useRef<number>(0);
   const scrollPosRef = useRef<number>(0);
@@ -46,12 +47,33 @@ export function AppleMusic() {
       } catch (_) {}
       const trackName = e.detail?.title ? `«${e.detail.title}»` : '';
       setUnavailableToast(`${t('music_full_unavailable') || 'Полная версия трека недоступна'} ${trackName}`.trim());
-      setTimeout(() => setUnavailableToast(null), 3500);
+      // One shared timer: a newer toast must not be killed by an older event's timeout
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setUnavailableToast(null), 3500);
     };
 
     window.addEventListener('music-track-unavailable', handleUnavailable);
-    return () => window.removeEventListener('music-track-unavailable', handleUnavailable);
+    return () => {
+      window.removeEventListener('music-track-unavailable', handleUnavailable);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, [t]);
+
+  // Recently played music (reads history_music so it is not a write-only key)
+  const mapHistoryToTrack = useCallback((h: any): MusicTrack => ({
+    id: String(h.id || ''),
+    title: h.name || '',
+    artist: h.group || 'Unknown Artist',
+    artworkUrl: h.logo || PLACEHOLDER_ARTWORK,
+    audioUrl: h.url || '',
+  }), []);
+
+  useEffect(() => {
+    try {
+      const history = favoritesManager.getHistory('music');
+      setRecentTracks((history || []).slice(0, 12).map(mapHistoryToTrack).filter(t => t.id && t.title));
+    } catch (_) {}
+  }, [mapHistoryToTrack]);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
@@ -104,7 +126,10 @@ export function AppleMusic() {
     if (exists) {
       audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
     } else {
-      audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
+      // Respect metered / slow links: don't silently pull a 5-10MB full track on a ❤️ tap
+      if (!getNetworkSpeed().isSlow) {
+        audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
+      }
     }
   };
 
@@ -312,6 +337,10 @@ export function AppleMusic() {
         group: track.artist,
         type: 'music'
       });
+      try {
+        const history = favoritesManager.getHistory('music');
+        setRecentTracks((history || []).slice(0, 12).map(mapHistoryToTrack).filter(t2 => t2.id && t2.title));
+      } catch (_) {}
     } catch (_) {}
   };
 
@@ -437,7 +466,7 @@ export function AppleMusic() {
           }}
         >
           <div className="text-xs font-semibold opacity-75 truncate mr-2">
-            {cacheStats.count > 0 ? `${t('music_cache')}: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : t('music_cache_empty')}
+            {cacheStats.count > 0 ? `${t('music_cache')}: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes, language)}` : t('music_cache_empty')}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {cacheStats.count > 0 && (
@@ -641,14 +670,54 @@ export function AppleMusic() {
 
             if (list.length === 0) {
               if (activeTab === 'search') {
+                if (searchQuery.trim().length < 2) {
+                  if (recentTracks.length === 0) {
+                    return (
+                      <div className="text-center py-16 opacity-50 font-medium text-sm flex flex-col items-center gap-2">
+                        <span className="text-3xl">🎵</span>
+                        <span>{t('music_search_prompt') || 'Поиск музыки'}</span>
+                      </div>
+                    );
+                  }
+                  // Recently played — keeps history_music key visible instead of write-only
+                  return (
+                    <div className="pt-2">
+                      <div className="mb-2 px-1 flex items-center justify-between">
+                        <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
+                          🕘 {t('history') || 'История'}
+                        </span>
+                        <span className="text-[11px] opacity-40 font-mono">{recentTracks.length}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {recentTracks.slice(0, 6).map(rt => (
+                          <div
+                            key={`recent_${rt.id}`}
+                            onClick={() => handleSelectTrack(rt)}
+                            className="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all border"
+                            style={{
+                              backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.06))',
+                              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.12))',
+                              color: 'var(--text-color)'
+                            }}
+                          >
+                            <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm" style={{ backgroundColor: 'var(--hint-color, rgba(120,120,128,0.2))' }}>
+                              <img src={rt.artworkUrl || PLACEHOLDER_ARTWORK} alt={rt.title} loading="lazy" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-sm font-bold truncate">{rt.title}</h3>
+                              <p className="text-xs truncate" style={{ opacity: 0.65 }}>{rt.artist}</p>
+                            </div>
+                            <span className="text-base opacity-40 flex-shrink-0">▶</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div className="text-center py-16 opacity-50 font-medium text-sm flex flex-col items-center gap-2">
                     <span className="text-3xl">🎵</span>
-                    <span>
-                      {searchQuery.trim().length >= 2
-                        ? (t('music_no_results') || 'Ничего не найдено')
-                        : (t('music_search_prompt') || 'Поиск музыки')}
-                    </span>
+                    <span>{t('music_no_results') || 'Ничего не найдено'}</span>
                   </div>
                 );
               }
@@ -818,7 +887,6 @@ export function AppleMusic() {
       </div>
 
       {/* Studio Equalizer Sheet */}
-      <EqualizerModal isOpen={isEqOpen} onClose={() => setIsEqOpen(false)} />
     </div>
   );
 }
