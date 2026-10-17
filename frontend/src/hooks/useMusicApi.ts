@@ -339,7 +339,7 @@ export function useMusicApi() {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const cacheKey = `cache_hybrid_music_search_v6_${trimmed.toLowerCase()}`;
+    const cacheKey = `cache_hybrid_music_search_v7_${trimmed.toLowerCase()}`;
     const cached = clientCache.get<MusicTrack[]>(cacheKey) || await clientCache.getAsync<MusicTrack[]>(cacheKey);
     if (cached && Array.isArray(cached) && cached.length > 0) {
       return cached.slice(0, limit);
@@ -353,22 +353,33 @@ export function useMusicApi() {
     try {
       const encoded = encodeURIComponent(trimmed);
 
-      // 1. Fast-path: 1 single request via Cloudflare Edge proxy (global 7-day cache, ~50ms latency)
+      // 1. Fast-path: 1 single request via Cloudflare Edge proxy v2 (bypasses stale Deezer cache)
       try {
-        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/search?q=${encoded}&limit=${limit}`, { maxRetries: 0 });
+        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/v2/search?q=${encoded}&limit=${limit}`, { maxRetries: 0 });
         if (edgeRes && edgeRes.ok) {
           const edgeTracks = await edgeRes.json();
           if (Array.isArray(edgeTracks) && edgeTracks.length > 0) {
-            // Normalize ids to the client format (strip the backend "saavn_" prefix) so that
-            // edge-served and fallback-served copies of the same song share one stable id —
-            // otherwise favorites / offline cache keyed by id diverge between the two paths
-            const normalized = edgeTracks.map((t: MusicTrack) => ({
-              ...t,
-              id: String(t.id || '').replace(/^saavn_/, ''),
-            }));
-            clientCache.set(cacheKey, normalized, 86400);
-            setLoading(false);
-            return normalized.slice(0, limit);
+            const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
+            const normalized = edgeTracks
+              // Strip any dead 30s Deezer previews
+              .filter((t: any) => !t.audioUrl || !t.audioUrl.includes('dzcdn'))
+              .map((t: MusicTrack) => {
+                let artist = t.artist || '';
+                if (hasJapanese.test(artist) && !hasJapanese.test(trimmed)) {
+                  artist = trimmed.replace(/\b\w/g, (c) => c.toUpperCase());
+                }
+                return {
+                  ...t,
+                  id: String(t.id || '').replace(/^saavn_/, ''),
+                  artist,
+                };
+              });
+
+            if (normalized.length > 0) {
+              clientCache.set(cacheKey, normalized, 86400);
+              setLoading(false);
+              return normalized.slice(0, limit);
+            }
           }
         }
       } catch (_) {

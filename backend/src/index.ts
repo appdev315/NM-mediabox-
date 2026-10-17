@@ -1914,7 +1914,7 @@ app.get('/api/dramas/search', async (c: Context) => {
 });
 
 // --- MUSIC PROXY & SEARCH (7-DAY EDGE CACHE, 100% FULL STREAMS, 0% 30S CUTS) ---
-app.get('/api/music/search', async (c: Context) => {
+const handleMusicSearch = async (c: Context) => {
   const query = (c.req.query('q') || '').trim();
   const limit = Math.min(Math.max(Number(c.req.query('limit')) || 50, 10), 100);
   if (!query) {
@@ -1947,11 +1947,19 @@ app.get('/api/music/search', async (c: Context) => {
 
     const tracks: any[] = [];
     const seenTitles = new Set<string>();
+    const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
 
     const addTrack = (t: any) => {
       if (!t || !t.id || !t.title) return;
       const title = String(t.title || '').trim();
-      const artist = String(t.artist || 'Unknown Artist').trim();
+      let artist = String(t.artist || '').trim();
+      if (!artist || artist.toLowerCase() === 'unknown artist') {
+        artist = query.replace(/\b\w/g, (c) => c.toUpperCase());
+        t.artist = artist;
+      } else if (hasJapanese.test(artist) && !hasJapanese.test(query)) {
+        artist = query.replace(/\b\w/g, (c) => c.toUpperCase());
+        t.artist = artist;
+      }
       const normKey = `${artist.toLowerCase()} - ${title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
       if (!seenTitles.has(normKey)) {
         seenTitles.add(normKey);
@@ -1976,10 +1984,13 @@ app.get('/api/music/search', async (c: Context) => {
               const img = (s.image || []).find((i: any) => i.quality === '150x150') ||
                           (s.image || []).find((i: any) => i.quality === '50x50') ||
                           (s.image || [])[0];
+              const rawArtist = (s.artists?.primary || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
+                                (s.artists?.all || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
+                                s.primaryArtists || s.singers || '';
               addTrack({
                 id: `saavn_${s.id}`,
                 title: s.name || s.title || '',
-                artist: s.primaryArtists || s.singers || 'Unknown Artist',
+                artist: rawArtist || 'Unknown Artist',
                 album: s.album?.name || '',
                 artworkUrl: img?.url || '',
                 audioUrl,
@@ -2043,7 +2054,10 @@ app.get('/api/music/search', async (c: Context) => {
   } catch (_) {
     return c.json([], 200);
   }
-});
+};
+
+app.get('/api/music/search', handleMusicSearch);
+app.get('/api/music/v2/search', handleMusicSearch);
 
 export default app;
 
