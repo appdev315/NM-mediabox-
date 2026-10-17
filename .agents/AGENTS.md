@@ -119,3 +119,18 @@
 
 3. **MANDATORY CRITIQUE & OPTIMIZATION SECTION IN PLANS**:
    - Every execution plan presented to the user MUST explicitly include a dedicated analysis of trade-offs and optimizations, highlighting why the selected path objectively delivers maximum efficiency, modularity, and zero regression risk across Antigravity and OpenCode.
+
+
+## 14. Mandatory Human-Readable Logic Commenting Protocol (Universal Polyglot Standard)
+1. **ОБЯЗАТЕЛЬНОЕ КОММЕНТИРОВАНИЕ НА ВСЕХ ЯЗЫКАХ СТЕКА**:
+   - Во всех языках программирования, поддерживающих комментарии (Python `#`, JS/TS/Rust/Go/C++/Swift/Kotlin/Java/C# `//`, SQL `--`, Bash `#`), агент ОБЯЗАН комментировать нетривиальную логику, граничные условия, константы и ветки обработки ошибок понятным человеческим языком (на русском).
+
+2. **ФОКУС НА «ЗАЧЕМ И ПОЧЕМУ», А НЕ «ЧТО»**:
+   - ЗАПРЕЩЕНЫ очевидные тавтологичные комментарии (например: `// увеличиваем счетчик`).
+   - ОБЯЗАТЕЛЬНО объяснять физику процесса, архитектурные причины и последствия:
+     - Почему выбрана конкретная константа, лимит или таймаут (например: `# TRANSIENT_RETRIES = 5 — защита от спама API; далее фоллбэк в TG`).
+     - Куда маршрутизируется поток данных при сбое, сетевом таймауте или пустом ответе.
+     - Почему применен именно этот алгоритм кадрирования, фильтрации или синхронизации.
+
+3. **ЛАКОНИЧНОСТЬ И БАЛАНС ТОКЕНОВ**:
+   - Комментарии должны быть емкими (1–3 строки), размещаться непосредственно перед комментируемым блоком и не засорять самоочевидный тривиальный код.

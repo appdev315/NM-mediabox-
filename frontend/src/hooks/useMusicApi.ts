@@ -62,15 +62,106 @@ export const setMusicDataSaver = (enabled: boolean): void => {
   } catch (_) {}
 };
 
-const SAAVN_API_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
+/**
+ * Third-party hobby deployment of the Saavn API. Kept only as the last-resort
+ * fallback — primary access goes through the own edge-cached Worker mirror
+ * (`/api/music/saavn/*`) so a single Vercel instance is no longer a hard SPOF.
+ */
+const SAAVN_FALLBACK_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
+
+const saavnApiFetch = async (relativePath: string): Promise<Response | null> => {
+  try {
+    const proxied = await fetchWithRetry(`${CF_API_BASE}/music/saavn/${relativePath}`, { maxRetries: 0 });
+    if (proxied && proxied.ok) return proxied;
+  } catch (_) {}
+  try {
+    const direct = await fetchWithRetry(`${SAAVN_FALLBACK_BASE}/${relativePath}`, { maxRetries: 0 });
+    return direct && direct.ok ? direct : null;
+  } catch (_) {}
+  return null;
+};
 
 export const PLACEHOLDER_ARTWORK = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="%238E8E93"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
 
-const INVIDIOUS_INSTANCES = [
+// --- INVIDIOUS POOL: official discovery + known seed list + client-side health scoring ---
+const INVIDIOUS_SEED_INSTANCES = [
+  'https://inv.nadeko.net',
+  'https://yewtu.be',
+  'https://invidious.nerdvpn.de',
+  'https://invidious.private.coffee',
+  'https://invidious.jing.rocks',
   'https://invidious.schenkel.eti.br',
   'https://yt.omada.cafe',
-  'https://invidious.kemonomimi.nl'
+  'https://invidious.kemonomimi.nl',
 ];
+
+const INV_HEALTH_KEY = 'inv_health_v2';
+const INV_DISCOVERY_KEY = 'inv_instances_v2';
+/** Instance that failed with 403/429/timeout goes to cooldown for 30 minutes */
+const INV_COOLDOWN_MS = 30 * 60 * 1000;
+
+interface InvHealthEntry { ok: number; fail: number; cooldownUntil: number }
+type InvHealth = Record<string, InvHealthEntry>;
+
+const getInvHealth = (): InvHealth => {
+  try {
+    return clientCache.get<InvHealth>(INV_HEALTH_KEY) || {};
+  } catch (_) {
+    return {};
+  }
+};
+
+const recordInvidiousOutcome = (base: string, ok: boolean): void => {
+  try {
+    const health = getInvHealth();
+    const entry = health[base] || { ok: 0, fail: 0, cooldownUntil: 0 };
+    if (ok) {
+      entry.ok += 1;
+      entry.cooldownUntil = 0;
+    } else {
+      entry.fail += 1;
+      entry.cooldownUntil = Date.now() + INV_COOLDOWN_MS;
+    }
+    if (entry.ok > 500) entry.ok = 500;
+    if (entry.fail > 500) entry.fail = 500;
+    health[base] = entry;
+    clientCache.set(INV_HEALTH_KEY, health, 30 * 24 * 3600);
+  } catch (_) {}
+};
+
+/**
+ * Ordered instance pool: freshly discovered instances first, then the seed
+ * list; entries penalized by recent failures are pushed to the back (or removed
+ * while in cooldown). If everything is in cooldown the full pool is returned
+ * anyway — a degraded fallback beats no fallback.
+ */
+const getInvidiousInstances = async (): Promise<string[]> => {
+  let discovered = clientCache.get<string[]>(INV_DISCOVERY_KEY) || await clientCache.getAsync<string[]>(INV_DISCOVERY_KEY) || [];
+  if (discovered.length === 0) {
+    try {
+      const res = await fetchWithRetry(`${CF_API_BASE}/music/invidious/instances`, { maxRetries: 0 });
+      if (res && res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.instances) && data.instances.length > 0) {
+          discovered = data.instances.filter((u: any) => typeof u === 'string' && u.startsWith('https://'));
+          clientCache.set(INV_DISCOVERY_KEY, discovered, 86400);
+        }
+      }
+    } catch (_) {}
+  }
+
+  const pool = [...new Set([...discovered, ...INVIDIOUS_SEED_INSTANCES])].slice(0, 20);
+  const health = getInvHealth();
+  const now = Date.now();
+  const healthy = pool.filter(base => !health[base] || health[base].cooldownUntil < now);
+  const candidates = healthy.length > 0 ? healthy : pool;
+
+  return candidates.sort((a, b) => {
+    const scoreA = health[a] ? health[a].ok - health[a].fail : 0;
+    const scoreB = health[b] ? health[b].ok - health[b].fail : 0;
+    return scoreB - scoreA;
+  });
+};
 
 const decodeHtmlEntities = (str: string): string => {
   if (!str) return '';
@@ -190,6 +281,7 @@ export const resolveFullAudioUrl = async (
   const cleanArtist = artist.trim();
   const primaryArtist = cleanArtist.split(/(?:feat\.|ft\.|,|&|\/)/i)[0].trim();
   const cacheKey = `resolved_audio_v3_${primaryArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
+  const negCacheKey = `neg_${cacheKey}`;
 
   if (!bypassCache) {
     const cached = clientCache.get<string>(cacheKey) || await clientCache.getAsync<string>(cacheKey);
@@ -199,6 +291,10 @@ export const resolveFullAudioUrl = async (
         cached.includes('aac.saavncdn.com') && !/_96\.|_48\./.test(cached);
       if (!isHighBitrateSaavn) return cached;
     }
+    // Negative cache (60 min): a track that just failed to resolve must not
+    // hammer Saavn/Invidious on every replay. bypassCache force-bypasses it.
+    const negative = clientCache.get<string>(negCacheKey) || await clientCache.getAsync<string>(negCacheKey);
+    if (negative) return '';
   }
 
   const saving = getNetworkSpeed().isSlow || isMusicDataSaverEnabled();
@@ -213,7 +309,7 @@ export const resolveFullAudioUrl = async (
 
     for (const q of queries) {
       try {
-        const res = await fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encodeURIComponent(q)}&limit=3`, { maxRetries: 1 });
+        const res = await saavnApiFetch(`search/songs?query=${encodeURIComponent(q)}&limit=3`);
         if (res && res.ok) {
           const data = await res.json();
           const results = data?.data?.results;
@@ -246,6 +342,7 @@ export const resolveFullAudioUrl = async (
 
             if (match) {
               clientCache.set(cacheKey, match.url, 14400); // 4 hours TTL
+              clientCache.remove(negCacheKey);
               return match.url;
             }
           }
@@ -274,18 +371,27 @@ export const resolveFullAudioUrl = async (
     }
 
     if (videoId) {
-      for (const instance of INVIDIOUS_INSTANCES) {
+      const instances = await getInvidiousInstances();
+      for (const instance of instances) {
         try {
-          const invRes = await fetchWithRetry(`${instance}/api/v1/videos/${videoId}`, { maxRetries: 1 });
+          const invRes = await fetchWithRetry(`${instance}/api/v1/videos/${videoId}`, { maxRetries: 0 });
           if (invRes && invRes.ok) {
             const data = await invRes.json();
             const streamUrl = extractInvidiousAudio(data.adaptiveFormats, saving);
             if (streamUrl) {
               clientCache.set(cacheKey, streamUrl, 900); // 15 min TTL for temporary YouTube stream tokens
+              clientCache.remove(negCacheKey);
+              recordInvidiousOutcome(instance, true);
               return streamUrl;
             }
+            // 200 but unusable payload (blocked/companion-less instance) — penalize too
+            recordInvidiousOutcome(instance, false);
+          } else {
+            // 403/429/companion-vacuum — instance goes to a 30 min cooldown
+            recordInvidiousOutcome(instance, false);
           }
         } catch (_) {
+          recordInvidiousOutcome(instance, false);
           continue;
         }
       }
@@ -293,6 +399,7 @@ export const resolveFullAudioUrl = async (
   } catch (_) {}
 
   // Strictly Full Tracks: Never return Deezer 30s preview snippet as a fake full track!
+  clientCache.set(negCacheKey, '1', 3600); // 60 min negative cache
   return '';
 };
 
@@ -391,9 +498,9 @@ export function useMusicApi() {
       // 2. JioSaavn Artist Search + Top Songs (unlocks complete discographies, e.g. Linkin Park)
       // 3. YouTube Music (Ytify) Search (full track coverage for rock, rap, obscure tracks)
       const [saavnSongRes1, saavnSongRes2, saavnArtistRes, ytRes] = await Promise.allSettled([
-        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encoded}&page=1&limit=50`, { maxRetries: 1 }),
-        fetchWithRetry(`${SAAVN_API_BASE}/search/songs?query=${encoded}&page=2&limit=50`, { maxRetries: 1 }),
-        fetchWithRetry(`${SAAVN_API_BASE}/search/artists?query=${encoded}`, { maxRetries: 1 }),
+        saavnApiFetch(`search/songs?query=${encoded}&page=1&limit=50`),
+        saavnApiFetch(`search/songs?query=${encoded}&page=2&limit=50`),
+        saavnApiFetch(`search/artists?query=${encoded}`),
         fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encoded}`, { maxRetries: 1 })
       ]);
 
@@ -417,8 +524,8 @@ export function useMusicApi() {
           const firstArtist = aJson?.data?.results?.[0];
           if (firstArtist?.id) {
             const [artistSongsRes, artistFullRes] = await Promise.allSettled([
-              fetchWithRetry(`${SAAVN_API_BASE}/artists?id=${firstArtist.id}`, { maxRetries: 1 }),
-              fetchWithRetry(`${SAAVN_API_BASE}/artists/${firstArtist.id}/songs?page=1`, { maxRetries: 1 })
+              saavnApiFetch(`artists?id=${firstArtist.id}`),
+              saavnApiFetch(`artists/${firstArtist.id}/songs?page=1`)
             ]);
             if (artistSongsRes.status === 'fulfilled' && artistSongsRes.value?.ok) {
               const asJson = await artistSongsRes.value.json();
@@ -500,7 +607,7 @@ export function useMusicApi() {
 
     try {
       const encoded = encodeURIComponent(trimmed);
-      const res = await fetchWithRetry(`${SAAVN_API_BASE}/search/albums?query=${encoded}&limit=${limit}`, { maxRetries: 1 });
+      const res = await saavnApiFetch(`search/albums?query=${encoded}&limit=${limit}`);
       if (!res || !res.ok) return [];
 
       const json = await res.json();
@@ -548,7 +655,7 @@ export function useMusicApi() {
     const { isSlow } = getNetworkSpeed();
 
     try {
-      const res = await fetchWithRetry(`${SAAVN_API_BASE}/albums?id=${encodeURIComponent(albumId)}`, { maxRetries: 1 });
+      const res = await saavnApiFetch(`albums?id=${encodeURIComponent(albumId)}`);
       if (!res || !res.ok) return [];
 
       const json = await res.json();

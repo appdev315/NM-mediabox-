@@ -47,7 +47,6 @@ export function AppleMusic() {
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [unavailableToast, setUnavailableToast] = useState<string | null>(null);
-  const [recentTracks, setRecentTracks] = useState<MusicTrack[]>([]);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<number>(0);
   const albumRequestRef = useRef<number>(0);
@@ -72,22 +71,6 @@ export function AppleMusic() {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [t]);
-
-  // Recently played music (reads history_music so it is not a write-only key)
-  const mapHistoryToTrack = useCallback((h: any): MusicTrack => ({
-    id: String(h.id || ''),
-    title: h.name || '',
-    artist: h.group || 'Unknown Artist',
-    artworkUrl: h.logo || PLACEHOLDER_ARTWORK,
-    audioUrl: h.url || '',
-  }), []);
-
-  useEffect(() => {
-    try {
-      const history = favoritesManager.getHistory('music');
-      setRecentTracks((history || []).slice(0, 12).map(mapHistoryToTrack).filter(t => t.id && t.title));
-    } catch (_) {}
-  }, [mapHistoryToTrack]);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
@@ -343,6 +326,7 @@ export function AppleMusic() {
     }, playlist);
 
     try {
+      // Write-only here: the history UI lives in Favorites → tab «Музыка»
       favoritesManager.addHistory('music', {
         id: track.id,
         name: track.title,
@@ -351,10 +335,6 @@ export function AppleMusic() {
         group: track.artist,
         type: 'music'
       });
-      try {
-        const history = favoritesManager.getHistory('music');
-        setRecentTracks((history || []).slice(0, 12).map(mapHistoryToTrack).filter(t2 => t2.id && t2.title));
-      } catch (_) {}
     } catch (_) {}
   };
 
@@ -702,47 +682,12 @@ export function AppleMusic() {
 
             if (list.length === 0) {
               if (activeTab === 'search') {
+                // History moved to Favorites → «Музыка»; search screen stays clean
                 if (searchQuery.trim().length < 2) {
-                  if (recentTracks.length === 0) {
-                    return (
-                      <div className="text-center py-16 opacity-50 font-medium text-sm flex flex-col items-center gap-2">
-                        <span className="text-3xl">🎵</span>
-                        <span>{t('music_search_prompt') || 'Поиск музыки'}</span>
-                      </div>
-                    );
-                  }
-                  // Recently played — keeps history_music key visible instead of write-only
                   return (
-                    <div className="pt-2">
-                      <div className="mb-2 px-1 flex items-center justify-between">
-                        <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
-                          🕘 {t('history') || 'История'}
-                        </span>
-                        <span className="text-[11px] opacity-40 font-mono">{recentTracks.length}</span>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        {recentTracks.slice(0, 6).map(rt => (
-                          <div
-                            key={`recent_${rt.id}`}
-                            onClick={() => handleSelectTrack(rt)}
-                            className="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all border"
-                            style={{
-                              backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.06))',
-                              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.12))',
-                              color: 'var(--text-color)'
-                            }}
-                          >
-                            <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm" style={{ backgroundColor: 'var(--hint-color, rgba(120,120,128,0.2))' }}>
-                              <img src={rt.artworkUrl || PLACEHOLDER_ARTWORK} alt={rt.title} loading="lazy" className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-sm font-bold truncate">{rt.title}</h3>
-                              <p className="text-xs truncate" style={{ opacity: 0.65 }}>{rt.artist}</p>
-                            </div>
-                            <span className="text-base opacity-40 flex-shrink-0">▶</span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="text-center py-16 opacity-50 font-medium text-sm flex flex-col items-center gap-2">
+                      <span className="text-3xl">🎵</span>
+                      <span>{t('music_search_prompt') || 'Поиск музыки'}</span>
                     </div>
                   );
                 }

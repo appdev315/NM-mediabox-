@@ -21,10 +21,12 @@ export function Favorites() {
   const [favMovies, setFavMovies] = useState<any[]>([]);
   const [favSeries, setFavSeries] = useState<any[]>([]);
   const [favRadio, setFavRadio] = useState<any[]>([]);
+  const [favMusic, setFavMusic] = useState<any[]>([]);
 
   const [historyMovies, setHistoryMovies] = useState<any[]>([]);
   const [historySeries, setHistorySeries] = useState<any[]>([]);
   const [historyRadio, setHistoryRadio] = useState<any[]>([]);
+  const [historyMusic, setHistoryMusic] = useState<any[]>([]);
 
   // Player states
   const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
@@ -34,36 +36,42 @@ export function Favorites() {
     setFavMovies(favoritesManager.getLocal('movie'));
     setFavSeries(favoritesManager.getLocal('series'));
     setFavRadio(favoritesManager.getLocal('radio'));
+    setFavMusic(favoritesManager.getLocal('music'));
 
     setHistoryMovies(favoritesManager.getHistory('movie'));
     setHistorySeries(favoritesManager.getHistory('series'));
     setHistoryRadio(favoritesManager.getHistory('radio'));
+    setHistoryMusic(favoritesManager.getHistory('music'));
   };
 
   useEffect(() => {
     loadData();
-    // Non-blocking cloud hydration for bookmarks
+    // Неблокирующая гидрация закладок из облака D1
     favoritesManager.hydrateFromCloud('movie').then(items => setFavMovies(items));
     favoritesManager.hydrateFromCloud('series').then(items => setFavSeries(items));
     favoritesManager.hydrateFromCloud('radio').then(items => setFavRadio(items));
-    // Non-blocking merge of cloud resume positions into local history
+    favoritesManager.hydrateFromCloud('music').then(items => setFavMusic(items));
+    // Неблокирующее слияние позиций и недавних записей истории из облака D1
     favoritesManager.hydrateHistoryFromCloud('movie').then(items => setHistoryMovies(items));
     favoritesManager.hydrateHistoryFromCloud('series').then(items => setHistorySeries(items));
     favoritesManager.hydrateHistoryFromCloud('radio').then(items => setHistoryRadio(items));
+    favoritesManager.hydrateHistoryFromCloud('music').then(items => setHistoryMusic(items));
   }, []);
 
-  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio') => {
+  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'music') => {
     e.stopPropagation();
     if (mode === 'favorites') {
       const updated = favoritesManager.remove(type, id);
       if (type === 'movie') setFavMovies(updated);
       else if (type === 'series') setFavSeries(updated);
       else if (type === 'radio') setFavRadio(updated);
+      else if (type === 'music') setFavMusic(updated);
     } else {
       const updated = favoritesManager.removeHistory(type, id);
       if (type === 'movie') setHistoryMovies(updated);
       else if (type === 'series') setHistorySeries(updated);
       else if (type === 'radio') setHistoryRadio(updated);
+      else if (type === 'music') setHistoryMusic(updated);
     }
     try {
       WebApp?.HapticFeedback?.impactOccurred('light');
@@ -78,9 +86,11 @@ export function Favorites() {
           localStorage.removeItem('favorites_movies');
           localStorage.removeItem('favorites_series');
           localStorage.removeItem('favorites_radio');
+          localStorage.removeItem('favorites_music');
           setFavMovies([]);
           setFavSeries([]);
           setFavRadio([]);
+          setFavMusic([]);
         } catch (e) {
           console.error(e);
         }
@@ -93,9 +103,11 @@ export function Favorites() {
           localStorage.removeItem('history_movies');
           localStorage.removeItem('history_series');
           localStorage.removeItem('history_radio');
+          localStorage.removeItem('history_music');
           setHistoryMovies([]);
           setHistorySeries([]);
           setHistoryRadio([]);
+          setHistoryMusic([]);
         } catch (e) {
           console.error(e);
         }
@@ -234,9 +246,105 @@ export function Favorites() {
     );
   };
 
+  // Music tab: works for both favorites (MusicTrack shape) and history ({ id, name, group, logo, url })
+  const normalizeMusicItem = (item: any) => ({
+    id: String(item.id || ''),
+    title: item.title || item.name || '',
+    artist: item.artist || item.group || 'Music',
+    artwork: item.artworkUrl || item.logo || '',
+    url: item.audioUrl || item.url || ''
+  });
+
+  const handlePlayMusic = (item: any) => {
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('medium');
+    } catch (_) {}
+    const norm = normalizeMusicItem(item);
+    const queue = (mode === 'favorites' ? favMusic : historyMusic)
+      .filter((i: any) => i.id && (i.title || i.name))
+      .map(normalizeMusicItem)
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        url: t.url,
+        coverUrl: t.artwork,
+        type: 'music' as const
+      }));
+    playTrack({
+      id: norm.id,
+      title: norm.title,
+      artist: norm.artist,
+      url: norm.url,
+      coverUrl: norm.artwork,
+      type: 'music'
+    }, queue);
+  };
+
+  const renderMusicList = () => {
+    const rawList = mode === 'favorites' ? favMusic : historyMusic;
+    const list = rawList.filter((item: any) => item.id && (item.title || item.name));
+
+    if (list.length === 0) {
+      return (
+        <div className="text-center mt-12 opacity-50 font-bold" style={{ color: 'var(--text-color)' }}>
+          {mode === 'favorites' ? (t('emptyFavorites') || 'В избранном пока ничего нет') : (t('emptyHistory') || 'История прослушиваний пуста')}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-2">
+        {list.map((item: any) => {
+          const norm = normalizeMusicItem(item);
+          const isActive = currentTrack?.id === norm.id && isPlaying;
+
+          return (
+            <div
+              key={norm.id}
+              onClick={() => handlePlayMusic(item)}
+              className="flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all border"
+              style={{
+                backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.06))',
+                borderColor: (currentTrack?.id === norm.id) ? 'var(--button-color)' : 'var(--hint-color, rgba(150, 150, 150, 0.12))',
+                color: 'var(--text-color)'
+              }}
+            >
+              <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm" style={{ backgroundColor: 'var(--hint-color, rgba(120,120,128,0.2))' }}>
+                {norm.artwork ? (
+                  <img
+                    src={norm.artwork}
+                    alt={norm.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xl">🎵</div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold truncate">{norm.title}</h3>
+                <p className="text-xs truncate" style={{ opacity: 0.65 }}>{norm.artist}</p>
+              </div>
+              <button
+                className="w-6 h-6 sm:w-7 sm:h-7 bg-black/70 rounded-full hover:scale-110 transition-transform text-white font-bold flex items-center justify-center flex-shrink-0 text-[10px] z-20 active:scale-90"
+                onClick={(e) => removeItem(e, item.id, 'music')}
+                title={mode === 'favorites' ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('removeFromHistory') || 'Удалить из истории')}
+              >
+                ✕
+              </button>
+              <span className="text-base opacity-40 flex-shrink-0">{isActive ? '⏸' : '▶'}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const currentList = mode === 'favorites'
-    ? (activeTab === 'movie' ? favMovies : activeTab === 'series' ? favSeries : favRadio)
-    : (activeTab === 'movie' ? historyMovies : activeTab === 'series' ? historySeries : historyRadio);
+    ? (activeTab === 'movie' ? favMovies : activeTab === 'series' ? favSeries : activeTab === 'radio' ? favRadio : favMusic)
+    : (activeTab === 'movie' ? historyMovies : activeTab === 'series' ? historySeries : activeTab === 'radio' ? historyRadio : historyMusic);
 
   const hasCurrentItems = currentList.length > 0;
 
@@ -302,7 +410,8 @@ export function Favorites() {
         {[
           { id: 'movie', label: t('movies') },
           { id: 'series', label: t('series') },
-          { id: 'radio', label: t('tab_radio') || 'Радио' }
+          { id: 'radio', label: t('tab_radio') || 'Радио' },
+          { id: 'music', label: t('tab_music') || 'Музыка' }
         ].map(tab => (
           <button 
             key={tab.id}
@@ -322,6 +431,7 @@ export function Favorites() {
         {activeTab === 'movie' && renderTmdbList('movie')}
         {activeTab === 'series' && renderTmdbList('series')}
         {activeTab === 'radio' && renderRadioList()}
+        {activeTab === 'music' && renderMusicList()}
       </div>
     </div>
   );

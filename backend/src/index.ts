@@ -2056,6 +2056,100 @@ const handleMusicSearch = async (c: Context) => {
   }
 };
 
+// --- SAAVN MIRROR PROXY (edge-cached; eliminates the hard SPOF on third-party hobby deployments) ---
+// Пул живых апстримов Saavn с автоматическим фолбэком. Переопределяется через переменную окружения SAAVN_API_BASES.
+const SAAVN_DEFAULT_BASES = [
+  'https://jiosaavn-api-amber.vercel.app/api',
+  'https://saavn-api-delta.vercel.app/api',
+];
+
+const saavnUpstreamBases = (c: Context): string[] => {
+  const raw = (c.env as any)?.SAAVN_API_BASES;
+  const configured = raw
+    ? String(raw).split(',').map((s: string) => s.trim().replace(/\/+$/, '')).filter(Boolean)
+    : [];
+  return configured.length > 0 ? configured : SAAVN_DEFAULT_BASES;
+};
+
+app.get('/api/music/saavn/*', async (c: Context) => {
+  const subPath = c.req.path.replace(/^\/api\/music\/saavn\/?/, '');
+  // Белый список допустимых путей: только безопасные read-only эндпоинты поиска, альбомов, артистов и треков
+  if (!/^(search\/(songs|albums|artists)|albums|artists|songs)(\/[\w-]+(\/songs)?)?$/.test(subPath)) {
+    return c.json({ error: 'not allowed' }, 403);
+  }
+
+  const upstreamQuery = new URL(c.req.url).search;
+  const parsedUrl = new URL(c.req.url);
+  const edgeCache = (caches as any).default;
+  // Search results are highly repetitive (80% of traffic) — cache 24h at edge; artist/album pages 6h
+  const ttl = subPath.startsWith('search') ? 86400 : 21600;
+  const cacheReq = edgeCacheKey(c, `${parsedUrl.origin}/api/music/saavn/${subPath}${upstreamQuery}`);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  for (const base of saavnUpstreamBases(c)) {
+    try {
+      const res = await fetch(`${base}/${subPath}${upstreamQuery}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const response = c.json(data, 200, {
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': `public, max-age=1800, s-maxage=${ttl}, stale-while-revalidate=3600`,
+      });
+      try {
+        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      } catch (_) {}
+      return response;
+    } catch (_) {
+      continue;
+    }
+  }
+
+  return c.json({ error: 'upstream unavailable' }, 502);
+});
+
+// --- INVIDIOUS INSTANCE DISCOVERY (24h edge cache, sourced from the official instance list) ---
+app.get('/api/music/invidious/instances', async (c: Context) => {
+  const edgeCache = (caches as any).default;
+  const cacheReq = edgeCacheKey(c);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  let instances: string[] = [];
+  try {
+    const res = await fetch('https://api.invidious.io/instances?pretty=1&sort_by=health', {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const list = await res.json();
+      instances = (Array.isArray(list) ? list : [])
+        .map((row: any) => (Array.isArray(row) ? row[1] : row))
+        .filter((i: any) => i && typeof i.type === 'string' && i.type === 'https' && typeof i.uri === 'string' && i.uri.startsWith('https://'))
+        .map((i: any) => i.uri.replace(/\/+$/, ''))
+        .slice(0, 24);
+    }
+  } catch (_) {}
+
+  const response = c.json({ instances }, 200, {
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'public, max-age=900, s-maxage=86400, stale-while-revalidate=3600',
+  });
+  if (instances.length > 0) {
+    try {
+      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+  }
+  return response;
+});
+
 app.get('/api/music/search', handleMusicSearch);
 app.get('/api/music/v2/search', handleMusicSearch);
 
