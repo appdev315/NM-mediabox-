@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useMusicApi, type MusicTrack } from '../hooks/useMusicApi';
+import { useMusicApi, type MusicTrack, type MusicAlbum, PLACEHOLDER_ARTWORK } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -7,19 +7,51 @@ import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
 import { EqualizerModal } from './EqualizerModal';
 
+const formatTrackDuration = (secs?: number | string): string => {
+  if (!secs) return '';
+  let n = typeof secs === 'string' ? parseFloat(secs) : secs;
+  if (isNaN(n) || n <= 0) return '';
+  if (n > 10000) n = Math.round(n / 1000);
+  const m = Math.floor(n / 60);
+  const s = Math.floor(n % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
 export function AppleMusic() {
   const { t } = useLanguage();
-  const { loading, searchMusic } = useMusicApi();
+  const { loading, searchMusic, searchAlbums, fetchAlbumTracks } = useMusicApi();
   const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
+  const [albums, setAlbums] = useState<MusicAlbum[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<MusicAlbum | null>(null);
+  const [albumTracks, setAlbumTracks] = useState<MusicTrack[]>([]);
+  const [loadingAlbum, setLoadingAlbum] = useState(false);
   const [cachedUrls, setCachedUrls] = useState<Set<string>>(new Set());
   const [cacheStats, setCacheStats] = useState<{ count: number; sizeBytes: number }>({ count: 0, sizeBytes: 0 });
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [unavailableToast, setUnavailableToast] = useState<string | null>(null);
   const searchAbortRef = useRef<number>(0);
+  const albumRequestRef = useRef<number>(0);
+  const scrollPosRef = useRef<number>(0);
+
+  // Listen for full track resolution failure events
+  useEffect(() => {
+    const handleUnavailable = (e: any) => {
+      try {
+        WebApp?.HapticFeedback?.notificationOccurred('warning');
+      } catch (_) {}
+      const trackName = e.detail?.title ? `«${e.detail.title}»` : '';
+      setUnavailableToast(`${t('music_full_unavailable') || 'Полная версия трека недоступна'} ${trackName}`.trim());
+      setTimeout(() => setUnavailableToast(null), 3500);
+    };
+
+    window.addEventListener('music-track-unavailable', handleUnavailable);
+    return () => window.removeEventListener('music-track-unavailable', handleUnavailable);
+  }, [t]);
 
   const [favTracks, setFavTracks] = useState<MusicTrack[]>(() => {
     try {
@@ -59,21 +91,21 @@ export function AppleMusic() {
       WebApp?.HapticFeedback?.impactOccurred('light');
     } catch (_) {}
 
-    setFavTracks(prev => {
-      const exists = prev.some(t => t.id === track.id);
-      let updated: MusicTrack[];
-      if (exists) {
-        updated = prev.filter(t => t.id !== track.id);
-        audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
-      } else {
-        updated = [track, ...prev];
-        audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
-      }
-      try {
-        localStorage.setItem('favorites_music', JSON.stringify(updated));
-      } catch (_) {}
-      return updated;
-    });
+    const exists = favTracks.some(t => t.id === track.id);
+    const updated = exists
+      ? favTracks.filter(t => t.id !== track.id)
+      : [track, ...favTracks];
+
+    setFavTracks(updated);
+    try {
+      localStorage.setItem('favorites_music', JSON.stringify(updated));
+    } catch (_) {}
+
+    if (exists) {
+      audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
+    } else {
+      audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
+    }
   };
 
   const [isExporting, setIsExporting] = useState(false);
@@ -132,10 +164,12 @@ export function AppleMusic() {
     if (shuffle) {
       if (!isShuffle) toggleShuffle();
       const randIdx = Math.floor(Math.random() * playlist.length);
-      playTrack(playlist[randIdx], playlist);
+      const chosen = playlist[randIdx];
+      playTrack(chosen, playlist);
     } else {
       if (isShuffle) toggleShuffle();
-      playTrack(playlist[0], playlist);
+      const first = playlist[0];
+      playTrack(first, playlist);
     }
   };
 
@@ -172,20 +206,63 @@ export function AppleMusic() {
     const q = query.trim();
     if (q.length < 2) {
       setSearchResults([]);
+      setAlbums([]);
+      setSelectedAlbum(null);
+      setAlbumTracks([]);
       return;
     }
     const reqId = ++searchAbortRef.current;
-    const results = await searchMusic(q, 60);
+    setSelectedAlbum(null);
+    setAlbumTracks([]);
+
+    const [tracks, foundAlbums] = await Promise.all([
+      searchMusic(q, 60),
+      searchAlbums(q, 10)
+    ]);
+
     if (reqId === searchAbortRef.current) {
-      setSearchResults(results);
+      setSearchResults(tracks);
+      setAlbums(foundAlbums);
     }
-  }, [searchMusic]);
+  }, [searchMusic, searchAlbums]);
+
+  const handleSelectAlbum = async (album: MusicAlbum) => {
+    try {
+      WebApp?.HapticFeedback?.selectionChanged();
+    } catch (_) {}
+    scrollPosRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
+    const reqId = ++albumRequestRef.current;
+    setSelectedAlbum(album);
+    setLoadingAlbum(true);
+    const tracks = await fetchAlbumTracks(album.id);
+    if (reqId !== albumRequestRef.current) return;
+    setAlbumTracks(tracks);
+    setLoadingAlbum(false);
+  };
+
+  const handleBackToSearch = () => {
+    try {
+      WebApp?.HapticFeedback?.impactOccurred('light');
+    } catch (_) {}
+    albumRequestRef.current++;
+    setSelectedAlbum(null);
+    setAlbumTracks([]);
+    setLoadingAlbum(false);
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.scrollTo({ top: scrollPosRef.current, behavior: 'instant' });
+      }, 20);
+    }
+  };
 
   // Debounce search by 600ms
   useEffect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
       setSearchResults([]);
+      setAlbums([]);
+      setSelectedAlbum(null);
+      setAlbumTracks([]);
       return;
     }
     const timer = setTimeout(() => {
@@ -193,8 +270,6 @@ export function AppleMusic() {
     }, 600);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
-
-
 
   // Play track handler: starts synchronously in the click task so iOS Safari
   // keeps the user-activation gesture. AudioPlayerContext resolves the full
@@ -204,9 +279,11 @@ export function AppleMusic() {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
 
-    const currentList = activeTab === 'search' && searchResults.length > 0 
-      ? searchResults 
-      : favTracks;
+    const currentList = selectedAlbum && albumTracks.length > 0
+      ? albumTracks
+      : activeTab === 'search' && searchResults.length > 0 
+        ? searchResults 
+        : favTracks;
 
     const playlist = currentList.map(t => ({
       id: t.id,
@@ -227,13 +304,13 @@ export function AppleMusic() {
     }, playlist);
 
     try {
-      favoritesManager.addHistory('radio', {
+      favoritesManager.addHistory('music', {
         id: track.id,
         name: track.title,
         url: track.audioUrl,
         logo: track.artworkUrl,
         group: track.artist,
-        type: 'radio'
+        type: 'music'
       });
     } catch (_) {}
   };
@@ -243,7 +320,7 @@ export function AppleMusic() {
   const isCurrentPlayingThis = (id: string) => currentTrack?.id === id && isPlaying;
 
   return (
-    <div className="flex flex-col min-h-full pb-32 text-white">
+    <div className="flex flex-col min-h-full pb-32" style={{ color: 'var(--text-color)' }}>
       {/* MediaBox Music Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -258,12 +335,42 @@ export function AppleMusic() {
         </div>
       </div>
 
+      {/* Unavailable Full Track Feedback Toast */}
+      {unavailableToast && (
+        <div 
+          className="p-3 mb-4 rounded-2xl shadow-xl flex items-center justify-between border backdrop-blur-xl animate-in fade-in slide-in-from-top duration-200"
+          style={{
+            backgroundColor: 'var(--bg-color)',
+            borderColor: '#FA2D48',
+            color: 'var(--text-color)'
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-base flex-shrink-0">⚠️</span>
+            <span className="text-xs font-bold truncate">{unavailableToast}</span>
+          </div>
+          <button 
+            onClick={() => setUnavailableToast(null)}
+            className="p-1 opacity-60 hover:opacity-100 text-xs font-black cursor-pointer"
+            style={{ color: 'var(--text-color)' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Segmented Navigation: 2 Clean Tabs (Apple HIG) */}
-      <div className="flex p-1 bg-white/10 rounded-xl mb-4 backdrop-blur-md">
+      <div 
+        className="flex p-1 rounded-xl mb-4 backdrop-blur-md border"
+        style={{
+          backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.12))',
+          borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.15))'
+        }}
+      >
         <button
           onClick={() => setActiveTab('search')}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-            activeTab === 'search' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
+            activeTab === 'search' ? 'bg-[#FA2D48] text-white shadow-md' : 'opacity-70 hover:opacity-100'
           }`}
         >
           🔍 {t('music_search') || 'Поиск'}
@@ -271,7 +378,7 @@ export function AppleMusic() {
         <button
           onClick={() => setActiveTab('favorites')}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-            activeTab === 'favorites' ? 'bg-[#FA2D48] text-white shadow-md' : 'text-white/70'
+            activeTab === 'favorites' ? 'bg-[#FA2D48] text-white shadow-md' : 'opacity-70 hover:opacity-100'
           }`}
         >
           ❤️ {t('music_favorites') || 'Избранное'} ({favTracks.length})
@@ -292,9 +399,14 @@ export function AppleMusic() {
               }
             }}
             placeholder={t('music_search_placeholder') || 'Исполнитель или трек'}
-            className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
+            className="w-full pl-10 pr-10 py-3 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FA2D48]"
+            style={{
+              backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.08))',
+              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+              color: 'var(--text-color)'
+            }}
           />
-          <div className="absolute left-3.5 top-3.5 text-white/50">
+          <div className="absolute left-3.5 top-3.5 opacity-50" style={{ color: 'var(--text-color)' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -303,7 +415,11 @@ export function AppleMusic() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-3 text-white/50 hover:text-white text-xs font-bold w-6 h-6 rounded-full bg-white/10 flex items-center justify-center"
+              className="absolute right-3 top-3 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity"
+              style={{
+                backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.2))',
+                color: 'var(--text-color)'
+              }}
             >
               ✕
             </button>
@@ -313,8 +429,14 @@ export function AppleMusic() {
 
       {/* Favorites Cache Header Bar */}
       {activeTab === 'favorites' && favTracks.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-2 mb-3 bg-white/5 rounded-2xl border border-white/5">
-          <div className="text-xs font-semibold text-white/70 truncate mr-2">
+        <div 
+          className="flex items-center justify-between px-3 py-2 mb-3 rounded-2xl border"
+          style={{
+            backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.06))',
+            borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.12))'
+          }}
+        >
+          <div className="text-xs font-semibold opacity-75 truncate mr-2">
             {cacheStats.count > 0 ? `${t('music_cache')}: ${cacheStats.count} • ${audioOfflineManager.formatBytes(cacheStats.sizeBytes)}` : t('music_cache_empty')}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -322,7 +444,12 @@ export function AppleMusic() {
               <button
                 onClick={handleExportAll}
                 disabled={isExporting}
-                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/10 transition-colors active:scale-95 flex items-center gap-1"
+                className="px-2.5 py-1 rounded-full text-xs font-bold border transition-colors active:scale-95 flex items-center gap-1"
+                style={{
+                  backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+                  borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+                  color: 'var(--text-color)'
+                }}
                 title={t('music_to_files') || 'В Файлы'}
               >
                 <span>{isExporting ? '⏳' : '📥'}</span>
@@ -332,7 +459,12 @@ export function AppleMusic() {
             {cacheStats.count > 0 && (
               <button
                 onClick={handleClearCache}
-                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/20 text-xs font-bold text-white/90 hover:text-red-400 border border-white/10 transition-colors active:scale-95"
+                className="px-2.5 py-1 rounded-full hover:bg-red-500/20 text-xs font-bold hover:text-red-400 border transition-colors active:scale-95"
+                style={{
+                  backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+                  borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+                  color: 'var(--text-color)'
+                }}
               >
                 {t('music_clear_cache')}
               </button>
@@ -346,7 +478,12 @@ export function AppleMusic() {
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => playAllFavorites(true)}
-            className="flex-1 py-2 px-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 border border-white/10 active:scale-95 transition-all"
+            className="flex-1 py-2 px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 border active:scale-95 transition-all"
+            style={{
+              backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+              color: 'var(--text-color)'
+            }}
           >
             <span>🔀</span>
             <span>{t('music_shuffle')}</span>
@@ -356,9 +493,14 @@ export function AppleMusic() {
             onClick={() => setIsReorderMode(prev => !prev)}
             className={`py-2 px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1 border active:scale-95 transition-all ${
               isReorderMode
-                ? 'bg-white text-black border-white shadow-md'
-                : 'bg-white/10 hover:bg-white/15 text-white/90 border-white/10'
+                ? 'bg-[#FA2D48] text-white border-[#FA2D48] shadow-md'
+                : 'hover:opacity-90'
             }`}
+            style={!isReorderMode ? {
+              backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+              color: 'var(--text-color)'
+            } : undefined}
           >
             <span>{isReorderMode ? '✓' : '⇅'}</span>
             <span>{isReorderMode ? t('music_done') : t('music_reorder')}</span>
@@ -366,21 +508,141 @@ export function AppleMusic() {
         </div>
       )}
 
+      {/* Found Albums Horizontal Carousel */}
+      {activeTab === 'search' && !selectedAlbum && albums.length > 0 && !loading && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
+              💽 {t('music_albums') || 'Альбомы'}
+            </span>
+            <span className="text-[11px] opacity-40 font-mono">
+              {albums.length}
+            </span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">
+            {albums.map((album) => (
+              <div
+                key={album.id}
+                onClick={() => handleSelectAlbum(album)}
+                className="flex-shrink-0 w-24 cursor-pointer group active:scale-95 transition-transform"
+              >
+                <div 
+                  className="w-24 h-24 rounded-2xl overflow-hidden shadow-md border relative"
+                  style={{
+                    borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+                    backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.1))'
+                  }}
+                >
+                  <img
+                    src={album.artworkUrl || PLACEHOLDER_ARTWORK}
+                    alt={album.title}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_ARTWORK; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
+                    <span className="text-[10px] text-white font-bold">▶ Открыть</span>
+                  </div>
+                </div>
+                <h4 className="text-xs font-bold truncate mt-1.5" style={{ color: 'var(--text-color)' }}>
+                  {album.title}
+                </h4>
+                <p className="text-[10px] opacity-60 truncate">
+                  {album.year ? `${album.year} • ` : ''}{album.artist}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Album Header */}
+      {activeTab === 'search' && selectedAlbum && (
+        <div 
+          className="p-3 mb-4 rounded-2xl border flex items-center justify-between gap-3 shadow-md backdrop-blur-md"
+          style={{
+            backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.08))',
+            borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))'
+          }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <img 
+              src={selectedAlbum.artworkUrl || PLACEHOLDER_ARTWORK} 
+              alt={selectedAlbum.title} 
+              loading="lazy"
+              decoding="async"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_ARTWORK; }}
+              className="w-14 h-14 rounded-xl object-cover shadow border flex-shrink-0"
+              style={{ borderColor: 'rgba(255,255,255,0.1)' }}
+            />
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#FA2D48]">
+                Альбом {selectedAlbum.year ? `• ${selectedAlbum.year}` : ''}
+              </span>
+              <h3 className="text-sm font-extrabold truncate" style={{ color: 'var(--text-color)' }}>
+                {selectedAlbum.title}
+              </h3>
+              <p className="text-xs opacity-65 truncate mt-0.5">
+                {selectedAlbum.artist} • {albumTracks.length} треков
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleBackToSearch}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors active:scale-95 flex-shrink-0"
+            style={{
+              backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+              borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+              color: 'var(--text-color)'
+            }}
+          >
+            ← {t('music_all_tracks') || 'Все треки'}
+          </button>
+        </div>
+      )}
+
+      {/* Section Header for Tracks */}
+      {activeTab === 'search' && !selectedAlbum && searchResults.length > 0 && !loading && (
+        <div className="mb-2 px-1 flex items-center justify-between">
+          <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
+            🎵 {t('music_popular_tracks') || 'Треки'}
+          </span>
+          <span className="text-[11px] opacity-40 font-mono">
+            {searchResults.length}
+          </span>
+        </div>
+      )}
+
       {/* Track List */}
       <div className="flex flex-col gap-1.5">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-8 h-8 border-4 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-semibold text-white/50">{t('searching') || 'Поиск...'}</span>
+        {loading || loadingAlbum ? (
+          <div className="flex flex-col gap-2 py-1">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 p-2.5 rounded-2xl border animate-pulse"
+                style={{
+                  backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.04))',
+                  borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.08))'
+                }}
+              >
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-white/10 rounded w-2/3" />
+                  <div className="h-2.5 bg-white/5 rounded w-1/3" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           (() => {
-            const list = activeTab === 'search' ? searchResults : favTracks;
+            const list = selectedAlbum ? albumTracks : (activeTab === 'search' ? searchResults : favTracks);
 
             if (list.length === 0) {
               if (activeTab === 'search') {
                 return (
-                  <div className="text-center py-16 text-white/40 font-medium text-sm flex flex-col items-center gap-2">
+                  <div className="text-center py-16 opacity-50 font-medium text-sm flex flex-col items-center gap-2">
                     <span className="text-3xl">🎵</span>
                     <span>
                       {searchQuery.trim().length >= 2
@@ -391,7 +653,7 @@ export function AppleMusic() {
                 );
               }
               return (
-                <div className="text-center py-16 text-white/40 font-bold text-sm">
+                <div className="text-center py-16 opacity-50 font-bold text-sm">
                   {t('music_no_favorites') || 'В избранном пока нет треков'}
                 </div>
               );
@@ -414,9 +676,16 @@ export function AppleMusic() {
                   }}
                   className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all active:scale-[0.99] border ${
                     isTrackSelected 
-                      ? 'bg-white/15 border-[#FA2D48]/50 shadow-md' 
-                      : 'bg-white/5 hover:bg-white/10 border-white/5'
+                      ? 'ring-2 ring-[#FA2D48] border-[#FA2D48]/50 shadow-md' 
+                      : 'hover:opacity-90'
                   }`}
+                  style={{
+                    backgroundColor: isTrackSelected
+                      ? 'rgba(250, 45, 72, 0.12)'
+                      : 'var(--secondary-bg-color, rgba(120, 120, 128, 0.06))',
+                    borderColor: isTrackSelected ? 'rgba(250, 45, 72, 0.4)' : 'var(--hint-color, rgba(150, 150, 150, 0.12))',
+                    color: 'var(--text-color)'
+                  }}
                 >
                   {/* Reorder index in favorites */}
                   {activeTab === 'favorites' && isReorderMode && (
@@ -426,12 +695,14 @@ export function AppleMusic() {
                   )}
 
                   {/* Artwork with squircle */}
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 shadow-sm">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm" style={{ backgroundColor: 'var(--hint-color, rgba(120,120,128,0.2))' }}>
                     <img 
-                      src={track.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80'} 
+                      src={track.artworkUrl || PLACEHOLDER_ARTWORK} 
                       alt={track.title} 
                       className="w-full h-full object-cover" 
                       loading="lazy"
+                      decoding="async"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = PLACEHOLDER_ARTWORK; }}
                     />
                     {isThisPlaying && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -452,18 +723,28 @@ export function AppleMusic() {
                   {/* Track Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <h3 className={`text-sm font-bold truncate ${isTrackSelected ? 'text-[#FA2D48]' : 'text-white'}`}>
+                      <h3 className="text-sm font-bold truncate" style={{ color: isTrackSelected ? '#FA2D48' : 'var(--text-color)' }}>
                         {track.title}
                       </h3>
                       {isOffline && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-extrabold flex-shrink-0">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-extrabold flex-shrink-0">
                           {t('music_offline')}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-white/60 truncate mt-0.5">
-                      {track.artist}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs truncate" style={{ color: 'var(--text-color)', opacity: 0.65 }}>
+                        {track.artist}
+                      </p>
+                      {track.duration && track.duration > 35 && (
+                        <>
+                          <span className="text-[10px] opacity-30">•</span>
+                          <span className="text-[11px] font-mono opacity-50 flex-shrink-0" style={{ color: 'var(--text-color)' }}>
+                            {formatTrackDuration(track.duration)}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Reorder Up/Down Controls or Export/Heart */}
@@ -472,7 +753,12 @@ export function AppleMusic() {
                       <button
                         onClick={() => moveTrack(idx, -1)}
                         disabled={idx === 0}
-                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-20 flex items-center justify-center text-white text-xs font-black active:scale-90 transition-all"
+                        className="w-8 h-8 rounded-full disabled:opacity-20 flex items-center justify-center text-xs font-black active:scale-90 transition-all border"
+                        style={{
+                          backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+                          borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+                          color: 'var(--text-color)'
+                        }}
                         title={t('music_move_up')}
                       >
                         ▲
@@ -480,7 +766,12 @@ export function AppleMusic() {
                       <button
                         onClick={() => moveTrack(idx, 1)}
                         disabled={idx === favTracks.length - 1}
-                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-20 flex items-center justify-center text-white text-xs font-black active:scale-90 transition-all"
+                        className="w-8 h-8 rounded-full disabled:opacity-20 flex items-center justify-center text-xs font-black active:scale-90 transition-all border"
+                        style={{
+                          backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+                          borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+                          color: 'var(--text-color)'
+                        }}
                         title={t('music_move_down')}
                       >
                         ▼
@@ -493,11 +784,12 @@ export function AppleMusic() {
                         <button
                           onClick={(e) => handleExportTrack(track, e)}
                           disabled={exportingTrackId === track.id}
-                          className="p-2 text-white/50 hover:text-white transition-all active:scale-90 flex-shrink-0"
+                          className="p-2 opacity-60 hover:opacity-100 transition-opacity active:scale-90 flex-shrink-0"
+                          style={{ color: 'var(--text-color)' }}
                           title={t('music_to_files') || 'В Файлы'}
                         >
                           {exportingTrackId === track.id ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                           ) : (
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -512,7 +804,7 @@ export function AppleMusic() {
                       <button
                         onClick={(e) => toggleFav(track, e)}
                         className="p-2 text-base transition-transform active:scale-125"
-                        style={{ color: isFav ? '#FA2D48' : 'rgba(255,255,255,0.3)' }}
+                        style={{ color: isFav ? '#FA2D48' : 'var(--hint-color, rgba(150,150,150,0.5))' }}
                       >
                         {isFav ? '❤️' : '🤍'}
                       </button>
@@ -524,8 +816,6 @@ export function AppleMusic() {
           })()
         )}
       </div>
-
-
 
       {/* Studio Equalizer Sheet */}
       <EqualizerModal isOpen={isEqOpen} onClose={() => setIsEqOpen(false)} />

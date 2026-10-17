@@ -19,22 +19,36 @@ class AudioOfflineManager {
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const existing = await cache.match(audioUrl);
+      const canonicalUrl = id ? `https://offline.mediabox.local/track/${encodeURIComponent(id)}` : '';
+
+      let existing = canonicalUrl ? await cache.match(canonicalUrl) : null;
+      if (!existing) {
+        existing = await cache.match(audioUrl);
+      }
+
       if (existing) {
-        if (id) {
-          await cache.put(`https://offline.mediabox.local/track/${encodeURIComponent(id)}`, existing.clone());
+        if (canonicalUrl) {
+          await cache.put(canonicalUrl, existing.clone());
         }
+        await cache.put(audioUrl, existing.clone());
         return true;
       }
 
       const response = await fetch(audioUrl, { mode: 'cors' });
       if (!response.ok) return false;
 
-      // Store in Cache Storage by audioUrl and by track id
-      await cache.put(audioUrl, response.clone());
-      if (id) {
-        await cache.put(`https://offline.mediabox.local/track/${encodeURIComponent(id)}`, response.clone());
+      // Clean up previous entry for this id to prevent orphaned duplicates
+      if (canonicalUrl) {
+        await cache.delete(canonicalUrl).catch(() => {});
       }
+
+      // Store in Cache Storage by audioUrl and canonical track id
+      await cache.put(audioUrl, response.clone());
+      if (canonicalUrl) {
+        await cache.put(canonicalUrl, response.clone());
+      }
+
+      await this.enforceMaxCacheSize(cache);
       return true;
     } catch (err) {
       console.warn(`[AudioOffline] Failed to cache audio ${id}:`, err);
@@ -133,19 +147,25 @@ class AudioOfflineManager {
       const cache = await caches.open(CACHE_NAME);
       const keys = await cache.keys();
       let totalBytes = 0;
+      let count = 0;
 
-      for (const req of keys) {
+      // Count only canonical track keys to eliminate double-counting with audioUrl
+      const canonicalKeys = keys.filter(req => req.url.startsWith('https://offline.mediabox.local/track/'));
+      const effectiveKeys = canonicalKeys.length > 0 ? canonicalKeys : keys;
+
+      for (const req of effectiveKeys) {
         try {
           const res = await cache.match(req);
           if (res) {
             const blob = await res.blob();
             totalBytes += blob.size;
+            count++;
           }
         } catch (_) {}
       }
 
       return {
-        count: keys.length,
+        count,
         sizeBytes: totalBytes
       };
     } catch (_) {
@@ -154,14 +174,53 @@ class AudioOfflineManager {
   }
 
   /**
+   * LRU eviction: limits offline cache size to maxBytes (default 250 MB).
+   * Evicts oldest saved tracks when threshold is exceeded.
+   */
+  private async enforceMaxCacheSize(cache: Cache, maxBytes = 250 * 1024 * 1024): Promise<void> {
+    try {
+      const keys = await cache.keys();
+      if (keys.length < 30) return;
+
+      const canonicalKeys = keys.filter(req => req.url.startsWith('https://offline.mediabox.local/track/'));
+      let totalBytes = 0;
+      const keySizes: Array<{ key: Request; size: number }> = [];
+
+      for (const req of canonicalKeys) {
+        const res = await cache.match(req);
+        if (res) {
+          const blob = await res.blob();
+          totalBytes += blob.size;
+          keySizes.push({ key: req, size: blob.size });
+        }
+      }
+
+      if (totalBytes <= maxBytes) return;
+
+      // Evict oldest tracks until we are under 80% of maxBytes (hysteresis buffer)
+      const targetBytes = maxBytes * 0.8;
+      for (const item of keySizes) {
+        if (totalBytes <= targetBytes) break;
+        await cache.delete(item.key);
+        totalBytes -= item.size;
+      }
+    } catch (err) {
+      console.warn('[AudioOffline] LRU eviction error:', err);
+    }
+  }
+
+  /**
    * Retrieves raw binary audio Blob from cache (or fetches directly if not cached)
    */
-  async getTrackBlob(audioUrl: string): Promise<Blob | null> {
-    if (!audioUrl) return null;
+  async getTrackBlob(audioUrl: string, trackId?: string): Promise<Blob | null> {
+    if (!audioUrl && !trackId) return null;
     if (this.isSupported()) {
       try {
         const cache = await caches.open(CACHE_NAME);
-        const match = await cache.match(audioUrl);
+        let match = audioUrl ? await cache.match(audioUrl) : null;
+        if (!match && trackId) {
+          match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+        }
         if (match) {
           const blob = await match.blob();
           if (blob && blob.size > 0) return blob;
@@ -169,6 +228,7 @@ class AudioOfflineManager {
       } catch (_) {}
     }
 
+    if (!audioUrl) return null;
     try {
       const response = await fetch(audioUrl, { mode: 'cors' });
       if (response.ok) {
@@ -200,8 +260,8 @@ class AudioOfflineManager {
       } catch (_) {}
     }
 
-    if (!targetUrl) return false;
-    const blob = await this.getTrackBlob(targetUrl);
+    if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn')) return false;
+    const blob = await this.getTrackBlob(targetUrl, track.id);
     if (!blob) return false;
 
     const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
@@ -268,8 +328,8 @@ class AudioOfflineManager {
         } catch (_) {}
       }
 
-      if (!targetUrl) continue;
-      const blob = await this.getTrackBlob(targetUrl);
+      if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn')) continue;
+      const blob = await this.getTrackBlob(targetUrl, track.id);
       if (!blob) continue;
       const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
       const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';

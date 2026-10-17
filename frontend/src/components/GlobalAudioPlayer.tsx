@@ -54,9 +54,10 @@ const AudioProgressBar = memo(function AudioProgressBar({ audioRef }: { audioRef
         step="0.1"
         value={currentTime}
         onChange={handleSeek}
-        className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
+        className="w-full accent-[#FA2D48] h-1.5 rounded-lg cursor-pointer opacity-90 hover:opacity-100"
+        style={{ backgroundColor: 'var(--hint-color, rgba(150,150,150,0.3))' }}
       />
-      <div className="flex justify-between text-[11px] font-semibold text-white/50">
+      <div className="flex justify-between text-[11px] font-semibold opacity-70" style={{ color: 'var(--text-color)' }}>
         <span>{formatTime(currentTime)}</span>
         <span>-{formatTime(Math.max(0, (duration || 30) - currentTime))}</span>
       </div>
@@ -224,7 +225,8 @@ export function GlobalAudioPlayer() {
         <div 
           className="fixed inset-0 z-[100] flex flex-col justify-between p-6 animate-in slide-in-from-bottom duration-300 backdrop-blur-3xl overflow-y-auto"
           style={{
-            backgroundColor: 'rgba(12, 12, 16, 0.98)',
+            backgroundColor: 'var(--bg-color)',
+            color: 'var(--text-color)',
             paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 1.5rem))',
             paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 1.5rem))'
           }}
@@ -233,11 +235,16 @@ export function GlobalAudioPlayer() {
           <div className="flex items-center justify-between w-full">
             <button
               onClick={() => setIsCardOpen(false)}
-              className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer active:scale-95"
+              className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer active:scale-95 border"
+              style={{
+                backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.15))',
+                borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+                color: 'var(--text-color)'
+              }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
             </button>
-            <span className="text-xs font-black tracking-widest uppercase text-white/50">
+            <span className="text-xs font-black tracking-widest uppercase opacity-60" style={{ color: 'var(--text-color)' }}>
               {currentTrack.type === 'radio' ? (t('tab_radio') || 'MediaBox Radio') : 'MediaBox Music'}
             </span>
             <div className="w-10 h-10" />
@@ -246,9 +253,13 @@ export function GlobalAudioPlayer() {
           {/* Big Squircle Artwork with ambient shadow */}
           <div className="flex flex-col items-center justify-center my-auto py-4">
             <div 
-              className={`w-64 h-64 sm:w-80 sm:h-80 rounded-3xl overflow-hidden shadow-2xl border border-white/10 transition-transform duration-500 ${
+              className={`w-64 h-64 sm:w-80 sm:h-80 rounded-3xl overflow-hidden shadow-2xl border transition-transform duration-500 ${
                 isPlaying ? 'scale-100 shadow-[0_20px_50px_rgba(250,45,72,0.35)]' : 'scale-90 opacity-80'
               }`}
+              style={{
+                borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+                backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.1))'
+              }}
             >
               {currentTrack.coverUrl ? (
                 <img 
@@ -258,7 +269,7 @@ export function GlobalAudioPlayer() {
                   onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
               ) : (
-                <div className="w-full h-full bg-neutral-900 flex items-center justify-center text-7xl">
+                <div className="w-full h-full flex items-center justify-center text-7xl" style={{ backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.1))' }}>
                   {currentTrack.type === 'radio' ? '📻' : '🎵'}
                 </div>
               )}
@@ -267,7 +278,12 @@ export function GlobalAudioPlayer() {
             {/* Quality pill & Equalizer shortcut */}
             <button
               onClick={() => setIsEqOpen(true)}
-              className="mt-4 px-3.5 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5 transition-colors active:scale-95 cursor-pointer"
+              className="mt-4 px-3.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors active:scale-95 cursor-pointer"
+              style={{
+                backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.15))',
+                borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.25))',
+                color: 'var(--text-color)'
+              }}
             >
               <span>{currentTrack.type === 'radio' ? 'LIVE 320k' : 'Lossless'}</span>
               <span className="text-[#FA2D48] font-bold">🎚️ {t('equalizer')}</span>
@@ -278,8 +294,8 @@ export function GlobalAudioPlayer() {
           <div className="w-full max-w-md mx-auto mb-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex-1 min-w-0 pr-4">
-                <h1 className="text-2xl font-black truncate text-white">{currentTrack.title}</h1>
-                <p className="text-base font-semibold text-white/70 truncate">{currentTrack.artist}</p>
+                <h1 className="text-2xl font-black truncate" style={{ color: 'var(--text-color)' }}>{currentTrack.title}</h1>
+                <p className="text-base font-semibold truncate opacity-70" style={{ color: 'var(--text-color)' }}>{currentTrack.artist}</p>
               </div>
               <div className="flex items-center gap-3">
                 {currentTrack.type === 'music' && (
@@ -292,7 +308,8 @@ export function GlobalAudioPlayer() {
                         audioUrl: currentTrack.url
                       });
                     }}
-                    className="p-1.5 text-white/70 hover:text-white transition-transform active:scale-90 cursor-pointer"
+                    className="p-1.5 opacity-70 hover:opacity-100 transition-transform active:scale-90 cursor-pointer"
+                    style={{ color: 'var(--text-color)' }}
                     title={t('music_to_files') || 'В Файлы / Скачать'}
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -322,8 +339,9 @@ export function GlobalAudioPlayer() {
                 <button 
                   onClick={toggleShuffle}
                   className={`p-2.5 rounded-full transition-all active:scale-90 cursor-pointer ${
-                    isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'text-white/40 hover:text-white/70'
+                    isShuffle ? 'text-[#FA2D48] bg-[#FA2D48]/15' : 'opacity-40 hover:opacity-70'
                   }`}
+                  style={{ color: isShuffle ? '#FA2D48' : 'var(--text-color)' }}
                   title={t('music_shuffle')}
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -338,7 +356,8 @@ export function GlobalAudioPlayer() {
 
               <button 
                 onClick={prevTrack}
-                className="p-3 text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+                className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
+                style={{ color: 'var(--text-color)' }}
                 title={t('prev') || 'Назад'}
               >
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" strokeWidth="2.5"/></svg>
@@ -346,7 +365,11 @@ export function GlobalAudioPlayer() {
 
               <button 
                 onClick={togglePlayPause}
-                className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer"
+                className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--button-color, #FA2D48)',
+                  color: 'var(--button-text-color, #fff)'
+                }}
                 title={isPlaying ? (t('pause') || 'Пауза') : (t('play') || 'Воспроизвести')}
               >
                 {isPlaying ? (
@@ -358,7 +381,8 @@ export function GlobalAudioPlayer() {
 
               <button 
                 onClick={nextTrack}
-                className="p-3 text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+                className="p-3 opacity-80 hover:opacity-100 active:scale-90 transition-transform cursor-pointer"
+                style={{ color: 'var(--text-color)' }}
                 title={t('next') || 'Вперед'}
               >
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2.5"/></svg>

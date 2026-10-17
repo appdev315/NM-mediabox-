@@ -479,12 +479,17 @@ export function useApi() {
   const fetchGenres = useCallback(async (type: 'movie' | 'tv'): Promise<Genre[]> => {
     try {
       const data = await tmdbFetch(`/genre/${type}/list`);
-      return data.genres || [];
+      const list = data.genres || [];
+      if (type === 'tv') {
+        const dramaName = language.startsWith('id') ? 'Drakor & Drama Asia' : (language.startsWith('ru') ? 'Дорамы' : 'Asian Dramas');
+        return [{ id: 'dramas' as any, name: dramaName }, ...list];
+      }
+      return list;
     } catch (err: any) {
       console.error('TMDB API Error:', err);
       return [];
     }
-  }, [tmdbFetch]);
+  }, [tmdbFetch, language]);
 
   const fetchMovieDetails = useCallback(async (id: string | number, type: 'movie' | 'tv'): Promise<any> => {
     const cacheKey = `movie_details_v4_${type}_${id}_${language}`;

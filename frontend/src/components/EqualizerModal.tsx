@@ -58,19 +58,24 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
 
   return (
     <div 
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in"
+      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md transition-opacity animate-in fade-in"
       onClick={onClose}
     >
       <div 
-        className="w-full sm:max-w-md max-w-[calc(100vw-32px)] bg-[#161618]/95 border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl backdrop-blur-2xl flex flex-col gap-4 text-white max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar"
+        className="w-full sm:max-w-md max-w-[calc(100vw-32px)] border rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl backdrop-blur-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar"
+        style={{
+          backgroundColor: 'var(--bg-color)',
+          borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+          color: 'var(--text-color)'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-1 border-b border-white/10">
+        <div className="flex items-center justify-between pb-1 border-b" style={{ borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))' }}>
           <div className="flex items-center gap-2.5">
             <span className="text-xl">🎚️</span>
             <div>
-              <h2 className="text-base font-extrabold tracking-tight">{t('equalizer')}</h2>
+              <h2 className="text-base font-extrabold tracking-tight" style={{ color: 'var(--text-color)' }}>{t('equalizer')}</h2>
             </div>
           </div>
 
@@ -81,8 +86,13 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
               className={`px-3 py-1 rounded-full text-xs font-black transition-all border ${
                 settings.enabled
                   ? 'bg-[#FA2D48] text-white border-[#FA2D48] shadow-md shadow-[#FA2D48]/30'
-                  : 'bg-white/10 text-white/50 border-white/10'
+                  : 'opacity-50 border'
               }`}
+              style={{
+                backgroundColor: settings.enabled ? '#FA2D48' : 'var(--hint-color, rgba(120, 120, 120, 0.15))',
+                borderColor: settings.enabled ? '#FA2D48' : 'var(--hint-color, rgba(120, 120, 120, 0.25))',
+                color: settings.enabled ? '#ffffff' : 'var(--text-color)'
+              }}
             >
               {settings.enabled ? t('eq_enabled') : (t('eq_disabled') || 'Выкл')}
             </button>
@@ -90,7 +100,12 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
             {/* Close */}
             <button 
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs font-bold text-white/70 hover:text-white transition-colors"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold opacity-70 hover:opacity-100 transition-opacity cursor-pointer border"
+              style={{
+                backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.15))',
+                borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+                color: 'var(--text-color)'
+              }}
             >
               ✕
             </button>
@@ -99,7 +114,7 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
 
         {/* Presets Horizontal Pills */}
         <div className="flex flex-col gap-1.5 min-w-0 max-w-full">
-          <div className="text-[11px] font-bold text-white/50 uppercase tracking-wider">
+          <div className="text-[11px] font-bold uppercase tracking-wider opacity-60" style={{ color: 'var(--text-color)' }}>
             {t('eq_preset')}
           </div>
           <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar min-w-0 max-w-full">
@@ -111,9 +126,14 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
                   onClick={() => handlePresetSelect(key)}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 shrink-0 ${
                     isSelected
-                      ? 'bg-white text-black border-white shadow-md'
-                      : 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10'
+                      ? 'shadow-md font-black'
+                      : 'opacity-70 hover:opacity-100'
                   }`}
+                  style={{
+                    backgroundColor: isSelected ? 'var(--button-color, #FA2D48)' : 'var(--hint-color, rgba(120, 120, 120, 0.1))',
+                    borderColor: isSelected ? 'var(--button-color, #FA2D48)' : 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+                    color: isSelected ? 'var(--button-text-color, #fff)' : 'var(--text-color)'
+                  }}
                 >
                   <span>{p.icon}</span>
                   <span>{t(p.nameKey as any) || key}</span>
@@ -124,15 +144,21 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* 3D Spatial Audio & Bass Boost Sliders */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-2xl border border-white/5 min-w-0">
+        <div 
+          className="grid grid-cols-2 gap-3 p-3 rounded-2xl border min-w-0"
+          style={{
+            backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.08))',
+            borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.15))'
+          }}
+        >
           {/* 3D Spatial */}
           <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-bold flex items-center gap-1 truncate">
+              <span className="font-bold flex items-center gap-1 truncate" style={{ color: 'var(--text-color)' }}>
                 <span>🌌</span>
                 <span className="truncate">{t('eq_spatial_3d')}</span>
               </span>
-              <span className="font-mono text-white/60 text-[11px]">{settings.spatialWidth}%</span>
+              <span className="font-mono opacity-60 text-[11px]" style={{ color: 'var(--text-color)' }}>{settings.spatialWidth}%</span>
             </div>
             <input 
               type="range"
@@ -141,18 +167,19 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
               step="5"
               value={settings.spatialWidth}
               onChange={(e) => handleSpatialChange(Number(e.target.value))}
-              className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
+              className="w-full accent-[#FA2D48] h-1.5 rounded-lg cursor-pointer opacity-90 hover:opacity-100"
+              style={{ backgroundColor: 'var(--hint-color, rgba(150, 150, 150, 0.3))' }}
             />
           </div>
 
           {/* Bass Boost */}
           <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-bold flex items-center gap-1 truncate">
+              <span className="font-bold flex items-center gap-1 truncate" style={{ color: 'var(--text-color)' }}>
                 <span>🔥</span>
                 <span className="truncate">{t('eq_bass_boost')}</span>
               </span>
-              <span className="font-mono text-white/60 text-[11px]">+{settings.bassBoost} dB</span>
+              <span className="font-mono opacity-60 text-[11px]" style={{ color: 'var(--text-color)' }}>+{settings.bassBoost} dB</span>
             </div>
             <input 
               type="range"
@@ -161,24 +188,31 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
               step="1"
               value={settings.bassBoost}
               onChange={(e) => handleBassBoostChange(Number(e.target.value))}
-              className="w-full accent-[#FA2D48] h-1.5 bg-white/20 rounded-lg cursor-pointer"
+              className="w-full accent-[#FA2D48] h-1.5 rounded-lg cursor-pointer opacity-90 hover:opacity-100"
+              style={{ backgroundColor: 'var(--hint-color, rgba(150, 150, 150, 0.3))' }}
             />
           </div>
         </div>
 
         {/* 5-Band Equalizer Vertical Sliders */}
         <div className="flex flex-col gap-2 min-w-0">
-          <div className="flex justify-between items-center text-[11px] font-bold text-white/50 uppercase tracking-wider">
+          <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider opacity-60" style={{ color: 'var(--text-color)' }}>
             <span>{t('eq_frequencies') || 'Частоты'}</span>
             <span>-12 dB ... +12 dB</span>
           </div>
 
-          <div className="grid grid-cols-5 gap-1.5 p-3 bg-white/5 rounded-2xl border border-white/5 min-w-0 overflow-hidden">
+          <div 
+            className="grid grid-cols-5 gap-1.5 p-3 rounded-2xl border min-w-0 overflow-hidden"
+            style={{
+              backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.08))',
+              borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.15))'
+            }}
+          >
             {EQUALIZER_BANDS.map((band, idx) => {
               const currentVal = settings.bands[idx] ?? 0;
               return (
                 <div key={band.freq} className="flex flex-col items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-mono text-white/60">
+                  <span className="text-[10px] font-mono opacity-60" style={{ color: 'var(--text-color)' }}>
                     {currentVal > 0 ? `+${currentVal}` : currentVal}
                   </span>
 
@@ -190,13 +224,14 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
                       step="1"
                       value={currentVal}
                       onChange={(e) => handleBandChange(idx, Number(e.target.value))}
-                      className="accent-[#FA2D48] w-24 h-1.5 bg-white/20 rounded-lg cursor-pointer -rotate-90 origin-center"
+                      className="accent-[#FA2D48] w-24 h-1.5 rounded-lg cursor-pointer -rotate-90 origin-center opacity-90 hover:opacity-100"
+                      style={{ backgroundColor: 'var(--hint-color, rgba(150, 150, 150, 0.3))' }}
                     />
                   </div>
 
                   <div className="text-center mt-1 w-full">
-                    <div className="text-xs font-bold text-white/90 truncate">{band.label}</div>
-                    <div className="text-[9px] text-white/40 truncate">{band.sub}</div>
+                    <div className="text-xs font-bold truncate" style={{ color: 'var(--text-color)' }}>{band.label}</div>
+                    <div className="text-[9px] opacity-50 truncate" style={{ color: 'var(--text-color)' }}>{band.sub}</div>
                   </div>
                 </div>
               );
@@ -208,14 +243,23 @@ export const EqualizerModal: React.FC<EqualizerModalProps> = ({ isOpen, onClose 
         <div className="flex items-center justify-between pt-1">
           <button
             onClick={handleReset}
-            className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-xs font-bold text-white/70 hover:text-white border border-white/10 transition-colors"
+            className="px-3 py-1.5 rounded-full text-xs font-bold border transition-opacity opacity-70 hover:opacity-100 cursor-pointer"
+            style={{
+              backgroundColor: 'var(--hint-color, rgba(120, 120, 120, 0.1))',
+              borderColor: 'var(--hint-color, rgba(120, 120, 120, 0.2))',
+              color: 'var(--text-color)'
+            }}
           >
             {t('eq_reset')}
           </button>
 
           <button
             onClick={onClose}
-            className="px-5 py-1.5 rounded-full bg-white text-black text-xs font-black shadow-md hover:bg-white/90 active:scale-95 transition-transform"
+            className="px-5 py-1.5 rounded-full text-xs font-black shadow-md active:scale-95 transition-transform cursor-pointer"
+            style={{
+              backgroundColor: 'var(--button-color, #FA2D48)',
+              color: 'var(--button-text-color, #fff)'
+            }}
           >
             {t('gotIt') || 'Готово'}
           </button>

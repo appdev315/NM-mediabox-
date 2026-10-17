@@ -180,13 +180,24 @@ app.get('/api/analytics/stats', async (c: Context) => {
 
     const radioErrTotalRow = await c.env.DB.prepare(
       `SELECT COUNT(*) as total FROM analytics_events
-       WHERE event_type = 'error' AND item_type IN ('radio', 'tv_channel') AND ts >= datetime('now', ?)`
+       WHERE event_type = 'error' AND item_type = 'radio' AND ts >= datetime('now', ?)`
     ).bind(`-${since} hours`).first() as { total?: number } | null;
 
     const radioErrTop = await c.env.DB.prepare(
-      `SELECT item_title, item_type, meta, COUNT(*) as cnt FROM analytics_events
-       WHERE event_type = 'error' AND item_type IN ('radio', 'tv_channel') AND ts >= datetime('now', ?)
-       GROUP BY item_title, item_type, meta ORDER BY cnt DESC LIMIT 5`
+      `SELECT item_title, meta, COUNT(*) as cnt FROM analytics_events
+       WHERE event_type = 'error' AND item_type = 'radio' AND ts >= datetime('now', ?)
+       GROUP BY item_title, meta ORDER BY cnt DESC LIMIT 5`
+    ).bind(`-${since} hours`).all();
+
+    const musicErrTotalRow = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM analytics_events
+       WHERE event_type = 'error' AND item_type = 'music' AND ts >= datetime('now', ?)`
+    ).bind(`-${since} hours`).first() as { total?: number } | null;
+
+    const musicErrTop = await c.env.DB.prepare(
+      `SELECT item_title, meta, COUNT(*) as cnt FROM analytics_events
+       WHERE event_type = 'error' AND item_type = 'music' AND ts >= datetime('now', ?)
+       GROUP BY item_title, meta ORDER BY cnt DESC LIMIT 5`
     ).bind(`-${since} hours`).all();
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -271,7 +282,11 @@ function formatCountry(code?: string): string {
       },
       radioErrors: {
         total: radioErrTotalRow?.total || 0,
-        top: (radioErrTop.results || []).map((r: any) => ({ title: r.item_title, type: r.item_type, reason: r.meta, count: r.cnt }))
+        top: (radioErrTop.results || []).map((r: any) => ({ title: r.item_title, reason: r.meta, count: r.cnt }))
+      },
+      musicErrors: {
+        total: musicErrTotalRow?.total || 0,
+        top: (musicErrTop.results || []).map((r: any) => ({ title: r.item_title, reason: r.meta, count: r.cnt }))
       },
       byCountry: (byCountry.results || []).map((r: any) => ({
         country: r.country,
@@ -1094,14 +1109,18 @@ const mapLiftwItem = (item: any, isTv?: boolean, searchScore?: number) => {
 // ones carry an empty or Cyrillic-only origin with a Cyrillic display title.
 export function isRussianOrigin(item: any): boolean {
   if (!item) return false;
+  if (item.isDrama) return false;
   if (item.original_language === 'ru') return true;
+  if (item.original_language && item.original_language !== 'ru') return false;
   const oc = item.origin_country;
   if (Array.isArray(oc) && (oc.includes('RU') || oc.includes('SU'))) return true;
+  if (Array.isArray(oc) && oc.length > 0 && !oc.includes('RU') && !oc.includes('SU')) return false;
   const pc = item.production_countries;
   if (Array.isArray(pc) && pc.some((cc: any) => cc?.iso_3166_1 === 'RU' || cc?.iso_3166_1 === 'SU')) return true;
   const countries = item.country || item.countries;
   if (Array.isArray(countries) && countries.some((cc: any) => /^(Россия|СССР|Russia|Soviet Union)$/i.test(String(cc).trim()))) return true;
   const origin = (item.original_name || item.original_title || item.origin_name || '').trim();
+  if (/[\uac00-\ud7af\u4e00-\u9fff\u3040-\u30ff]/i.test(origin)) return false;
   const title = (item.title || item.name || '').trim();
   if (/[а-яё]/i.test(title) && !/[a-z]/i.test(origin)) return true;
   return false;
@@ -1625,7 +1644,9 @@ app.get('/api/feed/home', async (c: Context) => {
   const hideDomestic = isNonRussianLang(lang);
 
   try {
-    const genreCategories = isTv ? [
+    const dramaTitle = lang.startsWith('id') ? 'Drakor & Drama Asia' : (lang.startsWith('ru') ? 'Дорамы' : 'Asian Dramas');
+    const genreCategories: any[] = isTv ? [
+      { id: 'dramas', name: dramaTitle, isDrama: true },
       { id: '10759', name: lang.startsWith('ru') ? 'Боевики и Приключения' : 'Action & Adventure', liftwGenre: 'Боевик' },
       { id: '35', name: lang.startsWith('ru') ? 'Комедии' : 'Comedy', liftwGenre: 'Комедия' },
       { id: '18', name: lang.startsWith('ru') ? 'Драмы' : 'Drama', liftwGenre: 'Драма' },
@@ -1643,6 +1664,43 @@ app.get('/api/feed/home', async (c: Context) => {
 
     const genrePromises = genreCategories.map(async (cat) => {
       try {
+        if (cat.isDrama) {
+          const tmdbKey = getTmdbKey(c);
+          const tmdbLang = lang.startsWith('id') ? 'id-ID' : (lang.startsWith('ru') ? 'ru-RU' : 'en-US');
+          const origin = new URL(c.req.url).origin;
+          const tmdbRes = await fetch(`https://api.themoviedb.org/3/discover/tv?api_key=${tmdbKey}&with_origin_country=KR|CN|TH&with_genres=18|10749&sort_by=popularity.desc&page=1&language=${tmdbLang}`, {
+            signal: AbortSignal.timeout(4500),
+          });
+          if (tmdbRes.ok) {
+            const tData = await tmdbRes.json() as any;
+            const items = (tData?.results || []).slice(0, 14).map((it: any) => ({
+              id: it.id,
+              name: it.name || it.original_name,
+              title: it.name || it.original_name,
+              original_name: it.original_name || it.name,
+              original_title: it.original_name || it.name,
+              poster: it.poster_path ? `${origin}/api/image?path=/t/p/w342${it.poster_path}` : '',
+              poster_path: it.poster_path,
+              backdrop_path: it.backdrop_path,
+              rating: Number((it.vote_average || 0).toFixed(1)),
+              vote_average: Number((it.vote_average || 0).toFixed(1)),
+              release_date: it.first_air_date || '',
+              year: it.first_air_date ? it.first_air_date.split('-')[0] : '',
+              type: 'series',
+              media_type: 'tv',
+              isDrama: true,
+              origin_country: it.origin_country || ['KR'],
+            }));
+            return {
+              id: cat.id,
+              name: cat.name,
+              genreId: cat.id,
+              rawResults: items,
+            };
+          }
+          return null;
+        }
+
         const res = await fetch(`https://api.liftw.ws/list/categories?category=${liftwCategory}&genre=${encodeURIComponent(cat.liftwGenre)}&page=1&limit=24&sort=popular`, {
           headers: LIFTW_HEADERS,
           signal: AbortSignal.timeout(4500),
@@ -1735,6 +1793,46 @@ app.get('/api/catalog/list', async (c: Context) => {
     if (cachedResponse) return cachedResponse;
   } catch (_) {}
 
+  if (genreParam === 'dramas' || genreParam === 'kdrama' || genreParam === 'asian_drama') {
+    const tmdbKey = getTmdbKey(c);
+    const tmdbLang = lang.startsWith('id') ? 'id-ID' : (lang.startsWith('ru') ? 'ru-RU' : 'en-US');
+    const origin = new URL(c.req.url).origin;
+    try {
+      const tmdbRes = await fetch(`https://api.themoviedb.org/3/discover/tv?api_key=${tmdbKey}&with_origin_country=KR|CN|TH&with_genres=18|10749&sort_by=popularity.desc&page=${page}&language=${tmdbLang}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (tmdbRes.ok) {
+        const tData = await tmdbRes.json() as any;
+        const items = (tData?.results || []).slice(0, limit).map((it: any) => ({
+          id: it.id,
+          name: it.name || it.original_name,
+          title: it.name || it.original_name,
+          original_name: it.original_name || it.name,
+          original_title: it.original_name || it.name,
+          poster: it.poster_path ? `${origin}/api/image?path=/t/p/w342${it.poster_path}` : '',
+          poster_path: it.poster_path,
+          backdrop_path: it.backdrop_path,
+          rating: Number((it.vote_average || 0).toFixed(1)),
+          vote_average: Number((it.vote_average || 0).toFixed(1)),
+          release_date: it.first_air_date || '',
+          year: it.first_air_date ? it.first_air_date.split('-')[0] : '',
+          type: 'series',
+          media_type: 'tv',
+          isDrama: true,
+          origin_country: it.origin_country || ['KR'],
+        }));
+        const response = c.json(items, 200, {
+          'Cache-Control': 'public, max-age=1800, s-maxage=43200',
+          'Access-Control-Allow-Origin': '*',
+        });
+        try {
+          c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+        } catch (_) {}
+        return response;
+      }
+    } catch (_) {}
+  }
+
   let targetGenre = '';
   if (genreParam && genreParam !== 'trending' && genreParam !== 'all') {
     targetGenre = GENRE_ID_TO_LIFTW[genreParam] || genreParam;
@@ -1783,7 +1881,39 @@ app.get('/api/catalog/list', async (c: Context) => {
   }
 });
 
-// --- MUSIC PROXY & SEARCH (7-DAY EDGE CACHE) ---
+// --- ASIAN DRAMA / KISSKH ENDPOINTS (FMHY CATALOG) ---
+app.get('/api/dramas/search', async (c: Context) => {
+  const query = (c.req.query('q') || '').trim();
+  if (!query) return c.json([], 200);
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = edgeCacheKey(c);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  try {
+    const res = await fetch(`https://kisskh.co/api/DramaList/Search?q=${encodeURIComponent(query)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const response = c.json(data, 200, {
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        'Access-Control-Allow-Origin': '*',
+      });
+      try {
+        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      } catch (_) {}
+      return response;
+    }
+  } catch (_) {}
+  return c.json([], 200);
+});
+
+// --- MUSIC PROXY & SEARCH (7-DAY EDGE CACHE, 100% FULL STREAMS, 0% 30S CUTS) ---
 app.get('/api/music/search', async (c: Context) => {
   const query = (c.req.query('q') || '').trim();
   const limit = Math.min(Math.max(Number(c.req.query('limit')) || 50, 10), 100);
@@ -1800,12 +1930,16 @@ app.get('/api/music/search', async (c: Context) => {
 
   try {
     const encoded = encodeURIComponent(query);
-    const [artistRes, trackRes] = await Promise.allSettled([
-      fetch(`https://api.deezer.com/search/artist?q=${encoded}&limit=3`, {
+    const [saavnRes1, saavnRes2, ytRes] = await Promise.allSettled([
+      fetch(`https://jiosaavn-api-amber.vercel.app/api/search/songs?query=${encoded}&page=1&limit=50`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(6000),
       }),
-      fetch(`https://api.deezer.com/search?q=${encoded}&limit=${limit}`, {
+      fetch(`https://jiosaavn-api-amber.vercel.app/api/search/songs?query=${encoded}&page=2&limit=50`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(6000),
+      }),
+      fetch(`https://api.ytify.workers.dev/search?q=${encoded}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(6000),
       }),
@@ -1817,50 +1951,71 @@ app.get('/api/music/search', async (c: Context) => {
     const addTrack = (t: any) => {
       if (!t || !t.id || !t.title) return;
       const title = String(t.title || '').trim();
-      const artist = String(t.artist?.name || 'Unknown Artist').trim();
+      const artist = String(t.artist || 'Unknown Artist').trim();
       const normKey = `${artist.toLowerCase()} - ${title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
       if (!seenTitles.has(normKey)) {
         seenTitles.add(normKey);
-        tracks.push({
-          id: `dz_${t.id}`,
-          title,
-          artist,
-          album: t.album?.title || '',
-          artworkUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || '',
-          audioUrl: t.preview || '',
-          duration: typeof t.duration === 'number' ? t.duration : 180,
-          genre: 'Music',
-          isResolved: false,
-        });
+        tracks.push(t);
       }
     };
 
-    if (artistRes.status === 'fulfilled' && artistRes.value.ok) {
-      try {
-        const aData = await artistRes.value.json() as any;
-        const topArtist = aData?.data?.[0];
-        if (topArtist?.id) {
-          try {
-            const topSongsRes = await fetch(`https://api.deezer.com/artist/${topArtist.id}/top?limit=100`, {
-              headers: { 'User-Agent': 'Mozilla/5.0' },
-              signal: AbortSignal.timeout(5000),
-            });
-            if (topSongsRes.ok) {
-              const tsData = await topSongsRes.json() as any;
-              for (const t of (tsData?.data || [])) {
-                addTrack(t);
-              }
+    for (const res of [saavnRes1, saavnRes2]) {
+      if (res.status === 'fulfilled' && res.value.ok) {
+        try {
+          const sData = await res.value.json() as any;
+          for (const s of (sData?.data?.results || [])) {
+            const downloadUrl = (s.downloadUrl || []).find((u: any) => u.quality === '320kbps') || s.downloadUrl?.[s.downloadUrl.length - 1];
+            const audioUrl = downloadUrl?.url || '';
+            if (audioUrl) {
+              const img = (s.image || []).find((i: any) => i.quality === '150x150') ||
+                          (s.image || []).find((i: any) => i.quality === '50x50') ||
+                          (s.image || [])[0];
+              addTrack({
+                id: `saavn_${s.id}`,
+                title: s.name || s.title || '',
+                artist: s.primaryArtists || s.singers || 'Unknown Artist',
+                album: s.album?.name || '',
+                artworkUrl: img?.url || '',
+                audioUrl,
+                duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 180),
+                genre: s.language || 'Music',
+                isResolved: true,
+              });
             }
-          } catch (_) {}
-        }
-      } catch (_) {}
+          }
+        } catch (_) {}
+      }
     }
 
-    if (trackRes.status === 'fulfilled' && trackRes.value.ok) {
+    if (ytRes.status === 'fulfilled' && ytRes.value.ok) {
       try {
-        const tData = await trackRes.value.json() as any;
-        for (const t of (tData?.data || [])) {
-          addTrack(t);
+        const ytList = await ytRes.value.json() as any[];
+        if (Array.isArray(ytList)) {
+          for (const item of ytList) {
+            let dur = 180;
+            if (typeof item.duration === 'string') {
+              const parts = item.duration.split(':').map(Number);
+              if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) dur = parts[0] * 60 + parts[1];
+              else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) dur = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (typeof item.lengthSeconds === 'number') {
+              dur = item.lengthSeconds;
+            }
+            const cleanTitle = (item.title || '')
+              .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
+              .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
+              .trim();
+            addTrack({
+              id: `yt_${item.id}`,
+              title: cleanTitle || item.title || '',
+              artist: (item.author || 'Unknown Artist').replace(/ - Topic$/i, '').trim(),
+              album: 'YouTube Music',
+              artworkUrl: `https://i.ytimg.com/vi/${item.id}/default.jpg`,
+              audioUrl: '',
+              duration: dur,
+              genre: 'Music',
+              isResolved: false,
+            });
+          }
         }
       } catch (_) {}
     }

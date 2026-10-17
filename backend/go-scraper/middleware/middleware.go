@@ -56,7 +56,7 @@ type CategoryMetrics struct {
 	Movies uint64 `json:"movies"`
 	Series uint64 `json:"series"`
 	Radio  uint64 `json:"radio"`
-	TV     uint64 `json:"tv"`
+	Music  uint64 `json:"music"`
 	Adult  uint64 `json:"adult"`
 }
 
@@ -227,8 +227,8 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 			atomic.AddUint64(&GlobalMetrics.Categories.Series, 1)
 		} else if strings.Contains(path, "/api/radio") {
 			atomic.AddUint64(&GlobalMetrics.Categories.Radio, 1)
-		} else if strings.Contains(path, "/api/tv") {
-			atomic.AddUint64(&GlobalMetrics.Categories.TV, 1)
+		} else if strings.Contains(path, "/api/music") {
+			atomic.AddUint64(&GlobalMetrics.Categories.Music, 1)
 		} else if strings.Contains(path, "/api/adult") {
 			atomic.AddUint64(&GlobalMetrics.Categories.Adult, 1)
 		}
@@ -519,7 +519,7 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 		atomic.StoreUint64(&GlobalMetrics.Categories.Movies, 0)
 		atomic.StoreUint64(&GlobalMetrics.Categories.Series, 0)
 		atomic.StoreUint64(&GlobalMetrics.Categories.Radio, 0)
-		atomic.StoreUint64(&GlobalMetrics.Categories.TV, 0)
+		atomic.StoreUint64(&GlobalMetrics.Categories.Music, 0)
 		atomic.StoreUint64(&GlobalMetrics.Categories.Adult, 0)
 		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwRequests, 0)
 		atomic.StoreUint64(&GlobalMetrics.Donors.LiftwFails, 0)

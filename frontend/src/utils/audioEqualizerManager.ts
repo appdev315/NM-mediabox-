@@ -143,6 +143,18 @@ class AudioEqualizerManager {
 
       const ctx = this.audioContext;
 
+      ctx.onstatechange = () => {
+        if ((ctx.state as string) === 'interrupted') {
+          [100, 300, 700, 1500].forEach((delay) => {
+            setTimeout(() => {
+              if (this.audioContext && (this.audioContext.state as string) === 'interrupted') {
+                this.audioContext.resume().catch(() => {});
+              }
+            }, delay);
+          });
+        }
+      };
+
       // createMediaElementSource can only be called once per HTMLAudioElement
       if (!this.sourceNode || this.attachedElement !== audio) {
         this.sourceNode = ctx.createMediaElementSource(audio);
@@ -219,11 +231,19 @@ class AudioEqualizerManager {
    * Resumes AudioContext on user interaction if suspended by browser autoplay policy
    */
   public async resumeContext() {
-    if (this.audioContext && this.audioContext.state !== 'running') {
+    if (this.audioContext && (this.audioContext.state as string) !== 'running') {
       try {
         await this.audioContext.resume();
       } catch (_) {}
     }
+  }
+
+  public isInterrupted(): boolean {
+    return Boolean(this.audioContext && (this.audioContext.state as string) === 'interrupted');
+  }
+
+  public getContextState(): string {
+    return this.audioContext?.state || 'none';
   }
 
   /**

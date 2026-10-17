@@ -108,3 +108,14 @@
 
 3. **EMPIRICAL LOG & TRACEBACK AUDIT**:
    - Diagnoses of system freezes, hangs, or failures MUST be corroborated by actual log files, process statuses, thread pools, and process lifecycle events. Speculative explanations without empirical log verification are strictly prohibited.
+
+## 13. Mandatory Technical Critique & Senior Anti-Absurdity Protocol
+1. **UNRESTRICTED SENIOR ARCHITECTURAL CRITIQUE (ZERO BLIND COMPLIANCE)**:
+   - The agent is STRICTLY PROHIBITED from blindly agreeing with or passively implementing user suggestions that are architecturally unoptimal, mathematically unsound, contradictory to existing codebase patterns, or technologically absurd (e.g. attempting micro-chunk torrent downloads on lightweight files, duplicating UI state in prompts, or degrading system latency).
+   - Whenever the user presents an idea, request, or hypothesis, the agent MUST critically, objectively, and rigorously evaluate it against performance (O(N)), latency, data integrity, and system stability before accepting it.
+
+2. **MANDATORY SENIOR OPTIMIZATION COUNTER-PROPOSALS**:
+   - If an idea has architectural flaws, unfeasible assumptions, or significant trade-offs, the agent MUST openly critique it with cold technical facts and data, and immediately propose a superior, production-ready Senior alternative that achieves the user's strategic goal without architectural debt.
+
+3. **MANDATORY CRITIQUE & OPTIMIZATION SECTION IN PLANS**:
+   - Every execution plan presented to the user MUST explicitly include a dedicated analysis of trade-offs and optimizations, highlighting why the selected path objectively delivers maximum efficiency, modularity, and zero regression risk across Antigravity and OpenCode.

@@ -5,6 +5,7 @@ const STORAGE_KEYS: Record<string, string> = {
   movie: 'favorites_movies',
   series: 'favorites_series',
   radio: 'favorites_radio',
+  music: 'favorites_music',
   adult: 'adult_favorites',
 };
 
@@ -12,6 +13,7 @@ const HISTORY_KEYS: Record<string, string> = {
   movie: 'history_movies',
   series: 'history_series',
   radio: 'history_radio',
+  music: 'history_music',
 };
 
 export const favoritesManager = {

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
-import { trackError } from '../utils/analytics';
+import { trackOpen, trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
 import { resolveFullAudioUrl } from '../hooks/useMusicApi';
@@ -67,19 +67,9 @@ function needsFullResolve(t: Track): boolean {
     || u.includes('dzcdn') || u.includes('invidious') || t.id.startsWith('yt_');
 }
 
-function isSlowLink(): boolean {
-  try {
-    const c = (navigator as any)?.connection;
-    if (!c) return false;
-    return Boolean(c.saveData) || c.effectiveType === 'slow-2g' || c.effectiveType === '2g';
-  } catch (_) {
-    return false;
-  }
-}
-
 function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): void {
   try {
-    if (current.type !== 'music' || queue.length < 2 || isSlowLink()) return;
+    if (current.type !== 'music' || queue.length < 2) return;
     const idx = queue.findIndex((t) => t.id === current.id);
     if (idx < 0) return;
     let next: Track | undefined;
@@ -90,19 +80,20 @@ function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): vo
     } else {
       next = queue[(idx + 1) % queue.length];
     }
-    if (!next || next.type !== 'music' || !next.url) return;
+    if (!next || next.type !== 'music' || !next.id) return;
     const target = next;
     (async () => {
       try {
-        let u = target.url;
         if (needsFullResolve(target)) {
-          u = (await withTimeout(
-            resolveFullAudioUrl(target.artist, target.title, target.url, target.id).catch(() => target.url),
+          const u = await withTimeout(
+            resolveFullAudioUrl(target.artist, target.title, target.url, target.id).catch(() => ''),
             8000,
-            target.url
-          )) || target.url;
+            ''
+          );
+          if (u && !u.includes('preview') && !u.includes('dzcdn')) {
+            target.url = u; // Pre-warm stream URL directly in queue item for 0ms synchronous lockscreen transition
+          }
         }
-        await audioOfflineManager.saveTrackAudio(target.id, u).catch(() => {});
       } catch (_) {}
     })();
   } catch (_) {}
@@ -130,6 +121,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
+  const musicRetryTokenRef = useRef<string | null>(null); // Guard against infinite onError re-resolve loops
   const { hlsRef, initHls, destroyHls } = useHlsPlayer();
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -414,7 +406,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const track = currentTrackRef.current;
     if (!audio || !track) return;
 
-    if (isPlayingRef.current) {
+    // Check if audio is genuinely active and not paused by hardware route change
+    const isActuallyPlaying = isPlayingRef.current && !audio.paused && !isPausedByDeviceRef.current;
+
+    if (isActuallyPlaying) {
       isUserPausedRef.current = true;
       lastPauseTimeRef.current = Date.now();
       isPausedByDeviceRef.current = false;
@@ -509,14 +504,38 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         }).catch((err) => {
           console.warn('[Audio] Music unpause direct play failed, attempting soft reload:', err);
           if (audio.src) {
+            const currentPos = audio.currentTime;
             audio.load();
+            if (currentPos > 0) {
+              try { audio.currentTime = currentPos; } catch (_) {}
+            }
             audio.play().then(() => {
               setIsPlaying(true);
               setIsBuffering(false);
               syncToPeers(track, true, false);
             }).catch((err2) => {
-              console.warn('[Audio] Music unpause reload failed:', err2);
-              setIsBuffering(false);
+              console.warn('[Audio] Music unpause reload failed, refreshing stream URL:', err2);
+              // Background pause recovery: if CDN socket closed during sleep, re-resolve and resume at current position
+              (async () => {
+                try {
+                  const refreshed = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id, true);
+                  if (refreshed) {
+                    audio.src = refreshed;
+                    audio.load();
+                    if (currentPos > 0) {
+                      try { audio.currentTime = currentPos; } catch (_) {}
+                    }
+                    await audio.play();
+                    setIsPlaying(true);
+                    setIsBuffering(false);
+                    syncToPeers({ ...track, url: refreshed }, true, false);
+                  } else {
+                    setIsBuffering(false);
+                  }
+                } catch (_) {
+                  setIsBuffering(false);
+                }
+              })();
             });
           } else {
             setIsBuffering(false);
@@ -526,52 +545,96 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [startBackgroundShield, syncToPeers, attemptReconnect]);
 
-  // Silent prefetch for music: offline blob -> bounded full-stream resolve ->
+  // Silent prefetch for music: direct CDN stream (online) / offline blob (offline) -> bounded full-stream resolve ->
   // single audio.play() with the final URL. Never plays the preview aloud.
-  const startMusicTrack = useCallback(async (track: Track, audio: HTMLAudioElement, myToken: number) => {
+  const startMusicTrack = useCallback(async (track: Track, audio: HTMLAudioElement, myToken: number, bypassCache = false) => {
     const isStale = () => myToken !== musicResolveRef.current;
     const finishResolving = () => {
       if (musicResolveRef.current === myToken) resolvingIdRef.current = null;
     };
     try {
       let finalUrl = '';
-      // 1. Offline blob first: instant on weak/unstable networks.
-      try {
-        const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
-        if (isStale()) {
-          if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
-          return;
-        }
-        if (blob) {
-          if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
-            try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
-          }
-          activeBlobUrlRef.current = blob;
-          finalUrl = blob;
-        }
-      } catch (_) {}
+      const isDeviceOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
-      // 2. Resolve the full stream when the stored URL is a 30s preview.
+      // 1. Offline blob when offline (or if explicitly bypassing dead cache, skip)
+      if (isDeviceOffline && !bypassCache) {
+        try {
+          const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
+          if (isStale()) {
+            if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
+            return;
+          }
+          if (blob) {
+            if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
+              try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+            }
+            activeBlobUrlRef.current = blob;
+            finalUrl = blob;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Resolve the full stream when online or when offline blob is absent
       if (!finalUrl) {
-        if (needsFullResolve(track)) {
+        if (bypassCache || needsFullResolve(track)) {
           const resolved = await withTimeout(
-            resolveFullAudioUrl(track.artist, track.title, track.url, track.id).catch(() => track.url),
+            resolveFullAudioUrl(track.artist, track.title, track.url, track.id, bypassCache).catch(() => ''),
             MUSIC_RESOLVE_TIMEOUT_MS,
-            track.url
+            ''
           );
           if (isStale()) return;
-          finalUrl = resolved || track.url;
+          finalUrl = resolved || '';
         } else {
           finalUrl = track.url;
         }
-        // Opportunistic offline copy for the next launch (skip on metered/slow links).
-        if (!isSlowLink() && finalUrl && !finalUrl.startsWith('blob:')) {
-          audioOfflineManager.saveTrackAudio(track.id, finalUrl).catch(() => {});
+
+        // 3. Fallback to offline cache if network resolution failed
+        if (!finalUrl && !bypassCache) {
+          try {
+            const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
+            if (isStale()) {
+              if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
+              return;
+            }
+            if (blob) {
+              if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
+                try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+              }
+              activeBlobUrlRef.current = blob;
+              finalUrl = blob;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Pre-warm the queue entry with the resolved URL to avoid repeated network round-trips
+      if (finalUrl && !finalUrl.startsWith('blob:')) {
+        const qIndex = queueRef.current.findIndex(t => t.id === track.id);
+        if (qIndex !== -1) {
+          queueRef.current[qIndex] = { ...queueRef.current[qIndex], url: finalUrl };
         }
       }
 
       if (isStale()) return;
-      if (!finalUrl) throw new Error('empty stream url');
+
+      // Strictly Full Tracks: Refuse to play any 30-second preview cut!
+      const isPreview = !finalUrl || finalUrl.includes('preview') || finalUrl.includes('dzcdn');
+      if (isPreview) {
+        console.warn(`[Audio] Full track stream unavailable for ${track.artist} - ${track.title}, refusing 30s preview`);
+        finishResolving();
+        setIsBuffering(false);
+        setIsPlaying(false);
+        syncToPeers(track, false, false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('music-track-unavailable', {
+            detail: { title: track.title, artist: track.artist, id: track.id }
+          }));
+          try {
+            trackError('music', track.title || '', String(track.id), 'full_stream_unavailable');
+          } catch (_) {}
+        }
+        return;
+      }
 
       // Cache-hot: the same bytes are already playing (e.g. instant replay).
       if (audio.currentSrc === finalUrl && !audio.paused) {
@@ -597,8 +660,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         if (isStale()) return;
         setIsPlaying(true);
         setIsBuffering(false);
-        syncToPeers(track, true, false);
+        syncToPeers(resolvedTrack, true, false);
         prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current);
+        trackOpen('music', `${resolvedTrack.artist} - ${resolvedTrack.title}`, resolvedTrack.id);
       } catch (err) {
         if (isStale()) return;
         console.warn('[Audio] music play failed:', err);
@@ -646,6 +710,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     } catch (_) {}
 
     isAudioMasterRef.current = true;
+    musicRetryTokenRef.current = null;
     const myToken = ++musicResolveRef.current;
     resolvingIdRef.current = requestedId;
 
@@ -683,6 +748,33 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     syncToPeers(track, true, true);
 
     if (track.type === 'music') {
+      // Synchronous fast-path for already pre-warmed / resolved tracks:
+      // Starting playback synchronously preserves mobile WebKit gesture token from lockscreen MediaSession
+      if (!needsFullResolve(track) && track.url && !track.url.includes('preview') && !track.url.includes('dzcdn')) {
+        const resolvedTrack = track;
+        setCurrentTrack(resolvedTrack);
+        if (audio.src !== track.url) {
+          isRefreshingSrcRef.current = true;
+          audio.preload = 'auto';
+          audio.src = track.url;
+          audio.load();
+          isRefreshingSrcRef.current = false;
+        }
+        resolvingIdRef.current = null;
+        try {
+          await audio.play();
+          if (myToken !== musicResolveRef.current) return;
+          setIsPlaying(true);
+          setIsBuffering(false);
+          syncToPeers(resolvedTrack, true, false);
+          prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current);
+          trackOpen('music', `${resolvedTrack.artist} - ${resolvedTrack.title}`, resolvedTrack.id);
+          return;
+        } catch (err) {
+          console.warn('[Audio] Fast-path play failed, falling back to full resolver:', err);
+        }
+      }
+
       await startMusicTrack(track, audio, myToken);
       return;
     }
@@ -804,6 +896,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [playTrack]);
 
+  const togglePlayPauseRef = useRef(togglePlayPause);
+  const stopRef = useRef(stop);
+  const nextTrackRef = useRef(nextTrack);
+  const prevTrackRef = useRef(prevTrack);
+
+  useEffect(() => {
+    togglePlayPauseRef.current = togglePlayPause;
+    stopRef.current = stop;
+    nextTrackRef.current = nextTrack;
+    prevTrackRef.current = prevTrack;
+  });
+
   // MediaSession Action Handlers: Persistent remote commands for iOS Lockscreen / Control Center / Desktop
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
@@ -812,23 +916,23 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('play', () => {
         const audio = audioRef.current;
         if (!isPlayingRef.current || (audio && audio.paused)) {
-          togglePlayPause();
+          togglePlayPauseRef.current();
         }
       });
       navigator.mediaSession.setActionHandler('pause', () => {
         const audio = audioRef.current;
         if (isPlayingRef.current || (audio && !audio.paused)) {
-          togglePlayPause();
+          togglePlayPauseRef.current();
         }
       });
       navigator.mediaSession.setActionHandler('stop', () => {
-        stop();
+        stopRef.current();
       });
       navigator.mediaSession.setActionHandler('previoustrack', () => {
-        prevTrack();
+        prevTrackRef.current();
       });
       navigator.mediaSession.setActionHandler('nexttrack', () => {
-        nextTrack();
+        nextTrackRef.current();
       });
       try {
         navigator.mediaSession.setActionHandler('seekto', (details) => {
@@ -838,22 +942,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         });
       } catch (_) {}
     } catch (_) {}
-
-    return () => {
-      if ('mediaSession' in navigator) {
-        try {
-          navigator.mediaSession.setActionHandler('play', null);
-          navigator.mediaSession.setActionHandler('pause', null);
-          navigator.mediaSession.setActionHandler('stop', null);
-          navigator.mediaSession.setActionHandler('previoustrack', null);
-          navigator.mediaSession.setActionHandler('nexttrack', null);
-          try {
-            navigator.mediaSession.setActionHandler('seekto', null);
-          } catch (_) {}
-        } catch (_) {}
-      }
-    };
-  }, [togglePlayPause, stop, prevTrack, nextTrack]);
+  }, []);
 
   // MediaSession Metadata: Updates station info & artwork when current track changes
   useEffect(() => {
@@ -1110,20 +1199,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           syncToPeers(currentTrackRef.current, false, false);
         }
       } else {
-        // Stream paused due to buffer underrun, device interruption, or packet delay
-        // Do NOT drop the TCP stream immediately! Set buffering state and attempt soft resume
-        setIsBuffering(true);
-        setTimeout(() => {
-          const a = audioRef.current;
-          if (a && a.paused && !isUserPausedRef.current && isPlayingRef.current) {
-            a.play().catch(() => {});
-          }
-        }, 600);
+        // Stream paused due to device disconnect (e.g. Bluetooth turned off) or OS interruption
+        isPausedByDeviceRef.current = true;
+        setIsPlaying(false);
+        setIsBuffering(false);
+        audioEqualizerManager.resumeContext();
+        if (isAudioMasterRef.current && currentTrackRef.current) {
+          syncToPeers(currentTrackRef.current, false, false);
+        }
       }
     };
 
     const onEnded = () => {
-      if (currentTrackRef.current?.type === 'radio') {
+      const track = currentTrackRef.current;
+      const a = audioRef.current;
+      if (track?.type === 'radio') {
         if (!isUserPausedRef.current) {
           console.warn('[Audio] Radio stream ended by server, triggering auto-reconnect...');
           attemptReconnect('stream ended by server');
@@ -1131,27 +1221,64 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           stopBackgroundShield();
           audioEqualizerManager.suspendContext();
         }
-      } else if (currentTrackRef.current?.type === 'music' && !isUserPausedRef.current) {
-        console.log('[Audio] Music track finished, auto-advancing to next song in background');
-        nextTrack();
+      } else if (track?.type === 'music' && !isUserPausedRef.current) {
+        // HTML5 audio 'ended' event fires when the media has naturally finished playing.
+        // Guard only against instant aborts (e.g. ended fired within first 3 seconds of a long track).
+        const isInstantAbort = a && Number.isFinite(a.duration) && a.duration >= 20 && a.currentTime < 3;
+        if (isInstantAbort) {
+          console.warn('[Audio] Track ended prematurely at', a?.currentTime, 'of', a?.duration, '— halting runaway skipping');
+          setIsPlaying(false);
+          setIsBuffering(false);
+          stopBackgroundShield(false);
+          if (a && a.currentTime < 10) {
+            try {
+              trackError('music', track.title || '', String(track.id), 'music_aborted_early');
+            } catch (_) {}
+          }
+        } else {
+          nextTrack();
+        }
       } else {
         stopBackgroundShield();
         audioEqualizerManager.suspendContext();
       }
     };
 
-    const onError = () => {
+    const onError = async () => {
       console.warn('[Audio] Playback error or device disconnect:', audio.error);
-      if (currentTrackRef.current?.type === 'radio') {
+      const track = currentTrackRef.current;
+      if (track?.type === 'radio') {
         // Mark device pause flag so onDeviceChange knows to resume seamlessly
         isPausedByDeviceRef.current = true;
         setIsBuffering(true);
         if (!isReconnectingRef.current && !isUserPausedRef.current) {
           attemptReconnect('playback error');
         }
+      } else if (track?.type === 'music') {
+        setIsPlaying(false);
+        // Single automatic re-resolve retry with cache bypass on playback error
+        if (track.id && musicRetryTokenRef.current !== track.id) {
+          musicRetryTokenRef.current = track.id;
+          console.warn(`[Audio] Retrying music playback for ${track.artist} - ${track.title} with bypassCache...`);
+          setIsBuffering(true);
+          const myToken = ++musicResolveRef.current;
+          await startMusicTrack(track, audio, myToken, true /* bypassCache */);
+          return;
+        }
+        setIsBuffering(false);
+        isPausedByDeviceRef.current = true;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('music-track-unavailable', {
+            detail: { title: track.title, artist: track.artist, id: track.id }
+          }));
+        }
+        try {
+          trackError('music', track.title || '', String(track.id), 'playback_error');
+        } catch (_) {}
       } else {
         setIsPlaying(false);
         setIsBuffering(false);
+        isPausedByDeviceRef.current = true;
       }
     };
 
@@ -1165,7 +1292,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onTimeUpdate = () => {
       const a = audioRef.current;
       const track = currentTrackRef.current;
-      if (!a || !track || track.type === 'radio' || !('mediaSession' in navigator)) return;
+      if (!a || !track) return;
+
+      // Auto-heal WebKit AudioContext interruption if timeline is running silently on speaker
+      if (!a.paused && audioEqualizerManager.isInterrupted()) {
+        audioEqualizerManager.resumeContext();
+      }
+
+      if (track.type === 'radio' || !('mediaSession' in navigator)) return;
       if (Number.isFinite(a.duration) && a.duration > 0 && 'setPositionState' in navigator.mediaSession) {
         try {
           navigator.mediaSession.setPositionState({
@@ -1227,6 +1361,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       });
     };
 
+    // Global user gesture listener to un-interrupt WebKit AudioContext on screen touch/click
+    const handleUserInteraction = () => {
+      if (audioEqualizerManager.isInterrupted()) {
+        audioEqualizerManager.resumeContext();
+      }
+    };
+    window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+
     audio.addEventListener('play', onPlay);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('canplay', onCanPlay);
@@ -1243,6 +1386,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      window.removeEventListener('pointerdown', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('canplay', onCanPlay);

@@ -63,14 +63,18 @@ export function deduplicateMediaList<T extends { id?: any; title?: string; name?
 // a Cyrillic display title combined with an empty/non-Latin origin name.
 export function isRussianOrigin(item: any): boolean {
   if (!item) return false;
+  if (item.isDrama) return false;
   if (item.original_language === 'ru') return true;
+  if (item.original_language && item.original_language !== 'ru') return false;
   const oc = item.origin_country;
   if (Array.isArray(oc) && (oc.includes('RU') || oc.includes('SU'))) return true;
+  if (Array.isArray(oc) && oc.length > 0 && !oc.includes('RU') && !oc.includes('SU')) return false;
   const pc = item.production_countries;
   if (Array.isArray(pc) && pc.some((c: any) => c?.iso_3166_1 === 'RU' || c?.iso_3166_1 === 'SU')) return true;
   const countries = item.country || item.countries;
   if (Array.isArray(countries) && countries.some((c: any) => /^(Россия|СССР|Russia|Soviet Union)$/i.test(String(c).trim()))) return true;
   const origin = (item.original_name || item.original_title || item.origin_name || '').trim();
+  if (/[\uac00-\ud7af\u4e00-\u9fff\u3040-\u30ff]/i.test(origin)) return false;
   const title = (item.title || item.name || '').trim();
   if (/[а-яё]/i.test(title) && !/[a-z]/i.test(origin)) return true;
   return false;
