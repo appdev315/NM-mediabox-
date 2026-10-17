@@ -8,6 +8,7 @@ import { WebApp } from '../telegram';
 import React from 'react';
 
 import { favoritesManager } from '../utils/favoritesManager';
+import { audioOfflineManager } from '../utils/audioOfflineManager';
 import { prewarmStream } from '../utils/streamPreloader';
 import { AvailBadge } from '../components/AvailBadge';
 
@@ -29,7 +30,7 @@ export function Favorites() {
   const [historyMusic, setHistoryMusic] = useState<any[]>([]);
 
   // Player states
-  const { playTrack, currentTrack, isPlaying, stop } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, stop, togglePlayPause } = useAudioPlayer();
 
   const loadData = () => {
     // Instant 0ms load from LocalStorage
@@ -58,14 +59,18 @@ export function Favorites() {
     favoritesManager.hydrateHistoryFromCloud('music').then(items => setHistoryMusic(items));
   }, []);
 
-  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'music') => {
+  const removeItem = (e: React.MouseEvent, id: string | number, type: 'movie' | 'series' | 'radio' | 'music', audioUrl?: string) => {
     e.stopPropagation();
     if (mode === 'favorites') {
       const updated = favoritesManager.remove(type, id);
       if (type === 'movie') setFavMovies(updated);
       else if (type === 'series') setFavSeries(updated);
       else if (type === 'radio') setFavRadio(updated);
-      else if (type === 'music') setFavMusic(updated);
+      else if (type === 'music') {
+        setFavMusic(updated);
+        // Вычищаем удалённый трек из оффлайн-кэша памяти устройства (по URL и ID)
+        audioOfflineManager.removeTrackAudio(audioUrl || '', String(id)).catch(() => {});
+      }
     } else {
       const updated = favoritesManager.removeHistory(type, id);
       if (type === 'movie') setHistoryMovies(updated);
@@ -91,6 +96,8 @@ export function Favorites() {
           setFavSeries([]);
           setFavRadio([]);
           setFavMusic([]);
+          // Очищаем оффлайн-кэш треков при полной очистке Избранного
+          audioOfflineManager.clearAudioCache().catch(() => {});
         } catch (e) {
           console.error(e);
         }
@@ -120,6 +127,16 @@ export function Favorites() {
       ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(station.url)}`
       : station.url;
 
+    const rawList = mode === 'favorites' ? favRadio : historyRadio;
+    const radioQueue = rawList.map((s: any) => ({
+      id: s.id,
+      title: s.name,
+      artist: (s.group && s.group !== 'Radiopotok') ? s.group : 'Live Radio',
+      url: s.url?.startsWith('http://') ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(s.url)}` : s.url,
+      coverUrl: s.logo,
+      type: 'radio' as const
+    }));
+
     playTrack({
       id: station.id,
       title: station.name,
@@ -127,7 +144,7 @@ export function Favorites() {
       url: finalUrl,
       coverUrl: station.logo,
       type: 'radio'
-    });
+    }, radioQueue);
   };
 
   const renderTmdbList = (type: 'movie' | 'series') => {
@@ -248,7 +265,7 @@ export function Favorites() {
 
   // Music tab: works for both favorites (MusicTrack shape) and history ({ id, name, group, logo, url })
   const normalizeMusicItem = (item: any) => ({
-    id: String(item.id || ''),
+    id: String(item.id || '').replace(/^saavn_/, ''),
     title: item.title || item.name || '',
     artist: item.artist || item.group || 'Music',
     artwork: item.artworkUrl || item.logo || '',
@@ -260,6 +277,13 @@ export function Favorites() {
       WebApp?.HapticFeedback?.impactOccurred('medium');
     } catch (_) {}
     const norm = normalizeMusicItem(item);
+
+    // Если трек уже играет — переключаем паузу/плей без повторного запуска
+    if (String(currentTrack?.id || '').replace(/^saavn_/, '') === norm.id) {
+      togglePlayPause();
+      return;
+    }
+
     const queue = (mode === 'favorites' ? favMusic : historyMusic)
       .filter((i: any) => i.id && (i.title || i.name))
       .map(normalizeMusicItem)
@@ -329,7 +353,7 @@ export function Favorites() {
               </div>
               <button
                 className="w-6 h-6 sm:w-7 sm:h-7 bg-black/70 rounded-full hover:scale-110 transition-transform text-white font-bold flex items-center justify-center flex-shrink-0 text-[10px] z-20 active:scale-90"
-                onClick={(e) => removeItem(e, item.id, 'music')}
+                onClick={(e) => removeItem(e, item.id, 'music', norm.url || item.audioUrl || item.url)}
                 title={mode === 'favorites' ? (t('removeFromFavorites') || 'Удалить из избранного') : (t('removeFromHistory') || 'Удалить из истории')}
               >
                 ✕

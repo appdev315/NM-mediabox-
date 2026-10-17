@@ -317,8 +317,47 @@ export const clientCache = {
   }
 };
 
+/**
+ * Неблокирующая фоновая сборка мусора (Garbage Collection):
+ * Удаляет просроченные записи из дисковой IndexedDB, предотвращая переполнение квоты диска на мобильных устройствах.
+ * Запускается отложено через requestIdleCallback / setTimeout с низким приоритетом, чтобы не влиять на рендер UI.
+ */
+async function purgeExpiredIndexedDB(): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    const now = Date.now();
+    let purgedCount = 0;
+
+    request.onsuccess = (event: any) => {
+      const cursor = event.target.result as IDBCursorWithValue;
+      if (cursor) {
+        const entry = cursor.value as CacheEntry<any>;
+        if (entry && isExpired(entry.expiry, now)) {
+          cursor.delete();
+          purgedCount++;
+        }
+        // Лимитируем порцию за один проход, чтобы не блокировать транзакцию
+        if (purgedCount < 500) {
+          cursor.continue();
+        }
+      }
+    };
+  } catch (_) {}
+}
+
 // Initialize IndexedDB hydration in background
 if (typeof window !== 'undefined') {
   initIndexedDBCache();
+  // Отложенный запуск GC через 4 секунды после старта приложения
+  setTimeout(() => {
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => purgeExpiredIndexedDB());
+    } else {
+      setTimeout(purgeExpiredIndexedDB, 1000);
+    }
+  }, 4000);
 }
 

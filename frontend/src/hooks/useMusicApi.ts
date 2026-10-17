@@ -283,21 +283,23 @@ export const resolveFullAudioUrl = async (
   const cacheKey = `resolved_audio_v3_${primaryArtist.toLowerCase()}_${cleanTitle.toLowerCase()}`;
   const negCacheKey = `neg_${cacheKey}`;
 
+  const saving = getNetworkSpeed().isSlow || isMusicDataSaverEnabled();
+
   if (!bypassCache) {
     const cached = clientCache.get<string>(cacheKey) || await clientCache.getAsync<string>(cacheKey);
     if (cached) {
-      // If Traffic saver was just enabled, drop stale high-bitrate Saavn cache hits and re-resolve low
-      const isHighBitrateSaavn = isMusicDataSaverEnabled() &&
+      // Если включена экономия трафика или медленная сеть — сбрасываем 320k кэш в пользу 96k
+      const isHighBitrateSaavn = saving &&
         cached.includes('aac.saavncdn.com') && !/_96\.|_48\./.test(cached);
-      if (!isHighBitrateSaavn) return cached;
+      // Если же связь снова быстрая (не saving), а в кэше лежал низкий битрейт (96k/48k), сбрасываем его для апгрейда до 320k
+      const isStaleLowBitrate = !saving && /_96\.|_48\./.test(cached);
+      if (!isHighBitrateSaavn && !isStaleLowBitrate) return cached;
     }
     // Negative cache (60 min): a track that just failed to resolve must not
     // hammer Saavn/Invidious on every replay. bypassCache force-bypasses it.
     const negative = clientCache.get<string>(negCacheKey) || await clientCache.getAsync<string>(negCacheKey);
     if (negative) return '';
   }
-
-  const saving = getNetworkSpeed().isSlow || isMusicDataSaverEnabled();
 
   // 1. Try JioSaavn CDN (Instant 320k / 160k direct stream) — Multi-pass search
   try {
@@ -442,14 +444,14 @@ export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const searchMusic = useCallback(async (query: string, limit = 60): Promise<MusicTrack[]> => {
+  const searchMusic = useCallback(async (query: string, page = 1, limit = 20): Promise<MusicTrack[]> => {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const cacheKey = `cache_hybrid_music_search_v7_${trimmed.toLowerCase()}`;
+    const cacheKey = `cache_music_search_v8_${trimmed.toLowerCase()}_p${page}_l${limit}`;
     const cached = clientCache.get<MusicTrack[]>(cacheKey) || await clientCache.getAsync<MusicTrack[]>(cacheKey);
     if (cached && Array.isArray(cached) && cached.length > 0) {
-      return cached.slice(0, limit);
+      return cached;
     }
 
     setLoading(true);
@@ -460,9 +462,9 @@ export function useMusicApi() {
     try {
       const encoded = encodeURIComponent(trimmed);
 
-      // 1. Fast-path: 1 single request via Cloudflare Edge proxy v2 (bypasses stale Deezer cache)
+      // 1. Fast-path: 1 single request via Cloudflare Edge proxy v2 (с поддержкой page и limit)
       try {
-        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/v2/search?q=${encoded}&limit=${limit}`, { maxRetries: 0 });
+        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/v2/search?q=${encoded}&page=${page}&limit=${limit}`, { maxRetries: 0 });
         if (edgeRes && edgeRes.ok) {
           const edgeTracks = await edgeRes.json();
           if (Array.isArray(edgeTracks) && edgeTracks.length > 0) {
@@ -483,9 +485,9 @@ export function useMusicApi() {
               });
 
             if (normalized.length > 0) {
-              clientCache.set(cacheKey, normalized, 86400);
+              clientCache.set(cacheKey, normalized, 86400); // 24 hours TTL с авто-очисткой
               setLoading(false);
-              return normalized.slice(0, limit);
+              return normalized;
             }
           }
         }
@@ -494,14 +496,13 @@ export function useMusicApi() {
       }
 
       // Multi-provider parallel search:
-      // 1. JioSaavn Song Search (320k/160k direct streams)
-      // 2. JioSaavn Artist Search + Top Songs (unlocks complete discographies, e.g. Linkin Park)
-      // 3. YouTube Music (Ytify) Search (full track coverage for rock, rap, obscure tracks)
-      const [saavnSongRes1, saavnSongRes2, saavnArtistRes, ytRes] = await Promise.allSettled([
-        saavnApiFetch(`search/songs?query=${encoded}&page=1&limit=50`),
-        saavnApiFetch(`search/songs?query=${encoded}&page=2&limit=50`),
-        saavnApiFetch(`search/artists?query=${encoded}`),
-        fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encoded}`, { maxRetries: 1 })
+      // 1. JioSaavn Song Search (320k/160k direct streams с текущей страницей)
+      // 2. JioSaavn Artist Search + Top Songs (только на первой странице для экономии запросов)
+      // 3. YouTube Music (Ytify) Search (только на первой странице)
+      const [saavnSongRes, saavnArtistRes, ytRes] = await Promise.allSettled([
+        saavnApiFetch(`search/songs?query=${encoded}&page=${page}&limit=${limit}`),
+        page === 1 ? saavnApiFetch(`search/artists?query=${encoded}`) : Promise.resolve(null as any),
+        page === 1 ? fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encoded}`, { maxRetries: 1 }) : Promise.resolve(null as any)
       ]);
 
       const seenIds = new Set<string>();
@@ -551,20 +552,18 @@ export function useMusicApi() {
         } catch (_) {}
       }
 
-      // 2. Add JioSaavn Song Search tracks (pages 1 and 2, verified 320k direct streams)
-      for (const res of [saavnSongRes1, saavnSongRes2]) {
-        if (res.status === 'fulfilled' && res.value && res.value.ok) {
-          try {
-            const json = await res.value.json();
-            const results = json?.data?.results || [];
-            const saavnTracks = results
-              .map((s: any, idx: number) => mapSaavnSongToTrack(s, idx, isSlow))
-              .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
-            for (const t of saavnTracks) {
-              addTrack(t);
-            }
-          } catch (_) {}
-        }
+      // 2. Add JioSaavn Song Search tracks for current page
+      if (saavnSongRes.status === 'fulfilled' && saavnSongRes.value && saavnSongRes.value.ok) {
+        try {
+          const json = await saavnSongRes.value.json();
+          const results = json?.data?.results || [];
+          const saavnTracks = results
+            .map((s: any, idx: number) => mapSaavnSongToTrack(s, idx, isSlow))
+            .filter((t: MusicTrack | null): t is MusicTrack => t !== null);
+          for (const t of saavnTracks) {
+            addTrack(t);
+          }
+        } catch (_) {}
       }
 
       // 3. Add YouTube Music tracks (guaranteed full tracks with 0s previews eliminated)
@@ -582,7 +581,7 @@ export function useMusicApi() {
 
       const sliced = merged.slice(0, limit);
       if (merged.length > 0) {
-        clientCache.set(cacheKey, merged, 86400); // 24 hours client cache
+        clientCache.set(cacheKey, sliced, 86400); // 24 hours client cache с авто-очисткой
       }
 
       setLoading(false);

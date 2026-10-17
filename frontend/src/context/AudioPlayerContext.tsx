@@ -4,6 +4,7 @@ import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackOpen, trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
+import { favoritesManager } from '../utils/favoritesManager';
 import { resolveFullAudioUrl, getNetworkSpeed, isMusicDataSaverEnabled } from '../hooks/useMusicApi';
 
 export interface Track {
@@ -552,6 +553,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [startBackgroundShield, syncToPeers, attemptReconnect]);
 
   // Silent prefetch for music: direct CDN stream (online) / offline blob (offline) -> bounded full-stream resolve ->
+  // Silent prefetch for music: direct CDN stream (online) / offline blob (offline) -> bounded full-stream resolve ->
   // single audio.play() with the final URL. Never plays the preview aloud.
   const startMusicTrack = useCallback(async (track: Track, audio: HTMLAudioElement, myToken: number, bypassCache = false) => {
     const isStale = () => myToken !== musicResolveRef.current;
@@ -560,27 +562,53 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
     try {
       let finalUrl = '';
-      const isDeviceOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
-      // 1. Offline blob when offline (or if explicitly bypassing dead cache, skip)
-      if (isDeviceOffline && !bypassCache) {
+      // 1. Читаем локальный оффлайн-кэш устройства СТРОГО для треков из «Избранного»
+      const isFav = favoritesManager.isFavorite('music', track.id);
+
+      if (isFav && !bypassCache) {
         try {
-          const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
-          if (isStale()) {
-            if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
-            return;
-          }
-          if (blob) {
-            if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
-              try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+          const isCached = await audioOfflineManager.isAudioCached(track.url, track.id);
+          if (isCached) {
+            const isFastNet = !getNetworkSpeed().isSlow && !isMusicDataSaverEnabled() && typeof navigator !== 'undefined' && navigator.onLine !== false;
+            // Апгрейд качества: если при плохой связи трек был сохранён в низком качестве (96k/48k),
+            // а сейчас подключились к хорошей сети — запрашиваем и перезаписываем кэш максимальным 320 kbps качеством
+            if (isFastNet) {
+              const isLowQuality = await audioOfflineManager.isTrackCachedLowQuality(track.id, track.url);
+              if (isLowQuality) {
+                const high320 = await withTimeout(
+                  resolveFullAudioUrl(track.artist, track.title, track.url, track.id, true /* bypassCache */).catch(() => ''),
+                  MUSIC_RESOLVE_TIMEOUT_MS,
+                  ''
+                );
+                if (high320 && !high320.includes('preview') && !high320.includes('dzcdn')) {
+                  finalUrl = high320;
+                  // В фоне бесшовно перезаписываем локальный кэш максимальным 320k качеством
+                  audioOfflineManager.saveTrackAudio(track.id, high320, 'high').catch(() => {});
+                }
+              }
             }
-            activeBlobUrlRef.current = blob;
-            finalUrl = blob;
+
+            // Если апгрейд не требовался или сеть медленная/оффлайн — читаем локальный кэш мгновенно (0мс)
+            if (!finalUrl) {
+              const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
+              if (isStale()) {
+                if (blob) { try { URL.revokeObjectURL(blob); } catch (_) {} }
+                return;
+              }
+              if (blob) {
+                if (activeBlobUrlRef.current && activeBlobUrlRef.current !== blob) {
+                  try { URL.revokeObjectURL(activeBlobUrlRef.current); } catch (_) {}
+                }
+                activeBlobUrlRef.current = blob;
+                finalUrl = blob;
+              }
+            }
           }
         } catch (_) {}
       }
 
-      // 2. Resolve the full stream when online or when offline blob is absent
+      // 2. Resolve the full stream when online or when track is not in offline favorites
       if (!finalUrl) {
         if (bypassCache || needsFullResolve(track)) {
           const resolved = await withTimeout(
@@ -594,8 +622,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           finalUrl = track.url;
         }
 
-        // 3. Fallback to offline cache if network resolution failed
-        if (!finalUrl && !bypassCache) {
+        // 3. Fallback to offline cache if network resolution failed and track is a favorite
+        if (!finalUrl && isFav && !bypassCache) {
           try {
             const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
             if (isStale()) {
@@ -621,8 +649,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (isStale()) return;
-
       // Strictly Full Tracks: Refuse to play any 30-second preview cut!
       const isPreview = !finalUrl || finalUrl.includes('preview') || finalUrl.includes('dzcdn');
       if (isPreview) {
@@ -640,6 +666,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           } catch (_) {}
         }
         return;
+      }
+
+      // Если трек в Избранном, но ещё не сохранён в локальный кэш — фоново сохраняем его на устройство
+      if (isFav && finalUrl && !finalUrl.startsWith('blob:')) {
+        const isSlowNet = getNetworkSpeed().isSlow || isMusicDataSaverEnabled();
+        audioOfflineManager.saveTrackAudio(track.id, finalUrl, isSlowNet ? 'low' : 'high').catch(() => {});
       }
 
       // Cache-hot: the same bytes are already playing (e.g. instant replay).
@@ -661,9 +693,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
       isRefreshingSrcRef.current = false;
       finishResolving();
+
+      // Защита от гонки: если пользователь уже переключил на другой трек, глушим звук
+      if (isStale()) {
+        try { audio.pause(); } catch (_) {}
+        return;
+      }
+
       try {
         await audio.play();
-        if (isStale()) return;
+        if (isStale()) {
+          try { audio.pause(); } catch (_) {}
+          return;
+        }
         setIsPlaying(true);
         setIsBuffering(false);
         syncToPeers(resolvedTrack, true, false);
@@ -695,10 +737,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       queueRef.current = updated;
     }
 
-    const requestedId = track.id;
+    const cleanId = (id: string | number | undefined) => String(id || '').replace(/^saavn_/, '');
+    const requestedId = cleanId(track.id);
     // Same track: ignore double-taps while prefetching, retry when src was
     // never set (failed resolve), otherwise toggle play/pause.
-    if (currentTrackRef.current?.id === requestedId && resolvingIdRef.current !== requestedId) {
+    if (cleanId(currentTrackRef.current?.id) === requestedId && resolvingIdRef.current !== requestedId) {
       const a = audioRef.current;
       if (!(track.type === 'music' && a && !a.src)) {
         togglePlayPause();
@@ -714,6 +757,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         senderId: tabIdRef.current
       });
     } catch (_) {}
+
+    // Мгновенно глушим текущий звук старого трека или радио,
+    // чтобы при выборе песни (из Избранного, Радио или Поиска) не было параллельного наложения двух звуков
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+      } catch (_) {}
+    }
 
     isAudioMasterRef.current = true;
     musicRetryTokenRef.current = null;
@@ -731,7 +782,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     if (audio) {
       try {
         audioEqualizerManager.attachAudioElement(audio);
-        audioEqualizerManager.resumeContext();
+        audioEqualizerManager.reapplySettings();
       } catch (_) {}
     }
     isUserPausedRef.current = false;
@@ -754,9 +805,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     syncToPeers(track, true, true);
 
     if (track.type === 'music') {
-      // Synchronous fast-path for already pre-warmed / resolved tracks:
-      // Starting playback synchronously preserves mobile WebKit gesture token from lockscreen MediaSession
-      if (!needsFullResolve(track) && track.url && !track.url.includes('preview') && !track.url.includes('dzcdn')) {
+      const isFav = favoritesManager.isFavorite('music', track.id);
+
+      // Синхронный fast-path ТОЛЬКО для не-избранных треков из поиска с уже разрешённым прямым URL.
+      // Треки из «Избранного» направляются в startMusicTrack, где проверяется локальный оффлайн-кэш
+      // (0 мс задержки, 0 байт мобильного трафика) и автоматический апгрейд качества до 320 kbps.
+      if (!isFav && !needsFullResolve(track) && track.url && !track.url.includes('preview') && !track.url.includes('dzcdn')) {
         const resolvedTrack = track;
         setCurrentTrack(resolvedTrack);
         if (audio.src !== track.url) {
@@ -769,7 +823,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         resolvingIdRef.current = null;
         try {
           await audio.play();
-          if (myToken !== musicResolveRef.current) return;
+          if (myToken !== musicResolveRef.current) {
+            try { audio.pause(); } catch (_) {}
+            return;
+          }
           setIsPlaying(true);
           setIsBuffering(false);
           syncToPeers(resolvedTrack, true, false);
@@ -934,6 +991,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('stop', () => {
         stopRef.current();
       });
+
+      // Принудительно отключаем перемотку 15 сек на экране блокировки iOS,
+      // чтобы iOS WebKit отображал нативные кнопки переключения треков >>| и |<<
+      try {
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+      } catch (_) {}
+
       navigator.mediaSession.setActionHandler('previoustrack', () => {
         prevTrackRef.current();
       });
@@ -948,7 +1013,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         });
       } catch (_) {}
     } catch (_) {}
-  }, []);
+  }, [currentTrack, queue, isPlaying]);
 
   // MediaSession Metadata: Updates station info & artwork when current track changes
   useEffect(() => {
@@ -1174,6 +1239,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPlay = () => {
       setIsPlaying(true);
       isPausedByDeviceRef.current = false;
+      // Восстанавливаем контекст и накладываем настройки эквалайзера при старте воспроизведения любого трека
+      try {
+        audioEqualizerManager.reapplySettings();
+      } catch (_) {}
     };
 
     const onPlaying = () => {
@@ -1183,6 +1252,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
       stalledCountRef.current = 0;
+      try {
+        audioEqualizerManager.reapplySettings();
+      } catch (_) {}
       if (isAudioMasterRef.current && currentTrackRef.current) {
         syncToPeers(currentTrackRef.current, true, false);
       }

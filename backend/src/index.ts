@@ -443,12 +443,14 @@ app.post('/api/user/favorites', async (c: Context) => {
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400);
   }
-  const itemId = String(body.id || body.movieId || body.item_id);
+  const rawId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
-  const title = body.title || '';
-  const poster = body.poster || body.coverUrl || '';
-  const year = body.year || '';
-  const dataJson = JSON.stringify(body);
+  // Для музыкальных треков нормализуем id, отсекая префикс saavn_ для единого формата
+  const itemId = type === 'music' ? rawId.replace(/^saavn_/, '') : rawId;
+  const title = body.title || body.name || '';
+  const poster = body.poster || body.artworkUrl || body.coverUrl || body.logo || '';
+  const year = body.year || body.releaseDate || '';
+  const dataJson = JSON.stringify({ ...body, id: itemId });
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
@@ -484,8 +486,9 @@ app.delete('/api/user/favorites', async (c: Context) => {
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400);
   }
-  const itemId = String(body.id || body.movieId || body.item_id);
+  const rawId = String(body.id || body.movieId || body.item_id);
   const type = String(body.type || 'movie');
+  const itemId = type === 'music' ? rawId.replace(/^saavn_/, '') : rawId;
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
@@ -495,9 +498,10 @@ app.delete('/api/user/favorites', async (c: Context) => {
   }
 
   try {
+    // Удаляем как нормализованный ID, так и возможную старую запись с префиксом saavn_
     await c.env.DB.prepare(
-      `DELETE FROM favorites WHERE telegram_id = ? AND item_id = ? AND type = ?`
-    ).bind(user.id, itemId, type).run();
+      `DELETE FROM favorites WHERE telegram_id = ? AND (item_id = ? OR item_id = ('saavn_' || ?)) AND type = ?`
+    ).bind(user.id, itemId, itemId, type).run();
     return c.json({ success: true });
   } catch (e) {
     console.error('D1 error on delete favorite:', e);
@@ -1913,10 +1917,28 @@ app.get('/api/dramas/search', async (c: Context) => {
   return c.json([], 200);
 });
 
+// --- SAAVN MIRROR PROXY & POOL CONFIGURATION ---
+// Пул живых апстримов Saavn с автоматическим фолбэком. Переопределяется через переменную окружения SAAVN_API_BASES.
+const SAAVN_DEFAULT_BASES = [
+  'https://jiosaavn-api-amber.vercel.app/api',
+  'https://saavn-api-delta.vercel.app/api',
+];
+
+const saavnUpstreamBases = (c: Context): string[] => {
+  const raw = (c.env as any)?.SAAVN_API_BASES;
+  const configured = raw
+    ? String(raw).split(',').map((s: string) => s.trim().replace(/\/+$/, '')).filter(Boolean)
+    : [];
+  return configured.length > 0 ? configured : SAAVN_DEFAULT_BASES;
+};
+
 // --- MUSIC PROXY & SEARCH (7-DAY EDGE CACHE, 100% FULL STREAMS, 0% 30S CUTS) ---
 const handleMusicSearch = async (c: Context) => {
   const query = (c.req.query('q') || '').trim();
-  const limit = Math.min(Math.max(Number(c.req.query('limit')) || 50, 10), 100);
+  // По умолчанию выдаём по 20 треков на страницу для быстрой первой отрисовки и плавной бесконечной ленты
+  const page = Math.max(Number(c.req.query('page')) || 1, 1);
+  const limit = Math.min(Math.max(Number(c.req.query('limit')) || 20, 10), 50);
+
   if (!query) {
     return c.json([], 200);
   }
@@ -1930,22 +1952,38 @@ const handleMusicSearch = async (c: Context) => {
 
   try {
     const encoded = encodeURIComponent(query);
-    const [saavnRes1, saavnRes2, ytRes] = await Promise.allSettled([
-      fetch(`https://jiosaavn-api-amber.vercel.app/api/search/songs?query=${encoded}&page=1&limit=50`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(6000),
-      }),
-      fetch(`https://jiosaavn-api-amber.vercel.app/api/search/songs?query=${encoded}&page=2&limit=50`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(6000),
-      }),
+    const bases = saavnUpstreamBases(c);
+
+    // Отказоустойчивый опрос пула зеркал JioSaavn с автоматическим перебором при сбое/таймауте
+    const fetchFromSaavnPool = async (path: string, timeoutMs = 6000): Promise<Response | null> => {
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${base}${path}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (res.ok) return res;
+        } catch (_) {}
+      }
+      return null;
+    };
+
+    // На 1-й странице параллельно ищем совпадение по имени исполнителя (например, Rammstein -> id: 610801),
+    // чтобы сразу подтянуть оригинальные верифицированные топ-хиты группы в качестве 320 kbps.
+    const artistSearchPromise = page === 1
+      ? fetchFromSaavnPool(`/search/artists?query=${encoded}&limit=3`, 5000)
+      : Promise.resolve(null);
+
+    const [saavnRes, ytRes, artistRes] = await Promise.allSettled([
+      fetchFromSaavnPool(`/search/songs?query=${encoded}&page=${page}&limit=${limit}`, 6000),
       fetch(`https://api.ytify.workers.dev/search?q=${encoded}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(6000),
       }),
+      artistSearchPromise
     ]);
 
-    const tracks: any[] = [];
+    const rawTracks: any[] = [];
     const seenTitles = new Set<string>();
     const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
 
@@ -1963,53 +2001,95 @@ const handleMusicSearch = async (c: Context) => {
       const normKey = `${artist.toLowerCase()} - ${title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
       if (!seenTitles.has(normKey)) {
         seenTitles.add(normKey);
-        tracks.push(t);
+        rawTracks.push(t);
       }
     };
 
-    for (const res of [saavnRes1, saavnRes2]) {
-      if (res.status === 'fulfilled' && res.value.ok) {
-        try {
-          const sData = await res.value.json() as any;
-          for (const s of (sData?.data?.results || [])) {
-            const downloadUrls = s.downloadUrl || [];
-            // Best stream for playback, low stream for the client "Data saver" toggle (<320 kbps)
-            const downloadUrl = downloadUrls.find((u: any) => u.quality === '320kbps') || downloadUrls[downloadUrls.length - 1];
-            const lowDownloadUrl = downloadUrls.find((u: any) => u.quality === '96kbps') ||
-                        downloadUrls.find((u: any) => u.quality === '48kbps') ||
-                        downloadUrls.find((u: any) => u.quality === '160kbps') ||
-                        downloadUrl;
-            const audioUrl = downloadUrl?.url || '';
-            if (audioUrl) {
-              const img = (s.image || []).find((i: any) => i.quality === '150x150') ||
-                          (s.image || []).find((i: any) => i.quality === '50x50') ||
-                          (s.image || [])[0];
-              const rawArtist = (s.artists?.primary || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
-                                (s.artists?.all || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
-                                s.primaryArtists || s.singers || '';
-              addTrack({
-                id: `saavn_${s.id}`,
-                title: s.name || s.title || '',
-                artist: rawArtist || 'Unknown Artist',
-                album: s.album?.name || '',
-                artworkUrl: img?.url || '',
-                audioUrl,
-                audioUrlLow: lowDownloadUrl?.url || '',
-                duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 0),
-                genre: s.language || 'Music',
-                isResolved: true,
-              });
+    // 1. Топ-песни артиста (если запрос — это имя известного исполнителя)
+    if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
+      try {
+        const aData = await artistRes.value.json() as any;
+        const matchedArtist = aData?.data?.results?.[0];
+        const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+        const normArtistName = (matchedArtist?.name || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+
+        if (matchedArtist?.id && (normArtistName === normQ || normArtistName.includes(normQ) || normQ.includes(normArtistName))) {
+          const songsRes = await fetchFromSaavnPool(`/artists?id=${matchedArtist.id}`, 5000);
+
+          if (songsRes && songsRes.ok) {
+            const songsData = await songsRes.json() as any;
+            const topSongs = songsData?.data?.topSongs || [];
+            for (const s of topSongs) {
+              const downloadUrls = s.downloadUrl || [];
+              const downloadUrl = downloadUrls.find((u: any) => u.quality === '320kbps') || downloadUrls[downloadUrls.length - 1];
+              const lowDownloadUrl = downloadUrls.find((u: any) => u.quality === '96kbps') || downloadUrls.find((u: any) => u.quality === '48kbps') || downloadUrl;
+              const audioUrl = downloadUrl?.url || '';
+              if (audioUrl) {
+                const img = (s.image || []).find((i: any) => i.quality === '150x150') || (s.image || [])[0];
+                addTrack({
+                  id: `saavn_${s.id}`,
+                  title: s.name || s.title || '',
+                  artist: matchedArtist.name || 'Unknown Artist',
+                  album: s.album?.name || '',
+                  artworkUrl: img?.url || '',
+                  audioUrl,
+                  audioUrlLow: lowDownloadUrl?.url || '',
+                  duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 0),
+                  genre: s.language || 'Music',
+                  isResolved: true,
+                  isOfficialArtistTop: true
+                });
+              }
             }
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
 
+    // 2. Результаты поиска JioSaavn (с защитой от null при падении всех зеркал пула)
+    if (saavnRes.status === 'fulfilled' && saavnRes.value && saavnRes.value.ok) {
+      try {
+        const sData = await saavnRes.value.json() as any;
+        for (const s of (sData?.data?.results || [])) {
+          const downloadUrls = s.downloadUrl || [];
+          const downloadUrl = downloadUrls.find((u: any) => u.quality === '320kbps') || downloadUrls[downloadUrls.length - 1];
+          const lowDownloadUrl = downloadUrls.find((u: any) => u.quality === '96kbps') ||
+                      downloadUrls.find((u: any) => u.quality === '48kbps') ||
+                      downloadUrls.find((u: any) => u.quality === '160kbps') ||
+                      downloadUrl;
+          const audioUrl = downloadUrl?.url || '';
+          if (audioUrl) {
+            const img = (s.image || []).find((i: any) => i.quality === '150x150') ||
+                        (s.image || []).find((i: any) => i.quality === '50x50') ||
+                        (s.image || [])[0];
+            const rawArtist = (s.artists?.primary || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
+                              (s.artists?.all || []).map((a: any) => a.name).filter(Boolean).join(', ') ||
+                              s.primaryArtists || s.singers || '';
+            addTrack({
+              id: `saavn_${s.id}`,
+              title: s.name || s.title || '',
+              artist: rawArtist || 'Unknown Artist',
+              album: s.album?.name || '',
+              artworkUrl: img?.url || '',
+              audioUrl,
+              audioUrlLow: lowDownloadUrl?.url || '',
+              duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 0),
+              genre: s.language || 'Music',
+              isResolved: true,
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Результаты YouTube Music
     if (ytRes.status === 'fulfilled' && ytRes.value.ok) {
       try {
         const ytList = await ytRes.value.json() as any[];
         if (Array.isArray(ytList)) {
-          for (const item of ytList) {
+          const startIndex = (page - 1) * 15;
+          const pageYt = ytList.slice(startIndex, startIndex + 25);
+          for (const item of pageYt) {
             let dur = 0;
             if (typeof item.duration === 'string') {
               const parts = item.duration.split(':').map(Number);
@@ -2018,7 +2098,7 @@ const handleMusicSearch = async (c: Context) => {
             } else if (typeof item.lengthSeconds === 'number') {
               dur = item.lengthSeconds;
             }
-            if (dur > 0 && dur < 20) continue; // eliminate 0s preview stubs
+            if (dur > 0 && dur < 20) continue; // отсекаем 0-секундные превью
             const cleanTitle = (item.title || '')
               .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
               .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
@@ -2039,12 +2119,54 @@ const handleMusicSearch = async (c: Context) => {
       } catch (_) {}
     }
 
-    const response = c.json(tracks, 200, {
+    // --- УМНОЕ РАНЖИРОВАНИЕ РЕЛЕВАНТНОСТИ (Smart Relevance Scoring) ---
+    // Исключает ситуацию, когда случайные каверы или сторонние альбомы вытесняют реального артиста
+    const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+    const junkRe = /\b(?:8-bit|16-bit|emulation|tribute|karaoke|ringtone|remix|cover)\b/i;
+
+    const scoredTracks = rawTracks.map(t => {
+      let score = 0;
+      const tArtist = (t.artist || '').toLowerCase();
+      const normA = tArtist.replace(/[^a-z0-9а-яё]/gi, '');
+      const tTitle = (t.title || '').toLowerCase();
+      const normT = tTitle.replace(/[^a-z0-9а-яё]/gi, '');
+      const tAlbum = (t.album || '').toLowerCase();
+      const normAlb = tAlbum.replace(/[^a-z0-9а-яё]/gi, '');
+
+      if (t.isOfficialArtistTop) {
+        score += 150; // Официальные хиты подтверждённого исполнителя всегда в самом верху
+      }
+      if (normA === normQ) {
+        score += 100; // Точное совпадение артиста
+      } else if (normA.startsWith(normQ) || normA.includes(normQ)) {
+        score += 80;
+      } else if (normT === normQ) {
+        score += 70; // Точное совпадение названия трека
+      } else if (normT.startsWith(normQ) || normT.includes(normQ)) {
+        score += 50;
+      } else if (normAlb === normQ) {
+        // Совпадение только по альбому (например, Monte Pons с альбомом "Rammstein")
+        score += 10;
+      }
+
+      // Штраф за мусорные эмуляции, 8-битки и караоке
+      if (junkRe.test(tTitle) || junkRe.test(tAlbum)) {
+        score -= 40;
+      }
+
+      return { track: t, score };
+    });
+
+    // Сортировка по убыванию релевантности и отсечение по лимиту (20 треков на страницу)
+    scoredTracks.sort((a, b) => b.score - a.score);
+    const finalTracks = scoredTracks.slice(0, limit).map(item => item.track);
+
+    const response = c.json(finalTracks, 200, {
       'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
       'Access-Control-Allow-Origin': '*',
     });
 
-    if (tracks.length > 0) {
+    if (finalTracks.length > 0) {
       try {
         c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
       } catch (_) {}
@@ -2057,20 +2179,6 @@ const handleMusicSearch = async (c: Context) => {
 };
 
 // --- SAAVN MIRROR PROXY (edge-cached; eliminates the hard SPOF on third-party hobby deployments) ---
-// Пул живых апстримов Saavn с автоматическим фолбэком. Переопределяется через переменную окружения SAAVN_API_BASES.
-const SAAVN_DEFAULT_BASES = [
-  'https://jiosaavn-api-amber.vercel.app/api',
-  'https://saavn-api-delta.vercel.app/api',
-];
-
-const saavnUpstreamBases = (c: Context): string[] => {
-  const raw = (c.env as any)?.SAAVN_API_BASES;
-  const configured = raw
-    ? String(raw).split(',').map((s: string) => s.trim().replace(/\/+$/, '')).filter(Boolean)
-    : [];
-  return configured.length > 0 ? configured : SAAVN_DEFAULT_BASES;
-};
-
 app.get('/api/music/saavn/*', async (c: Context) => {
   const subPath = c.req.path.replace(/^\/api\/music\/saavn\/?/, '');
   // Белый список допустимых путей: только безопасные read-only эндпоинты поиска, альбомов, артистов и треков

@@ -72,28 +72,49 @@ export function GlobalAudioPlayer() {
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isCardOpen, setIsCardOpen] = useState(false);
 
+  const isMusic = currentTrack?.type === 'music';
+  const favType = isMusic ? 'music' : 'radio';
+
   useEffect(() => {
     if (currentTrack?.id) {
-      setIsFav(favoritesManager.isFavorite('radio', currentTrack.id));
+      setIsFav(favoritesManager.isFavorite(favType, currentTrack.id));
     }
-  }, [currentTrack?.id]);
+  }, [currentTrack?.id, favType]);
 
   if (!currentTrack) return null;
 
   const toggleFavorite = () => {
     if (!currentTrack) return;
     if (isFav) {
-      favoritesManager.remove('radio', currentTrack.id);
+      favoritesManager.remove(favType, currentTrack.id);
+      if (isMusic) {
+        audioOfflineManager.removeTrackAudio(currentTrack.url, currentTrack.id);
+      }
       setIsFav(false);
     } else {
-      favoritesManager.add('radio', {
-        id: currentTrack.id,
-        name: currentTrack.title,
-        url: currentTrack.url,
-        logo: currentTrack.coverUrl,
-        group: currentTrack.artist,
-        type: 'radio'
-      });
+      if (isMusic) {
+        favoritesManager.add('music', {
+          id: currentTrack.id,
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          audioUrl: currentTrack.url,
+          artworkUrl: currentTrack.coverUrl,
+          type: 'music'
+        });
+        // Фоново кэшируем трек при добавлении в Избранное из глобального плеера
+        if (currentTrack.url && !currentTrack.url.includes('preview')) {
+          audioOfflineManager.saveTrackAudio(currentTrack.id, currentTrack.url, 'high').catch(() => {});
+        }
+      } else {
+        favoritesManager.add('radio', {
+          id: currentTrack.id,
+          name: currentTrack.title,
+          url: currentTrack.url,
+          logo: currentTrack.coverUrl,
+          group: currentTrack.artist,
+          type: 'radio'
+        });
+      }
       setIsFav(true);
     }
     try {

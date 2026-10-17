@@ -213,6 +213,14 @@ export function RadioContent() {
     }
   };
 
+  const filteredList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return stations;
+    return stations.filter(s => s.name.toLowerCase().includes(q) || (s.group && s.group.toLowerCase().includes(q)));
+  }, [stations, search]);
+
+  const displayedList = useMemo(() => filteredList.slice(0, visibleCount), [filteredList, visibleCount]);
+
   const handlePlayRadio = (station: Station) => {
     try {
       WebApp?.HapticFeedback?.impactOccurred('medium');
@@ -222,6 +230,17 @@ export function RadioContent() {
       ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(station.url)}`
       : station.url;
 
+    // Передаем очередь станций, чтобы на экране блокировки iOS работало переключение вперед/назад
+    const radioQueue = displayedList.map(s => ({
+      id: s.id,
+      title: s.name,
+      artist: (s.group && s.group !== 'Radiopotok') ? s.group : 'Live Radio',
+      url: s.url?.startsWith('http://') ? `${EXPRESS_API_BASE}/proxy?url=${encodeURIComponent(s.url)}` : s.url,
+      originalUrl: s.url,
+      coverUrl: s.logo,
+      type: 'radio' as const
+    }));
+
     playTrack({
       id: station.id,
       title: station.name,
@@ -230,18 +249,10 @@ export function RadioContent() {
       originalUrl: station.url,
       coverUrl: station.logo,
       type: 'radio'
-    });
+    }, radioQueue);
 
     favoritesManager.addHistory('radio', station);
   };
-
-  const filteredList = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return stations;
-    return stations.filter(s => s.name.toLowerCase().includes(q) || (s.group && s.group.toLowerCase().includes(q)));
-  }, [stations, search]);
-
-  const displayedList = useMemo(() => filteredList.slice(0, visibleCount), [filteredList, visibleCount]);
 
   return (
     <div className="flex flex-col h-full">

@@ -258,6 +258,16 @@ class AudioEqualizerManager {
     }
   }
 
+  /**
+   * Непрерывное поддержание настроек эквалайзера при смене песен:
+   * Возобновляет AudioContext и повторно накатывает коэффициенты усиления полос,
+   * бас-буст и 3D-сцену на обновлённый аудиодекодер WebKit/Blink.
+   */
+  public reapplySettings() {
+    this.resumeContext();
+    this.applyParameters();
+  }
+
   private applyParameters() {
     if (!this.audioContext) return;
 

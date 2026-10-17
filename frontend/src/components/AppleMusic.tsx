@@ -39,6 +39,10 @@ export function AppleMusic() {
   };
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
+  const [searchPage, setSearchPage] = useState(1);
+  const [hasMoreSearch, setHasMoreSearch] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [albums, setAlbums] = useState<MusicAlbum[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<MusicAlbum | null>(null);
   const [albumTracks, setAlbumTracks] = useState<MusicTrack[]>([]);
@@ -83,8 +87,26 @@ export function AppleMusic() {
 
 
 
-  // Sync favorites set
-  const favIds = useMemo(() => new Set(favTracks.map(t => t.id)), [favTracks]);
+  // Sync favorites set с поддержкой как сырого id, так и чистого без saavn_
+  const favIds = useMemo(() => {
+    const set = new Set<string>();
+    favTracks.forEach(t => {
+      const raw = String(t.id || '');
+      const clean = raw.replace(/^saavn_/, '');
+      if (raw) set.add(raw);
+      if (clean) set.add(clean);
+    });
+    return set;
+  }, [favTracks]);
+
+  // Неблокирующая синхронизация с облачным бэкапом Cloudflare D1 при запуске
+  useEffect(() => {
+    favoritesManager.hydrateFromCloud('music').then(items => {
+      if (Array.isArray(items) && items.length > 0) {
+        setFavTracks(items);
+      }
+    });
+  }, []);
 
   // Refresh audio offline cache stats
   const refreshCacheStats = useCallback(async () => {
@@ -110,23 +132,32 @@ export function AppleMusic() {
       WebApp?.HapticFeedback?.impactOccurred('light');
     } catch (_) {}
 
-    const exists = favTracks.some(t => t.id === track.id);
-    const updated = exists
-      ? favTracks.filter(t => t.id !== track.id)
-      : [track, ...favTracks];
-
-    setFavTracks(updated);
-    try {
-      localStorage.setItem('favorites_music', JSON.stringify(updated));
-    } catch (_) {}
+    const cleanTrackId = String(track.id || '').replace(/^saavn_/, '');
+    const exists = favTracks.some(t => String(t.id || '').replace(/^saavn_/, '') === cleanTrackId);
 
     if (exists) {
+      // Локальное удаление + асинхронный синк с Cloudflare D1
+      const updated = favoritesManager.remove('music', track.id);
+      setFavTracks(updated);
       audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
     } else {
-      // Respect metered / slow links and the Data saver: don't silently pull a 5-10MB full track on a ❤️ tap
-      if (!getNetworkSpeed().isSlow && !dataSaver) {
-        audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
-      }
+      // Локальное сохранение + асинхронный синк с Cloudflare D1
+      const updated = favoritesManager.add('music', track);
+      setFavTracks(updated);
+
+      // Кэшируем трек в оффлайн-хранилище устройства СТРОГО при добавлении в избранное («❤️»)
+      (async () => {
+        const isSlowNet = getNetworkSpeed().isSlow || dataSaver;
+        let streamUrl = isSlowNet ? (track.audioUrlLow || track.audioUrl) : track.audioUrl;
+        if (!streamUrl || streamUrl.includes('preview') || streamUrl.includes('dzcdn')) {
+          const { resolveFullAudioUrl } = await import('../hooks/useMusicApi');
+          streamUrl = await resolveFullAudioUrl(track.artist, track.title, track.audioUrl, track.id);
+        }
+        if (streamUrl) {
+          await audioOfflineManager.saveTrackAudio(track.id, streamUrl, isSlowNet ? 'low' : 'high');
+          refreshCacheStats();
+        }
+      })().catch(() => {});
     }
   };
 
@@ -231,22 +262,68 @@ export function AppleMusic() {
       setAlbums([]);
       setSelectedAlbum(null);
       setAlbumTracks([]);
+      setSearchPage(1);
+      setHasMoreSearch(false);
       return;
     }
     const reqId = ++searchAbortRef.current;
     setSelectedAlbum(null);
     setAlbumTracks([]);
+    setSearchPage(1);
 
+    // Выдаем первые 20 треков порционно для мгновенной отрисовки без зависания ленты
     const [tracks, foundAlbums] = await Promise.all([
-      searchMusic(q, 60),
+      searchMusic(q, 1, 20),
       searchAlbums(q, 10)
     ]);
 
     if (reqId === searchAbortRef.current) {
       setSearchResults(tracks);
       setAlbums(foundAlbums);
+      setHasMoreSearch(tracks.length >= 20);
     }
   }, [searchMusic, searchAlbums]);
+
+  const loadMoreTracks = useCallback(async () => {
+    const q = searchQuery.trim();
+    if (!q || q.length < 2 || loadingMore || !hasMoreSearch || selectedAlbum || activeTab !== 'search') return;
+
+    setLoadingMore(true);
+    const nextPage = searchPage + 1;
+    try {
+      // Подгрузка следующих 20 треков при приближении к концу списка
+      const moreTracks = await searchMusic(q, nextPage, 20);
+      if (moreTracks && moreTracks.length > 0) {
+        setSearchResults(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const uniqueNew = moreTracks.filter(t => !existingIds.has(t.id));
+          return [...prev, ...uniqueNew];
+        });
+        setSearchPage(nextPage);
+        setHasMoreSearch(moreTracks.length >= 20);
+      } else {
+        setHasMoreSearch(false);
+      }
+    } catch (_) {
+      setHasMoreSearch(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [searchQuery, loadingMore, hasMoreSearch, selectedAlbum, activeTab, searchPage, searchMusic]);
+
+  // Infinite scroll observer: автоматически подгружает следующие 20 треков
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMoreSearch || activeTab !== 'search' || selectedAlbum) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadMoreTracks();
+      }
+    }, { rootMargin: '400px' });
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreSearch, activeTab, selectedAlbum, loadMoreTracks]);
 
   const handleSelectAlbum = async (album: MusicAlbum) => {
     try {
@@ -860,6 +937,17 @@ export function AppleMusic() {
               );
             });
           })()
+        )}
+
+        {/* Infinite Scroll Sentinel: подгрузка +20 треков при приближении к концу списка */}
+        {activeTab === 'search' && !selectedAlbum && searchResults.length > 0 && hasMoreSearch && (
+          <div ref={sentinelRef} className="py-4 flex items-center justify-center">
+            {loadingMore ? (
+              <div className="w-6 h-6 border-2 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <div className="h-4" />
+            )}
+          </div>
         )}
       </div>
 

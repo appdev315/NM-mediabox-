@@ -128,9 +128,10 @@ export const favoritesManager = {
   add(type: string, item: any): any[] {
     const key = STORAGE_KEYS[type] || `favorites_${type}`;
     const list = this.getLocal(type);
-    const itemId = String(item.id);
+    const cleanTargetId = String(item.id).replace(/^saavn_/, '');
 
-    if (!list.some(i => String(i.id) === itemId)) {
+    // Проверяем наличие элемента с учётом нормализации префиксов
+    if (!list.some(i => String(i.id).replace(/^saavn_/, '') === cleanTargetId)) {
       const updated = [item, ...list];
       try {
         localStorage.setItem(key, JSON.stringify(updated));
@@ -147,9 +148,10 @@ export const favoritesManager = {
   remove(type: string, itemId: string | number): any[] {
     const key = STORAGE_KEYS[type] || `favorites_${type}`;
     const list = this.getLocal(type);
-    const targetId = String(itemId);
+    const targetId = String(itemId).replace(/^saavn_/, '');
 
-    const updated = list.filter(i => String(i.id) !== targetId);
+    // Удаляем элемент, сопоставляя нормализованный ID (с префиксом или без)
+    const updated = list.filter(i => String(i.id).replace(/^saavn_/, '') !== targetId);
     try {
       localStorage.setItem(key, JSON.stringify(updated));
     } catch (e) {}
@@ -162,8 +164,8 @@ export const favoritesManager = {
   // 4. Check if item is in favorites
   isFavorite(type: string, itemId: string | number): boolean {
     const list = this.getLocal(type);
-    const targetId = String(itemId);
-    return list.some(i => String(i.id) === targetId);
+    const targetId = String(itemId).replace(/^saavn_/, '');
+    return list.some(i => String(i.id).replace(/^saavn_/, '') === targetId);
   },
 
   // 5. Non-blocking Cloud Sync Helper

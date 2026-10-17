@@ -257,11 +257,23 @@ export function useApi() {
         const cfCtrl = new AbortController();
         const hfCtrl = new AbortController();
 
+        // Связываем локальные сетевые контроллеры с родительским сигналом отмены,
+        // чтобы при быстром наборе в поиске сокеты немедленно закрывались
+        const onParentAbort = () => {
+          try { cfCtrl.abort(); } catch (_) {}
+          try { hfCtrl.abort(); } catch (_) {}
+        };
+        if (signal?.aborted) {
+          onParentAbort();
+        } else if (signal) {
+          signal.addEventListener('abort', onParentAbort, { once: true });
+        }
+
         // Priority 1: Cloudflare Edge proxy (15-30ms latency, zero cold-start, immune to RKN)
         try {
           data = await fetchViaCFProxy(cfCtrl.signal);
         } catch (cfErr: any) {
-          if (cfErr?.name === 'AbortError') throw cfErr;
+          if (cfErr?.name === 'AbortError' || signal?.aborted) throw cfErr;
           // If TMDB returns 404, it is definitive (item does not exist) - fail fast
           if (cfErr?.status === 404) throw cfErr;
 
@@ -269,9 +281,13 @@ export function useApi() {
           try {
             data = await fetchViaHFProxy(hfCtrl.signal);
           } catch (hfErr: any) {
-            if (hfErr?.name === 'AbortError') throw hfErr;
+            if (hfErr?.name === 'AbortError' || signal?.aborted) throw hfErr;
             if (hfErr?.status === 404) throw hfErr;
             throw cfErr; // preserve initial CF error if HF fails too
+          }
+        } finally {
+          if (signal) {
+            signal.removeEventListener('abort', onParentAbort);
           }
         }
 

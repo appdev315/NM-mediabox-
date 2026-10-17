@@ -7,51 +7,112 @@
 const CACHE_NAME = 'mb_offline_tracks_v1';
 
 class AudioOfflineManager {
+  // Нормализуем ID трека, отсекая префикс saavn_ для единого формата канонического ключа
+  private cleanId(id?: string | number): string {
+    return String(id || '').replace(/^saavn_/, '').trim();
+  }
+
+  // Формирует канонический URI трека в локальном Cache Storage
+  private getCanonicalUrl(id?: string | number): string {
+    const c = this.cleanId(id);
+    return c ? `https://offline.mediabox.local/track/${encodeURIComponent(c)}` : '';
+  }
+
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'caches' in window;
   }
 
   /**
-   * Downloads and saves audio file into device Cache Storage as binary Blob
+   * Downloads and saves audio file into device Cache Storage as binary Blob.
+   * Сохраняет метаданные качества ('X-Audio-Quality': 'low' | 'high'),
+   * позволяя при подключении к быстрой сети автоматически обновить трек до 320 kbps.
    */
-  async saveTrackAudio(id: string, audioUrl: string): Promise<boolean> {
+  async saveTrackAudio(id: string, audioUrl: string, quality?: 'low' | 'high'): Promise<boolean> {
     if (!this.isSupported() || !audioUrl) return false;
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const canonicalUrl = id ? `https://offline.mediabox.local/track/${encodeURIComponent(id)}` : '';
+      const canonicalUrl = this.getCanonicalUrl(id);
+      const rawCanonicalUrl = id && id.startsWith('saavn_') ? `https://offline.mediabox.local/track/${encodeURIComponent(id)}` : '';
 
+      const isLow = quality === 'low' || /_96\.|_48\./.test(audioUrl);
+
+      // Если файл уже есть в кэше и это не апгрейд качества, сохраняем существующий
       let existing = canonicalUrl ? await cache.match(canonicalUrl) : null;
+      if (!existing && rawCanonicalUrl) {
+        existing = await cache.match(rawCanonicalUrl);
+      }
       if (!existing) {
         existing = await cache.match(audioUrl);
       }
 
       if (existing) {
-        if (canonicalUrl) {
-          await cache.put(canonicalUrl, existing.clone());
+        const existingQuality = existing.headers.get('X-Audio-Quality');
+        // Если уже сохранён high-поток или новый тоже low — не тратим трафик на повторный запрос
+        if (existingQuality === 'high' || isLow) {
+          if (canonicalUrl) {
+            await cache.put(canonicalUrl, existing.clone());
+          }
+          await cache.put(audioUrl, existing.clone());
+          return true;
         }
-        await cache.put(audioUrl, existing.clone());
-        return true;
       }
 
       const response = await fetch(audioUrl, { mode: 'cors' });
       if (!response.ok) return false;
 
-      // Clean up previous entry for this id to prevent orphaned duplicates
+      const blob = await response.blob();
+      const headers = new Headers();
+      headers.set('Content-Type', response.headers.get('Content-Type') || 'audio/mp4');
+      headers.set('X-Audio-Quality', isLow ? 'low' : 'high');
+      headers.set('X-Audio-Source-Url', audioUrl);
+
+      const responseToCache = new Response(blob, { headers });
+
+      // Удаляем старый файл для этого id перед сохранением апгрейда
       if (canonicalUrl) {
         await cache.delete(canonicalUrl).catch(() => {});
       }
+      if (rawCanonicalUrl) {
+        await cache.delete(rawCanonicalUrl).catch(() => {});
+      }
 
-      // Store in Cache Storage by audioUrl and canonical track id
-      await cache.put(audioUrl, response.clone());
+      // Сохраняем в Cache Storage по аудио-URL и каноническому id
+      await cache.put(audioUrl, responseToCache.clone());
       if (canonicalUrl) {
-        await cache.put(canonicalUrl, response.clone());
+        await cache.put(canonicalUrl, responseToCache.clone());
       }
 
       await this.enforceMaxCacheSize(cache);
       return true;
     } catch (err) {
       console.warn(`[AudioOffline] Failed to cache audio ${id}:`, err);
+      return false;
+    }
+  }
+
+  /**
+   * Проверяет, был ли трек сохранён в пониженном качестве (96k / 48k).
+   * Используется для автоматического докачивания 320 kbps версии при входе в хорошую сеть.
+   */
+  async isTrackCachedLowQuality(trackId?: string, url?: string): Promise<boolean> {
+    if (!this.isSupported() || (!trackId && !url)) return false;
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const canonicalUrl = this.getCanonicalUrl(trackId);
+      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
+      if (!match && trackId) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      }
+      if (!match && url) {
+        match = await cache.match(url);
+      }
+      if (!match) return false;
+      const quality = match.headers.get('X-Audio-Quality');
+      if (quality === 'low') return true;
+      const sourceUrl = match.headers.get('X-Audio-Source-Url') || '';
+      return /_96\.|_48\./.test(sourceUrl);
+    } catch (_) {
       return false;
     }
   }
@@ -65,12 +126,14 @@ class AudioOfflineManager {
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      let match = urlOrId ? await cache.match(urlOrId) : null;
-      if (!match && trackId) {
-        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      const targetId = trackId || (!urlOrId.startsWith('http') ? urlOrId : '');
+      const canonicalUrl = this.getCanonicalUrl(targetId);
+      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
+      if (!match && targetId) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(targetId)}`);
       }
-      if (!match && urlOrId && !urlOrId.startsWith('http')) {
-        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+      if (!match && urlOrId && urlOrId.startsWith('http')) {
+        match = await cache.match(urlOrId);
       }
       if (!match) return null;
 
@@ -92,12 +155,14 @@ class AudioOfflineManager {
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      let match = urlOrId ? await cache.match(urlOrId) : null;
-      if (!match && trackId) {
-        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      const targetId = trackId || (!urlOrId.startsWith('http') ? urlOrId : '');
+      const canonicalUrl = this.getCanonicalUrl(targetId);
+      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
+      if (!match && targetId) {
+        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(targetId)}`);
       }
-      if (!match && urlOrId && !urlOrId.startsWith('http')) {
-        match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+      if (!match && urlOrId && urlOrId.startsWith('http')) {
+        match = await cache.match(urlOrId);
       }
       return Boolean(match);
     } catch (_) {
@@ -106,19 +171,35 @@ class AudioOfflineManager {
   }
 
   /**
-   * Removes specific audio URL or track ID from local storage
+   * Removes specific audio URL or track ID from local storage.
+   * Гарантирует удаление как канонического ключа, так и оригинального сетевого URL,
+   * предотвращая накопление висячих (orphan) блобов в памяти.
    */
   async removeTrackAudio(urlOrId: string, trackId?: string): Promise<void> {
     if (!this.isSupported()) return;
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      if (urlOrId) await cache.delete(urlOrId);
-      if (trackId) {
-        await cache.delete(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+      const targetId = trackId || (!urlOrId.startsWith('http') ? urlOrId : '');
+      const canonicalUrl = this.getCanonicalUrl(targetId);
+
+      // Считываем X-Audio-Source-Url из канонической записи, чтобы удалить и бинарный блоб
+      let sourceUrlToDelete = urlOrId && urlOrId.startsWith('http') ? urlOrId : '';
+      if (!sourceUrlToDelete && canonicalUrl) {
+        const match = await cache.match(canonicalUrl);
+        if (match) {
+          sourceUrlToDelete = match.headers.get('X-Audio-Source-Url') || '';
+        }
       }
-      if (urlOrId && !urlOrId.startsWith('http')) {
-        await cache.delete(`https://offline.mediabox.local/track/${encodeURIComponent(urlOrId)}`);
+
+      if (sourceUrlToDelete) {
+        await cache.delete(sourceUrlToDelete);
+      }
+      if (canonicalUrl) {
+        await cache.delete(canonicalUrl);
+      }
+      if (targetId) {
+        await cache.delete(`https://offline.mediabox.local/track/${encodeURIComponent(targetId)}`);
       }
     } catch (_) {}
   }
@@ -217,9 +298,14 @@ class AudioOfflineManager {
     if (this.isSupported()) {
       try {
         const cache = await caches.open(CACHE_NAME);
-        let match = audioUrl ? await cache.match(audioUrl) : null;
-        if (!match && trackId) {
-          match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(trackId)}`);
+        const targetId = trackId || (!audioUrl.startsWith('http') ? audioUrl : '');
+        const canonicalUrl = this.getCanonicalUrl(targetId);
+        let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
+        if (!match && targetId) {
+          match = await cache.match(`https://offline.mediabox.local/track/${encodeURIComponent(targetId)}`);
+        }
+        if (!match && audioUrl && audioUrl.startsWith('http')) {
+          match = await cache.match(audioUrl);
         }
         if (match) {
           const blob = await match.blob();
