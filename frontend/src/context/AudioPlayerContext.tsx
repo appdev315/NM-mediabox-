@@ -4,7 +4,7 @@ import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackOpen, trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
-import { resolveFullAudioUrl } from '../hooks/useMusicApi';
+import { resolveFullAudioUrl, getNetworkSpeed, isMusicDataSaverEnabled } from '../hooks/useMusicApi';
 
 export interface Track {
   id: string;
@@ -70,21 +70,16 @@ function needsFullResolve(t: Track): boolean {
 function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): void {
   try {
     if (current.type !== 'music' || queue.length < 2) return;
+    // No silent network work on metered links or with the Traffic saver toggle on:
+    // warming competes with the live stream for bandwidth
+    if (isMusicDataSaverEnabled() || getNetworkSpeed().isSlow) return;
     const idx = queue.findIndex((t) => t.id === current.id);
     if (idx < 0) return;
-    let next: Track | undefined;
-    if (shuffle && queue.length > 1) {
-      let r = Math.floor(Math.random() * queue.length);
-      if (r === idx) r = (r + 1) % queue.length;
-      next = queue[r];
-    } else {
-      next = queue[(idx + 1) % queue.length];
-    }
-    if (!next || next.type !== 'music' || !next.id) return;
-    const target = next;
-    (async () => {
-      try {
-        if (needsFullResolve(target)) {
+    const warm = (target: Track | undefined) => {
+      if (!target || target.type !== 'music' || !target.id) return;
+      if (!needsFullResolve(target)) return; // already has a direct stream
+      (async () => {
+        try {
           const u = await withTimeout(
             resolveFullAudioUrl(target.artist, target.title, target.url, target.id).catch(() => ''),
             8000,
@@ -93,9 +88,20 @@ function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): vo
           if (u && !u.includes('preview') && !u.includes('dzcdn')) {
             target.url = u; // Pre-warm stream URL directly in queue item for 0ms synchronous lockscreen transition
           }
-        }
-      } catch (_) {}
-    })();
+        } catch (_) {}
+      })();
+    };
+    if (shuffle) {
+      // Next pick is random at click-time, so warm one random candidate (probabilistic win,
+      // misses are covered by the onError bypassCache retry)
+      let r = Math.floor(Math.random() * queue.length);
+      if (r === idx) r = (r + 1) % queue.length;
+      warm(queue[r]);
+    } else {
+      // Warm both neighbors so lockscreen next AND prev both hit the sync fast-path
+      warm(queue[(idx + 1) % queue.length]);
+      warm(queue[(idx - 1 + queue.length) % queue.length]);
+    }
   } catch (_) {}
 }
 

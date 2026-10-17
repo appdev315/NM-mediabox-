@@ -167,6 +167,8 @@ export const translations = {
   "music_load_more": "Ещё",
   "music_albums": "Альбомы",
   "music_all_tracks": "Все треки",
+  "music_data_saver": "Экономия",
+  "music_data_saver_hint": "Экономия трафика: низкий битрейт (до 96 кбит/с), без фоновых загрузок.",
   "music_popular_tracks": "Треки",
   "loading_album": "Загрузка альбома..."
   },
@@ -391,6 +393,8 @@ export const translations = {
   "music_load_more": "More",
   "music_albums": "Albums",
   "music_all_tracks": "All tracks",
+  "music_data_saver": "Data saver",
+  "music_data_saver_hint": "Data saver: low bitrate (up to 96 kbps), no background downloads.",
   "music_popular_tracks": "Tracks",
   "loading_album": "Loading album..."
   }

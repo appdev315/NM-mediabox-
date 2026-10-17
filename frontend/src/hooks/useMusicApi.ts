@@ -10,6 +10,8 @@ export interface MusicTrack {
   album?: string;
   artworkUrl: string;
   audioUrl: string;
+  /** Low-bitrate stream (<=160 kbps) for the Data saver mode */
+  audioUrlLow?: string;
   duration?: number;
   releaseDate?: string;
   genre?: string;
@@ -40,6 +42,24 @@ export const getNetworkSpeed = (): NetworkSpeedInfo => {
   const saveData = Boolean(conn.saveData);
   const isSlow = saveData || effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
   return { isSlow, effectiveType, saveData };
+};
+
+const MUSIC_DATA_SAVER_KEY = 'mb_music_data_saver';
+
+/** User-facing "Traffic saver" toggle: low bitrate streams, no background downloads */
+export const isMusicDataSaverEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(MUSIC_DATA_SAVER_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+};
+
+export const setMusicDataSaver = (enabled: boolean): void => {
+  try {
+    if (enabled) localStorage.setItem(MUSIC_DATA_SAVER_KEY, '1');
+    else localStorage.removeItem(MUSIC_DATA_SAVER_KEY);
+  } catch (_) {}
 };
 
 const SAAVN_API_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
@@ -88,6 +108,15 @@ const extractAudioUrl = (downloadUrls?: Array<{ quality: string; url: string }>,
   return best?.url || '';
 };
 
+const extractLowAudioUrl = (downloadUrls?: Array<{ quality: string; url: string }>): string => {
+  if (!downloadUrls || downloadUrls.length === 0) return '';
+  const low = downloadUrls.find(u => u.quality === '96kbps') ||
+              downloadUrls.find(u => u.quality === '48kbps') ||
+              downloadUrls.find(u => u.quality === '160kbps') ||
+              downloadUrls[0];
+  return low?.url || '';
+};
+
 const extractInvidiousAudio = (formats: any[], isSlow: boolean): string => {
   if (!Array.isArray(formats)) return '';
   const audioFormats = formats.filter(f => f && typeof f.type === 'string' && f.type.startsWith('audio') && f.url);
@@ -133,6 +162,7 @@ const mapSaavnSongToTrack = (song: any, index: number, isSlow = false): MusicTra
     album: decodeHtmlEntities(song.album?.name || ''),
     artworkUrl: extractArtwork(song.image),
     audioUrl,
+    audioUrlLow: extractLowAudioUrl(song.downloadUrl) || audioUrl,
     duration: dur > 0 ? dur : undefined, // no fake 3:00 badge for unknown durations
     releaseDate: String(song.year || song.releaseDate || ''),
     genre: song.language || 'Music',
@@ -163,10 +193,15 @@ export const resolveFullAudioUrl = async (
 
   if (!bypassCache) {
     const cached = clientCache.get<string>(cacheKey) || await clientCache.getAsync<string>(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      // If Traffic saver was just enabled, drop stale high-bitrate Saavn cache hits and re-resolve low
+      const isHighBitrateSaavn = isMusicDataSaverEnabled() &&
+        cached.includes('aac.saavncdn.com') && !/_96\.|_48\./.test(cached);
+      if (!isHighBitrateSaavn) return cached;
+    }
   }
 
-  const { isSlow } = getNetworkSpeed();
+  const saving = getNetworkSpeed().isSlow || isMusicDataSaverEnabled();
 
   // 1. Try JioSaavn CDN (Instant 320k / 160k direct stream) — Multi-pass search
   try {
@@ -189,7 +224,7 @@ export const resolveFullAudioUrl = async (
             const normQueryTitle = norm(cleanTitle);
             const normArtist = norm(primaryArtist);
             const candidates = results
-              .map((r: any) => ({ r, url: extractAudioUrl(r.downloadUrl, isSlow) }))
+              .map((r: any) => ({ r, url: extractAudioUrl(r.downloadUrl, saving) }))
               .filter((c: any) => c.url)
               .map((c: any) => {
                 const dur = typeof c.r.duration === 'number' ? c.r.duration : parseInt(c.r.duration || '0', 10) || 0;
@@ -244,7 +279,7 @@ export const resolveFullAudioUrl = async (
           const invRes = await fetchWithRetry(`${instance}/api/v1/videos/${videoId}`, { maxRetries: 1 });
           if (invRes && invRes.ok) {
             const data = await invRes.json();
-            const streamUrl = extractInvidiousAudio(data.adaptiveFormats, isSlow);
+            const streamUrl = extractInvidiousAudio(data.adaptiveFormats, saving);
             if (streamUrl) {
               clientCache.set(cacheKey, streamUrl, 900); // 15 min TTL for temporary YouTube stream tokens
               return streamUrl;

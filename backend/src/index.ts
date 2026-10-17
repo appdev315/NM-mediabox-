@@ -1964,7 +1964,13 @@ app.get('/api/music/search', async (c: Context) => {
         try {
           const sData = await res.value.json() as any;
           for (const s of (sData?.data?.results || [])) {
-            const downloadUrl = (s.downloadUrl || []).find((u: any) => u.quality === '320kbps') || s.downloadUrl?.[s.downloadUrl.length - 1];
+            const downloadUrls = s.downloadUrl || [];
+            // Best stream for playback, low stream for the client "Data saver" toggle (<320 kbps)
+            const downloadUrl = downloadUrls.find((u: any) => u.quality === '320kbps') || downloadUrls[downloadUrls.length - 1];
+            const lowDownloadUrl = downloadUrls.find((u: any) => u.quality === '96kbps') ||
+                        downloadUrls.find((u: any) => u.quality === '48kbps') ||
+                        downloadUrls.find((u: any) => u.quality === '160kbps') ||
+                        downloadUrl;
             const audioUrl = downloadUrl?.url || '';
             if (audioUrl) {
               const img = (s.image || []).find((i: any) => i.quality === '150x150') ||
@@ -1977,6 +1983,7 @@ app.get('/api/music/search', async (c: Context) => {
                 album: s.album?.name || '',
                 artworkUrl: img?.url || '',
                 audioUrl,
+                audioUrlLow: lowDownloadUrl?.url || '',
                 duration: typeof s.duration === 'number' ? s.duration : (parseInt(s.duration, 10) || 0),
                 genre: s.language || 'Music',
                 isResolved: true,

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useMusicApi, type MusicTrack, type MusicAlbum, PLACEHOLDER_ARTWORK } from '../hooks/useMusicApi';
+import { useMusicApi, isMusicDataSaverEnabled, setMusicDataSaver, getNetworkSpeed, type MusicTrack, type MusicAlbum, PLACEHOLDER_ARTWORK } from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
-import { getNetworkSpeed } from '../hooks/useMusicApi';
 
 const formatTrackDuration = (secs?: number | string): string => {
   if (!secs) return '';
@@ -23,6 +22,21 @@ export function AppleMusic() {
   const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
+  const [dataSaver, setDataSaver] = useState(() => isMusicDataSaverEnabled());
+
+  // Traffic saver: pick the low-bitrate stream for every *new* playback from this list
+  const pickUrl = useCallback((track: MusicTrack): string =>
+    (dataSaver && track.audioUrlLow) ? track.audioUrlLow : track.audioUrl
+  , [dataSaver]);
+
+  const toggleDataSaver = () => {
+    const next = !dataSaver;
+    setDataSaver(next);
+    setMusicDataSaver(next);
+    try {
+      WebApp?.HapticFeedback?.notificationOccurred(next ? 'success' : 'warning');
+    } catch (_) {}
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [albums, setAlbums] = useState<MusicAlbum[]>([]);
@@ -126,8 +140,8 @@ export function AppleMusic() {
     if (exists) {
       audioOfflineManager.removeTrackAudio(track.audioUrl, track.id).then(refreshCacheStats);
     } else {
-      // Respect metered / slow links: don't silently pull a 5-10MB full track on a ❤️ tap
-      if (!getNetworkSpeed().isSlow) {
+      // Respect metered / slow links and the Data saver: don't silently pull a 5-10MB full track on a ❤️ tap
+      if (!getNetworkSpeed().isSlow && !dataSaver) {
         audioOfflineManager.saveTrackAudio(track.id, track.audioUrl).then(refreshCacheStats);
       }
     }
@@ -181,7 +195,7 @@ export function AppleMusic() {
       id: t.id,
       title: t.title,
       artist: t.artist,
-      url: t.audioUrl,
+      url: pickUrl(t),
       coverUrl: t.artworkUrl,
       type: 'music' as const
     }));
@@ -314,7 +328,7 @@ export function AppleMusic() {
       id: t.id,
       title: t.title,
       artist: t.artist,
-      url: t.audioUrl,
+      url: pickUrl(t),
       coverUrl: t.artworkUrl,
       type: 'music' as const
     }));
@@ -323,7 +337,7 @@ export function AppleMusic() {
       id: track.id,
       title: track.title,
       artist: track.artist,
-      url: track.audioUrl,
+      url: pickUrl(track),
       coverUrl: track.artworkUrl,
       type: 'music'
     }, playlist);
@@ -362,6 +376,24 @@ export function AppleMusic() {
             <span className="text-xl font-extrabold tracking-tight">MediaBox Music</span>
           </div>
         </div>
+
+        {/* Traffic Saver toggle: low bitrate (< 320 kbps) for weak/metered connections */}
+        <button
+          onClick={toggleDataSaver}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold border flex-shrink-0 transition-colors active:scale-95 ${
+            dataSaver ? 'bg-[#FA2D48] text-white border-[#FA2D48] shadow-md' : 'hover:opacity-90'
+          }`}
+          style={!dataSaver ? {
+            backgroundColor: 'var(--hint-color, rgba(120, 120, 128, 0.15))',
+            borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
+            color: 'var(--text-color)'
+          } : undefined}
+          title={t('music_data_saver_hint') || 'Низкий битрейт для слабого подключения'}
+        >
+          <span>📶</span>
+          <span>{t('music_data_saver') || 'Экономия'}</span>
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dataSaver ? 'bg-white' : 'bg-emerald-500'}`} />
+        </button>
       </div>
 
       {/* Unavailable Full Track Feedback Toast */}
