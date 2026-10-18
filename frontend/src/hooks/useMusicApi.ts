@@ -454,8 +454,13 @@ export function useMusicApi() {
       return cached;
     }
 
-    setLoading(true);
-    setError(null);
+    // При бесконечном скролле (page > 1) активируем loading только для первой страницы,
+    // чтобы предотвратить размонтирование DOM-дерева треков и сброс scrollY в 0
+    const isInitialPage = page === 1;
+    if (isInitialPage) {
+      setLoading(true);
+      setError(null);
+    }
 
     const { isSlow } = getNetworkSpeed();
 
@@ -489,7 +494,7 @@ export function useMusicApi() {
 
             if (normalized.length > 0) {
               clientCache.set(cacheKey, normalized, 86400); // 24 hours TTL с авто-очисткой
-              setLoading(false);
+              if (isInitialPage) setLoading(false);
               return normalized;
             }
           }
@@ -587,12 +592,12 @@ export function useMusicApi() {
         clientCache.set(cacheKey, sliced, 86400); // 24 hours client cache с авто-очисткой
       }
 
-      setLoading(false);
+      if (isInitialPage) setLoading(false);
       return sliced;
     } catch (err: any) {
       console.warn('[MusicApi] Search failed:', err);
       setError(err?.message || 'Error searching tracks');
-      setLoading(false);
+      if (isInitialPage) setLoading(false);
       return [];
     }
   }, []);

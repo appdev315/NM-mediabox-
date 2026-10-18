@@ -627,7 +627,8 @@ export function AppleMusic() {
       )}
 
       {/* Found Albums Horizontal Carousel */}
-      {activeTab === 'search' && !selectedAlbum && albums.length > 0 && !loading && (
+      {/* Не скрываем карусель альбомов при подгрузке страниц, сохраняя стабильный layout */}
+      {activeTab === 'search' && !selectedAlbum && albums.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
@@ -721,7 +722,8 @@ export function AppleMusic() {
       )}
 
       {/* Section Header for Tracks */}
-      {activeTab === 'search' && !selectedAlbum && searchResults.length > 0 && !loading && (
+      {/* Сохраняем заголовок секции видимым во время пагинации */}
+      {activeTab === 'search' && !selectedAlbum && searchResults.length > 0 && (
         <div className="mb-2 px-1 flex items-center justify-between">
           <span className="text-xs font-extrabold tracking-wider uppercase opacity-60">
             🎵 {t('music_popular_tracks') || 'Треки'}
@@ -733,8 +735,10 @@ export function AppleMusic() {
       )}
 
       {/* Track List */}
+      {/* Скелетон отображается только при первичном поиске (когда список пуст) или загрузке альбома,
+          предотвращая схлопывание высоты контейнера и подброс скролла наверх */}
       <div className="flex flex-col gap-1.5">
-        {loading || loadingAlbum ? (
+        {((loading && searchResults.length === 0) || loadingAlbum) ? (
           <div className="flex flex-col gap-2 py-1">
             {[1, 2, 3, 4, 5].map((i) => (
               <div
