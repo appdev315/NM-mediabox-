@@ -1981,14 +1981,16 @@ const handleMusicSearch = async (c: Context) => {
       return null;
     };
 
-    // На 1-й странице параллельно ищем совпадение по имени исполнителя (например, Rammstein -> id: 610801),
-    // чтобы сразу подтянуть оригинальные верифицированные топ-хиты группы в качестве 320 kbps.
-    const artistSearchPromise = page === 1
+    // На первых 3-х страницах параллельно ищем совпадение по имени исполнителя (например, Rammstein -> id: 610801):
+    // на 1-й странице подтягиваем verified Top Songs, а на 2-й и 3-й — дискографию альбомов/песен артиста (/artists/:id/songs?page=N)
+    const artistSearchPromise = page <= 3
       ? fetchFromSaavnPool(`/search/artists?query=${encoded}&limit=3`, 5000)
       : Promise.resolve(null);
 
+    // Запрашиваем оверсэмплинг у апстрима (40 треков), чтобы после отсечения дублей и сборников гарантированно отдать полные 20 уникальных треков
+    const saavnLimit = Math.max(limit * 2, 40);
     const [saavnRes, ytRes, artistRes] = await Promise.allSettled([
-      fetchFromSaavnPool(`/search/songs?query=${encoded}&page=${page}&limit=${limit}`, 6000),
+      fetchFromSaavnPool(`/search/songs?query=${encoded}&page=${page}&limit=${saavnLimit}`, 6000),
       fetch(`https://api.ytify.workers.dev/search?q=${encoded}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(6000),
@@ -2038,11 +2040,12 @@ const handleMusicSearch = async (c: Context) => {
         const normArtistName = normArtistOf(matchedArtist?.name);
 
         if (matchedArtist?.id && (normArtistName === normQ || normArtistName.includes(normQ) || normQ.includes(normArtistName))) {
-          const songsRes = await fetchFromSaavnPool(`/artists?id=${matchedArtist.id}`, 5000);
+          const songsPath = page === 1 ? `/artists?id=${matchedArtist.id}` : `/artists/${matchedArtist.id}/songs?page=${page}`;
+          const songsRes = await fetchFromSaavnPool(songsPath, 5000);
 
           if (songsRes && songsRes.ok) {
             const songsData = await songsRes.json() as any;
-            const topSongs = songsData?.data?.topSongs || [];
+            const topSongs = (page === 1 ? songsData?.data?.topSongs : songsData?.data?.songs) || songsData?.data?.topSongs || [];
             for (const s of topSongs) {
               const downloadUrls = s.downloadUrl || [];
               const downloadUrl = downloadUrls.find((u: any) => u.quality === '320kbps') || downloadUrls[downloadUrls.length - 1];

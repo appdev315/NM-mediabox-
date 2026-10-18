@@ -42,7 +42,7 @@ export function AppleMusic() {
   const [searchPage, setSearchPage] = useState(1);
   const [hasMoreSearch, setHasMoreSearch] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const [albums, setAlbums] = useState<MusicAlbum[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<MusicAlbum | null>(null);
   const [albumTracks, setAlbumTracks] = useState<MusicTrack[]>([]);
@@ -280,7 +280,8 @@ export function AppleMusic() {
     if (reqId === searchAbortRef.current) {
       setSearchResults(tracks);
       setAlbums(foundAlbums);
-      setHasMoreSearch(tracks.length >= 20);
+      // Если на 1-й странице есть треки, разрешаем подгрузку следующих страниц (не блокируем запросы из-за дедупликации)
+      setHasMoreSearch(tracks.length >= 10);
     }
   }, [searchMusic, searchAlbums]);
 
@@ -291,7 +292,7 @@ export function AppleMusic() {
     setLoadingMore(true);
     const nextPage = searchPage + 1;
     try {
-      // Подгрузка следующих 20 треков при приближении к концу списка
+      // Подгрузка следующих треков порционно без размонтирования DOM-дерева
       const moreTracks = await searchMusic(q, nextPage, 20);
       if (moreTracks && moreTracks.length > 0) {
         setSearchResults(prev => {
@@ -300,7 +301,8 @@ export function AppleMusic() {
           return [...prev, ...uniqueNew];
         });
         setSearchPage(nextPage);
-        setHasMoreSearch(moreTracks.length >= 20);
+        // Продолжаем пагинацию до 15 страниц, пока возвращаются треки
+        setHasMoreSearch(moreTracks.length > 0 && nextPage < 15);
       } else {
         setHasMoreSearch(false);
       }
@@ -311,19 +313,32 @@ export function AppleMusic() {
     }
   }, [searchQuery, loadingMore, hasMoreSearch, selectedAlbum, activeTab, searchPage, searchMusic]);
 
-  // Infinite scroll observer: автоматически подгружает следующие 20 треков
-  useEffect(() => {
-    if (!sentinelRef.current || !hasMoreSearch || activeTab !== 'search' || selectedAlbum) return;
+  // Callback ref: подключает IntersectionObserver мгновенно при монтировании элемента в DOM
+  const sentinelCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    if (!node || !hasMoreSearch || activeTab !== 'search' || selectedAlbum) return;
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
         loadMoreTracks();
       }
-    }, { rootMargin: '400px' });
+    }, { rootMargin: '450px' });
 
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
+    observer.observe(node);
+    observerRef.current = observer;
   }, [hasMoreSearch, activeTab, selectedAlbum, loadMoreTracks]);
+
+  // Очистка observer при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
 
   const handleSelectAlbum = async (album: MusicAlbum) => {
     try {
@@ -943,13 +958,24 @@ export function AppleMusic() {
           })()
         )}
 
-        {/* Infinite Scroll Sentinel: подгрузка +20 треков при приближении к концу списка */}
+        {/* Infinite Scroll Sentinel: подгрузка треков при приближении к концу списка */}
         {activeTab === 'search' && !selectedAlbum && searchResults.length > 0 && hasMoreSearch && (
-          <div ref={sentinelRef} className="py-4 flex items-center justify-center">
+          <div ref={sentinelCallbackRef} className="py-4 flex flex-col items-center justify-center gap-2">
             {loadingMore ? (
               <div className="w-6 h-6 border-2 border-[#FA2D48] border-t-transparent rounded-full animate-spin" />
             ) : (
-              <div className="h-4" />
+              <button
+                type="button"
+                onClick={() => loadMoreTracks()}
+                className="text-xs px-3 py-1.5 rounded-xl border opacity-50 hover:opacity-100 transition-opacity"
+                style={{
+                  backgroundColor: 'var(--secondary-bg-color, rgba(120, 120, 128, 0.08))',
+                  borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.15))',
+                  color: 'var(--text-color)'
+                }}
+              >
+                {t('music_load_more') || 'Загрузить ещё'}
+              </button>
             )}
           </div>
         )}
