@@ -58,6 +58,8 @@ export function Movie() {
   const activeEpisodeRef = useRef<string>('');
   const isHealingRef = useRef<boolean>(false);
   const errorReportedRef = useRef<boolean>(false);
+  const isMountedRef = useRef(true);
+  const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Validate media type
   const queryType = searchParams.get('type');
@@ -257,8 +259,6 @@ export function Movie() {
   const userSelectedRef = useRef(false);
   const userSelectedAtRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef(true);
-  const extractDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHistorySyncRef = useRef<number>(0);
   const [contentUnavailable, setContentUnavailable] = useState(false);
 

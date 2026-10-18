@@ -2,6 +2,19 @@ import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import { tgAuthMiddleware } from './middleware/auth';
 
+/**
+ * Безопасная постановка фоновой задачи через waitUntil.
+ * В Hono 4.x геттер c.executionCtx бросает исключение вне Workers-рантайма,
+ * поэтому опциональная цепочка `c.executionCtx?.waitUntil` от него не спасает —
+ * доступ к executionCtx оборачиваем в try/catch. В production Workers контекст
+ * есть всегда, helper страхует только нестандартные рантаймы (тесты, node).
+ */
+const safeWaitUntil = (c: Context, promise: Promise<unknown>): void => {
+  try {
+    c.executionCtx.waitUntil(promise);
+  } catch (_) {}
+};
+
 type Bindings = {
   DB: D1Database;
   TELEGRAM_BOT_TOKEN: string;
@@ -249,8 +262,8 @@ function formatCountry(code?: string): string {
 }
 
     // D1 Auto-Retention Policy: Clean up rows older than 30 days asynchronously in background
-    if (c.env.DB && c.executionCtx?.waitUntil) {
-      c.executionCtx.waitUntil((async () => {
+    if (c.env.DB) {
+      safeWaitUntil(c, (async () => {
         try {
           await c.env.DB.batch([
             c.env.DB.prepare("DELETE FROM analytics_events WHERE ts < datetime('now', '-30 days')"),
@@ -417,7 +430,7 @@ app.post('/api/cache/purge', async (c: Context) => {
     year: year || '',
     bypass_cache: 'true'
   });
-  c.executionCtx.waitUntil((async () => {
+  safeWaitUntil(c, (async () => {
     try {
       await fetch(`${hfBase}/liftw?${hfParams.toString()}`, {
         signal: AbortSignal.timeout(4000)
@@ -730,8 +743,8 @@ app.get('/api/liftw', async (c: Context) => {
 
   // Donor metric recorder: tracks real Liftw stream resolutions for the 3-hour report
   const recordDonorMetric = (status: 'liftw_ok' | 'liftw_fail') => {
-    if (!c.env.DB || !c.executionCtx?.waitUntil) return;
-    c.executionCtx.waitUntil((async () => {
+    if (!c.env.DB) return;
+    safeWaitUntil(c, (async () => {
       try {
         await c.env.DB.prepare(
           `INSERT INTO analytics_events (event_type, country, item_type, item_title, item_id, meta)
@@ -758,9 +771,9 @@ app.get('/api/liftw', async (c: Context) => {
   } else {
     // Dual delete on cache bypass
     try {
-      c.executionCtx.waitUntil(edgeCache.delete(cacheReq));
+      safeWaitUntil(c, edgeCache.delete(cacheReq));
       if (canonicalUrl !== legacyKeyUrl) {
-        c.executionCtx.waitUntil(edgeCache.delete(new Request(legacyKeyUrl, { method: 'GET' })));
+        safeWaitUntil(c, edgeCache.delete(new Request(legacyKeyUrl, { method: 'GET' })));
       }
     } catch (_) {}
   }
@@ -793,7 +806,7 @@ app.get('/api/liftw', async (c: Context) => {
           };
           const directResponse = c.json(directResult, 200, directHeaders);
           try {
-            c.executionCtx.waitUntil(edgeCache.put(cacheReq, directResponse.clone()));
+            safeWaitUntil(c, edgeCache.put(cacheReq, directResponse.clone()));
           } catch (_) {}
           recordDonorMetric('liftw_ok');
           return directResponse;
@@ -975,7 +988,7 @@ app.get('/api/liftw', async (c: Context) => {
     const isNumericLiftw = Boolean(liftwIdParam && /^\d+$/.test(liftwIdParam));
     if (!isNumericTmdb && !isNumericLiftw) return;
     if (vType === 'adult' || tmdb.startsWith('ep_') || tmdb.startsWith('rt_')) return;
-    c.executionCtx.waitUntil((async () => {
+    safeWaitUntil(c, (async () => {
       try {
         await c.env.DB.prepare(
           `INSERT INTO parsing_incidents (tmdb_id, title, year, content_type, donor, fail_type, status, heal_note)
@@ -1039,7 +1052,7 @@ app.get('/api/liftw', async (c: Context) => {
 
     // Auto-heal resolution: If previously marked as unresolved, mark prior incidents for this tmdb_id as auto_fixed
     if (c.env.DB && tmdb) {
-      c.executionCtx.waitUntil((async () => {
+      safeWaitUntil(c, (async () => {
         try {
           await c.env.DB.prepare(
             `UPDATE parsing_incidents 
@@ -1064,7 +1077,7 @@ app.get('/api/liftw', async (c: Context) => {
 
     // Only cache verified valid streams on Cloudflare Edge
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
 
     return response;
@@ -1195,7 +1208,7 @@ app.get('/api/search/liftw', async (c: Context) => {
     });
 
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
 
     return response;
@@ -1343,7 +1356,7 @@ app.get('/api/poster/resolve', async (c: Context) => {
       'Access-Control-Allow-Origin': '*',
     });
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
     return response;
   } catch (_) {
@@ -1362,7 +1375,7 @@ app.get('/api/image', async (c: Context) => {
 
   // Check Cloudflare Cache API for instant 0ms edge response
   const cache = (caches as any).default;
-  const cacheKey = new Request(c.req.url, c.req.raw);
+  const cacheKey = new Request(c.req.url, { method: 'GET' });
   let cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) {
     return cachedResponse;
@@ -1394,7 +1407,7 @@ app.get('/api/image', async (c: Context) => {
       },
     });
 
-    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+    safeWaitUntil(c, cache.put(cacheKey, response.clone()));
     return response;
   } catch (err: any) {
     return c.text(`Image proxy error: ${err?.message || 'unknown'}`, 502);
@@ -1425,7 +1438,7 @@ app.get('/api/tmdb/*', async (c: Context) => {
 
   // Check Cloudflare Edge Cache API for instant response
   const cache = (caches as any).default;
-  const cacheKey = new Request(c.req.url, c.req.raw);
+  const cacheKey = new Request(c.req.url, { method: 'GET' });
   let cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) {
     return cachedResponse;
@@ -1464,7 +1477,7 @@ app.get('/api/tmdb/*', async (c: Context) => {
       },
     });
 
-    c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+    safeWaitUntil(c, cache.put(cacheKey, response.clone()));
     return response;
   } catch (err: any) {
     return c.json({ error: err?.message || 'Failed to fetch from TMDB' }, 502);
@@ -1619,7 +1632,7 @@ app.get('/api/feed/trailers', async (c: Context) => {
     });
 
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
 
     return response;
@@ -1763,7 +1776,7 @@ app.get('/api/feed/home', async (c: Context) => {
       // Guard: Only cache in Edge if response is full (trending present and >= 4 genres loaded).
       // Degraded/partial payload is never locked into Edge cache for 12 hours.
       if (isFullPayload) {
-        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+        safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
       }
     } catch (_) {}
 
@@ -1830,7 +1843,7 @@ app.get('/api/catalog/list', async (c: Context) => {
           'Access-Control-Allow-Origin': '*',
         });
         try {
-          c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+          safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
         } catch (_) {}
         return response;
       }
@@ -1876,7 +1889,7 @@ app.get('/api/catalog/list', async (c: Context) => {
     });
 
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
 
     return response;
@@ -1909,7 +1922,7 @@ app.get('/api/dramas/search', async (c: Context) => {
         'Access-Control-Allow-Origin': '*',
       });
       try {
-        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+        safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
       } catch (_) {}
       return response;
     }
@@ -1994,7 +2007,14 @@ const handleMusicSearch = async (c: Context) => {
       if (!artist || artist.toLowerCase() === 'unknown artist') {
         artist = query.replace(/\b\w/g, (c) => c.toUpperCase());
         t.artist = artist;
-      } else if (hasJapanese.test(artist) && !hasJapanese.test(query)) {
+      } else if (
+        hasJapanese.test(artist) &&
+        // Затираем запросом только полностью CJK-имена без единого латинского символа:
+        // реальные артисты вида «RADWIMPS (ラッドウインプス)», «LiSA» или «久石譲 Joe Hisaishi»
+        // не должны подменяться текстом поискового запроса.
+        !/[a-z]/i.test(artist) &&
+        !hasJapanese.test(query)
+      ) {
         artist = query.replace(/\b\w/g, (c) => c.toUpperCase());
         t.artist = artist;
       }
@@ -2009,9 +2029,13 @@ const handleMusicSearch = async (c: Context) => {
     if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
       try {
         const aData = await artistRes.value.json() as any;
-        const matchedArtist = aData?.data?.results?.[0];
         const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
-        const normArtistName = (matchedArtist?.name || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+        const normArtistOf = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+        const artistCandidates: any[] = aData?.data?.results || [];
+        // results[0] может оказаться трибьют-проектом («DJ Rammstein») вместо оригинала:
+        // сначала ищем точное совпадение имени среди всех кандидатов, фоллбэк — первый.
+        const matchedArtist = artistCandidates.find((r: any) => normArtistOf(r?.name) === normQ) || artistCandidates[0];
+        const normArtistName = normArtistOf(matchedArtist?.name);
 
         if (matchedArtist?.id && (normArtistName === normQ || normArtistName.includes(normQ) || normQ.includes(normArtistName))) {
           const songsRes = await fetchFromSaavnPool(`/artists?id=${matchedArtist.id}`, 5000);
@@ -2136,6 +2160,11 @@ const handleMusicSearch = async (c: Context) => {
       if (t.isOfficialArtistTop) {
         score += 150; // Официальные хиты подтверждённого исполнителя всегда в самом верху
       }
+      // Составные запросы «Артист + Трек» (например, "Rammstein Sonne"): по отдельности
+      // артист и название не совпадают с нормализованным запросом и получали 0 баллов,
+      // из-за чего оригинал проигрывал каверам, у которых оба слова попали в название.
+      const normBoth = `${normA}${normT}`;
+      const normBothRev = `${normT}${normA}`;
       if (normA === normQ) {
         score += 100; // Точное совпадение артиста
       } else if (normA.startsWith(normQ) || normA.includes(normQ)) {
@@ -2144,6 +2173,10 @@ const handleMusicSearch = async (c: Context) => {
         score += 70; // Точное совпадение названия трека
       } else if (normT.startsWith(normQ) || normT.includes(normQ)) {
         score += 50;
+      } else if (normBoth && (normBoth === normQ || normBothRev === normQ)) {
+        score += 120; // Точное совпадение Артист + Трек
+      } else if (normBoth && (normBoth.includes(normQ) || normQ.includes(normBoth) || normBothRev.includes(normQ) || normQ.includes(normBothRev))) {
+        score += 60; // Частичное совпадение составного запроса
       } else if (normAlb === normQ) {
         // Совпадение только по альбому (например, Monte Pons с альбомом "Rammstein")
         score += 10;
@@ -2168,7 +2201,7 @@ const handleMusicSearch = async (c: Context) => {
 
     if (finalTracks.length > 0) {
       try {
-        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+        safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
       } catch (_) {}
     }
 
@@ -2210,7 +2243,7 @@ app.get('/api/music/saavn/*', async (c: Context) => {
         'Cache-Control': `public, max-age=1800, s-maxage=${ttl}, stale-while-revalidate=3600`,
       });
       try {
-        c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+        safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
       } catch (_) {}
       return response;
     } catch (_) {
@@ -2252,7 +2285,7 @@ app.get('/api/music/invidious/instances', async (c: Context) => {
   });
   if (instances.length > 0) {
     try {
-      c.executionCtx.waitUntil(edgeCache.put(cacheReq, response.clone()));
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
   }
   return response;

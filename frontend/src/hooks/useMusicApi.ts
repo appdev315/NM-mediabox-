@@ -474,7 +474,10 @@ export function useMusicApi() {
               .filter((t: any) => !t.audioUrl || !t.audioUrl.includes('dzcdn'))
               .map((t: MusicTrack) => {
                 let artist = t.artist || '';
-                if (hasJapanese.test(artist) && !hasJapanese.test(trimmed)) {
+                // Затираем запросом только полностью CJK-имена: реальные артисты вида
+                // «RADWIMPS (ラッドウインプス)» или «久石譲 Joe Hisaishi» содержат латиницу
+                // и не должны подменяться текстом поискового запроса.
+                if (hasJapanese.test(artist) && !/[a-z]/i.test(artist) && !hasJapanese.test(trimmed)) {
                   artist = trimmed.replace(/\b\w/g, (c) => c.toUpperCase());
                 }
                 return {

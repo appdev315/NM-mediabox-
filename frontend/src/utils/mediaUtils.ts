@@ -43,17 +43,25 @@ export function buildLiftwQuery(params: LiftwQueryParams): string {
   return new URLSearchParams(queryParams).toString();
 }
 
-export function deduplicateMediaList<T extends { id?: any; title?: string; name?: string }>(list: T[]): T[] {  const seenIds = new Set<string>();
-  const seenTitles = new Set<string>();
+export function deduplicateMediaList<T extends { id?: any; title?: string; name?: string; type?: string; media_type?: string }>(list: T[]): T[] {
+  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
 
   return list.filter((item) => {
     if (!item || !item.id) return false;
     const idKey = String(item.id);
     const normTitle = (item.title || item.name || '').trim().toLowerCase();
     if (seenIds.has(idKey)) return false;
-    if (normTitle && seenTitles.has(normTitle)) return false;
+    // Составной ключ «тип|название»: фильм и сериал с одинаковым названием — разные
+    // тайтлы и не должны склеиваться («Дюна» 1984/2021, movie vs tv). Год не включаем:
+    // источники расходятся в годе премьеры/релиза, а кросс-источниковые дубли
+    // (tmdb_ vs liftw_) склеиваются именно по названию.
+    const rawType = String(item.type || item.media_type || '').trim().toLowerCase();
+    const typeKey = rawType === 'series' ? 'tv' : rawType;
+    const dedupeKey = typeKey ? `${typeKey}|${normTitle}` : normTitle;
+    if (normTitle && seenKeys.has(dedupeKey)) return false;
     seenIds.add(idKey);
-    if (normTitle) seenTitles.add(normTitle);
+    if (normTitle) seenKeys.add(dedupeKey);
     return true;
   });
 }
