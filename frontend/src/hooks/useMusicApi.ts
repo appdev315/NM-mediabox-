@@ -448,16 +448,23 @@ export const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
   return { title, artist };
 };
 
+// Стоп-слова немузыкального контента (видео, стендап, подкасты, интервью, шоу, стримы)
+const NON_MUSIC_REGEX = /\b(?:стендап|подкаст|podcast|standup|интервью|импров|шоу|выпуск|livestream|live\s*stream)\b/i;
+
 const mapYtSongToTrack = (item: any): MusicTrack | null => {
   if (!item || !item.id || !item.title) return null;
   const dur = parseYtDuration(item);
-  if (dur > 0 && dur < 20) return null; // eliminate 0s previews / stubs entirely
+  // Порог длительности треков: максимум 10 минут (600 сек) и минимум 20 сек
+  if (dur > 600 || (dur > 0 && dur < 20)) return null;
   const rawTitle = decodeHtmlEntities(item.title);
+  const rawAuthor = decodeHtmlEntities(item.author || 'Unknown Artist');
+  // Отсекаем немузыкальные разговорные видеоролики и передачи
+  if (NON_MUSIC_REGEX.test(rawTitle) || NON_MUSIC_REGEX.test(rawAuthor)) return null;
+
   const cleanTitle = rawTitle
     .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
     .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
     .trim();
-  const rawAuthor = decodeHtmlEntities(item.author || 'Unknown Artist');
   const parsed = parseYtTrackInfo(cleanTitle || rawTitle, rawAuthor);
 
   return {
@@ -481,7 +488,7 @@ export function useMusicApi() {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const cacheKey = `cache_music_search_v8_${trimmed.toLowerCase()}_p${page}_l${limit}`;
+    const cacheKey = `cache_music_search_v9_${trimmed.toLowerCase()}_p${page}_l${limit}`;
     const cached = clientCache.get<MusicTrack[]>(cacheKey) || await clientCache.getAsync<MusicTrack[]>(cacheKey);
     if (cached && Array.isArray(cached) && cached.length > 0) {
       return cached;
@@ -508,8 +515,14 @@ export function useMusicApi() {
           if (Array.isArray(edgeTracks) && edgeTracks.length > 0) {
             const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
             const normalized = edgeTracks
-              // Strip any dead 30s Deezer previews
-              .filter((t: any) => !t.audioUrl || !t.audioUrl.includes('dzcdn'))
+              // Отсеиваем 30-секундные превью Deezer, треки длиннее 10 минут и немузыкальные видео
+              .filter((t: any) => {
+                if (t.audioUrl && t.audioUrl.includes('dzcdn')) return false;
+                const dur = typeof t.duration === 'number' ? t.duration : (parseInt(t.duration, 10) || 0);
+                if (dur > 600 || (dur > 0 && dur < 20)) return false;
+                if (NON_MUSIC_REGEX.test(t.title || '') || NON_MUSIC_REGEX.test(t.artist || '')) return false;
+                return true;
+              })
               .map((t: MusicTrack) => {
                 let artist = t.artist || '';
                 // Затираем запросом только полностью CJK-имена: реальные артисты вида
@@ -551,6 +564,11 @@ export function useMusicApi() {
       const merged: MusicTrack[] = [];
 
       const addTrack = (t: MusicTrack) => {
+        // Порог длительности треков: максимум 10 минут (600 сек) и минимум 20 сек
+        const dur = t.duration || 0;
+        if (dur > 600 || (dur > 0 && dur < 20)) return;
+        if (NON_MUSIC_REGEX.test(t.title) || NON_MUSIC_REGEX.test(t.artist) || NON_MUSIC_REGEX.test(t.album || '')) return;
+
         const titleKey = `${t.artist.toLowerCase()} - ${t.title.toLowerCase().replace(/\([^)]*\)/g, '').trim()}`;
         if (!seenIds.has(t.id) && !seenTitles.has(titleKey)) {
           seenIds.add(t.id);

@@ -1,9 +1,9 @@
-name: 3-Hour Server Stats & Diagnostics
+name: Daily Server Stats & Diagnostics (21:00 Bali)
 
 on:
   schedule:
-    # Run every 3 hours (00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00 UTC) -> 8 times per 24 hours
-    - cron: '0 */3 * * *'
+    # Запуск 1 раз в 24 часа ровно в 21:00 по Бали (WITA, UTC+8 -> 13:00 UTC)
+    - cron: '0 13 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
         env:
           STATS_KEY: ${{ secrets.BOT_TOKEN }}
         run: |
-          ANALYTICS_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${STATS_KEY}" "https://backend.app-dev315.workers.dev/api/analytics/stats?windowHours=3")
+          ANALYTICS_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${STATS_KEY}" "https://backend.app-dev315.workers.dev/api/analytics/stats?windowHours=24")
           ANA_HTTP=$(echo "$ANALYTICS_RESP" | tail -n1)
           ANA_BODY=$(echo "$ANALYTICS_RESP" | sed '$d')
 
@@ -75,7 +75,7 @@ jobs:
           done < <(echo "$ANA_BODY" | jq -c '.topContent[]?' | head -6)
           [ -z "$CONTENT_BLOCK" ] && CONTENT_BLOCK="\n  Нет данных"
 
-          ANALYTICS_BLOCK="\n\n📈 <b>Посетители — Cloudflare (3 часа):</b>\n👥 Активных: ${ACTIVE} | 📱 Сессий: ${SESSIONS} | 🆕 Новых: ${NEW_USERS}\n\n🌍 <b>Страны входа:</b>${COUNTRIES_BLOCK}\n\n🎬 <b>Топ контента:</b>${CONTENT_BLOCK}"
+          ANALYTICS_BLOCK="\n\n📈 <b>Посетители — Cloudflare (24 часа):</b>\n👥 Активных: ${ACTIVE} | 📱 Сессий: ${SESSIONS} | 🆕 Новых: ${NEW_USERS}\n\n🌍 <b>Страны входа:</b>${COUNTRIES_BLOCK}\n\n🎬 <b>Топ контента:</b>${CONTENT_BLOCK}"
 
           echo "ANALYTICS_BLOCK<<EOF" >> $GITHUB_ENV
           echo -e "$ANALYTICS_BLOCK" >> $GITHUB_ENV
@@ -172,7 +172,7 @@ jobs:
               LOG_BLOCK=$'\n\n📝 <b>Ошибки в логах (для передачи ИИ):</b>\n<code>\n'"${RECENT_ERRORS_RAW}"$'\n</code>'
             fi
             
-            STATS_MSG="📊 <b>Трафик и активность (за 3 часа)</b>
+            STATS_MSG="📊 <b>Трафик и активность (за 24 часа)</b>
 
           ⏳ <b>Аптайм:</b> ${HOURS}ч ${MINUTES}м
           👥 <b>Уникальных IP:</b> <b>${UNIQUE_IPS}</b>
@@ -238,7 +238,7 @@ jobs:
         env:
           ADMIN_KEY: ${{ secrets.ADMIN_API_KEY || 'mb_admin_sec_2026' }}
         run: |
-          INC_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${ADMIN_KEY}" "https://backend.app-dev315.workers.dev/api/admin/incidents?windowHours=3")
+          INC_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${ADMIN_KEY}" "https://backend.app-dev315.workers.dev/api/admin/incidents?windowHours=24")
           INC_HTTP=$(echo "$INC_RESP" | tail -n1)
           INC_BODY=$(echo "$INC_RESP" | sed '$d')
 
@@ -274,7 +274,7 @@ jobs:
             FIX_STR="${FIX_RATE_RAW}%"
           fi
 
-          INCIDENTS_BLOCK="\n\n🤖 <b>Системный администратор (за 3 часа):</b>\n🔍 Сбоев парсинга: <b>${TOTAL_INC}</b>\n🛠 Автоматически исправлено: <b>${AUTO_FIXED} (${FIX_STR})</b>\n⚠️ Нерешенных: <b>${UNRESOLVED}</b>${QUEUE_STR}"
+          INCIDENTS_BLOCK="\n\n🤖 <b>Системный администратор (за 24 часа):</b>\n🔍 Сбоев парсинга: <b>${TOTAL_INC}</b>\n🛠 Автоматически исправлено: <b>${AUTO_FIXED} (${FIX_STR})</b>\n⚠️ Нерешенных: <b>${UNRESOLVED}</b>${QUEUE_STR}"
 
           echo "INCIDENTS_BLOCK<<EOF" >> $GITHUB_ENV
           echo -e "$INCIDENTS_BLOCK" >> $GITHUB_ENV

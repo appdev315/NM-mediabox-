@@ -1149,8 +1149,8 @@ export function isNonRussianLang(lang: string): boolean {
 
 // Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
 // (forced reset without waiting for s-maxage TTLs to expire).
-// cv6: обновлен алгоритм скоринга поиска музыки и строгая валидация артистов
-const EDGE_CACHE_NS = 'cv6';
+// cv7: лимит длительности треков 10 минут (600 сек) и фильтр немузыкального контента (шоу/подкасты)
+const EDGE_CACHE_NS = 'cv7';
 
 export function edgeCacheKey(c: any, url?: string): Request {
   const raw = url || c.req.url;
@@ -2003,10 +2003,20 @@ const handleMusicSearch = async (c: Context) => {
     const seenTitles = new Set<string>();
     const hasJapanese = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
 
+    // Регулярное выражение для отсечения немузыкального контента (шоу, стендапы, подкасты, интервью)
+    const NON_MUSIC_REGEX = /\b(?:стендап|подкаст|podcast|standup|интервью|импров|шоу|выпуск|livestream|live\s*stream)\b/i;
+
     const addTrack = (t: any) => {
       if (!t || !t.id || !t.title) return;
+      const dur = typeof t.duration === 'number' ? t.duration : (parseInt(t.duration, 10) || 0);
+      // Порог длительности треков: максимум 10 минут (600 сек) и минимум 20 сек (отсекаем видео/подкасты и превью)
+      if (dur > 600 || (dur > 0 && dur < 20)) return;
+
       const title = String(t.title || '').trim();
       let artist = String(t.artist || '').trim();
+      // Отсеиваем видео-контент и разговорные шоу из музыкального раздела
+      if (NON_MUSIC_REGEX.test(title) || NON_MUSIC_REGEX.test(artist) || NON_MUSIC_REGEX.test(String(t.album || ''))) return;
+
       if (!artist || artist.toLowerCase() === 'unknown artist') {
         artist = query.replace(/\b\w/g, (c) => c.toUpperCase());
         t.artist = artist;
@@ -2152,7 +2162,9 @@ const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
             } else if (typeof item.lengthSeconds === 'number') {
               dur = item.lengthSeconds;
             }
-            if (dur > 0 && dur < 20) continue; // отсекаем 0-секундные превью
+            // Отсекаем немузыкальные ролики > 10 минут (600 сек) и короткие превью (< 20 сек)
+            if (dur > 600 || (dur > 0 && dur < 20)) continue;
+            if (NON_MUSIC_REGEX.test(item.title || '') || NON_MUSIC_REGEX.test(item.author || '')) continue;
             const cleanTitle = (item.title || '')
               .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
               .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
