@@ -302,6 +302,9 @@ export const resolveFullAudioUrl = async (
   }
 
   // 1. Try JioSaavn CDN (Instant 320k / 160k direct stream) — Multi-pass search
+  // Для YouTube-треков (trackId начинается с yt_) используем JioSaavn CDN исключительно при
+  // строгом совпадении названия и исполнителя, чтобы предотвратить подмену оригинального трека.
+  const isYtTrack = Boolean(trackId && trackId.startsWith('yt_'));
   try {
     const queries = [
       `${primaryArtist} ${cleanTitle}`,
@@ -316,8 +319,7 @@ export const resolveFullAudioUrl = async (
           const data = await res.json();
           const results = data?.data?.results;
           if (Array.isArray(results) && results.length > 0) {
-            // Strict matching: prefer exact normalized title -> title+artist overlap ->
-            // duration-sane candidate -> only then blind first result
+            // Строгое сопоставление: исключаем подмену чужой песней через слепой выбор candidates[0]
             const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
             const normQueryTitle = norm(cleanTitle);
             const normArtist = norm(primaryArtist);
@@ -333,14 +335,21 @@ export const resolveFullAudioUrl = async (
                 );
                 return { ...c, dur, rTitle, rArtists };
               })
-              .filter((c: any) => c.dur === 0 || c.dur >= 20); // reject 0s stubs / sub-20s cuts
+              .filter((c: any) => c.dur === 0 || c.dur >= 20); // отсекаем 0с заглушки
 
-            const exactTitle = candidates.find((c: any) => c.rTitle === normQueryTitle);
+            // Строгие условия совпадения:
+            // 1. И название, и артист пересекаются с запросом
             const titleAndArtist = candidates.find((c: any) =>
-              (c.rTitle.includes(normQueryTitle) || normQueryTitle.includes(c.rTitle)) &&
-              c.rTitle.length > 0 && c.rArtists.includes(normArtist));
-            const saneCandidate = candidates.find((c: any) => c.dur >= 30 && c.dur <= 1200);
-            const match = exactTitle || titleAndArtist || saneCandidate || candidates[0];
+              (c.rTitle === normQueryTitle || c.rTitle.includes(normQueryTitle) || normQueryTitle.includes(c.rTitle)) &&
+              c.rTitle.length > 0 &&
+              (c.rArtists.includes(normArtist) || normArtist.includes(c.rArtists))
+            );
+            // 2. Точное совпадение названия трека (допустимо для обычных треков при подтверждении артиста)
+            const exactTitle = !isYtTrack
+              ? candidates.find((c: any) => c.rTitle === normQueryTitle && (c.rArtists.includes(normArtist) || normArtist.includes(c.rArtists) || candidates.length === 1))
+              : null;
+
+            const match = titleAndArtist || exactTitle;
 
             if (match) {
               clientCache.set(cacheKey, match.url, 14400); // 4 hours TTL
@@ -415,6 +424,30 @@ const parseYtDuration = (item: any): number => {
   return 0; // unknown — UI hides the badge instead of showing a fake 3:00
 };
 
+// Словарь распространенных псевдонимов и транслитераций для точного поиска
+export const MUSIC_SEARCH_ALIASES: Record<string, string> = {
+  'нагано': 'ноггано',
+  'nagano': 'ноггано',
+  'noggano': 'ноггано',
+  'basta': 'баста',
+};
+
+// Интеллектуальный разбор метаданных YouTube: вычленение исполнителя и названия («Ноггано - Зять»)
+export const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
+  let title = rawTitle;
+  let artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
+  const splitMatch = rawTitle.match(/^([^\-–—]+)\s*[\-–—]\s*(.+)$/);
+  if (splitMatch) {
+    const candArtist = splitMatch[1].trim();
+    const candTitle = splitMatch[2].trim();
+    if (candArtist.length > 0 && candTitle.length > 0) {
+      artist = candArtist;
+      title = candTitle;
+    }
+  }
+  return { title, artist };
+};
+
 const mapYtSongToTrack = (item: any): MusicTrack | null => {
   if (!item || !item.id || !item.title) return null;
   const dur = parseYtDuration(item);
@@ -425,12 +458,12 @@ const mapYtSongToTrack = (item: any): MusicTrack | null => {
     .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
     .trim();
   const rawAuthor = decodeHtmlEntities(item.author || 'Unknown Artist');
-  const cleanAuthor = rawAuthor.replace(/ - Topic$/i, '').trim();
+  const parsed = parseYtTrackInfo(cleanTitle || rawTitle, rawAuthor);
 
   return {
     id: `yt_${item.id}`,
-    title: cleanTitle || rawTitle,
-    artist: cleanAuthor,
+    title: parsed.title,
+    artist: parsed.artist,
     album: 'YouTube Music',
     artworkUrl: `https://i.ytimg.com/vi/${item.id}/default.jpg`,
     audioUrl: '', // Resolves direct stream on click
@@ -526,15 +559,24 @@ export function useMusicApi() {
         }
       };
 
-      // 1. If artist match found on JioSaavn, fetch and prioritize artist's verified Top Songs & discography
+      const normQ = trimmed.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+      const aliasNormQ = MUSIC_SEARCH_ALIASES[normQ] || normQ;
+
+      // 1. Топ-песни артиста (если найдено строгое совпадение имени исполнителя или псевдонима)
       if (saavnArtistRes.status === 'fulfilled' && saavnArtistRes.value && saavnArtistRes.value.ok) {
         try {
           const aJson = await saavnArtistRes.value.json();
-          const firstArtist = aJson?.data?.results?.[0];
-          if (firstArtist?.id) {
+          const normArtistOf = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+          const artistCandidates: any[] = aJson?.data?.results || [];
+          // Строгая проверка: исключает ложные срабатывания (например, «Наганов Александр» при запросе «нагано»)
+          const matchedArtist = artistCandidates.find((r: any) => {
+            const na = normArtistOf(r?.name);
+            return na === normQ || na === aliasNormQ;
+          });
+          if (matchedArtist?.id) {
             const [artistSongsRes, artistFullRes] = await Promise.allSettled([
-              saavnApiFetch(`artists?id=${firstArtist.id}`),
-              saavnApiFetch(`artists/${firstArtist.id}/songs?page=1`)
+              saavnApiFetch(`artists?id=${matchedArtist.id}`),
+              saavnApiFetch(`artists/${matchedArtist.id}/songs?page=1`)
             ]);
             if (artistSongsRes.status === 'fulfilled' && artistSongsRes.value?.ok) {
               const asJson = await artistSongsRes.value.json();
@@ -587,8 +629,49 @@ export function useMusicApi() {
         } catch (_) {}
       }
 
-      const sliced = merged.slice(0, limit);
-      if (merged.length > 0) {
+      // Умное ранжирование релевантности для локального поиска
+      const junkRe = /\b(?:8-bit|16-bit|emulation|tribute|karaoke|ringtone|remix|cover)\b/i;
+      const scoredTracks = merged.map(t => {
+        let score = 0;
+        const tArtist = (t.artist || '').toLowerCase();
+        const normA = tArtist.replace(/[^a-z0-9а-яё]/gi, '');
+        const tTitle = (t.title || '').toLowerCase();
+        const normT = tTitle.replace(/[^a-z0-9а-яё]/gi, '');
+
+        const isMatchArtist = (normA === normQ || normA === aliasNormQ);
+        const isPartialArtist = (normA.startsWith(normQ) || normA.includes(normQ) ||
+                                 normA.startsWith(aliasNormQ) || normA.includes(aliasNormQ));
+
+        const normBoth = `${normA}${normT}`;
+        const normBothRev = `${normT}${normA}`;
+        if (isMatchArtist) {
+          score += 120; // Точное совпадение артиста (или псевдонима): приоритет над чужой песней с таким же названием
+        } else if (isPartialArtist) {
+          score += 80;
+        }
+
+        if (normT === normQ || normT === aliasNormQ) {
+          score += 50; // Точное совпадение названия трека (понижено, чтобы не перебивать треки автора)
+        } else if (normT.startsWith(normQ) || normT.includes(normQ) || normT.startsWith(aliasNormQ) || normT.includes(aliasNormQ)) {
+          score += 30;
+        }
+
+        if (normBoth && (normBoth === normQ || normBothRev === normQ || normBoth === aliasNormQ || normBothRev === aliasNormQ)) {
+          score += 140; // Точное совпадение Артист + Трек
+        } else if (normBoth && (normBoth.includes(normQ) || normQ.includes(normBoth) || normBoth.includes(aliasNormQ) || aliasNormQ.includes(normBoth))) {
+          score += 70;
+        }
+
+        if (junkRe.test(tTitle)) {
+          score -= 40;
+        }
+
+        return { track: t, score };
+      });
+
+      scoredTracks.sort((a, b) => b.score - a.score);
+      const sliced = scoredTracks.slice(0, limit).map(item => item.track);
+      if (sliced.length > 0) {
         clientCache.set(cacheKey, sliced, 86400); // 24 hours client cache с авто-очисткой
       }
 

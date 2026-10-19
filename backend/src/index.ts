@@ -1149,7 +1149,8 @@ export function isNonRussianLang(lang: string): boolean {
 
 // Edge-cache namespace. Bump to instantly orphan stale pre-deploy entries
 // (forced reset without waiting for s-maxage TTLs to expire).
-const EDGE_CACHE_NS = 'cv5';
+// cv6: обновлен алгоритм скоринга поиска музыки и строгая валидация артистов
+const EDGE_CACHE_NS = 'cv6';
 
 export function edgeCacheKey(c: any, url?: string): Request {
   const raw = url || c.req.url;
@@ -2027,19 +2028,45 @@ const handleMusicSearch = async (c: Context) => {
       }
     };
 
+// Словарь распространенных псевдонимов и транслитераций для точного поиска
+const MUSIC_SEARCH_ALIASES: Record<string, string> = {
+  'нагано': 'ноггано',
+  'nagano': 'ноггано',
+  'noggano': 'ноггано',
+  'basta': 'баста',
+};
+
+// Интеллектуальный разбор метаданных YouTube Music: вычленение исполнителя и названия («Ноггано - Зять»)
+const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
+  let title = rawTitle;
+  let artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
+  const splitMatch = rawTitle.match(/^([^\-–—]+)\s*[\-–—]\s*(.+)$/);
+  if (splitMatch) {
+    const candArtist = splitMatch[1].trim();
+    const candTitle = splitMatch[2].trim();
+    if (candArtist.length > 0 && candTitle.length > 0) {
+      artist = candArtist;
+      title = candTitle;
+    }
+  }
+  return { title, artist };
+};
+
     // 1. Топ-песни артиста (если запрос — это имя известного исполнителя)
     if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
       try {
         const aData = await artistRes.value.json() as any;
         const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+        const aliasNormQ = MUSIC_SEARCH_ALIASES[normQ] || normQ;
         const normArtistOf = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
         const artistCandidates: any[] = aData?.data?.results || [];
-        // results[0] может оказаться трибьют-проектом («DJ Rammstein») вместо оригинала:
-        // сначала ищем точное совпадение имени среди всех кандидатов, фоллбэк — первый.
-        const matchedArtist = artistCandidates.find((r: any) => normArtistOf(r?.name) === normQ) || artistCandidates[0];
-        const normArtistName = normArtistOf(matchedArtist?.name);
+        // Строгое сопоставление артиста: полное совпадение имени или псевдонима (защита от «Наганов Александр»)
+        const matchedArtist = artistCandidates.find((r: any) => {
+          const na = normArtistOf(r?.name);
+          return na === normQ || na === aliasNormQ;
+        });
 
-        if (matchedArtist?.id && (normArtistName === normQ || normArtistName.includes(normQ) || normQ.includes(normArtistName))) {
+        if (matchedArtist?.id) {
           const songsPath = page === 1 ? `/artists?id=${matchedArtist.id}` : `/artists/${matchedArtist.id}/songs?page=${page}`;
           const songsRes = await fetchFromSaavnPool(songsPath, 5000);
 
@@ -2109,7 +2136,7 @@ const handleMusicSearch = async (c: Context) => {
       } catch (_) {}
     }
 
-    // 3. Результаты YouTube Music
+    // 3. Результаты YouTube Music (с отделением исполнителя от названия)
     if (ytRes.status === 'fulfilled' && ytRes.value.ok) {
       try {
         const ytList = await ytRes.value.json() as any[];
@@ -2130,10 +2157,11 @@ const handleMusicSearch = async (c: Context) => {
               .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
               .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
               .trim();
+            const parsedYt = parseYtTrackInfo(cleanTitle || item.title || '', item.author || '');
             addTrack({
               id: `yt_${item.id}`,
-              title: cleanTitle || item.title || '',
-              artist: (item.author || 'Unknown Artist').replace(/ - Topic$/i, '').trim(),
+              title: parsedYt.title,
+              artist: parsedYt.artist,
               album: 'YouTube Music',
               artworkUrl: `https://i.ytimg.com/vi/${item.id}/default.jpg`,
               audioUrl: '',
@@ -2149,6 +2177,7 @@ const handleMusicSearch = async (c: Context) => {
     // --- УМНОЕ РАНЖИРОВАНИЕ РЕЛЕВАНТНОСТИ (Smart Relevance Scoring) ---
     // Исключает ситуацию, когда случайные каверы или сторонние альбомы вытесняют реального артиста
     const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+    const aliasNormQ = MUSIC_SEARCH_ALIASES[normQ] || normQ;
     const junkRe = /\b(?:8-bit|16-bit|emulation|tribute|karaoke|ringtone|remix|cover)\b/i;
 
     const scoredTracks = rawTracks.map(t => {
@@ -2160,27 +2189,33 @@ const handleMusicSearch = async (c: Context) => {
       const tAlbum = (t.album || '').toLowerCase();
       const normAlb = tAlbum.replace(/[^a-z0-9а-яё]/gi, '');
 
+      const isMatchArtist = (normA === normQ || normA === aliasNormQ);
+      const isPartialArtist = (normA.startsWith(normQ) || normA.includes(normQ) ||
+                               normA.startsWith(aliasNormQ) || normA.includes(aliasNormQ));
+
       if (t.isOfficialArtistTop) {
         score += 150; // Официальные хиты подтверждённого исполнителя всегда в самом верху
       }
-      // Составные запросы «Артист + Трек» (например, "Rammstein Sonne"): по отдельности
-      // артист и название не совпадают с нормализованным запросом и получали 0 баллов,
-      // из-за чего оригинал проигрывал каверам, у которых оба слова попали в название.
+      // Составные запросы «Артист + Трек» (например, "Rammstein Sonne"):
       const normBoth = `${normA}${normT}`;
       const normBothRev = `${normT}${normA}`;
-      if (normA === normQ) {
-        score += 100; // Точное совпадение артиста
-      } else if (normA.startsWith(normQ) || normA.includes(normQ)) {
+      if (isMatchArtist) {
+        score += 120; // Точное совпадение артиста (или псевдонима): приоритет над чужой песней с таким же названием
+      } else if (isPartialArtist) {
         score += 80;
-      } else if (normT === normQ) {
-        score += 70; // Точное совпадение названия трека
-      } else if (normT.startsWith(normQ) || normT.includes(normQ)) {
-        score += 50;
-      } else if (normBoth && (normBoth === normQ || normBothRev === normQ)) {
-        score += 120; // Точное совпадение Артист + Трек
-      } else if (normBoth && (normBoth.includes(normQ) || normQ.includes(normBoth) || normBothRev.includes(normQ) || normQ.includes(normBothRev))) {
-        score += 60; // Частичное совпадение составного запроса
-      } else if (normAlb === normQ) {
+      }
+
+      if (normT === normQ || normT === aliasNormQ) {
+        score += 50; // Точное совпадение названия трека (понижено с 70, чтобы не перебивать треки автора)
+      } else if (normT.startsWith(normQ) || normT.includes(normQ) || normT.startsWith(aliasNormQ) || normT.includes(aliasNormQ)) {
+        score += 30;
+      }
+
+      if (normBoth && (normBoth === normQ || normBothRev === normQ || normBoth === aliasNormQ || normBothRev === aliasNormQ)) {
+        score += 140; // Точное совпадение Артист + Трек
+      } else if (normBoth && (normBoth.includes(normQ) || normQ.includes(normBoth) || normBoth.includes(aliasNormQ) || aliasNormQ.includes(normBoth))) {
+        score += 70; // Частичное совпадение составного запроса
+      } else if (normAlb === normQ || normAlb === aliasNormQ) {
         // Совпадение только по альбому (например, Monte Pons с альбомом "Rammstein")
         score += 10;
       }

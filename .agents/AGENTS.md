@@ -122,15 +122,32 @@
 
 
 ## 14. Mandatory Human-Readable Logic Commenting Protocol (Universal Polyglot Standard)
-1. **ОБЯЗАТЕЛЬНОЕ КОММЕНТИРОВАНИЕ НА ВСЕХ ЯЗЫКАХ СТЕКА**:
-   - Во всех языках программирования, поддерживающих комментарии (Python `#`, JS/TS/Rust/Go/C++/Swift/Kotlin/Java/C# `//`, SQL `--`, Bash `#`), агент ОБЯЗАН комментировать нетривиальную логику, граничные условия, константы и ветки обработки ошибок понятным человеческим языком (на русском).
+1. **MANDATORY LOGIC COMMENTING ACROSS ALL STACK LANGUAGES**:
+   - Across all programming languages supporting comments (Python `#`, JS/TS/Rust/Go/C++/Swift/Kotlin/Java/C# `//`, SQL `--`, Bash `#`), the agent MUST comment non-trivial logic, boundary conditions, constants, and error handling branches in clear human-readable language (in Russian).
 
-2. **ФОКУС НА «ЗАЧЕМ И ПОЧЕМУ», А НЕ «ЧТО»**:
-   - ЗАПРЕЩЕНЫ очевидные тавтологичные комментарии (например: `// увеличиваем счетчик`).
-   - ОБЯЗАТЕЛЬНО объяснять физику процесса, архитектурные причины и последствия:
-     - Почему выбрана конкретная константа, лимит или таймаут (например: `# TRANSIENT_RETRIES = 5 — защита от спама API; далее фоллбэк в TG`).
-     - Куда маршрутизируется поток данных при сбое, сетевом таймауте или пустом ответе.
-     - Почему применен именно этот алгоритм кадрирования, фильтрации или синхронизации.
+2. **FOCUS ON "WHY AND WHAT FOR", NOT "WHAT"**:
+   - Tautological, self-evident comments are strictly forbidden (e.g., `// increment counter`).
+   - The agent MUST explain the physical process, architectural rationale, and consequences:
+     - Why a specific constant, limit, or timeout was chosen (e.g., `# TRANSIENT_RETRIES = 5 — API rate-limit guard; falls back to TG`).
+     - Where data routes upon failure, network timeout, or empty response.
+     - Why a specific framing, filtering, or synchronization algorithm is applied.
 
-3. **ЛАКОНИЧНОСТЬ И БАЛАНС ТОКЕНОВ**:
-   - Комментарии должны быть емкими (1–3 строки), размещаться непосредственно перед комментируемым блоком и не засорять самоочевидный тривиальный код.
+3. **LACONICISM & TOKEN EFFICIENCY**:
+   - Comments must be concise (1–3 lines), placed directly above the commented block, without cluttering self-evident trivial code.
+
+## 15. Strict Separation of Discussion/Brainstorming and Implementation Planning (Zero Unsolicited Plans)
+
+1. **STRICT PROHIBITION OF FORCING IMPLEMENTATION PLANS IN DISCUSSION MODE**:
+   - When the user asks analytical, diagnostic, or exploratory questions ("how does this work?", "what if?", "check", "explain", "why", "what are the options?", "what is the expected load?") or discusses ideas and architecture, the agent MUST engage EXCLUSIVELY in technical dialogue, analysis, calculations, and architectural review.
+   - The agent is STRICTLY FORBIDDEN from voluntarily drafting step-by-step implementation plans, task checklists, or demanding execution confirmation ("Waiting for approval ('Давай' / 'Approved' / 'Proceed' / 'Внедряем')", "Ready to proceed with the plan") unless the user explicitly and unambiguously requests an implementation plan.
+
+2. **EXPLICIT TRIGGER REQUIRED TO TRANSITION TO PLANNING (EXPLICIT TRIGGER ONLY)**:
+   - Drafting and presenting a step-by-step Implementation / Action Plan is permitted ONLY upon receiving an explicit command from the user:
+     - Direct command markers: *"составь план"*, *"предложи план внедрения"*, *"давай делать"*, *"внедряем"*, *"приступай к плану"*, *"как будем реализовывать? распиши шаги"*, *"plan this"*, *"create implementation plan"*.
+   - In the absence of such direct commands, the agent MUST remain strictly in technical dialogue, audit, and consulting mode.
+
+3. **CLEAR SEPARATION OF ARCHITECTURAL ALTERNATIVES VS. WORK PLANS**:
+   - Comparing architectural alternatives (Option A vs. Option B, benchmarks, trade-offs) in an analytical response is encouraged, but must be formatted strictly as comparative data analysis, NOT as a directive modification plan requesting approval.
+
+4. **PROHIBITION OF BLOCKING STOP-PHRASES IN DIALOGUE**:
+   - The agent is forbidden from ending conversational, advisory, or investigative responses with phrases expecting execution approval ("Waiting for plan approval", "Reply with 'Давай' to begin") unless the user explicitly requested a plan.

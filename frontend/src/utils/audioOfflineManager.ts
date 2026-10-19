@@ -83,7 +83,6 @@ class AudioOfflineManager {
         await cache.put(canonicalUrl, responseToCache.clone());
       }
 
-      await this.enforceMaxCacheSize(cache);
       return true;
     } catch (err) {
       console.warn(`[AudioOffline] Failed to cache audio ${id}:`, err);
@@ -251,42 +250,6 @@ class AudioOfflineManager {
       };
     } catch (_) {
       return { count: 0, sizeBytes: 0 };
-    }
-  }
-
-  /**
-   * LRU eviction: limits offline cache size to maxBytes (default 250 MB).
-   * Evicts oldest saved tracks when threshold is exceeded.
-   */
-  private async enforceMaxCacheSize(cache: Cache, maxBytes = 250 * 1024 * 1024): Promise<void> {
-    try {
-      const keys = await cache.keys();
-      if (keys.length < 30) return;
-
-      const canonicalKeys = keys.filter(req => req.url.startsWith('https://offline.mediabox.local/track/'));
-      let totalBytes = 0;
-      const keySizes: Array<{ key: Request; size: number }> = [];
-
-      for (const req of canonicalKeys) {
-        const res = await cache.match(req);
-        if (res) {
-          const blob = await res.blob();
-          totalBytes += blob.size;
-          keySizes.push({ key: req, size: blob.size });
-        }
-      }
-
-      if (totalBytes <= maxBytes) return;
-
-      // Evict oldest tracks until we are under 80% of maxBytes (hysteresis buffer)
-      const targetBytes = maxBytes * 0.8;
-      for (const item of keySizes) {
-        if (totalBytes <= targetBytes) break;
-        await cache.delete(item.key);
-        totalBytes -= item.size;
-      }
-    } catch (err) {
-      console.warn('[AudioOffline] LRU eviction error:', err);
     }
   }
 
