@@ -21,7 +21,7 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 
 function getDB(): Promise<IDBDatabase> {
   if (!dbPromise) {
-    dbPromise = new Promise((resolve, reject) => {
+    const opening = new Promise<IDBDatabase>((resolve, reject) => {
       if (typeof window === 'undefined' || !window.indexedDB) {
         reject(new Error('IndexedDB not supported'));
         return;
@@ -41,6 +41,14 @@ function getDB(): Promise<IDBDatabase> {
       };
       request.onsuccess = (event: any) => resolve(event.target.result as IDBDatabase);
       request.onerror = (event: any) => reject(event.target.error);
+      // Открытие могло навсегда зависнуть (blocked другой вкладкой) или один раз
+      // reject'нуться — тогда кэшированный promise навсегда отключал весь IDB-слой.
+      request.onblocked = () => reject(new Error('IndexedDB open blocked'));
+    });
+    dbPromise = opening.catch((err: unknown) => {
+      // Сбрасываем промис: следующая операция повторит попытку открытия
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;
@@ -135,6 +143,10 @@ async function idbSet(fullKey: string, entry: CacheEntry<any>): Promise<void> {
   try {
     const db = await getDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
+    // tx.onerror обязателен: при QuotaExceededError записи молча терялись
+    tx.onerror = () => {
+      console.warn('[ClientCache] IDB write failed:', tx.error);
+    };
     tx.objectStore(STORE_NAME).put(entry, fullKey);
   } catch (e) {}
 }
@@ -143,6 +155,9 @@ async function idbRemove(fullKey: string): Promise<void> {
   try {
     const db = await getDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.onerror = () => {
+      console.warn('[ClientCache] IDB remove failed:', tx.error);
+    };
     tx.objectStore(STORE_NAME).delete(fullKey);
   } catch (e) {}
 }
@@ -339,8 +354,10 @@ async function purgeExpiredIndexedDB(): Promise<void> {
           cursor.delete();
           purgedCount++;
         }
-        // Лимитируем порцию за один проход, чтобы не блокировать транзакцию
-        if (purgedCount < 500) {
+        // Лимитируем порцию за один проход (500 удалений), но НЕ останавливаем
+        // обход: после порции продолжаем без delete — иначе записи после 500-й
+        // дожидались бы следующего запуска приложения.
+        if (purgedCount < 500 || !(entry && isExpired(entry.expiry, now))) {
           cursor.continue();
         }
       }

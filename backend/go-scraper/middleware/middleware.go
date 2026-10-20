@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"compress/gzip"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -424,12 +425,15 @@ func init() {
 }
 
 func getClientIP(r *http.Request) string {
+	// XFF полностью контролируется клиентом: первый элемент — классический вектор
+	// спуфинга, обнуляющий rate limit и переполняющий map-ы уникальными ключами.
+	// Доверяем последнему элементу, который дописывает наш edge-прокси (HF Spaces),
+	// с обязательной валидацией, что это реально IP-адрес.
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	if xreal := r.Header.Get("X-Real-IP"); xreal != "" {
-		return strings.TrimSpace(xreal)
+		if ip := strings.TrimSpace(parts[len(parts)-1]); ip != "" && net.ParseIP(ip) != nil {
+			return ip
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
@@ -441,10 +445,10 @@ func getClientIP(r *http.Request) string {
 func RateLimiterMiddleware(window time.Duration, maxRequests int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Bypass live streams and proxy chunks from rate limiting to prevent playback cuts
+			// Стриминг и прокси получают увеличенный бюджет вместо полного bypass:
+			// неограниченный неаутентифицированный прокси — вектор выжигания egress.
 			if strings.HasPrefix(r.URL.Path, "/api/proxy") || strings.HasPrefix(r.URL.Path, "/api/stream") {
-				next.ServeHTTP(w, r)
-				return
+				maxRequests *= 6
 			}
 
 			ip := getClientIP(r)
@@ -488,19 +492,23 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	authHeader := r.Header.Get("Authorization")
 	expectedToken := os.Getenv("BOT_TOKEN_MAIN")
 	if expectedToken == "" {
 		expectedToken = os.Getenv("BOT_TOKEN")
 	}
 
-	queryKey := r.URL.Query().Get("key")
+	// Токен обязателен, принимается только в заголовке (в query он попадает в логи
+	// прокси), сравнение — в constant-time против timing-атак. Раньше при незаданных
+	// env-токенах эндпоинт (включая ?reset=true) был полностью открыт.
+	authorized := false
 	if expectedToken != "" {
-		isAuth := (authHeader == "Bearer "+expectedToken || queryKey == expectedToken)
-		if !isAuth {
-			http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
+		authHeader := r.Header.Get("Authorization")
+		authorized = subtle.ConstantTimeCompare([]byte(authHeader), []byte("Bearer "+expectedToken)) == 1
+	}
+	if !authorized {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"Unauthorized"}`))
+		return
 	}
 
 	metricsMutex.Lock()

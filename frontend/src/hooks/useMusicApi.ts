@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { clientCache } from '../utils/clientCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { CF_API_BASE } from './useApi';
@@ -69,13 +69,13 @@ export const setMusicDataSaver = (enabled: boolean): void => {
  */
 const SAAVN_FALLBACK_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
 
-const saavnApiFetch = async (relativePath: string): Promise<Response | null> => {
+const saavnApiFetch = async (relativePath: string, signal?: AbortSignal): Promise<Response | null> => {
   try {
-    const proxied = await fetchWithRetry(`${CF_API_BASE}/music/saavn/${relativePath}`, { maxRetries: 0 });
+    const proxied = await fetchWithRetry(`${CF_API_BASE}/music/saavn/${relativePath}`, { maxRetries: 0, signal });
     if (proxied && proxied.ok) return proxied;
   } catch (_) {}
   try {
-    const direct = await fetchWithRetry(`${SAAVN_FALLBACK_BASE}/${relativePath}`, { maxRetries: 0 });
+    const direct = await fetchWithRetry(`${SAAVN_FALLBACK_BASE}/${relativePath}`, { maxRetries: 0, signal });
     return direct && direct.ok ? direct : null;
   } catch (_) {}
   return null;
@@ -305,6 +305,9 @@ export const resolveFullAudioUrl = async (
   // Для YouTube-треков (trackId начинается с yt_) используем JioSaavn CDN исключительно при
   // строгом совпадении названия и исполнителя, чтобы предотвратить подмену оригинального трека.
   const isYtTrack = Boolean(trackId && trackId.startsWith('yt_'));
+  // Маркер временного сбоя (сеть/инстансы лежат): трек не должен блокироваться
+  // часовым негативным кэшем из-за транзиентной ошибки.
+  let transientFailure = false;
   try {
     const queries = [
       `${primaryArtist} ${cleanTitle}`,
@@ -360,7 +363,10 @@ export const resolveFullAudioUrl = async (
         }
       } catch (_) {}
     }
-  } catch (_) {}
+  } catch (_) {
+    // JioSaavn полностью недоступен — сбой, а не отсутствие трека
+    transientFailure = true;
+  }
 
   // 2. Try YouTube Music + Invidious direct 206 audio stream (Covers Russian rap, rock, obscure tracks)
   try {
@@ -406,11 +412,19 @@ export const resolveFullAudioUrl = async (
           continue;
         }
       }
+    } else {
+      // videoId не получен (воркер не ответил или поиск пуст) — считаем транзиентным:
+      // 10 минут негативного кэша вместо часа
+      transientFailure = true;
     }
-  } catch (_) {}
+  } catch (_) {
+    transientFailure = true;
+  }
 
   // Strictly Full Tracks: Never return Deezer 30s preview snippet as a fake full track!
-  clientCache.set(negCacheKey, '1', 3600); // 60 min negative cache
+  // При транзиентном сбое (сеть/инстансы лежали) трек блокируется только на 10 минут,
+  // а не на час — после восстановления связи повторная попытка происходит быстро.
+  clientCache.set(negCacheKey, '1', transientFailure ? 600 : 3600);
   return '';
 };
 
@@ -484,6 +498,21 @@ export function useMusicApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Счётчик активных поисков: одиночный булев гасил спиннер, пока параллельный
+  // запрос (быстрый набор в поиске) ещё летел.
+  const loadingCountRef = useRef(0);
+  // Контроллеры незавершённых поисков: на размонтировании обрываем их —
+  // не тратим трафик и не гоняем setState в мёртвый компонент.
+  const searchAbortsRef = useRef<Set<AbortController>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      searchAbortsRef.current.forEach((c) => { try { c.abort(); } catch (_) {} });
+      searchAbortsRef.current.clear();
+      loadingCountRef.current = 0;
+    };
+  }, []);
+
   const searchMusic = useCallback(async (query: string, page = 1, limit = 20): Promise<MusicTrack[]> => {
     const trimmed = query.trim();
     if (!trimmed) return [];
@@ -496,11 +525,23 @@ export function useMusicApi() {
 
     // При бесконечном скролле (page > 1) активируем loading только для первой страницы,
     // чтобы предотвратить размонтирование DOM-дерева треков и сброс scrollY в 0
+    const abortCtrl = new AbortController();
+    searchAbortsRef.current.add(abortCtrl);
+    const { signal } = abortCtrl;
+
     const isInitialPage = page === 1;
     if (isInitialPage) {
+      loadingCountRef.current += 1;
       setLoading(true);
       setError(null);
     }
+    const releaseInitialLoading = () => {
+      if (!isInitialPage) return;
+      loadingCountRef.current = Math.max(0, loadingCountRef.current - 1);
+      if (loadingCountRef.current === 0) {
+        setLoading(false);
+      }
+    };
 
     const { isSlow } = getNetworkSpeed();
 
@@ -509,7 +550,7 @@ export function useMusicApi() {
 
       // 1. Fast-path: 1 single request via Cloudflare Edge proxy v2 (с поддержкой page и limit)
       try {
-        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/v2/search?q=${encoded}&page=${page}&limit=${limit}`, { maxRetries: 0 });
+        const edgeRes = await fetchWithRetry(`${CF_API_BASE}/music/v2/search?q=${encoded}&page=${page}&limit=${limit}`, { maxRetries: 0, signal });
         if (edgeRes && edgeRes.ok) {
           const edgeTracks = await edgeRes.json();
           if (Array.isArray(edgeTracks) && edgeTracks.length > 0) {
@@ -540,7 +581,7 @@ export function useMusicApi() {
 
             if (normalized.length > 0) {
               clientCache.set(cacheKey, normalized, 86400); // 24 hours TTL с авто-очисткой
-              if (isInitialPage) setLoading(false);
+              releaseInitialLoading();
               return normalized;
             }
           }
@@ -554,9 +595,9 @@ export function useMusicApi() {
       // 2. JioSaavn Artist Search + Top Songs (только на первой странице для экономии запросов)
       // 3. YouTube Music (Ytify) Search (только на первой странице)
       const [saavnSongRes, saavnArtistRes, ytRes] = await Promise.allSettled([
-        saavnApiFetch(`search/songs?query=${encoded}&page=${page}&limit=${limit}`),
-        page === 1 ? saavnApiFetch(`search/artists?query=${encoded}`) : Promise.resolve(null as any),
-        page === 1 ? fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encoded}`, { maxRetries: 1 }) : Promise.resolve(null as any)
+        saavnApiFetch(`search/songs?query=${encoded}&page=${page}&limit=${limit}`, signal),
+        page === 1 ? saavnApiFetch(`search/artists?query=${encoded}`, signal) : Promise.resolve(null as any),
+        page === 1 ? fetchWithRetry(`https://api.ytify.workers.dev/search?q=${encoded}`, { maxRetries: 1, signal }) : Promise.resolve(null as any)
       ]);
 
       const seenIds = new Set<string>();
@@ -693,13 +734,20 @@ export function useMusicApi() {
         clientCache.set(cacheKey, sliced, 86400); // 24 hours client cache с авто-очисткой
       }
 
-      if (isInitialPage) setLoading(false);
+      releaseInitialLoading();
       return sliced;
     } catch (err: any) {
+      if (err?.name === 'AbortError' || signal.aborted) {
+        // Поиск отменён размонтированием компонента — это не ошибка
+        releaseInitialLoading();
+        return [];
+      }
       console.warn('[MusicApi] Search failed:', err);
       setError(err?.message || 'Error searching tracks');
-      if (isInitialPage) setLoading(false);
+      releaseInitialLoading();
       return [];
+    } finally {
+      searchAbortsRef.current.delete(abortCtrl);
     }
   }, []);
 

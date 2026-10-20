@@ -36,14 +36,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyTheme();
 
     if (theme === 'auto') {
-      mediaQuery.addEventListener('change', applyTheme);
-      return () => mediaQuery.removeEventListener('change', applyTheme);
+      const mq = mediaQuery as any;
+      // WebKit < 14: у MediaQueryList нет addEventListener — фолбэк на addListener
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', applyTheme);
+        return () => mq.removeEventListener('change', applyTheme);
+      }
+      if (typeof mq.addListener === 'function') {
+        mq.addListener(applyTheme);
+        return () => mq.removeListener(applyTheme);
+      }
+      return undefined;
     }
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem('app_theme', newTheme);
+    try {
+      localStorage.setItem('app_theme', newTheme);
+    } catch (_) {}
   };
 
   return (

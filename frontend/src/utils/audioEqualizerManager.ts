@@ -143,11 +143,12 @@ class AudioEqualizerManager {
 
       const ctx = this.audioContext;
 
+      // При смене аудиомаршрута (Bluetooth, гарнитура, звонок) iOS переводит контекст в 'interrupted' или 'suspended'
       ctx.onstatechange = () => {
-        if ((ctx.state as string) === 'interrupted') {
+        if ((ctx.state as string) === 'interrupted' || (ctx.state as string) === 'suspended') {
           [100, 300, 700, 1500].forEach((delay) => {
             setTimeout(() => {
-              if (this.audioContext && (this.audioContext.state as string) === 'interrupted') {
+              if (this.audioContext && (this.audioContext.state as string) !== 'running') {
                 this.audioContext.resume().catch(() => {});
               }
             }, delay);
@@ -238,8 +239,9 @@ class AudioEqualizerManager {
     }
   }
 
-  public isInterrupted(): boolean {
-    return Boolean(this.audioContext && (this.audioContext.state as string) === 'interrupted');
+  // Проверяет, заблокирован ли Web Audio контекст операционной системой (interrupted или suspended)
+  public isSuspendedOrInterrupted(): boolean {
+    return Boolean(this.audioContext && (this.audioContext.state as string) !== 'running');
   }
 
   public getContextState(): string {

@@ -1,6 +1,7 @@
 package streamer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -114,7 +115,10 @@ func ProxyTVHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := streamClient.Do(req)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"Proxy Error: %v"}`, err), http.StatusBadGateway)
+		// Сообщение об ошибке может содержать кавычки/управляющие символы —
+		// сырой Sprintf давал битый JSON
+		msg, _ := json.Marshal(map[string]string{"error": "Proxy Error: " + err.Error()})
+		http.Error(w, string(msg), http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()

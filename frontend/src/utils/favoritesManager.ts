@@ -17,12 +17,15 @@ const HISTORY_KEYS: Record<string, string> = {
 };
 
 export const favoritesManager = {
-  // 1. Instant 0ms Read from Local Storage
+  // 1. Instant 0ms Read from Local Storage (с валидацией схемы: повреждённая
+  // запись-не-массив роняла вызывающие list.some/filter в ErrorBoundary)
   getLocal(type: string): any[] {
     const key = STORAGE_KEYS[type] || `favorites_${type}`;
     try {
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       console.error('[FavoritesManager] Local read error:', e);
       return [];
@@ -34,7 +37,9 @@ export const favoritesManager = {
     const key = HISTORY_KEYS[type] || `history_${type}`;
     try {
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       console.error('[FavoritesManager] History read error:', e);
       return [];
@@ -203,10 +208,13 @@ export const favoritesManager = {
       if (!Array.isArray(cloudItems) || cloudItems.length === 0) return localItems;
 
       // Merge Cloud & Local (Local entries take precedence, missing cloud entries get appended)
+      // Сопоставление по нормализованному ID: разные версии приложения пишут id с префиксом
+      // saavn_ и без — сырое сравнение порождало дубли одного трека после гидрации.
+      const normalizeId = (id: any) => String(id).replace(/^saavn_/, '');
       const mergedMap = new Map<string, any>();
-      localItems.forEach(item => mergedMap.set(String(item.id), item));
+      localItems.forEach(item => mergedMap.set(normalizeId(item.id), item));
       cloudItems.forEach(item => {
-        const id = String(item.id);
+        const id = normalizeId(item.id);
         if (!mergedMap.has(id) && item.type === type) {
           mergedMap.set(id, item);
         }

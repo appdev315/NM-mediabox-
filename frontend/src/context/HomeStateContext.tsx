@@ -21,7 +21,6 @@ interface HomeState {
   setIsSearching: (searching: boolean) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
-  scrollY: number;
   getScrollY: () => number;
   setScrollY: (y: number) => void;
 }
@@ -112,7 +111,8 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsSearching,
         isSearchOpen,
         setIsSearchOpen,
-        scrollY: scrollYRef.current,
+        // scrollYRef мутирует без ре-рендера — статичное поле в value всегда
+        // содержало устаревшее значение. Единственный корректный доступ — getScrollY().
         getScrollY,
         setScrollY,
       }}

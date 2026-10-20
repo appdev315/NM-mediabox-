@@ -30,8 +30,24 @@ const verifyAdminAuth = (c: Context): boolean => {
   const authHeader = c.req.header('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   const secret = (c.env as Bindings).ADMIN_API_KEY || '';
-  if (!secret) return false;
-  return Boolean(token && token === secret);
+  if (!secret || !token) return false;
+  return timingSafeEqualStr(token, secret);
+};
+
+// Constant-time сравнение строк: устраняет timing-атаку на админ-ключ.
+// В workerd доступен crypto.subtle.timingSafeEqual; fallback — ручной XOR-цикл.
+const timingSafeEqualStr = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  try {
+    const subtleAny = (crypto.subtle as any);
+    if (typeof subtleAny?.timingSafeEqual === 'function') {
+      const enc = new TextEncoder();
+      return subtleAny.timingSafeEqual(enc.encode(a), enc.encode(b));
+    }
+  } catch (_) {}
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 };
 
 type Variables = {
@@ -86,6 +102,14 @@ app.use('/api/*', async (c: Context, next) => {
 
 app.use('/api/user/*', tgAuthMiddleware);
 
+// Жёсткое ограничение длины полей аналитики: без клампа один POST раздувал D1
+// неограниченными item_title/meta/session_id (write-амплификация).
+const clampStr = (v: unknown, max: number): string | null => {
+  if (typeof v !== 'string') return null;
+  const s = v.slice(0, max);
+  return s.length > 0 ? s : null;
+};
+
 app.post('/api/analytics/track', async (c: Context) => {
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
@@ -97,8 +121,8 @@ app.post('/api/analytics/track', async (c: Context) => {
     return c.json({ ok: true, count: 0 });
   }
 
-  const country = c.get('country');
-  const sessionId = body.session_id || c.get('sessionId') || '';
+  const country = clampStr(c.get('country'), 8);
+  const sessionId = clampStr(body.session_id || c.get('sessionId') || '', 100) || '';
   const tgUser = c.get('tgUser');
   const bodyUserId = body.user_id != null ? Number(body.user_id) : undefined;
 
@@ -109,14 +133,14 @@ app.post('/api/analytics/track', async (c: Context) => {
     );
     const batch = events.map((e) =>
       stmt.bind(
-        e.event_type,
-        e.country || country,
+        clampStr(e.event_type, 40) || 'unknown',
+        e.country ? clampStr(e.country, 8) : country,
         e.user_id != null ? e.user_id : (bodyUserId ?? tgUser?.id ?? null),
-        e.session_id || sessionId,
-        e.item_type || null,
-        e.item_title || null,
-        e.item_id || null,
-        e.meta ? (typeof e.meta === 'string' ? e.meta : JSON.stringify(e.meta)) : null
+        e.session_id ? clampStr(e.session_id, 100) : sessionId,
+        clampStr(e.item_type, 20),
+        clampStr(e.item_title, 300),
+        clampStr(e.item_id, 120),
+        clampStr(typeof e.meta === 'string' ? e.meta : e.meta ? JSON.stringify(e.meta) : '', 2000)
       )
     );
     await c.env.DB.batch(batch);
@@ -261,8 +285,10 @@ function formatCountry(code?: string): string {
   return upper;
 }
 
-    // D1 Auto-Retention Policy: Clean up rows older than 30 days asynchronously in background
-    if (c.env.DB) {
+    // D1 Auto-Retention: очистка записей старше 30 дней — ТОЛЬКО по аутентифицированному
+    // запросу админа. Раньше каждый неавторизованный запрос к /api/analytics/stats
+    // запускал фоновый batch DELETE (полный скан таблицы) = стоимость D1 и DoS-вектор.
+    if (c.env.DB && verifyAdminAuth(c)) {
       safeWaitUntil(c, (async () => {
         try {
           await c.env.DB.batch([
@@ -464,6 +490,10 @@ app.post('/api/user/favorites', async (c: Context) => {
   const poster = body.poster || body.artworkUrl || body.coverUrl || body.logo || '';
   const year = body.year || body.releaseDate || '';
   const dataJson = JSON.stringify({ ...body, id: itemId });
+  // Ограничение размера JSON-снапшота: раздутый payload размножал объём D1 на пользователя
+  if (dataJson.length > 512 * 1024) {
+    return c.json({ error: 'Payload too large' }, 413);
+  }
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
@@ -700,9 +730,31 @@ app.get('/api/liftw', async (c: Context) => {
   const tmdb = c.req.query('tmdb') || '';
   const titleRu = c.req.query('title_ru') || '';
   const originalTitle = c.req.query('original_title') || '';
-  const bypassCache = c.req.query('bypass_cache') === 'true';
   const rawLiftwId = c.req.query('liftw_id') || c.req.query('liftwId') || '';
   const liftwIdParam = rawLiftwId ? rawLiftwId.replace(/^liftw_/, '') : '';
+
+  // bypass_cache запускает полный каскад (~30 upstream-запросов) в обход edge-кэша.
+  // Грубый in-isolate лимит на IP закрывает самый дешёвый DoS-вектор; для обычных
+  // пользователей это просто «не чаще раза в 30 секунд», кэш-промахи не затронуты.
+  const bypassLimiter = (globalThis as any).__liftwBypassLimiter as Map<string, number> ||
+    ((globalThis as any).__liftwBypassLimiter = new Map<string, number>());
+  const BYPASS_WINDOW_MS = 30_000;
+  let bypassCache = c.req.query('bypass_cache') === 'true';
+  if (bypassCache) {
+    const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+    const now = Date.now();
+    const last = bypassLimiter.get(ip) || 0;
+    if (now - last < BYPASS_WINDOW_MS) {
+      bypassCache = false; // деградация до обычного запроса вместо 429
+    } else {
+      bypassLimiter.set(ip, now);
+      if (bypassLimiter.size > 10_000) {
+        for (const [k, ts] of bypassLimiter) {
+          if (now - ts > BYPASS_WINDOW_MS) bypassLimiter.delete(k);
+        }
+      }
+    }
+  }
 
   if (!title && !liftwIdParam) {
     return c.json({ error: 'Title or liftw_id is required' }, 400);
@@ -914,7 +966,8 @@ app.get('/api/liftw', async (c: Context) => {
     try {
       const tmdbType = canonicalType === 'tv' ? 'tv' : 'movie';
       const tmdbKey = getTmdbKey(c);
-      const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${tmdb}?api_key=${tmdbKey}&append_to_response=alternative_titles,translations`;
+      // encodeURIComponent нейтрализует path-инъекцию пользовательского tmdb в URL
+      const tmdbUrl = `https://api.themoviedb.org/3/${tmdbType}/${encodeURIComponent(tmdb)}?api_key=${tmdbKey}&append_to_response=alternative_titles,translations`;
       const tmdbRes = await fetch(tmdbUrl, {
         signal: AbortSignal.timeout(4000),
         cf: {

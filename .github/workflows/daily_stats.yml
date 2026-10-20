@@ -236,8 +236,15 @@ jobs:
       - name: Fetch Sysadmin Incidents (Cloudflare D1)
         id: fetch_incidents
         env:
-          ADMIN_KEY: ${{ secrets.ADMIN_API_KEY || 'mb_admin_sec_2026' }}
+          # Секрет должен быть настроен в repo Settings → Secrets; fallback-plaintext
+          # удалён вместе с ротацией скомпрометированного ключа
+          ADMIN_KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
+          if [ -z "$ADMIN_KEY" ]; then
+            echo "INCIDENTS_BLOCK=" >> $GITHUB_ENV
+            echo "ADMIN_API_KEY secret is not configured — skipping incidents fetch" >&2
+            exit 0
+          fi
           INC_RESP=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${ADMIN_KEY}" "https://backend.app-dev315.workers.dev/api/admin/incidents?windowHours=24")
           INC_HTTP=$(echo "$INC_RESP" | tail -n1)
           INC_BODY=$(echo "$INC_RESP" | sed '$d')

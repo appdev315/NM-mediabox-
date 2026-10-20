@@ -133,7 +133,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const isReconnectingRef = useRef(false);
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
   const isRefreshingSrcRef = useRef(false);
@@ -167,44 +166,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     } catch (_) {}
   }, []);
 
-  // Lockscreen Background Shield: Plays an inaudible 1s audio loop directly to hardware.
-  // In iOS Safari / WebKit and Android, this informs the OS media engine that native media playback is active,
-  // preventing iOS AVPlayer from suspending the background process and Web Audio nodes after 10-15s.
+  // Настройка нативной аудиосессии ОС (iOS/Android/macOS) для непрерывного фонового воспроизведения.
+  // Исключает создание фиктивных параллельных <audio> элементов, предотвращая конфликт политик AirPlay и сброс A2DP.
   const startBackgroundShield = useCallback(() => {
     try {
       if ('audioSession' in navigator) {
         (navigator as any).audioSession.type = 'playback';
-      }
-    } catch (_) {}
-
-    try {
-      if (!silentAudioRef.current && typeof document !== 'undefined') {
-        const el = document.createElement('audio');
-        el.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-        el.loop = true;
-        el.volume = 0.001;
-        (el as any).playsInline = true;
-        el.setAttribute('playsinline', 'true');
-        el.setAttribute('x-webkit-airplay', 'deny');
-        silentAudioRef.current = el;
-      }
-      if (silentAudioRef.current && !silentAudioRef.current.src) {
-        silentAudioRef.current.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-      }
-      silentAudioRef.current?.play().catch(() => {});
-    } catch (_) {}
-  }, []);
-
-  const stopBackgroundShield = useCallback((fullReset = false) => {
-    try {
-      if (silentAudioRef.current) {
-        silentAudioRef.current.pause();
-        if (fullReset) {
-          silentAudioRef.current.currentTime = 0;
-          silentAudioRef.current.removeAttribute('src');
-          silentAudioRef.current.load();
-          silentAudioRef.current = null;
-        }
       }
     } catch (_) {}
   }, []);
@@ -251,8 +218,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    // 5. Clean up background shield & release OS audio stream
-    stopBackgroundShield(true);
+    // 5. Release OS audio stream
     audioEqualizerManager.suspendContext();
 
     // 6. Release system MediaSession lock
@@ -275,12 +241,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      stopBackgroundShield(true);
       if (isAudioMasterRef.current) {
         stop();
       }
     };
-  }, [stop, stopBackgroundShield]);
+  }, [stop]);
 
   const attemptReconnect = useCallback((reason: string) => {
     const track = currentTrackRef.current;
@@ -421,7 +386,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       lastPauseTimeRef.current = Date.now();
       isPausedByDeviceRef.current = false;
       audio.pause();
-      stopBackgroundShield(false);
       // Keep AudioContext active during temporary pause so lockscreen / remote unpause can resume audio immediately
       setIsPlaying(false);
       setIsBuffering(false);
@@ -905,6 +869,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       isRefreshingSrcRef.current = false;
     }
 
+    // Гонка быстрого переключения: пока await initHls был в полёте, пользователь мог
+    // выбрать другой трек (токен инкрементирован) или поставить паузу. Не затираем
+    // src нового трека старым URL и не врём в UI.
+    if (myToken !== musicResolveRef.current || isUserPausedRef.current) {
+      return;
+    }
+
     audio.play().then(() => {
       setIsPlaying(true);
       setIsBuffering(false);
@@ -1271,7 +1242,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPause = () => {
       if (isUserPausedRef.current || isRefreshingSrcRef.current) {
         setIsPlaying(false);
-        stopBackgroundShield(false);
         // Do not suspend Web Audio context on pause, keeping audio output pipeline primed for lockscreen unpause
         if (isAudioMasterRef.current && currentTrackRef.current) {
           syncToPeers(currentTrackRef.current, false, false);
@@ -1296,7 +1266,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           console.warn('[Audio] Radio stream ended by server, triggering auto-reconnect...');
           attemptReconnect('stream ended by server');
         } else {
-          stopBackgroundShield();
           audioEqualizerManager.suspendContext();
         }
       } else if (track?.type === 'music' && !isUserPausedRef.current) {
@@ -1307,7 +1276,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           console.warn('[Audio] Track ended prematurely at', a?.currentTime, 'of', a?.duration, '— halting runaway skipping');
           setIsPlaying(false);
           setIsBuffering(false);
-          stopBackgroundShield(false);
           if (a && a.currentTime < 10) {
             try {
               trackError('music', track.title || '', String(track.id), 'music_aborted_early');
@@ -1317,7 +1285,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           nextTrack();
         }
       } else {
-        stopBackgroundShield();
         audioEqualizerManager.suspendContext();
       }
     };
@@ -1326,7 +1293,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       console.warn('[Audio] Playback error or device disconnect:', audio.error);
       const track = currentTrackRef.current;
       if (track?.type === 'radio') {
-        // Mark device pause flag so onDeviceChange knows to resume seamlessly
+        // Пауза по событию устройства/сети: флаг блокирует автопродолжение до действия пользователя,
+        // сбрасывается в onPlaying/onPlay и togglePlayPause
         isPausedByDeviceRef.current = true;
         setIsBuffering(true);
         if (!isReconnectingRef.current && !isUserPausedRef.current) {
@@ -1372,8 +1340,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       const track = currentTrackRef.current;
       if (!a || !track) return;
 
-      // Auto-heal WebKit AudioContext interruption if timeline is running silently on speaker
-      if (!a.paused && audioEqualizerManager.isInterrupted()) {
+      // Автоматическое восстановление контекста WebKit, если таймлайн бежит при заблокированном выводе
+      if (!a.paused && audioEqualizerManager.isSuspendedOrInterrupted()) {
         audioEqualizerManager.resumeContext();
       }
 
@@ -1405,22 +1373,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Auto-resume when Bluetooth headphones or audio output devices reconnect
+    // Обработка смены аудиоустройства (подключение/отключение Bluetooth-гарнитуры или наушников)
     const onDeviceChange = () => {
       console.log('[Audio] Audio output device changed (Bluetooth/headphones)');
       const track = currentTrackRef.current;
       const audio = audioRef.current;
       if (!track || !audio || isUserPausedRef.current) return;
 
-      // Re-engage background shield and resume equalizer context for newly connected audio device
+      // При смене аудиомаршрута синхронизируем сессию и восстанавливаем контекст эквалайзера
       startBackgroundShield();
       audioEqualizerManager.resumeContext();
 
-      isPausedByDeviceRef.current = false;
-      reconnectAttemptRef.current = 0; // Reset retry counter on physical device reconnection
-      setIsBuffering(true);
-
-      // If audio element encountered a pipeline error while headphones were disconnected, clear and reload
+      // Если аудиоэлемент ушел в ошибку из-за смены звукового тракта ядра, мягко восстанавливаем источник
       if (audio.error) {
         const rawUrl = track.originalUrl || track.url;
         isRefreshingSrcRef.current = true;
@@ -1428,20 +1392,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         audio.load();
         isRefreshingSrcRef.current = false;
       }
-
-      audio.play().then(() => {
-        setIsPlaying(true);
-        setIsBuffering(false);
-        syncToPeers(track, true, false);
-      }).catch((err) => {
-        console.warn('[Audio] Device change play failed, triggering soft reconnect:', err);
-        attemptReconnect('device change resume');
-      });
     };
 
-    // Global user gesture listener to un-interrupt WebKit AudioContext on screen touch/click
+    // Разблокировка Web Audio контекста при любом касании экрана / клике пользователя
     const handleUserInteraction = () => {
-      if (audioEqualizerManager.isInterrupted()) {
+      if (audioEqualizerManager.isSuspendedOrInterrupted()) {
         audioEqualizerManager.resumeContext();
       }
     };

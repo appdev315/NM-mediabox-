@@ -45,6 +45,29 @@ export async function fetchWithRetry(
 
   let attempt = 0;
 
+  // Пауза, немедленно прерываемая abort-сигналом: без этого backoff доспал до 8с
+  // и делал лишний запрос с уже мёртвым сигналом.
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
+    if (!signal) {
+      setTimeout(resolve, ms);
+      return;
+    }
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort);
+  });
+
   while (true) {
     try {
       const response = await fetch(url, { ...fetchOptions, signal });
@@ -53,17 +76,17 @@ export async function fetchWithRetry(
         return response;
       }
 
+      // Освобождаем соединение отброшенного ответа, чтобы не держать сокет до GC
+      try { response.body?.cancel(); } catch (_) {}
       attempt++;
-      const delay = calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await sleep(calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs));
     } catch (error: unknown) {
       if (attempt >= maxRetries || !isRetryableError(error, undefined, retryOnStatus)) {
         throw error;
       }
 
       attempt++;
-      const delay = calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await sleep(calculateJitteredBackoff(attempt, baseDelayMs, maxDelayMs));
     }
   }
 }

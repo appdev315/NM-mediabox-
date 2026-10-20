@@ -28,9 +28,13 @@ func getOrCreateTransport(proxyURL *url.URL) *http.Transport {
 		return cached.(*http.Transport)
 	}
 
+	// Проверка TLS-сертификатов включена по умолчанию. Отключение — осознанный
+	// opt-in через env (PROXY_TLS_INSECURE=1), например для прокси с self-signed
+	// сертификатом. Раньше insecure был безусловным дефолтом для всего трафика.
+	insecureTLS := os.Getenv("PROXY_TLS_INSECURE") == "1"
 	transport := &http.Transport{
 		Proxy:               http.ProxyURL(proxyURL),
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecureTLS},
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 30,
 		IdleConnTimeout:     90 * time.Second,

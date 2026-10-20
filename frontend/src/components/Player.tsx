@@ -28,6 +28,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const iframeLoadedRef = useRef(iframeLoaded);
   useEffect(() => { iframeLoadedRef.current = iframeLoaded; }, [iframeLoaded]);
   const [mirrorIndex, setMirrorIndex] = useState(0);
+  // Число неудачных зеркал за текущий источник: защита от вечного цикла перезагрузок
+  const mirrorAttemptsRef = useRef(0);
+  useEffect(() => {
+    // Новый фильм/новый список зеркал — счётчик попыток начинаем заново
+    mirrorAttemptsRef.current = 0;
+  }, [iframeUrl, mirrors]);
 
   // Compute full mirror list
   const activeMirrors = useMemo(() => {
@@ -135,6 +141,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       try {
+        // Принимаем команды только от нашего iframe-донора: чужие iframe (реклама и т.п.)
+        // не должны управлять переключением эпизодов и сбрасывать fallback-таймеры.
+        if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (!data || typeof data !== 'object') return;
 
@@ -254,16 +264,22 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     if (activeMirrors.length > 1) {
       sentinelTimer = setTimeout(() => {
         if (!iframeLoadedRef.current) {
-          const nextIdx = (mirrorIndex + 1) % activeMirrors.length;
-          setMirrorIndex(nextIdx);
+          // Полный круг по зеркалам без единого load: прекращаем вечное мигание,
+          // терминальное состояние разблокирует fallback-таймер ниже.
+          if (mirrorAttemptsRef.current + 1 >= activeMirrors.length) return;
+          mirrorAttemptsRef.current += 1;
+          setMirrorIndex((idx) => (idx + 1) % activeMirrors.length);
         }
       }, 3500);
     }
 
-    // Fallback timer (5000ms): guarantees player UI unblocks if iframe never fires onload
+    // Fallback timer (5000ms): guarantees player UI unblocks if iframe never fires onload.
+    // Страховка срабатывает только если onload так и не пришёл — иначе onReady дёргался дважды.
     const fallbackTimer = setTimeout(() => {
-      setIframeLoaded(true);
-      onReady?.();
+      if (!iframeLoadedRef.current) {
+        setIframeLoaded(true);
+        onReady?.();
+      }
     }, 5000);
 
     return () => {
@@ -274,6 +290,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
   const handleIframeLoad = () => {
     setIframeLoaded(true);
+    mirrorAttemptsRef.current = 0;
     onReady?.();
 
     // The iframe URL already embeds target season and episode in its src query params.
@@ -283,6 +300,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
   // Power-Optimized WakeLock Lifecycle Management
   useEffect(() => {
+    let disposed = false;
     const releaseWakeLock = async () => {
       if (wakeLockRef.current) {
         try {
@@ -296,7 +314,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       if ('wakeLock' in navigator && document.visibilityState === 'visible' && document.hasFocus() && iframeLoaded) {
         try {
           if (!wakeLockRef.current) {
-            wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+            const lock = await (navigator as any).wakeLock.request('screen');
+            // Компонент мог размонтироваться, пока request() был в полёте: немедленно
+            // освобождаем, иначе экран не гаснет после ухода со страницы.
+            if (disposed) {
+              try { await lock.release(); } catch (_) {}
+              return;
+            }
+            wakeLockRef.current = lock;
           }
         } catch (err) {}
       }
@@ -329,6 +354,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     window.addEventListener('focus', handleFocus);
 
     return () => {
+      disposed = true;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
@@ -386,6 +412,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     }
   }, [onClose, exitWebFullscreen]);
 
+  // Стабильный слушатель BackButton: Telegram хранит ссылку на хендлер, а identity
+  // handleExitFullscreenOrClose меняется на каждый рендер — старые хендлеры оставались
+  // зарегистрированными (двойной вызов back, вызовы после unmount).
+  const backBtnHandlerRef = useRef(handleExitFullscreenOrClose);
+  useEffect(() => { backBtnHandlerRef.current = handleExitFullscreenOrClose; });
+  const backBtnListenerRef = useRef<(() => void) | null>(null);
+
   // Lock body scroll, manage global class, and configure Telegram WebApp when Web Fullscreen is active
   useEffect(() => {
     if (isWebFullscreen) {
@@ -396,30 +429,28 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       }
       if (WebApp && WebApp.BackButton) {
         try {
+          const listener = () => backBtnHandlerRef.current();
+          backBtnListenerRef.current = listener;
           WebApp.BackButton.show();
-          WebApp.BackButton.onClick(handleExitFullscreenOrClose);
+          WebApp.BackButton.onClick(listener);
         } catch (_) {}
       }
-    } else {
-      document.body.style.overflow = '';
-      document.body.classList.remove('fullscreen-active');
-      if (WebApp && WebApp.BackButton) {
-        try {
-          WebApp.BackButton.offClick(handleExitFullscreenOrClose);
-        } catch (_) {}
-      }
+      return () => {
+        document.body.style.overflow = '';
+        document.body.classList.remove('fullscreen-active');
+        if (WebApp && WebApp.BackButton && backBtnListenerRef.current) {
+          try {
+            WebApp.BackButton.offClick(backBtnListenerRef.current);
+          } catch (_) {}
+          backBtnListenerRef.current = null;
+        }
+      };
     }
 
-    return () => {
-      document.body.style.overflow = '';
-      document.body.classList.remove('fullscreen-active');
-      if (WebApp && WebApp.BackButton) {
-        try {
-          WebApp.BackButton.offClick(handleExitFullscreenOrClose);
-        } catch (_) {}
-      }
-    };
-  }, [isWebFullscreen, handleExitFullscreenOrClose]);
+    document.body.style.overflow = '';
+    document.body.classList.remove('fullscreen-active');
+    return undefined;
+  }, [isWebFullscreen]);
 
   // Auto-expand to Web Fullscreen strictly upon rotating to landscape, and auto-collapse upon rotating back to portrait
   const wasLandscapeRef = useRef(false);
@@ -512,8 +543,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   }, [isWebFullscreen, exitWebFullscreen]);
 
   useEffect(() => {
-    WebApp.expand();
-    WebApp.enableClosingConfirmation();
+    try { WebApp.expand(); } catch (_) {}
+    // На старых клиентах Telegram (Bot API < 6.2) этих методов нет — TypeError при
+    // монтировании плеера без typeof-гарда
+    if (typeof WebApp.enableClosingConfirmation === 'function') {
+      try { WebApp.enableClosingConfirmation(); } catch (_) {}
+    }
     if (WebApp.disableVerticalSwipes) {
       try { WebApp.disableVerticalSwipes(); } catch (_) {}
     }
@@ -526,9 +561,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     }
 
     return () => {
-      WebApp.disableClosingConfirmation();
-      if (WebApp.enableVerticalSwipes) {
-        try { WebApp.enableVerticalSwipes(); } catch (_) {}
+      if (typeof WebApp.disableClosingConfirmation === 'function') {
+        try { WebApp.disableClosingConfirmation(); } catch (_) {}
       }
       if (isMobile && WebApp.exitFullscreen) {
         WebApp.exitFullscreen();
@@ -542,11 +576,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     };
   }, []);
 
-  const isSafeUrl = typeof lockedSrc === 'string' && /^https?:\/\//i.test(lockedSrc);
-  if (!isSafeUrl) {
-    return null;
-  }
-
+  // NOTE: Объявлен до условного return — нарушение порядка хуков между рендерами крашит поддерево.
   const containerStyle = useMemo<React.CSSProperties>(() => {
     if (!isWebFullscreen) {
       return { width: '100%', aspectRatio: '16/9' };
@@ -565,6 +595,11 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       backgroundColor: '#000',
     };
   }, [isWebFullscreen]);
+
+  const isSafeUrl = typeof lockedSrc === 'string' && /^https?:\/\//i.test(lockedSrc);
+  if (!isSafeUrl) {
+    return null;
+  }
 
   return (
     <div 

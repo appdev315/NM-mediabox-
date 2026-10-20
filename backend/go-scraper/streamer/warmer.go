@@ -34,6 +34,11 @@ type warmItem struct {
 var (
 	warmQueue []warmItem
 	queueMu   sync.Mutex
+
+	// Гард от наложения партий прогрева: новый тик не стартует, пока предыдущая
+	// партия ещё обрабатывается (защита от накопления горутин).
+	warmBatchMu       sync.Mutex
+	warmBatchInFlight bool
 )
 
 func fetchTopTrending() []warmItem {
@@ -198,8 +203,22 @@ func processNextBatch(ctx context.Context) {
 
 	log.Printf("[Warmer] Processing batch of %d items (movies: %d, series: %d)", len(batch), moviesCount, seriesCount)
 
-	// Process items sequentially with spacing to avoid DDoS
+	// Process items sequentially with spacing to avoid DDoS.
+	// inFlight-гард: при медленном ResolveLiftw партии не должны накладываться,
+	// иначе горутины копятся каждые 2 минуты.
+	warmBatchMu.Lock()
+	if warmBatchInFlight {
+		warmBatchMu.Unlock()
+		return
+	}
+	warmBatchInFlight = true
+	warmBatchMu.Unlock()
 	go func() {
+		defer func() {
+			warmBatchMu.Lock()
+			warmBatchInFlight = false
+			warmBatchMu.Unlock()
+		}()
 		for _, item := range batch {
 			select {
 			case <-ctx.Done():

@@ -480,7 +480,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('app_language', lang);
+    try {
+      localStorage.setItem('app_language', lang);
+    } catch (_) {}
   };
 
   const t = (key: TranslationKey) => {

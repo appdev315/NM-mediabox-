@@ -11,10 +11,13 @@
 		}
 	],
 	"vars": {
-		"HF_BACKEND_URL": "https://evro90-nm6.hf.space",
-		"TMDB_API_KEY": "cd5b69242e715dc87d65957d7460eba2",
-		"ADMIN_API_KEY": "mb_admin_sec_2026"
+		"HF_BACKEND_URL": "https://evro90-nm6.hf.space"
 	}
+	// СЕКРЕТЫ больше не хранятся в конфиге (plaintext ADMIN_API_KEY утёк в git).
+	// Перед деплоем выполнить РОТАЦИЮ ключей и установить их как секреты Worker:
+	//   npx wrangler secret put ADMIN_API_KEY   (новое значение!)
+	//   npx wrangler secret put TMDB_API_KEY
+	// Код читает их через env binding — имя переменной не менялось.
 	// To create the D1 database, run:
 	// npx wrangler d1 create mediabox
 	// Then replace YOUR_D1_DATABASE_ID with the returned ID

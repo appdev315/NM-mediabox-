@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
@@ -172,7 +172,11 @@ export function useApi() {
   const [loading, setLoading] = useState(false);
   const { language } = useLanguage();
 
+  // Счётчик активных запросов: голый boolean гасил спиннер, когда параллельный
+  // запрос (Home + TrailerFeed) ещё в полёте.
+  const loadingCountRef = useRef(0);
   const withLoading = useCallback(async <T>(fn: () => Promise<T>): Promise<T> => {
+    loadingCountRef.current += 1;
     setLoading(true);
     try {
       return await fn();
@@ -180,7 +184,10 @@ export function useApi() {
       console.error('API Error:', err);
       throw err;
     } finally {
-      setLoading(false);
+      loadingCountRef.current = Math.max(0, loadingCountRef.current - 1);
+      if (loadingCountRef.current === 0) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -391,7 +398,7 @@ export function useApi() {
   };
 
   const searchContent = useCallback(async (rawQuery: string, signal?: AbortSignal) => {
-    const { title } = parseSearchQuery(rawQuery);
+    const { title, year } = parseSearchQuery(rawQuery);
     const cleanTitle = title.slice(0, 120).trim();
     if (!cleanTitle) return [];
     if (signal?.aborted) return [];
@@ -409,6 +416,16 @@ export function useApi() {
         }
 
         const visible = isNonRussianLang(language) ? list.filter((it: any) => !isRussianOrigin(it)) : list;
+
+        // Год из запроса («Война миров 2005»): поднимаем точные совпадения в начало,
+        // не отбрасывая остальные. Сортировка стабильная — релевантность внутри
+        // групп сохраняется.
+        if (year) {
+          visible.sort((a: any, b: any) =>
+            (String(a.year || '') === year ? 0 : 1) - (String(b.year || '') === year ? 0 : 1)
+          );
+        }
+
         return visible.map((item: any) => ({
           id: item.id,
           liftw_id: item.liftw_id,

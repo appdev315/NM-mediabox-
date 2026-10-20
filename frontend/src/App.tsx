@@ -1,5 +1,5 @@
 import { useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { App as CapacitorApp } from '@capacitor/app';
 import { WebApp } from './telegram';
 import { useLanguage } from './context/LanguageContext';
@@ -51,9 +51,15 @@ function DeepLinkHandler({ isAdultApp }: { isAdultApp: boolean }) {
          // We might just send them to profile in Main app so they can see the link
          navigate(`/profile`, { replace: true });
       } else if (startParam.includes('_') && !isAdultApp) {
-        const [type, id] = startParam.split('_');
-        navigate(`/movie/${id}?type=${type}`, { replace: true });
-      } else if (!isAdultApp) {
+        const sepIdx = startParam.indexOf('_');
+        const type = startParam.slice(0, sepIdx);
+        const id = startParam.slice(sepIdx + 1);
+        // Хвостовой разделитель (например «movie_») давал пустой id — URL не совпадал
+        // с роутом /movie/:id и рендерился пустой экран
+        if (id) {
+          navigate(`/movie/${id}?type=${type}`, { replace: true });
+        }
+      } else if (!isAdultApp && startParam) {
         navigate(`/movie/${startParam}`, { replace: true });
       }
     }
@@ -348,6 +354,8 @@ function MainApp() {
               <Route path="/adult/favorites" element={<AdultFavorites />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/favorites" element={<Favorites />} />
+              {/* Catch-all: неизвестный URL вместо пустого экрана ведёт на главную */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
@@ -376,6 +384,7 @@ function AdultApp() {
               <Route path="/adult/favorites" element={<AdultFavorites />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/favorites" element={<AdultFavorites />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

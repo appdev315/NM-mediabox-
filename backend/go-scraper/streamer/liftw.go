@@ -545,7 +545,8 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 			if isSeries {
 				tmdbType = "tv"
 			}
-			tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, tmdb, getTMDBApiKey())
+			// url.PathEscape нейтрализует path-инъекцию пользовательского tmdb в URL
+			tmdbUrl := fmt.Sprintf("https://api.themoviedb.org/3/%s/%s?api_key=%s&append_to_response=alternative_titles,translations", tmdbType, url.PathEscape(tmdb), getTMDBApiKey())
 			client := scraper.GetHTTPClient(4 * time.Second)
 			req, rErr := http.NewRequestWithContext(resolveCtx, "GET", tmdbUrl, nil)
 			if rErr == nil {
@@ -650,7 +651,8 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 
 func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=10800")
+	// Cache-Control ставится только на успешный ответ (ниже): раньше заголовок
+	// выставлялся до обработки ошибок, и промежуточные кэши держали 404/500 три часа.
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
@@ -690,6 +692,7 @@ func LiftwApiHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf(`{"error":%q}`, errMsg), status)
 			return
 		}
+		w.Header().Set("Cache-Control", "public, max-age=10800")
 		w.Write(res.data)
 	}
 }

@@ -177,10 +177,39 @@ func fetchCountryStationsFromMirrors(ctx context.Context, countryCode string) ([
 	return nil, fmt.Errorf("failed to fetch stations from all mirrors: %v", lastErr)
 }
 
+// Максимальное число записей radioCache: карта ключуется пользовательским вводом,
+// без ограничения уникальные ключи растят память между свиперами до OOM.
+const maxRadioCacheEntries = 96
+
+// Жёсткая валидация кода страны: только 2-3 строчные латинские буквы (ISO 3166).
+// Мусорные ключи приводят к лишним upstream-запросам и бесконечному росту кэша.
+func isValidCountryCode(c string) bool {
+	if len(c) < 2 || len(c) > 3 {
+		return false
+	}
+	for _, r := range c {
+		if r < 'a' || r > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
 func getOrFetchCountryStations(ctx context.Context, countryCode string, source string) []byte {
 	countryCode = strings.ToLower(strings.TrimSpace(countryCode))
-	if countryCode == "" {
+	if !isValidCountryCode(countryCode) {
 		countryCode = "ru"
+	}
+	source = strings.TrimSpace(source)
+	if len(source) > 2 {
+		source = "1"
+	} else {
+		for _, r := range source {
+			if r < '0' || r > '9' {
+				source = "1"
+				break
+			}
+		}
 	}
 	if source == "" {
 		source = "1"
@@ -209,11 +238,19 @@ func getOrFetchCountryStations(ctx context.Context, countryCode string, source s
 	// Fetch on demand
 	stations, err := fetchCountryStationsFromMirrors(ctx, countryCode)
 	if err == nil && len(stations) > 0 {
-		if bytes, err := json.Marshal(stations); err == nil {
+		if marshaled, err := json.Marshal(stations); err == nil {
 			radioCacheMu.Lock()
-			radioCache[cacheKey] = bytes
+			if len(radioCache) >= maxRadioCacheEntries {
+				for k := range radioCache {
+					if k != "ru_1" {
+						delete(radioCache, k)
+						break
+					}
+				}
+			}
+			radioCache[cacheKey] = marshaled
 			radioCacheMu.Unlock()
-			return bytes
+			return marshaled
 		}
 	}
 

@@ -36,16 +36,26 @@ export function useResolvedPoster(item: any, language: string): string | null {
     /^\d{4}$/.test(year);
 
   const cacheKey = shouldResolve ? cacheKeyFor(queryTitle, year, type) : null;
-  const [resolved, setResolved] = useState<string | null>(() => {
-    if (!cacheKey) return null;
+
+  const readCachedPoster = (key: string | null): string | null => {
+    if (!key) return null;
     try {
-      const cached = clientCache.get<string>(cacheKey);
+      const cached = clientCache.get<string>(key);
       if (!cached || cached === NEGATIVE_MARKER) return null;
       return cached;
     } catch (_) {
       return null;
     }
-  });
+  };
+
+  const [resolved, setResolved] = useState<string | null>(() => readCachedPoster(cacheKey));
+  const [resolvedKey, setResolvedKey] = useState<string | null>(cacheKey);
+  if (cacheKey !== resolvedKey) {
+    // Сброс при переиспользовании инстанса с другим элементом: без этого до
+    // завершения нового фетча возвращался постер предыдущего элемента
+    setResolvedKey(cacheKey);
+    setResolved(readCachedPoster(cacheKey));
+  }
 
   useEffect(() => {
     if (!shouldResolve || !cacheKey) return;

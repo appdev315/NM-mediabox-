@@ -20,6 +20,18 @@ export interface StreamItemMeta {
   isUpcoming?: boolean;
 }
 
+// AbortSignal.timeout недоступен на iOS Safari < 16 / старых WebView —
+// без фолбэка CF-предпрогрев молча отключался на этих устройствах.
+function timeoutSignal(ms: number): AbortSignal {
+  const anyAbortSignal = AbortSignal as any;
+  if (typeof anyAbortSignal?.timeout === 'function') {
+    return anyAbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /**
  * Pre-warms video stream upon card click or component mount.
  * Non-blocking, saves result directly to clientCache.
@@ -96,7 +108,7 @@ export function prewarmStream(
           maxRetries: 1,
           baseDelayMs: 200,
           maxDelayMs: 600,
-          signal: AbortSignal.timeout(5000),
+          signal: timeoutSignal(5000),
         });
         if (cfRes.ok) {
           const cfJson = await cfRes.json();

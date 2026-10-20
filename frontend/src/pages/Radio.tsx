@@ -37,8 +37,10 @@ const COUNTRIES = [
 
 export function RadioContent() {
   const [country, setCountry] = useState(() => {
-    const saved = localStorage.getItem('radio_country');
-    if (saved) return saved;
+    try {
+      const saved = localStorage.getItem('radio_country');
+      if (saved) return saved;
+    } catch (_) {}
     const tgLang = WebApp.initDataUnsafe?.user?.language_code;
     if (tgLang === 'ko') return 'kr';
     if (tgLang === 'id') return 'id';
@@ -47,7 +49,13 @@ export function RadioContent() {
     return 'ru';
   });
 
-  const [radioSource, setRadioSource] = useState(localStorage.getItem('radio_source') || '1');
+  const [radioSource, setRadioSource] = useState(() => {
+    try {
+      return localStorage.getItem('radio_source') || '1';
+    } catch (_) {
+      return '1';
+    }
+  });
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -95,8 +103,10 @@ export function RadioContent() {
   const { t } = useLanguage();
 
   useEffect(() => {
-    localStorage.setItem('radio_country', country);
-    localStorage.setItem('radio_source', radioSource);
+    try {
+      localStorage.setItem('radio_country', country);
+      localStorage.setItem('radio_source', radioSource);
+    } catch (_) {}
 
     if (inFlightControllerRef.current) {
       inFlightControllerRef.current.abort();
@@ -204,7 +214,9 @@ export function RadioContent() {
 
       if (parsed.length > 0) {
         setStations(parsed);
-        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 0); // Permanent on device until system clears
+        // TTL=0 клиентский кэш трактует как 7 дней; намерение — долгий локальный кэш,
+        // поэтому задаём его явно (90 дней), чтобы не зависеть от дефолта.
+        clientCache.set(`cache_radio_${country}_src${radioSource}`, parsed, 60 * 60 * 24 * 90);
       }
       setLoading(false);
     } catch (e) {
@@ -263,6 +275,11 @@ export function RadioContent() {
           onChange={(e) => {
             setCountry(e.target.value);
             setVisibleCount(50);
+            // Источник «2» существует только для RU: при смене страны сбрасываем,
+            // иначе селект показывает «Source 1», а в запрос уходит source=2
+            if (e.target.value !== 'ru' && radioSource === '2') {
+              setRadioSource('1');
+            }
           }}
           className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
           style={{
@@ -277,7 +294,7 @@ export function RadioContent() {
         </select>
 
         <select
-          value={radioSource}
+          value={country === 'ru' ? radioSource : '1'}
           onChange={(e) => setRadioSource(e.target.value)}
           className="flex-1 p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
           style={{

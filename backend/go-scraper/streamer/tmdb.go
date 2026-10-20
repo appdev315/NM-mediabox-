@@ -160,7 +160,7 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer lastRes.Body.Close()
 
-		bodyBytes, err := io.ReadAll(lastRes.Body)
+		bodyBytes, err := io.ReadAll(io.LimitReader(lastRes.Body, 10<<20)) // 10 MB — защита от раздувания памяти
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read response: %v", err)
 		}

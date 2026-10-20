@@ -19,7 +19,9 @@ const AudioProgressBar = memo(function AudioProgressBar({ audioRef }: { audioRef
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
-      if (audio.duration && !isNaN(audio.duration)) {
+      // Infinity у живых/битых стримов: иначе max=<Infinity> и остаток времени
+      // рендерится как -Infinity:NaN
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }
     };

@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
@@ -14,18 +14,26 @@ window.addEventListener('vite:preloadError', () => {
   }
 });
 
+// После успешного коммита дерева React снимаем защитные флаги reload-цикла.
+// Синхронный сброс сразу после render() бесполезен: монтирование асинхронно,
+// и битый lazy-чанк успевал обнулить счётчик до падения — получался вечный reload.
+function MountSuccess() {
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('mb_pwa_heal_attempts');
+      sessionStorage.removeItem('mb_preload_error_reload');
+    } catch {}
+  }, []);
+  return null;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
+      <MountSuccess />
       <LanguageProvider>
         <App />
       </LanguageProvider>
     </ErrorBoundary>
   </StrictMode>,
 );
-
-// Reset heal attempts upon successful React mount
-try {
-  sessionStorage.removeItem('mb_pwa_heal_attempts');
-  sessionStorage.removeItem('mb_preload_error_reload');
-} catch {}

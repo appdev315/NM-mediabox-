@@ -6,6 +6,18 @@
 
 const CACHE_NAME = 'mb_offline_tracks_v1';
 
+// Fetch с жёстким таймаутом: зависшее соединение не должно оставлять вечнозависший промис
+// и блокировать повторные попытки. AbortController поддерживается шире, чем AbortSignal.timeout.
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { mode: 'cors', signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 class AudioOfflineManager {
   // Нормализуем ID трека, отсекая префикс saavn_ для единого формата канонического ключа
   private cleanId(id?: string | number): string {
@@ -58,7 +70,7 @@ class AudioOfflineManager {
         }
       }
 
-      const response = await fetch(audioUrl, { mode: 'cors' });
+      const response = await fetchWithTimeout(audioUrl, 90000);
       if (!response.ok) return false;
 
       const blob = await response.blob();
@@ -279,7 +291,7 @@ class AudioOfflineManager {
 
     if (!audioUrl) return null;
     try {
-      const response = await fetch(audioUrl, { mode: 'cors' });
+      const response = await fetchWithTimeout(audioUrl, 90000);
       if (response.ok) {
         return await response.blob();
       }
@@ -309,7 +321,7 @@ class AudioOfflineManager {
       } catch (_) {}
     }
 
-    if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn')) return false;
+    if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn') || targetUrl.includes('mzstatic') || targetUrl.includes('itunes')) return false;
     const blob = await this.getTrackBlob(targetUrl, track.id);
     if (!blob) return false;
 
@@ -355,7 +367,10 @@ class AudioOfflineManager {
   }
 
   /**
-   * Exports multiple tracks to device files system
+   * Exports multiple tracks to device files system.
+   * Обрабатывает пачку БАТЧАМИ по 5 треков: в памяти одновременно держим 3-5 файлов,
+   * а не всю пачку (десятки треков по 5-10 МБ иначе занимали сотни МБ RAM).
+   * На мобильных share-лист открывается на каждую партию.
    */
   async exportTracks(tracks: Array<{ title: string; artist: string; audioUrl: string; id?: string }>): Promise<number> {
     if (!tracks || tracks.length === 0) return 0;
@@ -364,62 +379,76 @@ class AudioOfflineManager {
       (/iphone|ipad|ipod|android/i.test(navigator.userAgent) || 
       (navigator.maxTouchPoints > 1 && window.innerWidth < 1024));
 
-    const files: File[] = [];
-    for (const track of tracks) {
-      let targetUrl = track.audioUrl;
-      if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn') || targetUrl.includes('mzstatic') || targetUrl.includes('itunes')) {
-        try {
-          const { resolveFullAudioUrl } = await import('../hooks/useMusicApi');
-          const resolved = await resolveFullAudioUrl(track.artist, track.title, targetUrl, track.id);
-          if (resolved) {
-            targetUrl = resolved;
-          }
-        } catch (_) {}
-      }
+    const BATCH_SIZE = 5;
+    let exported = 0;
 
-      if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn')) continue;
-      const blob = await this.getTrackBlob(targetUrl, track.id);
-      if (!blob) continue;
-      const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
-      const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
-      const safeName = `${track.artist} - ${track.title}`
-        .replace(/[/\\?%*:|"<>]/g, '_')
-        .replace(/\s+/g, ' ')
-        .trim() || 'track';
-      files.push(new File([blob], `${safeName}.${ext}`, { type: mimeType }));
-    }
+    for (let batchStart = 0; batchStart < tracks.length; batchStart += BATCH_SIZE) {
+      const batch = tracks.slice(batchStart, batchStart + BATCH_SIZE);
+      const files: File[] = [];
 
-    if (files.length === 0) return 0;
-
-    if (isMobile && typeof navigator.share === 'function') {
-      try {
-        if (navigator.canShare && navigator.canShare({ files })) {
-          await navigator.share({
-            files,
-            title: 'MediaBox Music'
-          });
-          return files.length;
+      for (const track of batch) {
+        let targetUrl = track.audioUrl;
+        if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn') || targetUrl.includes('mzstatic') || targetUrl.includes('itunes')) {
+          try {
+            const { resolveFullAudioUrl } = await import('../hooks/useMusicApi');
+            const resolved = await resolveFullAudioUrl(track.artist, track.title, targetUrl, track.id);
+            if (resolved) {
+              targetUrl = resolved;
+            }
+          } catch (_) {}
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return files.length;
-      }
-    }
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const objectUrl = URL.createObjectURL(file);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-      if (i < files.length - 1) {
-        await new Promise(r => setTimeout(r, 400));
+        if (!targetUrl || targetUrl.includes('preview') || targetUrl.includes('dzcdn')) continue;
+        const blob = await this.getTrackBlob(targetUrl, track.id);
+        if (!blob) continue;
+        const ext = blob.type.includes('mpeg') || blob.type.includes('mp3') ? 'mp3' : 'm4a';
+        const mimeType = ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
+        const safeName = `${track.artist} - ${track.title}`
+          .replace(/[/\\?%*:|"<>]/g, '_')
+          .replace(/\s+/g, ' ')
+          .trim() || 'track';
+        files.push(new File([blob], `${safeName}.${ext}`, { type: mimeType }));
+      }
+      // blob-объекты партии освобождаются при выходе из этой итерации
+
+      if (files.length === 0) continue;
+
+      if (isMobile && typeof navigator.share === 'function') {
+        try {
+          if (navigator.canShare && navigator.canShare({ files })) {
+            await navigator.share({
+              files,
+              title: 'MediaBox Music'
+            });
+            exported += files.length;
+            continue;
+          }
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            exported += files.length;
+            continue;
+          }
+          // Иная ошибка share — откатываемся на прямое скачивание этой партии
+        }
+      }
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const objectUrl = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+        exported++;
+        if (i < files.length - 1) {
+          await new Promise(r => setTimeout(r, 400));
+        }
       }
     }
-    return files.length;
+    return exported;
   }
 
   /**
