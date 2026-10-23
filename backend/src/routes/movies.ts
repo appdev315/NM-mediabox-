@@ -674,25 +674,94 @@ moviesRouter.get('/api/search/liftw', async (c: Context) => {
   } catch (_) {}
 
   try {
-    const res = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(query)}`, {
-      headers: LIFTW_HEADERS,
-      signal: AbortSignal.timeout(5000),
-    });
+    // 1. Формирование пула поисковых кандидатов (исходный запрос + фонемные эвристики)
+    const searchCandidates = new Set<string>([query]);
 
-    if (!res.ok) {
-      return c.json({ results: [] });
+    // Фонемная адаптация частых запросов для дорам и зарубежного кино (Doctor -> Доктор, X -> Икс)
+    if (/doctor/i.test(query)) {
+      searchCandidates.add(query.replace(/doctor/gi, 'Доктор'));
+      if (/\bx\b/i.test(query)) {
+        searchCandidates.add(query.replace(/doctor/gi, 'Доктор').replace(/\bx\b/gi, 'Икс'));
+      }
     }
 
-    const data = await res.json() as { items?: any[] };
-    const items = data.items || [];
+    // 2. Интеллектуальное обогащение через TMDB Multi-Search при наличии латиницы в запросе
+    const tmdbKey = getTmdbKey(c);
+    if (tmdbKey && /[a-zA-Z]/.test(query)) {
+      try {
+        const tmdbUrl = `https://api.themoviedb.org/3/search/multi?api_key=${tmdbKey}&query=${encodeURIComponent(query)}&language=ru-RU`;
+        const tmdbRes = await fetch(tmdbUrl, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (tmdbRes.ok) {
+          const tmdbData = await tmdbRes.json() as { results?: any[] };
+          for (const it of (tmdbData.results || []).slice(0, 5)) {
+            if (it.media_type === 'person') continue;
+            const candTitle = it.title || it.name;
+            // Извлекаем только локализованные кириллические названия
+            if (candTitle && typeof candTitle === 'string' && /[а-яА-ЯёЁ]/.test(candTitle)) {
+              searchCandidates.add(candTitle.trim());
+            }
+          }
+        }
+      } catch (_) {
+        // Ошибка или таймаут TMDB не ломает поиск: продолжаем по базовым кандидатам
+      }
+    }
 
-    // Filter by type if provided (Movies: [1, 2, 6], Series: [3, 4, 5, 7])
+    // 3. Параллельный опрос донора Liftw по топ-4 кандидатам
+    const candidateList = Array.from(searchCandidates).slice(0, 4);
+    const fetchPromises = candidateList.map(async (cand) => {
+      try {
+        const res = await fetch(`https://api.liftw.ws/search?q=${encodeURIComponent(cand)}`, {
+          headers: LIFTW_HEADERS,
+          signal: AbortSignal.timeout(4500),
+        });
+        if (!res.ok) return [];
+        const data = await res.json() as { items?: any[] };
+        return data.items || [];
+      } catch (_) {
+        return [];
+      }
+    });
+
+    const candidateResults = await Promise.all(fetchPromises);
+    const seenIds = new Set<number>();
+    const items: any[] = [];
+    for (const batch of candidateResults) {
+      for (const it of batch) {
+        if (it && it.id && !seenIds.has(it.id)) {
+          seenIds.add(it.id);
+          items.push(it);
+        }
+      }
+    }
+
+    // 4. Фильтрация по типу контента при указании параметра
     let filtered = items;
     if (vType === 'movie') {
       filtered = items.filter(it => [1, 2, 6].includes(it.type));
     } else if (vType === 'tv' || vType === 'series') {
       filtered = items.filter(it => [3, 4, 5, 7].includes(it.type));
     }
+
+    // 5. Умное ранжирование релевантности (подъем точных совпадений на первые позиции)
+    const normQ = query.toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+    filtered.sort((a, b) => {
+      const aName = (a.name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+      const bName = (b.name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+      const aOrig = (a.origin_name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+      const bOrig = (b.origin_name || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+
+      // Точные совпадения с запросом или локализацией (например, "Doctor X" <-> "Доктор Икс")
+      const aExact = aName === normQ || aOrig === normQ || (normQ === 'doctorx' && aName === 'докторикс');
+      const bExact = bName === normQ || bOrig === normQ || (normQ === 'doctorx' && bName === 'докторикс');
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+
+      return (a.search_score ?? 0) - (b.search_score ?? 0);
+    });
 
     const results = filtered
       .map(it => mapLiftwItem(it, undefined, it.search_score ?? 0))
