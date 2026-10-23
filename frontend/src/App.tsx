@@ -15,6 +15,7 @@ const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Pro
 const Favorites = lazy(() => import('./pages/Favorites').then(m => ({ default: m.Favorites })));
 const Music = lazy(() => import('./pages/Music').then(m => ({ default: m.Music })));
 const Radio = lazy(() => import('./pages/Radio').then(m => ({ default: m.Radio })));
+const MediaBoxTv = lazy(() => import('./pages/MediaBoxTv').then(m => ({ default: m.MediaBoxTv })));
 import { Adult } from './pages/Adult';
 const AdultVideo = lazy(() => import('./pages/AdultVideo').then(m => ({ default: m.AdultVideo })));
 const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ default: m.AdultFavorites })));
@@ -103,6 +104,7 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
   const isSeriesActive = isHome && activeTab === 'series' && !isSearchActive;
   const isMusicActive = location.pathname === '/music';
   const isRadioActive = location.pathname === '/radio';
+  const isTvActive = location.pathname.startsWith('/tv');
   const isFavActive = location.pathname === '/favorites';
   const isProfileActive = location.pathname === '/profile';
 
@@ -184,23 +186,18 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
       onClick: () => navigate('/favorites')
     },
     {
-      id: 'search',
-      label: t('search') || 'Поиск',
-      isActive: isSearchActive,
+      id: 'tv',
+      label: t('tvShort') || 'ТВ',
+      isActive: isTvActive,
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+          <polyline points="17 2 12 7 7 2"></polyline>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
         </svg>
       ),
-      onClick: () => {
-        if (!isHome) {
-          navigate('/');
-          setIsSearchOpen(true);
-        } else {
-          setIsSearchOpen(!isSearchOpen);
-        }
-      }
+      onClick: () => navigate('/tv')
     },
     {
       id: 'profile',
@@ -349,6 +346,7 @@ function MainApp() {
               <Route path="/movie/:id" element={<Movie />} />
               <Route path="/music" element={<Music />} />
               <Route path="/radio" element={<Radio />} />
+              <Route path="/tv" element={<MediaBoxTv />} />
               <Route path="/adult" element={<Adult />} />
               <Route path="/adult/:id" element={<AdultVideo />} />
               <Route path="/adult/favorites" element={<AdultFavorites />} />

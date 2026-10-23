@@ -497,6 +497,26 @@ export function Home() {
       {/* Semantic H1 for SEO */}
       <h1 className="sr-only">MediaBox</h1>
 
+      {/* Кнопка Поиска в правом верхнем углу (перенесена из нижней навигации) */}
+      {!isSearchOpen && !isSearching && !searchQuery && (
+        <button
+          type="button"
+          onClick={() => {
+            setIsSearchOpen(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="fixed right-3 sm:right-4 z-40 w-10 h-10 rounded-full flex items-center justify-center bg-[#17212b]/90 hover:bg-[#202d3b] text-white shadow-xl border border-white/10 active:scale-95 transition-all cursor-pointer backdrop-blur-md"
+          style={{ top: 'calc(12px + env(safe-area-inset-top))' }}
+          aria-label={t('search') || 'Поиск'}
+          title={t('search') || 'Поиск'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      )}
+
       {/* Search Bar (Displayed when search button clicked in bottom nav or searching) */}
       {(isSearchOpen || isSearching || searchQuery) && (
         <div className="mb-3 flex items-center h-11 rounded-xl border border-white/10 bg-[var(--hint-color)] px-3 shadow-md">
