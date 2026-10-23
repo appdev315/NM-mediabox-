@@ -218,7 +218,10 @@ export function Home() {
   }, [selectedGenre, sortBy, genres, homeSections, language, t]);
 
   useEffect(() => {
-    setSearchInput(searchQuery);
+    // Синхронизируем строку ввода только при внешнем сбросе запроса
+    if (!searchQuery && searchInput) {
+      setSearchInput('');
+    }
   }, [searchQuery]);
 
   useEffect(() => {
@@ -441,17 +444,19 @@ export function Home() {
 
 
 
-  const submitSearch = (raw: string) => {
+  const submitSearch = (raw: string, updateInput = false) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     const sanitized = raw.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 120);
-    setSearchInput(sanitized);
+    if (updateInput) {
+      setSearchInput(sanitized);
+    }
     setSearchQuery(sanitized);
     setPage(1);
   };
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    submitSearch(searchInput);
+    submitSearch(searchInput, true);
   };
 
   const handleClearSearch = () => {
@@ -463,6 +468,7 @@ export function Home() {
 
   // Live search: debounce typing (min 2 chars), instant clear on empty
   const handleSearchInputChange = (val: string) => {
+    // Сохраняем пользовательский ввод вместе с пробелами
     setSearchInput(val);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     const trimmed = val.trim();
@@ -473,7 +479,8 @@ export function Home() {
     }
     if (trimmed.length < 2) return;
     searchDebounceRef.current = setTimeout(() => {
-      submitSearch(val);
+      // Отправляем очищенную строку в API, не мутируя и не обрезая пользовательский searchInput
+      submitSearch(val, false);
     }, 400);
   };
 

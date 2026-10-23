@@ -7,5 +7,9 @@
 /manifest.webmanifest
   Cache-Control: no-cache, no-store, must-revalidate
 
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

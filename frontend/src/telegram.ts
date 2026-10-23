@@ -1,5 +1,6 @@
 // @ts-ignore
-export const WebApp = window.Telegram?.WebApp || {
+const tgWindow = typeof window !== 'undefined' ? (window as any).Telegram?.WebApp : undefined;
+export const WebApp = tgWindow || {
   ready: () => {},
   expand: () => {},
   enableClosingConfirmation: () => {},

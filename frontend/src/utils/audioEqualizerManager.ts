@@ -125,13 +125,47 @@ class AudioEqualizerManager {
   }
 
   /**
+   * Отключает все связанные ноды эквалайзера и M/S матрицы от графа.
+   * Предотвращает утечки дескрипторов Web Audio API и накопление фильтров в памяти WebKit/Blink.
+   */
+  public disconnectGraph() {
+    try {
+      if (this.sourceNode) {
+        try { this.sourceNode.disconnect(); } catch (_) {}
+      }
+      for (const filter of this.filters) {
+        try { filter.disconnect(); } catch (_) {}
+      }
+      if (this.splitter) {
+        try { this.splitter.disconnect(); } catch (_) {}
+      }
+      if (this.merger) {
+        try { this.merger.disconnect(); } catch (_) {}
+      }
+      if (this.gainLL) { try { this.gainLL.disconnect(); } catch (_) {} }
+      if (this.gainLR) { try { this.gainLR.disconnect(); } catch (_) {} }
+      if (this.gainRL) { try { this.gainRL.disconnect(); } catch (_) {} }
+      if (this.gainRR) { try { this.gainRR.disconnect(); } catch (_) {} }
+      if (this.compressor) {
+        try { this.compressor.disconnect(); } catch (_) {}
+      }
+      if (this.masterGain) {
+        try { this.masterGain.disconnect(); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  /**
    * Initializes Web Audio Context and wires the audio element through
    * the filter bank, M/S spatial matrix, and dynamics compressor.
    */
   public attachAudioElement(audio: HTMLAudioElement) {
-    if (this.attachedElement === audio && this.sourceNode) {
+    if (this.attachedElement === audio && this.sourceNode && this.filters.length > 0) {
       return;
     }
+
+    // Отключаем старый граф нод перед перестроением
+    this.disconnectGraph();
 
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;

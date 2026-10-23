@@ -1,427 +1,44 @@
-import React, { createContext, useContext, useState } from 'react';
-import { WebApp } from '../telegram';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { WebApp } from "../telegram";
+import ruDict from "../locales/ru-RU.json";
+import enDict from "../locales/en-US.json";
 
-export type Language = 'ru-RU' | 'en-US' | 'de-DE' | 'es-ES' | 'fr-FR' | 'id-ID';
+export type Language = "ru-RU" | "en-US" | "de-DE" | "es-ES" | "fr-FR" | "id-ID";
 
 export const LANGUAGES_CONFIG: { code: Language; flag: string; label: string; name: string; fullName: string }[] = [
-  { code: 'ru-RU', flag: '🇷🇺', label: 'RU', name: 'Русский', fullName: 'Русский' },
-  { code: 'en-US', flag: '🇺🇸', label: 'EN', name: 'English', fullName: 'English' },
-  { code: 'id-ID', flag: '🇮🇩', label: 'ID', name: 'Bahasa Indonesia', fullName: 'Bahasa Indonesia' },
-  { code: 'de-DE', flag: '🇩🇪', label: 'DE', name: 'Deutsch', fullName: 'Deutsch' },
-  { code: 'es-ES', flag: '🇪🇸', label: 'ES', name: 'Español', fullName: 'Español' },
-  { code: 'fr-FR', flag: '🇫🇷', label: 'FR', name: 'Français', fullName: 'Français' },
+  { code: "ru-RU", flag: "🇷🇺", label: "RU", name: "Русский", fullName: "Русский" },
+  { code: "en-US", flag: "🇺🇸", label: "EN", name: "English", fullName: "English" },
+  { code: "id-ID", flag: "🇮🇩", label: "ID", name: "Bahasa Indonesia", fullName: "Bahasa Indonesia" },
+  { code: "de-DE", flag: "🇩🇪", label: "DE", name: "Deutsch", fullName: "Deutsch" },
+  { code: "es-ES", flag: "🇪🇸", label: "ES", name: "Español", fullName: "Español" },
+  { code: "fr-FR", flag: "🇫🇷", label: "FR", name: "Français", fullName: "Français" },
 ];
 
 export const translations = {
-  'ru-RU': {"iosInstallTitle": "Установка на iPhone и iPad", "iosStep1": "В браузере Safari нажмите кнопку «Поделиться» (иконка со стрелкой вверх внизу)", "iosStep2": "Прокрутите список вниз и выберите «На экран «Домой»»", "iosStep3": "В правом верхнем углу нажмите «Добавить»", "gotIt": "Понятно", "bannerMainBot": "Бесплатное кино прямо в твоем телеграмм", "bannerTelegram": "Тайная комната в тг", "bannerAdult": "Секретный раздел 18+", "secretRoomTab": "Тайная комната 🍓", "secretRoomRulesTitle": "3 правила Тайной Комнаты:", "secretRoomRule1": "1. Первое правило тайной комнаты — никому не рассказывать про тайную комнату.", "secretRoomRule2": "2. Второе правило тайной комнаты — никому не рассказывать про первое правило тайной комнаты.", "secretRoomRule3": "3. Третье правило тайной комнаты — обещаю подписаться на тг бота )", "secretRoomWarning": "Нажимая «Подтверждаю», вы подтверждаете, что вам исполнилось 18 лет, и берёте на себя полную ответственность за просмотр взрослого контента. Вы обязуетесь не распространять данный контент среди несовершеннолетних.", "secretRoomConfirm": "✅ Подтверждаю", "secretRoomLeave": "❌ Покинуть страницу", 
-  "movies": "Фильмы",
-  "series": "Сериалы",
-  "tv": "Медиабокс ТВ",
-  "tvShort": "ТВ",
-  "dramas": "Дорамы",
-  "sub_indo": "Sub Indo",
-  "korean_drama": "Корейские дорамы",
-  "search": "Поиск",
-  "searchBtn": "Найти",
-  "searchPlaceholder": "Поиск фильмов и сериалов...",
-  "allGenres": "Все жанры",
-  "allCountries": "Все страны",
-  "loadMore": "Загрузить еще",
-  "showMore": "Показать еще",
-  "downloadsTab": "Скачать",
-  "home": "Главная",
-  "profile": "Профиль",
-  "settings": "Настройки",
-  "watch": "Смотреть",
-  "recommendations": "Рекомендуем также",
-  "loading": "Загрузка...",
-  "notFound": "Ничего не найдено",
-  "movieNotFound": "Фильм не найден",
-  "descriptionMissing": "Описание отсутствует.",
-  "myFavorites": "История",
-  "emptyFavorites": "Тут пока пусто 🎬",
-  "vipStatus": "VIP Статус",
-  "buyLifetime": "Купить Навсегда",
-  "buyLifetimeSub": "Разовый платеж для бесконечного просмотра",
-  "vipActive": "VIP активен до",
-  "lifetimeActive": "VIP Навсегда активен",
-  "privateModeTitle": "Раздел Private 🍓",
-  "privateModeDesc": "Эксклюзивный контент без цензуры в Telegram.",
-  "privateBotTitle": "Приватный VIP Клуб",
-  "open18Bot": "Смотреть 18+ в Telegram", "mainBotTitle": "Смотреть в Telegram", "mainBotDesc": "Смотрите новинки кино и сериалов бесплатно и без ограничений.", "openMainBot": "Перейти в Telegram",
-  "buyVipForAccess": "Купить VIP для доступа",
-  "privateCollection": "Private Collection",
-  "privateCollectionDesc": "Приватная коллекция премиум-контента. Доступно только для VIP-пользователей.",
-  "unlockWithStars": "Разблокировать за Telegram Stars",
-  "language": "Язык",
-  "theme": "Тема",
-  "themeAuto": "Авто",
-  "themeLight": "Светлая",
-  "themeDark": "Темная",
-  "searchPlaceholderRadio": "Поиск...",
-  "back": "Назад",
-  "vipRequired": "Требуется VIP",
-  "vipRequiredDesc": "Этот контент доступен только VIP-пользователям",
-  "openBot": "Открыть бота",
-  "movies_and_series": "Кино",
-  "radio_and_tv": "Радио",
-  "privateContent": "Private",
-  "favorites": "Избранное",
-  "subtitle_movies": "Фильмы и сериалы без рекламы",
-  "subtitle_radio": "Прямые эфиры и станции",
-  "subtitle_adult": "Эксклюзивная 18+ коллекция",
-  "tgLoginRequired": "Для доступа к Приват-разделу необходимо авторизоваться через Telegram",
-  "tab_movies": "Фильмы",
-  "tab_series": "Сериалы",
-  "tab_radio": "Радио",
-  "tab_music": "Музыка",
-  "tab_private": "Private",
-  "emptyList": "Список пуст",
-  "comingSoon": "Скоро...",
-  "player1": "Плеер 1",
-  "player2": "Плеер 2",
-  "player3": "Плеер 3",
-  "player": "Плеер",
-  "episode": "Серия",
-  "seasonsAndEpisodes": "Сезоны и серии",
-  "season": "Сезон",
-  "buyVip": "Купить VIP ⭐️",
-  "supportCreator": "Поддержать автора",
-  "supportSubtitle": "Крипто-перевод (USDT / TON)",
-  "source1": "Источник 1",
-  "source2": "Источник 2",
-  "source3": "Источник 3",
-  "supportContact": "Написать разработчику",
-  "supportContactSubtitle": "Связь с техподдержкой",
-  "menu": "Меню",
-  "supportProject": "Поддержать проект",
-  "scanQr": "Сканируйте QR или скопируйте адрес ниже",
-  "copy": "Копировать",
-  "addressCopied": "Адрес скопирован в буфер обмена!",
-  "close": "Закрыть", "downloadAndroid": "Скачать MediaBox на Android", "downloadIos": "Скачать MediaBox iOS", "mediaBoxTelegram": "MediaBox в Telegram", "iosInstallPrompt": "Чтобы установить MediaBox на iPhone/iPad: нажмите кнопку «Поделиться» (квадрат со стрелочкой вверх внизу Safari) и выберите «На экран Домой».", "cancelPrompt": "Если появится запрос \"Открыть ссылку\", нажмите \"Отмена\".",
-  "clearHistory": "Очистить всю историю", "confirmClearHistory": "Вы уверены, что хотите очистить всю историю?",
-  "clearFavorites": "Очистить избранное", "confirmClearFavorites": "Вы уверены, что хотите очистить всё избранное?", "emptyHistory": "История просмотров пуста", "addToFavorites": "В избранное", "removeFromFavorites": "Удалить из избранного", "history": "История",
-  "overview": "Обзор", "playTrailer": "Воспроизвести трейлер", "tmdbRating": "Зрительский рейтинг", "topImdb": "⭐ Top IMDb", "topCast": "В главных ролях", "director": "Режиссер", "writer": "Сценарист", "trailer": "Трейлер", "dateOfBirth": "Дата рождения", "placeOfBirth": "Место рождения", "actingMastery": "Исполнительное мастерство", "popularProfile": "Популярный профиль", "biography": "Биография", "knownFor": "Известность за", "infoMissing": "Информация отсутствует",
-  "contentUnavailable": "Контент временно недоступен", "contentUnavailableDesc": "Фильм не найден на доступных источниках. Попробуйте позже или выберите другой фильм.", "retry": "Повторить",
-  "comingSoonMediaBox": "Скоро на MediaBox", "chooseAnother": "Выбрать другой фильм",
-  "unreleasedMovie": "Фильм ещё не вышел в кинотеатрах", "premiereDate": "Премьера", "watchTrailerOfficial": "Смотреть трейлер", "inProductionDesc": "Фильм находится на стадии производства. Официальный трейлер доступен ниже.",
-  "trailersTab": "Что глянуть?", "watchMovie": "Смотреть фильм", "watchSeries": "Смотреть сериал", "trailerSoundOn": "Звук", "trailerSoundOff": "Без звука", "audioLanguageHint": "Переключи язык аудио здесь", "nextTrailer": "Следующий", "prevTrailer": "Предыдущий", "watchAll": "Смотреть все", "moreMovies": "Больше фильмов", "showLess": "Свернуть", "clickToHide": "Нажмите, чтобы скрыть", "removeFromHistory": "Удалить из истории", "offlineBanner": "📡 Соединение частично отсутствует — используется локальный кэш", "trending": "Популярное", "backToCatalog": "В каталог", "returnToList": "← Вернуться к списку", "categoryBadge": "Категория", "allCategories": "Все категории", "moreCategories": "Больше категорий", "popularCategory": "Популярное", "adultCategory": "18+", "moreOnAdultSite": "Ещё больше на сайте 18+", "thousandsAdultVideos": "Тысячи эксклюзивных роликов", "goToSite": "Перейти →", "securePlaybackNotice": "Воспроизведение защищено. Запись экрана может быть заблокирована системой устройства.", "videoNotFound": "Видео не найдено или удалено", "loadingVideo": "Загрузка видео...", "openBanner": "Перейти", "adBadge": "Реклама", "adWordMovies": "ФИЛЬМЫ", "adWordSeries": "СЕРИАЛЫ", "adWordEverywhere": "ВЕЗДЕ", "step1": "1. Шаг 1", "step2": "2. Шаг 2", "step3": "3. Шаг 3", "rotateDeviceHint": "Поверните телефон для полного экрана",
-  "music_collections": "Подборки",
-  "music_search": "Поиск",
-  "music_favorites": "Любимые",
-  "music_cache": "Кэш",
-  "music_cache_empty": "Кэш пуст",
-  "music_clear_cache": "Очистить",
-  "music_to_files": "В Файлы",
-  "music_exporting": "Экспорт...",
-  "music_search_placeholder": "Исполнитель или трек",
-  "music_search_prompt": "Поиск музыки",
-  "searching": "Поиск...",
-  "eq_disabled": "Выкл",
-  "eq_frequencies": "Частоты",
-  "play": "Воспроизвести",
-  "pause": "Пауза",
-  "prev": "Назад",
-  "next": "Вперед",
-  "fullscreen": "Во весь экран",
-  "shareTelegram": "В Telegram",
-  "copyLink": "Копировать ссылку",
-  "music_hit_of_collection": "ХИТ ПОДБОРКИ",
-  "music_offline": "ОФЛАЙН",
-  "music_no_favorites": "Любимые треки не найдены",
-  "music_no_results": "Ничего не найдено",
-  "music_full_unavailable": "Полная версия трека недоступна",
-  "equalizer": "Эквалайзер",
-  "eq_preset": "Пресет",
-  "eq_spatial_3d": "3D Объем",
-  "eq_bass_boost": "Усиление баса",
-  "eq_flat": "Обычный",
-  "eq_bass": "Глубокий бас",
-  "eq_surround": "3D Пространство",
-  "eq_vocal": "Чистый голос",
-  "eq_rock": "Рок",
-  "eq_edm": "Клубный",
-  "eq_hiphop": "Хип-Хоп",
-  "eq_acoustic": "Акустика",
-  "eq_treble": "Яркие высокие",
-  "eq_custom": "Свой",
-  "eq_reset": "Сброс",
-  "eq_enabled": "Включен",
-  "col_hits": "Суперхиты",
-  "col_russian": "Русские хиты",
-  "col_rock": "Рок",
-  "col_electronic": "Электроника",
-  "col_hiphop": "Хип-Хоп",
-  "col_chill": "Chillout",
-  "music_play_all": "Слушать всё",
-  "music_shuffle": "Перемешать",
-  "music_reorder": "Порядок",
-  "music_done": "Готово",
-  "music_move_up": "Вверх",
-  "music_move_down": "Вниз",
-  "music_tab_tracks": "Треки",
-  "music_tab_playlists": "Плейлисты",
-  "music_playlist_tracks": "треков",
-  "music_back_to_search": "Назад",
-  "music_no_playlists": "Плейлисты не найдены",
-  "music_catalog": "Каталог",
-  "music_all_collections": "Все подборки",
-  "music_load_more": "Ещё",
-  "music_albums": "Альбомы",
-  "music_all_tracks": "Все треки",
-  "music_data_saver": "Экономия",
-  "music_data_saver_hint": "Экономия трафика: низкий битрейт (до 96 кбит/с), без фоновых загрузок.",
-  "music_popular_tracks": "Треки",
-  "loading_album": "Загрузка альбома..."
-  },
-  'en-US': {"iosInstallTitle": "Install on iPhone & iPad", "iosStep1": "In Safari, tap the Share button (box with arrow up) at the bottom", "iosStep2": "Scroll down and select \"Add to Home Screen\"", "iosStep3": "Tap \"Add\" in the top right corner", "gotIt": "Got it", "bannerMainBot": "Free movies right in your telegram", "bannerTelegram": "Secret room in tg", "bannerAdult": "Secret 18+ Section", "secretRoomTab": "Secret Room 🍓", "secretRoomRulesTitle": "3 Rules of the Secret Room:", "secretRoomRule1": "1. The first rule of the secret room — do not tell anyone about the secret room.", "secretRoomRule2": "2. The second rule of the secret room — do not tell anyone about the first rule of the secret room.", "secretRoomRule3": "3. The third rule of the secret room — I promise to subscribe to the TG bot )", "secretRoomWarning": "By clicking 'I Confirm', you acknowledge that you are at least 18 years of age and take full legal responsibility for viewing adult content. You agree not to distribute this content to minors.", "secretRoomConfirm": "✅ I Confirm", "secretRoomLeave": "❌ Leave Page", 
-  "movies": "Movies",
-  "series": "TV Shows",
-  "tv": "MediaBox TV",
-  "tvShort": "TV",
-  "dramas": "Asian Dramas",
-  "sub_indo": "Sub Indo",
-  "korean_drama": "Korean Dramas",
-  "search": "Search",
-  "searchBtn": "Search",
-  "searchPlaceholder": "Search movies and TV shows...",
-  "allGenres": "All genres",
-  "allCountries": "All countries",
-  "loadMore": "Load more",
-  "showMore": "Show more",
-  "downloadsTab": "Download",
-  "home": "Home",
-  "profile": "Profile",
-  "settings": "Settings",
-  "watch": "Watch",
-  "recommendations": "Recommendations",
-  "loading": "Loading...",
-  "notFound": "Nothing found",
-  "movieNotFound": "Movie not found",
-  "descriptionMissing": "No description available.",
-  "myFavorites": "History",
-  "emptyFavorites": "It is empty here so far 🎬",
-  "vipStatus": "VIP Status",
-  "buyLifetime": "Buy Lifetime",
-  "buyLifetimeSub": "One-time payment for endless streaming",
-  "vipActive": "VIP active until",
-  "lifetimeActive": "Lifetime VIP active",
-  "privateModeTitle": "Private 🍓 Section",
-  "privateModeDesc": "Exclusive uncensored content in Telegram.",
-  "privateBotTitle": "Private VIP Club",
-  "open18Bot": "Watch 18+ in Telegram", "mainBotTitle": "Watch in Telegram", "mainBotDesc": "Watch new movies and series for free without limits.", "openMainBot": "Open in Telegram",
-  "buyVipForAccess": "Buy VIP for access",
-  "privateCollection": "Private Collection",
-  "privateCollectionDesc": "Private collection of premium content. Available only for VIP members.",
-  "unlockWithStars": "Unlock with Telegram Stars",
-  "language": "Language",
-  "theme": "Theme",
-  "themeAuto": "Auto",
-  "themeLight": "Light",
-  "themeDark": "Dark",
-  "searchPlaceholderRadio": "Search...",
-  "back": "Back",
-  "vipRequired": "VIP Required",
-  "vipRequiredDesc": "This content is for VIP only",
-  "openBot": "Open Bot",
-  "movies_and_series": "Movies",
-  "radio_and_tv": "Radio",
-  "privateContent": "Private",
-  "favorites": "Favorites",
-  "subtitle_movies": "Movies & series, ad-free",
-  "subtitle_radio": "Live streams and stations",
-  "subtitle_adult": "Exclusive 18+ collection",
-  "tgLoginRequired": "You need to log in via Telegram to access the Private section",
-  "tab_movies": "Movies",
-  "tab_series": "Series",
-  "tab_radio": "Radio",
-  "tab_music": "Music",
-  "tab_private": "Private",
-  "emptyList": "List is empty",
-  "comingSoon": "Coming Soon...",
-  "player1": "Player 1",
-  "player2": "Player 2",
-  "player3": "Player 3",
-  "player": "Player",
-  "episode": "Episode",
-  "seasonsAndEpisodes": "Seasons and Episodes",
-  "season": "Season",
-  "buyVip": "Buy VIP ⭐️",
-  "supportCreator": "Support Creator",
-  "supportSubtitle": "Crypto Transfer (USDT / TON)",
-  "source1": "Source 1",
-  "source2": "Source 2",
-  "source3": "Source 3",
-  "supportContact": "Contact Developer",
-  "supportContactSubtitle": "Contact tech support",
-  "menu": "Menu",
-  "supportProject": "Support Project",
-  "scanQr": "Scan QR or copy address below",
-  "copy": "Copy",
-  "addressCopied": "Address copied to clipboard!",
-  "close": "Close",
-  "downloadAndroid": "Download MediaBox for Android",
-  "downloadIos": "Download MediaBox iOS",
-  "mediaBoxTelegram": "MediaBox on Telegram",
-  "iosInstallPrompt": "To install MediaBox on iPhone/iPad: tap 'Share' (box with arrow up at bottom of Safari) and select 'Add to Home Screen'.",
-  "cancelPrompt": "If prompted with \"Open link\", tap \"Cancel\".",
-  "clearHistory": "Clear all history",
-  "confirmClearHistory": "Are you sure you want to clear all history?",
-  "clearFavorites": "Clear favorites",
-  "confirmClearFavorites": "Are you sure you want to clear all favorites?",
-  "emptyHistory": "Viewing history is empty",
-  "addToFavorites": "Add to favorites",
-  "removeFromFavorites": "Remove from favorites",
-  "history": "History",
-  "overview": "Overview",
-  "playTrailer": "Play trailer",
-  "tmdbRating": "Audience rating",
-  "topImdb": "⭐ Top IMDb",
-  "topCast": "Top Cast",
-  "director": "Director",
-  "writer": "Writer",
-  "trailer": "Trailer",
-  "dateOfBirth": "Date of birth",
-  "placeOfBirth": "Place of birth",
-  "actingMastery": "Acting mastery",
-  "popularProfile": "Popular profile",
-  "biography": "Biography",
-  "knownFor": "Known for",
-  "infoMissing": "Information missing",
-  "contentUnavailable": "Content temporarily unavailable",
-  "contentUnavailableDesc": "Movie not found on available sources. Try again later or choose another movie.",
-  "retry": "Retry",
-  "comingSoonMediaBox": "Soon on MediaBox",
-  "chooseAnother": "Choose another movie",
-  "unreleasedMovie": "Movie not released in theaters yet",
-  "premiereDate": "Premiere",
-  "watchTrailerOfficial": "Watch trailer",
-  "inProductionDesc": "Movie is currently in production. Official trailer is available below.",
-  "trailersTab": "What to watch?",
-  "watchMovie": "Watch movie",
-  "watchSeries": "Watch TV show",
-  "trailerSoundOn": "Sound",
-  "trailerSoundOff": "Mute",
-  "audioLanguageHint": "Switch audio language here",
-  "nextTrailer": "Next",
-  "prevTrailer": "Previous",
-  "watchAll": "Watch all",
-  "moreMovies": "More movies",
-  "showLess": "Collapse",
-  "clickToHide": "Click to hide",
-  "removeFromHistory": "Remove from history",
-  "offlineBanner": "📡 Connection partially lost — using local cache",
-  "trending": "Trending",
-  "backToCatalog": "Back to catalog",
-  "returnToList": "← Back to list",
-  "categoryBadge": "Category",
-  "allCategories": "All categories",
-  "moreCategories": "More categories",
-  "popularCategory": "Popular",
-  "adultCategory": "18+",
-  "moreOnAdultSite": "More on 18+ site",
-  "thousandsAdultVideos": "Thousands of exclusive videos",
-  "goToSite": "Go to site →",
-  "securePlaybackNotice": "Playback is protected. Screen recording may be blocked by your device.",
-  "videoNotFound": "Video not found or removed",
-  "loadingVideo": "Loading video...",
-  "openBanner": "Open",
-  "adBadge": "Ad",
-  "adWordMovies": "MOVIES",
-  "adWordSeries": "SERIES",
-  "adWordEverywhere": "EVERYWHERE",
-  "step1": "1. Step 1",
-  "step2": "2. Step 2",
-  "step3": "3. Step 3",
-  "rotateDeviceHint": "Rotate your phone for full screen",
-  "music_collections": "Collections",
-  "music_search": "Search",
-  "music_favorites": "Favorites",
-  "music_cache": "Cache",
-  "music_cache_empty": "Cache is empty",
-  "music_clear_cache": "Clear",
-  "music_to_files": "To Files",
-  "music_exporting": "Exporting...",
-  "music_search_placeholder": "Artist or track",
-  "music_search_prompt": "Search music",
-  "searching": "Searching...",
-  "eq_disabled": "Off",
-  "eq_frequencies": "Frequencies",
-  "play": "Play",
-  "pause": "Pause",
-  "prev": "Previous",
-  "next": "Next",
-  "fullscreen": "Fullscreen",
-  "shareTelegram": "To Telegram",
-  "copyLink": "Copy link",
-  "music_hit_of_collection": "FEATURED HIT",
-  "music_offline": "OFFLINE",
-  "music_no_favorites": "No favorite tracks yet",
-  "music_no_results": "Nothing found",
-  "music_full_unavailable": "Full track is unavailable",
-  "equalizer": "Equalizer",
-  "eq_preset": "Preset",
-  "eq_spatial_3d": "3D Spatial",
-  "eq_bass_boost": "Bass Boost",
-  "eq_flat": "Flat",
-  "eq_bass": "Deep Bass",
-  "eq_surround": "3D Surround",
-  "eq_vocal": "Clear Vocal",
-  "eq_rock": "Rock",
-  "eq_edm": "Club / EDM",
-  "eq_hiphop": "Hip-Hop",
-  "eq_acoustic": "Acoustic",
-  "eq_treble": "Treble Boost",
-  "eq_custom": "Custom",
-  "eq_reset": "Reset",
-  "eq_enabled": "Enabled",
-  "col_hits": "Top Hits",
-  "col_russian": "Russian Hits",
-  "col_rock": "Rock",
-  "col_electronic": "Electronic",
-  "col_hiphop": "Hip-Hop",
-  "col_chill": "Chillout",
-  "music_play_all": "Play all",
-  "music_shuffle": "Shuffle",
-  "music_reorder": "Reorder",
-  "music_done": "Done",
-  "music_move_up": "Move up",
-  "music_move_down": "Move down",
-  "music_tab_tracks": "Tracks",
-  "music_tab_playlists": "Playlists",
-  "music_playlist_tracks": "tracks",
-  "music_back_to_search": "Back",
-  "music_no_playlists": "No playlists found",
-  "music_catalog": "Catalog",
-  "music_all_collections": "All collections",
-  "music_load_more": "More",
-  "music_albums": "Albums",
-  "music_all_tracks": "All tracks",
-  "music_data_saver": "Data saver",
-  "music_data_saver_hint": "Data saver: low bitrate (up to 96 kbps), no background downloads.",
-  "music_popular_tracks": "Tracks",
-  "loading_album": "Loading album..."
+  "ru-RU": ruDict,
+  "en-US": enDict,
+};
+
+// Динамические загрузчики для дополнительных языков (код-сплиттинг бандла)
+const extendedLocaleLoaders: Record<string, () => Promise<{ default: Record<string, string> }>> = {
+  "id-ID": () => import("../locales/id-ID.json"),
+  "de-DE": () => import("../locales/de-DE.json"),
+  "es-ES": () => import("../locales/es-ES.json"),
+  "fr-FR": () => import("../locales/fr-FR.json"),
+};
+
+// In-memory кэш загруженных словарей для предотвращения повторных сетевых запросов
+const loadedExtendedDicts: Partial<Record<Language, Record<string, string>>> = {};
+
+export const extendedTranslations = new Proxy(translations as any, {
+  get(target, prop: string) {
+    if (prop in target) return target[prop];
+    if (loadedExtendedDicts[prop as Language]) return loadedExtendedDicts[prop as Language];
+    return target["ru-RU"];
   }
-};
+});
 
-export const extendedTranslations = {
-  ...translations,
-  'id-ID': {
-    "settings": "Pengaturan", "trailersTab": "Mau nonton apa?", "watchMovie": "Nonton Film", "watchSeries": "Nonton Serial",
-    "trailerSoundOn": "Suara", "trailerSoundOff": "Bisu", "audioLanguageHint": "Ganti bahasa audio di sini", "nextTrailer": "Berikutnya", "prevTrailer": "Sebelumnya",
-    "iosInstallTitle": "Pasang di iPhone & iPad", "iosStep1": "Di Safari, ketuk tombol Bagikan (ikon kotak panah ke atas di bawah)", "iosStep2": "Gulir ke bawah dan pilih 'Tambah ke Layar Utama'", "iosStep3": "Ketuk 'Tambah' di pojok kanan atas", "gotIt": "Paham",
-    "bannerMainBot": "Film gratis langsung di Telegram", "bannerTelegram": "Ruang Rahasia di Telegram", "bannerAdult": "Bagian Rahasia 18+", "secretRoomTab": "Ruang Rahasia 🍓",
-    "secretRoomRulesTitle": "3 Aturan Ruang Rahasia:", "secretRoomRule1": "1. Aturan pertama ruang rahasia — jangan beri tahu siapa pun tentang ruang rahasia.", "secretRoomRule2": "2. Aturan kedua ruang rahasia — jangan beri tahu siapa pun tentang aturan pertama ruang rahasia.", "secretRoomRule3": "3. Aturan ketiga ruang rahasia — berjanji untuk subscribe bot Telegram )",
-    "secretRoomWarning": "Dengan mengeklik 'Saya Setuju', Anda menyatakan bahwa Anda berusia minimal 18 tahun dan bertanggung jawab penuh.", "secretRoomConfirm": "✅ Saya Setuju", "secretRoomLeave": "❌ Keluar Halaman",
-    "movies": "Film", "series": "Serial & Drakor", "dramas": "Drakor", "sub_indo": "Sub Indo", "korean_drama": "Drama Korea",
-    "search": "Cari", "searchBtn": "Cari", "allCountries": "Semua Negara", "searchPlaceholder": "Cari film, serial, drakor...", "allGenres": "Semua Genre", "loadMore": "Muat lebih banyak", "showMore": "Tampilkan lainnya", "downloadsTab": "Unduh", "home": "Beranda", "profile": "Profil", "watch": "Nonton", "recommendations": "Rekomendasi", "loading": "Memuat...", "notFound": "Tidak ditemukan", "movieNotFound": "Film tidak ditemukan", "descriptionMissing": "Deskripsi tidak tersedia.", "myFavorites": "Riwayat", "emptyFavorites": "Masih kosong di sini 🎬", "vipStatus": "Status VIP", "buyLifetime": "Beli Selamanya", "buyLifetimeSub": "Bayar sekali untuk streaming selamanya", "vipActive": "VIP aktif hingga", "lifetimeActive": "VIP Selamanya aktif", "language": "Bahasa", "theme": "Tema", "themeAuto": "Otomatis", "themeLight": "Terang", "themeDark": "Gelap", "back": "Kembali", "openBot": "Buka Bot", "movies_and_series": "Film & Serial", "favorites": "Favorit", "tab_movies": "Film", "tab_series": "Serial", "tab_radio": "Radio", "player1": "Pemutar 1", "player2": "Pemutar 2", "player3": "Pemutar 3", "seasonsAndEpisodes": "Musim & Episode", "season": "Musim", "episode": "Episode", "close": "Tutup", "overview": "Sinopsis", "playTrailer": "Putar Trailer", "topImdb": "⭐ Top IMDb", "topCast": "Pemeran Utama", "director": "Sutradara", "trailer": "Trailer", "trending": "Populer", "categoryBadge": "Kategori", "allCategories": "Semua Kategori", "moreCategories": "Kategori Lainnya", "popularCategory": "Populer", "tab_music": "Musik", "music_search_prompt": "Cari musik", "music_search_placeholder": "Artis atau judul lagu", "searching": "Mencari...", "play": "Putar", "pause": "Jeda", "prev": "Sebelumnya", "next": "Berikutnya", "fullscreen": "Layar Penuh", "music_full_unavailable": "Lagu lengkap tidak tersedia"
-  },
-  'es-ES': {"settings": "Ajustes", "trailersTab": "¿Qué ver?", "watchMovie": "Ver película", "watchSeries": "Ver serie", "trailerSoundOn": "Sonido", "trailerSoundOff": "Sin sonido", "audioLanguageHint": "Cambiar idioma de audio aquí", "nextTrailer": "Siguiente", "prevTrailer": "Anterior", "iosInstallTitle": "Instalar en iPhone y iPad", "iosStep1": "En Safari, toca el botón Compartir (cuadrado con flecha) en la parte inferior", "iosStep2": "Desplázate hacia abajo y selecciona \"Añadir a pantalla de inicio\"", "iosStep3": "Toca \"Añadir\" en la esquina superior derecha", "gotIt": "Entendido", "iosInstallPrompt": "Para instalar MediaBox en iPhone/iPad: toca el botón 'Compartir' (cuadrado con flecha hacia arriba en la parte inferior de Safari) y selecciona 'Añadir a pantalla de inicio'.", "bannerMainBot": "Películas gratis directamente en tu telegram", "bannerTelegram": "Habitación secreta en tg", "bannerAdult": "Sección Secreta 18+", "secretRoomTab": "Habitación Secreta 🍓", "secretRoomRulesTitle": "3 Reglas de la Habitación Secreta:", "secretRoomRule1": "1. La primera regla de la habitación secreta — no le digas a nadie sobre la habitación secreta.", "secretRoomRule2": "2. La segunda regla de la habitación secreta — no le digas a nadie sobre la primera regla de la habitación secreta.", "secretRoomRule3": "3. La tercera regla de la habitación secreta — prometo suscribirme al bot de TG )", "secretRoomWarning": "Al hacer clic en 'Confirmo', reconoces que tienes al menos 18 años y asumes toda la responsabilidad legal por ver contenido para adultos. Aceptas no distribuir este contenido a menores.", "secretRoomConfirm": "✅ Confirmo", "secretRoomLeave": "❌ Salir de la página", "movies": "Películas", "series": "Series de TV", "dramas": "Dramas Asiáticos", "sub_indo": "Sub Indo", "korean_drama": "Dramas Coreanos", "search": "Buscar", "searchBtn": "Buscar", "allCountries": "Todos los países", "searchPlaceholder": "Buscar películas y series...", "allGenres": "Todos los géneros", "loadMore": "Cargar más", "showMore": "Ver más", "downloadsTab": "Descargar", "home": "Inicio", "profile": "Perfil", "watch": "Ver", "recommendations": "Recomendaciones", "loading": "Cargando...", "notFound": "No se encontró nada", "movieNotFound": "Película no encontrada", "descriptionMissing": "No hay descripción disponible.", "myFavorites": "Historial", "emptyFavorites": "Está vacío aquí por ahora 🎬", "vipStatus": "Estado VIP", "buyLifetime": "Comprar de por vida", "buyLifetimeSub": "Pago único para streaming sin fin", "vipActive": "VIP activo hasta", "lifetimeActive": "VIP de por vida activo", "privateModeTitle": "Sección Privada 🍓", "privateModeDesc": "Contenido exclusivo sin censura en Telegram.", "privateBotTitle": "Club VIP Privado", "open18Bot": "Ver 18+ en Telegram", "mainBotTitle": "Ver en Telegram", "mainBotDesc": "Mira nuevas películas y series gratis sin límites.", "openMainBot": "Abrir en Telegram", "buyVipForAccess": "Comprar VIP para acceder", "privateCollection": "Colección Privada", "privateCollectionDesc": "Colección privada de contenido premium. Disponible solo para miembros VIP.", "unlockWithStars": "Desbloquear con Telegram Stars", "language": "Idioma", "theme": "Tema", "themeAuto": "Automático", "themeLight": "Claro", "themeDark": "Oscuro", "searchPlaceholderRadio": "Buscar...", "back": "Volver", "vipRequired": "Requiere VIP", "vipRequiredDesc": "Este contenido es solo para VIP", "openBot": "Abrir Bot", "movies_and_series": "Películas", "radio_and_tv": "Radio", "privateContent": "Privado", "favorites": "Favoritos", "subtitle_movies": "Películas y series, sin anuncios", "subtitle_radio": "Transmisiones en vivo y estaciones", "subtitle_adult": "Colección exclusiva +18", "tgLoginRequired": "Debes iniciar sesión a través de Telegram para acceder a la section Privada", "tab_movies": "Películas", "tab_series": "Series", "tab_radio": "Radio", "tab_private": "Privado", "emptyList": "La lista está vacía", "comingSoon": "Próximamente...", "player1": "Reproductor 1", "player2": "Reproductor 2", "player3": "Reproductor 3", "seasonsAndEpisodes": "Temporadas y episodios", "season": "Temporada", "buyVip": "Comprar VIP ⭐️", "supportCreator": "Apoyar al Creador", "supportSubtitle": "Transferencia Crypto (USDT / TON)", "source1": "Fuente 1", "source2": "Fuente 2", "source3": "Fuente 3", "supportContact": "Contactar al desarrollador", "supportContactSubtitle": "Contactar a soporte técnico", "menu": "Menú", "supportProject": "Apoyar el Proyecto", "scanQr": "Escanea el código QR o copia la dirección a continuación", "copy": "Copiar", "addressCopied": "¡Dirección copiada al portapapeles!", "close": "Cerrar", "downloadAndroid": "Descargar MediaBox para Android", "downloadIos": "Descargar MediaBox iOS", "mediaBoxTelegram": "MediaBox en Telegram", "clearHistory": "Borrar todo el historial", "confirmClearHistory": "¿Estás seguro de que quieres borrar todo el historial?", "cancelPrompt": "Si aparece una ventana de \"Abrir enlace\", presione \"Cancelar\".", "watchAll": "Ver todo", "backToCatalog": "Al catálogo", "returnToList": "← Volver a la lista", "categoryBadge": "Categoría", "allCategories": "Todas las categorías", "moreCategories": "Más categorías", "popularCategory": "Popular", "trending": "Popular", "adultCategory": "18+", "moreOnAdultSite": "Más en el sitio 18+", "thousandsAdultVideos": "Miles de videos exclusivos", "goToSite": "Ir al sitio →", "securePlaybackNotice": "La reproducción está protegida. La grabación de pantalla puede ser bloqueada por tu dispositivo.", "videoNotFound": "Video no encontrado o eliminado", "loadingVideo": "Cargando video...", "openBanner": "Abrir", "adBadge": "Publicidad", "adWordMovies": "PELÍCULAS", "adWordSeries": "SERIES", "adWordEverywhere": "EN TODAS PARTES", "step1": "1. Paso 1", "step2": "2. Paso 2", "step3": "3. Paso 3", "topCast": "Reparto principal", "overview": "Descripción general", "director": "Director", "writer": "Guionista", "trailer": "Tráiler", "dateOfBirth": "Fecha de nacimiento", "placeOfBirth": "Lugar de nacimiento", "actingMastery": "Maestría actoral", "popularProfile": "Perfil popular", "biography": "Biografía", "knownFor": "Conocido por", "infoMissing": "Información no disponible", "contentUnavailable": "Contenido temporalmente no disponible", "contentUnavailableDesc": "Película no encontrada en las fuentes disponibles. Inténtelo más tarde.", "retry": "Reintentar", "comingSoonMediaBox": "Próximamente en MediaBox", "chooseAnother": "Elegir otra película", "unreleasedMovie": "Película aún no estrenada en cines", "premiereDate": "Estreno", "watchTrailerOfficial": "Ver tráiler oficial", "inProductionDesc": "La película está en producción. El tráiler oficial estará disponible pronto.", "moreMovies": "Más películas", "showLess": "Colapsar", "clickToHide": "Toca para ocultar", "removeFromHistory": "Eliminar del historial", "offlineBanner": "📡 Conexión parcialmente perdida: usando caché local", "player": "Reproductor", "episode": "Episodio", "clearFavorites": "Borrar favoritos", "confirmClearFavorites": "¿Estás seguro de que quieres borrar todos los favoritos?", "emptyHistory": "El historial de visualización está vacío", "addToFavorites": "Añadir a favoritos", "removeFromFavorites": "Eliminar de favoritos", "history": "Historial", "playTrailer": "Reproducir tráiler", "tmdbRating": "Valoración de la audiencia", "topImdb": "⭐ Top IMDb", "rotateDeviceHint": "Gira tu teléfono para pantalla completa", "tab_music": "Música", "music_search_prompt": "Buscar música", "music_search_placeholder": "Artista o canción", "searching": "Buscando...", "eq_disabled": "Desactivado", "eq_frequencies": "Frecuencias", "play": "Reproducir", "pause": "Pausa", "prev": "Anterior", "next": "Siguiente", "fullscreen": "Pantalla completa", "shareTelegram": "En Telegram", "copyLink": "Copiar enlace"},
-  'de-DE': {"settings": "Einstellungen", "trailersTab": "Was schauen?", "iosInstallTitle": "Auf iPhone & iPad installieren", "iosStep1": "Tippen Sie in Safari unten auf die Schaltfläche 'Teilen' (Quadrat mit Pfeil)", "iosStep2": "Scrollen Sie nach unten und wählen Sie 'Zum Home-Bildschirm'", "iosStep3": "Tippen Sie oben rechts auf 'Hinzufügen'", "gotIt": "Verstanden", "iosInstallPrompt": "So installieren Sie MediaBox auf dem iPhone/iPad: Tippen Sie auf die Schaltfläche 'Teilen' (Quadrat mit Pfeil nach oben unten in Safari) und wählen Sie 'Zum Home-Bildschirm'.", "bannerMainBot": "Kostenlose Filme direkt in deinem Telegram", "bannerTelegram": "Geheimer Raum in tg", "bannerAdult": "Geheimer 18+ Bereich", "secretRoomTab": "Geheimer Raum 🍓", "secretRoomRulesTitle": "3 Regeln des geheimen Raums:", "secretRoomRule1": "1. Die erste Regel des geheimen Raums — erzähle niemandem vom geheimen Raum.", "secretRoomRule2": "2. Die zweite Regel des geheimen Raum — erzähle niemandem von der ersten Regel des geheimen Raums.", "secretRoomRule3": "3. Die dritte Regel des geheimen Raums — ich verspreche, den TG-Bot zu abonnieren )", "secretRoomWarning": "Indem Sie auf 'Ich bestätige' klicken, bestätigen Sie, dass Sie mindestens 18 Jahre alt sind, und übernehmen die volle rechtliche Verantwortung für das Ansehen von Inhalten für Erwachsene. Sie stimmen zu, diese Inhalte nicht an Minderjährige weiterzugeben.", "secretRoomConfirm": "✅ Ich bestätige", "secretRoomLeave": "❌ Seite verlassen", "movies": "Filme", "series": "Serien", "dramas": "Asiatische Dramen", "sub_indo": "Sub Indo", "korean_drama": "Koreanische Dramen", "search": "Suchen", "searchBtn": "Suchen", "allCountries": "Alle Länder", "searchPlaceholder": "Filme und Serien suchen...", "allGenres": "Alle Genres", "loadMore": "Mehr laden", "showMore": "Mehr anzeigen", "downloadsTab": "Download", "home": "Start", "profile": "Profil", "watch": "Ansehen", "recommendations": "Empfehlungen", "loading": "Wird geladen...", "notFound": "Nichts gefunden", "movieNotFound": "Film nicht gefunden", "descriptionMissing": "Keine Beschreibung verfügbar.", "myFavorites": "Verlauf", "emptyFavorites": "Hier ist es bisher leer 🎬", "vipStatus": "VIP Status", "buyLifetime": "Lifetime kaufen", "buyLifetimeSub": "Einmalige Zahlung für endloses Streaming", "vipActive": "VIP aktiv bis", "lifetimeActive": "Lifetime VIP aktiv", "privateModeTitle": "Privater Bereich 🍓", "privateModeDesc": "Exklusiver unzensierter Inhalt in Telegram.", "privateBotTitle": "Privater VIP-Club", "open18Bot": "18+ in Telegram ansehen", "mainBotTitle": "In Telegram ansehen", "mainBotDesc": "Sehen Sie neue Filme und Serien kostenlos ohne Grenzen.", "openMainBot": "In Telegram öffnen", "buyVipForAccess": "VIP für Zugang kaufen", "privateCollection": "Private Kollektion", "privateCollectionDesc": "Private Kollektion mit Premium-Inhalten. Nur für VIP-Mitglieder.", "unlockWithStars": "Mit Telegram Stars freischalten", "language": "Sprache", "theme": "Design", "themeAuto": "Auto", "themeLight": "Hell", "themeDark": "Dunkel", "searchPlaceholderRadio": "Suchen...", "back": "Zurück", "vipRequired": "VIP erforderlich", "vipRequiredDesc": "Dieser Inhalt ist nur für VIPs", "openBot": "Bot öffnen", "movies_and_series": "Filme", "radio_and_tv": "Radio", "privateContent": "Privat", "favorites": "Favoriten", "subtitle_movies": "Filme & Serien, werbefrei", "subtitle_radio": "Livestreams und Sender", "subtitle_adult": "Exklusive 18+ Kollektion", "tgLoginRequired": "Sie müssen sich über Telegram anmelden, um auf den privaten Bereich zuzugreifen", "tab_movies": "Filme", "tab_series": "Serien", "tab_radio": "Radio", "tab_private": "Privat", "emptyList": "Liste ist leer", "comingSoon": "Demnächst...", "player1": "Player 1", "player2": "Player 2", "player3": "Player 3", "seasonsAndEpisodes": "Staffeln und Episoden", "season": "Staffel", "buyVip": "VIP kaufen ⭐️", "supportCreator": "Ersteller unterstützen", "supportSubtitle": "Krypto-Transfer (USDT / TON)", "source1": "Quelle 1", "source2": "Quelle 2", "source3": "Quelle 3", "supportContact": "Entwickler kontaktieren", "supportContactSubtitle": "Technischen Support kontaktieren", "menu": "Menü", "supportProject": "Projekt unterstützen", "scanQr": "QR-Code scannen oder Adresse unten kopieren", "copy": "Kopieren", "addressCopied": "Adresse in die Zwischenablage kopiert!", "close": "Schließen", "downloadAndroid": "MediaBox für Android herunterladen", "downloadIos": "MediaBox iOS herunterladen", "mediaBoxTelegram": "MediaBox in Telegram", "clearHistory": "Gesamten Verlauf löschen", "confirmClearHistory": "Sind Sie sicher, dass Sie den gesamten Verlauf löschen möchten?", "cancelPrompt": "Wenn eine Meldung \"Link öffnen\" erscheint, drücken Sie \"Abbrechen\".", "watchAll": "Alle ansehen", "backToCatalog": "Zum Katalog", "returnToList": "← Zurück zur Liste", "categoryBadge": "Kategorie", "allCategories": "Alle Kategorien", "moreCategories": "Mehr Kategorien", "popularCategory": "Beliebt", "trending": "Beliebt", "adultCategory": "18+", "moreOnAdultSite": "Mehr auf der 18+ Website", "thousandsAdultVideos": "Tausende exklusive Videos", "goToSite": "Zur Website →", "securePlaybackNotice": "Die Wiedergabe ist geschützt. Bildschirmaufnahmen können vom Gerät blockiert werden.", "videoNotFound": "Video nicht gefunden oder entfernt", "loadingVideo": "Video wird geladen...", "openBanner": "Öffnen", "adBadge": "Werbung", "adWordMovies": "FILME", "adWordSeries": "SERIEN", "adWordEverywhere": "ÜBERALL", "watchMovie": "Film ansehen", "watchSeries": "Serie ansehen", "trailerSoundOn": "Ton an", "trailerSoundOff": "Stumm", "audioLanguageHint": "Audiosprache hier umschalten", "nextTrailer": "Nächster", "prevTrailer": "Vorheriger", "step1": "1. Schritt 1", "step2": "2. Schritt 2", "step3": "3. Schritt 3", "topCast": "Hauptbesetzung", "overview": "Übersicht", "director": "Regisseur", "writer": "Drehbuchautor", "trailer": "Trailer", "dateOfBirth": "Geburtsdatum", "placeOfBirth": "Geburtsort", "actingMastery": "Schauspielkunst", "popularProfile": "Beliebtes Profil", "biography": "Biografie", "knownFor": "Bekannt für", "infoMissing": "Keine Information verfügbar", "contentUnavailable": "Inhalt vorübergehend nicht verfügbar", "contentUnavailableDesc": "Film auf den verfügbaren Quellen nicht gefunden. Versuchen Sie es später erneut.", "retry": "Wiederholen", "comingSoonMediaBox": "Demnächst auf MediaBox", "chooseAnother": "Anderen Film wählen", "unreleasedMovie": "Film noch nicht in den Kinos erschienen", "premiereDate": "Premiere", "watchTrailerOfficial": "Offiziellen Trailer ansehen", "inProductionDesc": "Der Film befindet sich in der Produktion. Der offizielle Trailer ist bald verfügbar.", "moreMovies": "Mehr Filme", "showLess": "Einklappen", "clickToHide": "Tippen zum Ausblenden", "removeFromHistory": "Aus dem Verlauf entfernen", "offlineBanner": "📡 Verbindung teilweise verloren – lokaler Cache wird verwendet", "player": "Player", "episode": "Episode", "clearFavorites": "Favoriten löschen", "confirmClearFavorites": "Möchten Sie wirklich alle Favoriten löschen?", "emptyHistory": "Wiedergabeverlauf ist leer", "addToFavorites": "Zu Favoriten hinzufügen", "removeFromFavorites": "Aus Favoriten entfernen", "history": "Verlauf", "playTrailer": "Trailer abspielen", "tmdbRating": "Zuschauerbewertung", "topImdb": "⭐ Top IMDb", "rotateDeviceHint": "Drehen Sie Ihr Telefon für Vollbild", "tab_music": "Musik", "music_search_prompt": "Musik suchen", "music_search_placeholder": "Künstler oder Titel", "searching": "Suchen...", "eq_disabled": "Aus", "eq_frequencies": "Frequenzen", "play": "Abspielen", "pause": "Pause", "prev": "Zurück", "next": "Weiter", "fullscreen": "Vollbild", "shareTelegram": "In Telegram", "copyLink": "Link kopieren"},
-  'fr-FR': {"settings": "Paramètres", "trailersTab": "Quoi regarder ?", "watchMovie": "Regarder le film", "watchSeries": "Regarder la série", "trailerSoundOn": "Son", "trailerSoundOff": "Sans son", "audioLanguageHint": "Changer la langue audio ici", "nextTrailer": "Suivant", "prevTrailer": "Précédent", "iosInstallTitle": "Installer sur iPhone et iPad", "iosStep1": "Dans Safari, appuyez sur le bouton Partager (carré avec flèche) en bas", "iosStep2": "Faites défiler vers le bas et sélectionnez « Sur l'écran d'accueil »", "iosStep3": "Appuyez sur « Ajouter » en haut à droite", "gotIt": "Compris", "iosInstallPrompt": "Pour installer MediaBox sur iPhone/iPad : appuyez sur le bouton 'Partager' (carré avec flèche vers le haut en bas de Safari) et sélectionnez 'Sur l'écran d'accueil'.", "bannerMainBot": "Des films gratuits directement dans votre telegram", "bannerTelegram": "Chambre secrète dans tg", "bannerAdult": "Section Secrète 18+", "secretRoomTab": "Chambre Secrète 🍓", "secretRoomRulesTitle": "3 Règles de la Chambre Secrète :", "secretRoomRule1": "1. La première règle de la chambre secrète — ne parlez à personne de la chambre secrète.", "secretRoomRule2": "2. La deuxième règle de la chambre secrète — ne parlez à personne de la première règle de la chambre secrète.", "secretRoomRule3": "3. La troisième règle de la chambre secrète — je promets de m'abonner au bot TG )", "secretRoomWarning": "En cliquant sur 'Je confirme', vous reconnaissez que vous avez au moins 18 ans et assumez l'entière responsabilité légale du visionnage de contenu pour adultes. Vous acceptez de ne pas distribuer ce contenu à des mineurs.", "secretRoomConfirm": "✅ Je confirme", "secretRoomLeave": "❌ Quitter la page", "movies": "Films", "series": "Séries", "dramas": "Dramas Asiatiques", "sub_indo": "Sub Indo", "korean_drama": "Dramas Coréens", "search": "Rechercher", "searchBtn": "Rechercher", "allCountries": "Tous les pays", "searchPlaceholder": "Rechercher films et séries...", "allGenres": "Tous les genres", "loadMore": "Charger plus", "showMore": "Afficher plus", "downloadsTab": "Télécharger", "home": "Accueil", "profile": "Profil", "watch": "Regarder", "recommendations": "Recommandations", "loading": "Chargement...", "notFound": "Rien trouvé", "movieNotFound": "Film introuvable", "descriptionMissing": "Aucune description disponible.", "myFavorites": "Historique", "emptyFavorites": "C'est vide ici pour le moment 🎬", "vipStatus": "Statut VIP", "buyLifetime": "Acheter à vie", "buyLifetimeSub": "Paiement unique pour le streaming sans fin", "vipActive": "VIP actif jusqu'au", "lifetimeActive": "VIP à vie actif", "privateModeTitle": "Section Privée 🍓", "privateModeDesc": "Contenu exclusif non censuré sur Telegram.", "privateBotTitle": "Club VIP Privé", "open18Bot": "Regarder 18+ sur Telegram", "mainBotTitle": "Regarder sur Telegram", "mainBotDesc": "Regardez de nouveaux films et séries gratuitement sans limites.", "openMainBot": "Ouvrir sur Telegram", "buyVipForAccess": "Acheter VIP pour accéder", "privateCollection": "Collection Privée", "privateCollectionDesc": "Collection privée de contenu premium. Disponible uniquement pour les membres VIP.", "unlockWithStars": "Débloquer avec Telegram Stars", "language": "Langue", "theme": "Thème", "themeAuto": "Auto", "themeLight": "Clair", "themeDark": "Sombre", "searchPlaceholderRadio": "Rechercher...", "back": "Retour", "vipRequired": "VIP Requis", "vipRequiredDesc": "Ce contenu est réservé aux VIP", "openBot": "Ouvrir le Bot", "movies_and_series": "Films", "radio_and_tv": "Radio", "privateContent": "Privé", "favorites": "Favoris", "subtitle_movies": "Films & séries, sans publicité", "subtitle_radio": "Flux en direct et stations", "subtitle_adult": "Collection exclusive 18+", "tgLoginRequired": "Vous devez vous connecter via Telegram pour accéder à la section Privée", "tab_movies": "Films", "tab_series": "Séries", "tab_radio": "Radio", "tab_private": "Privé", "emptyList": "La liste est vide", "comingSoon": "Bientôt...", "player1": "Lecteur 1", "player2": "Lecteur 2", "player3": "Lecteur 3", "seasonsAndEpisodes": "Saisons et épisodes", "season": "Saison", "buyVip": "Acheter VIP ⭐️", "supportCreator": "Soutenir le créateur", "supportSubtitle": "Transfert Crypto (USDT / TON)", "source1": "Source 1", "source2": "Source 2", "source3": "Source 3", "supportContact": "Contacter le développeur", "supportContactSubtitle": "Contacter l'assistance technique", "menu": "Menu", "supportProject": "Soutenir le projet", "scanQr": "Scannez le code QR ou copiez l'adresse ci-dessous", "copy": "Copier", "addressCopied": "Adresse copiée dans le presse-papiers !", "close": "Fermer", "downloadAndroid": "Télécharger MediaBox pour Android", "downloadIos": "Télécharger MediaBox iOS", "mediaBoxTelegram": "MediaBox sur Telegram", "clearHistory": "Effacer tout l'historique", "confirmClearHistory": "Êtes-vous sûr de vouloir effacer tout l'historique ?", "cancelPrompt": "Si un message demande \"Ouvrir le lien\", appuyez sur \"Annuler\".", "watchAll": "Tout voir", "backToCatalog": "Au catalogue", "returnToList": "← Retour à la liste", "categoryBadge": "Catégorie", "allCategories": "Toutes les catégories", "moreCategories": "Plus de catégories", "popularCategory": "Populaire", "trending": "Populaire", "adultCategory": "18+", "moreOnAdultSite": "Plus sur le site 18+", "thousandsAdultVideos": "Des milliers de vidéos exclusives", "goToSite": "Aller sur le site →", "securePlaybackNotice": "La lecture est sécurisée. L'enregistrement d'écran peut être bloqué par votre appareil.", "videoNotFound": "Vidéo non trouvée ou supprimée", "loadingVideo": "Chargement de la vidéo...", "openBanner": "Ouvrir", "adBadge": "Publicité", "adWordMovies": "FILMS", "adWordSeries": "SÉRIES", "adWordEverywhere": "PARTOUT", "step1": "1. Étape 1", "step2": "2. Étape 2", "step3": "3. Étape 3", "topCast": "Acteurs principaux", "overview": "Aperçu", "director": "Réalisateur", "writer": "Scénariste", "trailer": "Bande-annonce", "dateOfBirth": "Date de naissance", "placeOfBirth": "Lieu de naissance", "actingMastery": "Maîtrise d'acteur", "popularProfile": "Profil populaire", "biography": "Biographie", "knownFor": "Connu pour", "infoMissing": "Information non disponible", "contentUnavailable": "Contenu temporairement indisponible", "contentUnavailableDesc": "Film non trouvé sur les sources disponibles. Réessayez plus tard.", "retry": "Réessayer", "comingSoonMediaBox": "Bientôt sur MediaBox", "chooseAnother": "Choisir un autre film", "unreleasedMovie": "Film pas encore sorti au cinéma", "premiereDate": "Première", "watchTrailerOfficial": "Regarder la bande-annonce officielle", "inProductionDesc": "Le film est en cours de production. La bande-annonce officielle sera bientôt disponible.", "moreMovies": "Plus de films", "showLess": "Réduire", "clickToHide": "Appuyer pour masquer", "removeFromHistory": "Supprimer de l'historique", "offlineBanner": "📡 Connexion partiellement perdue — utilisation du cache local", "player": "Lecteur", "episode": "Épisode", "clearFavorites": "Effacer les favoris", "confirmClearFavorites": "Voulez-vous vraiment effacer tous les favoris ?", "emptyHistory": "L'historique de lecture est vide", "addToFavorites": "Ajouter aux favoris", "removeFromFavorites": "Supprimer des favoris", "history": "Historique", "playTrailer": "Lire la bande-annonce", "tmdbRating": "Note des spectateurs", "topImdb": "⭐ Top IMDb", "rotateDeviceHint": "Tournez votre téléphone pour le plein écran", "tab_music": "Musique", "music_search_prompt": "Recherche musicale", "music_search_placeholder": "Artiste ou titre", "searching": "Recherche...", "eq_disabled": "Désactivé", "eq_frequencies": "Frecuencias", "play": "Lecture", "pause": "Pause", "prev": "Précédent", "next": "Suivant", "fullscreen": "Plein écran", "shareTelegram": "Sur Telegram", "copyLink": "Copier le lien"}
-};
-
-type TranslationKey = keyof typeof translations['ru-RU'];
+export type TranslationKey = keyof typeof ruDict;
 
 interface LanguageContextProps {
   language: Language;
@@ -434,31 +51,31 @@ const LanguageContext = createContext<LanguageContextProps | undefined>(undefine
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     try {
-      const saved = localStorage.getItem('app_language') as Language;
-      if (saved && (saved === 'ru-RU' || saved === 'en-US' || saved === 'de-DE' || saved === 'es-ES' || saved === 'fr-FR' || saved === 'id-ID')) return saved;
+      const saved = localStorage.getItem("app_language") as Language;
+      if (saved && (saved === "ru-RU" || saved === "en-US" || saved === "de-DE" || saved === "es-ES" || saved === "fr-FR" || saved === "id-ID")) return saved;
 
       // Check URL query parameters (e.g. ?lang=en or ?lang=en-US or ?lang=id)
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const urlLang = urlParams.get('lang')?.toLowerCase();
+        const urlLang = urlParams.get("lang")?.toLowerCase();
         if (urlLang) {
-          if (urlLang.startsWith('id') || urlLang.startsWith('in')) return 'id-ID';
-          if (urlLang.startsWith('en')) return 'en-US';
-          if (urlLang.startsWith('ru') || urlLang.startsWith('uk') || urlLang.startsWith('be') || urlLang.startsWith('kk')) return 'ru-RU';
-          if (urlLang.startsWith('de')) return 'de-DE';
-          if (urlLang.startsWith('es')) return 'es-ES';
-          if (urlLang.startsWith('fr')) return 'fr-FR';
+          if (urlLang.startsWith("id") || urlLang.startsWith("in")) return "id-ID";
+          if (urlLang.startsWith("en")) return "en-US";
+          if (urlLang.startsWith("ru") || urlLang.startsWith("uk") || urlLang.startsWith("be") || urlLang.startsWith("kk")) return "ru-RU";
+          if (urlLang.startsWith("de")) return "de-DE";
+          if (urlLang.startsWith("es")) return "es-ES";
+          if (urlLang.startsWith("fr")) return "fr-FR";
         }
       } catch (_) {}
 
       const tgLang = WebApp.initDataUnsafe?.user?.language_code?.toLowerCase();
       if (tgLang) {
-        if (tgLang.startsWith('id') || tgLang.startsWith('in')) return 'id-ID';
-        if (tgLang.startsWith('en')) return 'en-US';
-        if (tgLang.startsWith('ru') || tgLang.startsWith('uk') || tgLang.startsWith('be') || tgLang.startsWith('kk')) return 'ru-RU';
-        if (tgLang.startsWith('de')) return 'de-DE';
-        if (tgLang.startsWith('es')) return 'es-ES';
-        if (tgLang.startsWith('fr')) return 'fr-FR';
+        if (tgLang.startsWith("id") || tgLang.startsWith("in")) return "id-ID";
+        if (tgLang.startsWith("en")) return "en-US";
+        if (tgLang.startsWith("ru") || tgLang.startsWith("uk") || tgLang.startsWith("be") || tgLang.startsWith("kk")) return "ru-RU";
+        if (tgLang.startsWith("de")) return "de-DE";
+        if (tgLang.startsWith("es")) return "es-ES";
+        if (tgLang.startsWith("fr")) return "fr-FR";
       }
 
       // Fallback for regular web browsers & Safari mobile (inspect full preferences array)
@@ -467,33 +84,63 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         : [navigator.language];
 
       for (const rawLang of navLangs) {
-        if (!rawLang || typeof rawLang !== 'string') continue;
+        if (!rawLang || typeof rawLang !== "string") continue;
         const l = rawLang.trim().toLowerCase();
-        if (l.startsWith('id') || l.startsWith('in')) return 'id-ID';
-        if (l.startsWith('en')) return 'en-US';
-        if (l.startsWith('ru') || l.startsWith('uk') || l.startsWith('be') || l.startsWith('kk')) return 'ru-RU';
-        if (l.startsWith('de')) return 'de-DE';
-        if (l.startsWith('es')) return 'es-ES';
-        if (l.startsWith('fr')) return 'fr-FR';
+        if (l.startsWith("id") || l.startsWith("in")) return "id-ID";
+        if (l.startsWith("en")) return "en-US";
+        if (l.startsWith("ru") || l.startsWith("uk") || l.startsWith("be") || l.startsWith("kk")) return "ru-RU";
+        if (l.startsWith("de")) return "de-DE";
+        if (l.startsWith("es")) return "es-ES";
+        if (l.startsWith("fr")) return "fr-FR";
       }
     } catch (e) {
       console.error("Failed to get language", e);
     }
-    return 'ru-RU';
+    return "ru-RU";
   });
+
+  // Локальное состояние динамически загруженных словарей для реактивного обновления компонентов при смене локали
+  const [loadedDicts, setLoadedDicts] = useState<Partial<Record<Language, Record<string, string>>>>(loadedExtendedDicts);
+
+  useEffect(() => {
+    // Базовые словари ru-RU и en-US уже синхронно в памяти бандла
+    if (language === "ru-RU" || language === "en-US") return;
+    if (loadedDicts[language]) return;
+
+    const loader = extendedLocaleLoaders[language];
+    if (loader) {
+      let isMounted = true;
+      loader().then((mod) => {
+        if (!isMounted) return;
+        const dict = mod.default;
+        loadedExtendedDicts[language] = dict;
+        setLoadedDicts((prev) => ({ ...prev, [language]: dict }));
+      }).catch((err) => {
+        console.error(`Failed to dynamically load locale ${language}`, err);
+      });
+      return () => { isMounted = false; };
+    }
+  }, [language, loadedDicts]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
-      localStorage.setItem('app_language', lang);
+      localStorage.setItem("app_language", lang);
     } catch (_) {}
   };
 
-  const t = (key: TranslationKey) => {
-    const langDict = (extendedTranslations as any)[language];
-    if (langDict && langDict[key]) return langDict[key];
-    if (language !== 'ru-RU' && (translations['en-US'] as any)[key]) return (translations['en-US'] as any)[key];
-    return translations['ru-RU'][key] || '';
+  const t = (key: TranslationKey): string => {
+    // 1. Поиск в загруженном расширенном словаре
+    const activeDict = loadedDicts[language];
+    if (activeDict && activeDict[key]) return activeDict[key];
+
+    // 2. Поиск в базовом словаре en-US или ru-RU
+    if (language === "en-US" && (enDict as any)[key]) return (enDict as any)[key];
+    if (language === "ru-RU") return (ruDict as any)[key] || "";
+
+    // 3. Каскадный фоллбэк: для не-русского интерфейса пробуем en-US, затем ru-RU
+    if ((enDict as any)[key]) return (enDict as any)[key];
+    return (ruDict as any)[key] || "";
   };
 
   return (
@@ -506,7 +153,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 export const useLanguage = () => {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    throw new Error("useLanguage must be used within a LanguageProvider");
   }
   return context;
 };

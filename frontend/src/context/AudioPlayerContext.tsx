@@ -218,8 +218,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
 
-    // 5. Release OS audio stream
+    // 5. Release OS audio stream & graph connections
     audioEqualizerManager.suspendContext();
+    audioEqualizerManager.disconnectGraph();
 
     // 6. Release system MediaSession lock
     if ('mediaSession' in navigator) {

@@ -1,6 +1,30 @@
-// Движок детерминированной сетки вещания MediaBox TV (Pseudo-Linear TV)
-// Расчёт: 10 фильмов в сутки (слоты по 144 мин), ежедневная ротация, повтор тайтлов раз в неделю (7 дней)
-// Сложность: O(1) без запросов к серверу, синхронно для всех пользователей
+// Движок детерминированной сетки вещания MediaBox TV (Pseudo-Linear FAST TV)
+// Архитектура: 19 жанров фильмов (по 100 тайтлов TMDB по рейтингу) + 16 очередей сериалов.
+// 10 слотов вещания в сутки (слоты по 144 мин), взвешенный Dayparting (Tier 1 прайм, Tier 2 день, Tier 3 ночь/утро),
+// ежемесячная динамическая ротация (Monthly Rotation Shift) и сквозной прогон сезонов сериалов.
+// Сложность: O(1) без запросов к серверу, строго синхронно для всех пользователей.
+
+import {
+  CATALOG_POPULAR,
+  CATALOG_ACTION,
+  CATALOG_COMEDY,
+  CATALOG_SCIFI,
+  CATALOG_THRILLER,
+  CATALOG_DETECTIVE,
+  CATALOG_HORROR,
+  CATALOG_ANIMATION,
+  CATALOG_DRAMA,
+  CATALOG_CRIME,
+  CATALOG_ROMANCE,
+  CATALOG_ADVENTURE,
+  CATALOG_FANTASY,
+  CATALOG_FAMILY,
+  CATALOG_DOCUMENTARY,
+  CATALOG_HISTORY,
+  CATALOG_WAR,
+  CATALOG_MUSIC,
+  CATALOG_WESTERN
+} from './tvCatalogData';
 
 export interface TvPlaylistItem {
   id: number; // TMDB ID
@@ -15,6 +39,16 @@ export interface TvPlaylistItem {
   episodeTitle?: string;
 }
 
+export interface SeriesDefinition {
+  id: number;
+  title: string;
+  originTitle: string;
+  year: string;
+  posterPath: string;
+  seasons: number[]; // Число эпизодов в каждом сезоне [сезон 1, сезон 2, ...]
+  epDurationSec?: number;
+}
+
 export interface TvChannel {
   id: string;
   category: 'movies' | 'series';
@@ -24,8 +58,9 @@ export interface TvChannel {
   nameEn: string;
   icon: string;
   color: string;
-  // Мастер-пул из 70 тайтлов (7 дней недели × 10 фильмов в сутки)
-  weeklyPool: TvPlaylistItem[];
+  moviePool?: TvPlaylistItem[];
+  seriesEpisodes?: TvPlaylistItem[];
+  weeklyPool?: TvPlaylistItem[];
 }
 
 export interface ChannelScheduleState {
@@ -49,137 +84,63 @@ export interface ChannelScheduleState {
 // 10 слотов в сутках: ровно 86400 / 10 = 8640 секунд (2 часа 24 минуты на передачу)
 export const SLOT_DURATION_SEC = 8640;
 
-// Генератор 70 тайтлов для жанра на основе проверенного каталога
-function generateWeeklyCatalog(baseList: TvPlaylistItem[]): TvPlaylistItem[] {
+// Генератор непрерывной цепочки эпизодов для очередей сериалов.
+// После финала последнего сезона первого сериала автоматически запускается S01E01 следующего сериала очереди.
+function generateSeriesQueueEpisodes(seriesList: SeriesDefinition[], defaultEpDuration = 3000): TvPlaylistItem[] {
   const result: TvPlaylistItem[] = [];
-  // Циклически заполняем 70 слотов (7 дней × 10 фильмов) без смежных повторов
-  while (result.length < 70) {
-    for (const item of baseList) {
-      if (result.length >= 70) break;
-      result.push({ ...item });
-    }
+
+  for (const s of seriesList) {
+    s.seasons.forEach((epCount, sIdx) => {
+      const seasonNum = sIdx + 1;
+      for (let ep = 1; ep <= epCount; ep++) {
+        result.push({
+          id: s.id,
+          title: s.title,
+          origin_title: s.originTitle,
+          year: s.year,
+          type: 'tv',
+          season: String(seasonNum),
+          episode: String(ep),
+          episodeTitle: `Сезон ${seasonNum}, Серия ${ep}`,
+          durationSec: s.epDurationSec || defaultEpDuration,
+          posterPath: s.posterPath
+        });
+      }
+    });
   }
+
+  if (result.length === 0) {
+    result.push({
+      id: 1396,
+      title: 'Во все тяжкие',
+      origin_title: 'Breaking Bad',
+      year: '2008',
+      type: 'tv',
+      season: '1',
+      episode: '1',
+      episodeTitle: 'Сезон 1, Серия 1',
+      durationSec: 2880,
+      posterPath: '/gwB6E7Zi5L3J9WA2y0zLeKuc3ul.jpg'
+    });
+  }
+
   return result;
 }
 
-// Генератор 70 серий для сериалов (строго по порядку от S01E01 до 70-й серии)
-function generateSeriesEpisodes(
-  id: number,
-  title: string,
-  originTitle: string,
-  year: string,
-  posterPath: string,
-  totalEpisodes = 70,
-  epDurationSec = 2700
-): TvPlaylistItem[] {
-  const list: TvPlaylistItem[] = [];
-  for (let i = 1; i <= totalEpisodes; i++) {
-    // Вычисляем сезон и серию (примерно 20 серий в сезоне)
-    const season = Math.floor((i - 1) / 22) + 1;
-    const epInSeason = ((i - 1) % 22) + 1;
-    list.push({
-      id,
-      title,
-      origin_title: originTitle,
-      year,
-      type: 'tv',
-      season: String(season),
-      episode: String(epInSeason),
-      episodeTitle: `Сезон ${season}, Эпизод ${epInSeason}`,
-      durationSec: epDurationSec,
-      posterPath
-    });
-  }
-  return list;
-}
-
-// Базовые пулы топовых фильмов по жанрам (с верифицированными обложками TMDB)
-const ACTION_POOL: TvPlaylistItem[] = [
-  { id: 603692, title: 'Джон Уик 4', year: '2023', type: 'movie', durationSec: 10140, posterPath: '/o29otcx30U3EkqNVGC2feJVz5yr.jpg' },
-  { id: 76341, title: 'Безумный Макс: Дорога ярости', year: '2015', type: 'movie', durationSec: 7200, posterPath: '/8FM6AhLMX3X6OcZjfmH24F4rKMI.jpg' },
-  { id: 155, title: 'Тёмный рыцарь', year: '2008', type: 'movie', durationSec: 9120, posterPath: '/aPtN76OjnNKLqCJ2FJBnQOIL031.jpg' },
-  { id: 98, title: 'Гладиатор', year: '2000', type: 'movie', durationSec: 9300, posterPath: '/1wjNqlfsuHNTXTpCt2ZOV2iPxaf.jpg' },
-  { id: 105, title: 'Леон', year: '1994', type: 'movie', durationSec: 6600, posterPath: '/eSaVxwfwl2KmcewzCve657ITDXk.jpg' },
-  { id: 562, title: 'Крепкий орешек', year: '1988', type: 'movie', durationSec: 7920, posterPath: '/bIDUVu4QTAvNLEZqTml5vka8ElV.jpg' },
-  { id: 51497, title: 'Форсаж 5', year: '2011', type: 'movie', durationSec: 7800, posterPath: '/A9Ud0VPQKLPKvHXnfWGvs26jBsr.jpg' },
-  { id: 245891, title: 'Джон Уик', year: '2014', type: 'movie', durationSec: 6060, posterPath: '/2hfeF2566IKZ30c1BAay0N2lxBr.jpg' },
-  { id: 383498, title: 'Дэдпул 2', year: '2018', type: 'movie', durationSec: 7140, posterPath: '/6ieUmjpY7bMMZqIdFxHKUEwfwSB.jpg' },
-  { id: 454626, title: 'Соник в кино', year: '2020', type: 'movie', durationSec: 5940, posterPath: '/5VkEgD5YIJye87E1xX6NQ5BVaTc.jpg' },
-  { id: 299536, title: 'Мстители: Война бесконечности', year: '2018', type: 'movie', durationSec: 8940, posterPath: '/c6RSGB6O0RaaHG3JGLq8lnUJSBC.jpg' },
-  { id: 299534, title: 'Мстители: Финал', year: '2019', type: 'movie', durationSec: 10860, posterPath: '/dynnf8NGGfHTNMz8Vd3CzFtYjec.jpg' }
-];
-
-const COMEDY_POOL: TvPlaylistItem[] = [
-  { id: 77338, title: '1+1', year: '2011', type: 'movie', durationSec: 6720, posterPath: '/zQsq95pYgjhJwYKqoFdeXlVse88.jpg' },
-  { id: 18785, title: 'Мальчишник в Вегасе', year: '2009', type: 'movie', durationSec: 6000, posterPath: '/eqfuqXcv0MlbnzihcfsTaTGMbd.jpg' },
-  { id: 522627, title: 'Джентльмены', year: '2019', type: 'movie', durationSec: 6780, posterPath: '/vWxVVECgYDPSg5o0Rhw5u7KFa7X.jpg' },
-  { id: 310, title: 'Брюс Всемогущий', year: '2003', type: 'movie', durationSec: 6060, posterPath: '/vMhL7BZFUa8oWs9Ts10Tk259bFf.jpg' },
-  { id: 138832, title: 'Мы — Миллеры', year: '2013', type: 'movie', durationSec: 6600, posterPath: '/3nxRlzpRh4FAC2HIZivW1pKuOk7.jpg' },
-  { id: 490132, title: 'Зелёная книга', year: '2018', type: 'movie', durationSec: 7800, posterPath: '/fYch3e75YFnsJS9wAOOMlzErMqR.jpg' },
-  { id: 137, title: 'День сурка', year: '1993', type: 'movie', durationSec: 6060, posterPath: '/yo91LPlSzskGGNo273us7ScuKIH.jpg' },
-  { id: 8835, title: 'Блондинка в законе', year: '2001', type: 'movie', durationSec: 5760, posterPath: '/gUvq472g8Wsp6DVNOCWh8OVDcM6.jpg' },
-  { id: 9479, title: 'Кошмар перед Рождеством', year: '1993', type: 'movie', durationSec: 4560, posterPath: '/xvqFn90FxKTJflG4n0spZY7vySu.jpg' },
-  { id: 82690, title: 'Ральф', year: '2012', type: 'movie', durationSec: 6060, posterPath: '/ajqxACmmCAgNCL598xUTG4cn1iP.jpg' },
-  { id: 12153, title: 'Эйс Вентура', year: '1994', type: 'movie', durationSec: 5160, posterPath: '/u2kRTtD9YacSJH0tg9GZfrrKvMv.jpg' },
-  { id: 2109, title: 'Час пик', year: '1998', type: 'movie', durationSec: 5880, posterPath: '/wGwBIpObDxLVM4a6Qt0XmcoHnRf.jpg' }
-];
-
-const SCIFI_POOL: TvPlaylistItem[] = [
-  { id: 157336, title: 'Интерстеллар', year: '2014', type: 'movie', durationSec: 10140, posterPath: '/vReLRjDV9XPhiOSEW7QWow4DXwf.jpg' },
-  { id: 27205, title: 'Начало', year: '2010', type: 'movie', durationSec: 8880, posterPath: '/piQXcdOGgv1O9HQ07pI0tnjkGJw.jpg' },
-  { id: 603, title: 'Матрица', year: '1999', type: 'movie', durationSec: 8160, posterPath: '/kEDbym5htJgDQNenjUtSJxAHysB.jpg' },
-  { id: 335984, title: 'Бегущий по лезвию 2049', year: '2017', type: 'movie', durationSec: 9840, posterPath: '/fnIJeT9GZvscKm5PbmAvhTYDsLh.jpg' },
-  { id: 19995, title: 'Аватар', year: '2009', type: 'movie', durationSec: 9720, posterPath: '/lUKcrcO3wEPhNnzGq06JIX7GIEb.jpg' },
-  { id: 18, title: 'Пятый элемент', year: '1997', type: 'movie', durationSec: 7560, posterPath: '/bqALmWhVaqfQedyPZn7MeuOjfSk.jpg' },
-  { id: 286217, title: 'Марсианин', year: '2015', type: 'movie', durationSec: 8640, posterPath: '/6U19srkH4wI6taluviXbVaIpsau.jpg' },
-  { id: 438631, title: 'Дюна', year: '2021', type: 'movie', durationSec: 9300, posterPath: '/3hbXNclcHaj5KiF6kK41GBMjyFr.jpg' },
-  { id: 693134, title: 'Дюна: Часть вторая', year: '2024', type: 'movie', durationSec: 9960, posterPath: '/3aLghRkuJc9cs770fxo4a6YWht3.jpg' },
-  { id: 329, title: 'Парк Юрского периода', year: '1993', type: 'movie', durationSec: 7620, posterPath: '/qoDjoRP7vYmPZ1lZIMTGzoHG1iR.jpg' },
-  { id: 106, title: 'Хищник', year: '1987', type: 'movie', durationSec: 6420, posterPath: '/9mXkVw1BxmjagxjdIK3sbVQU841.jpg' },
-  { id: 218, title: 'Терминатор', year: '1984', type: 'movie', durationSec: 6420, posterPath: '/hcItc8IMO0WKyRWPGkI6xtKVu6X.jpg' }
-];
-
-const THRILLER_POOL: TvPlaylistItem[] = [
-  { id: 11324, title: 'Остров проклятых', year: '2010', type: 'movie', durationSec: 8280, posterPath: '/3UVMyefkUBiktshtKIEnNXvOFKH.jpg' },
-  { id: 807, title: 'Семь', year: '1995', type: 'movie', durationSec: 7620, posterPath: '/1e7WmKXLo6xqibkYBwwGWOcF43E.jpg' },
-  { id: 550, title: 'Бойцовский клуб', year: '1999', type: 'movie', durationSec: 8340, posterPath: '/66RvLrRJTm4J8l3uHXWF09AICol.jpg' },
-  { id: 1124, title: 'Престиж', year: '2006', type: 'movie', durationSec: 7800, posterPath: '/cynfEpFBHGkdBIVpdnx8Od2TQNj.jpg' },
-  { id: 210577, title: 'Исчезнувшая', year: '2014', type: 'movie', durationSec: 8940, posterPath: '/4AlxoCnpOIUtRq2U9qxMu6chaQb.jpg' },
-  { id: 546554, title: 'Достать ножи', year: '2019', type: 'movie', durationSec: 7800, posterPath: '/mGfb75tcFWxuT8esS1isHrNFE90.jpg' },
-  { id: 274, title: 'Молчание ягнят', year: '1991', type: 'movie', durationSec: 7080, posterPath: '/5vhSSCYd6DIVleZBYDxdgzc6i8w.jpg' },
-  { id: 1949, title: 'Зодиак', year: '2007', type: 'movie', durationSec: 9420, posterPath: '/1ypQRKw54EC29oPhEQBimxutulI.jpg' },
-  { id: 629, title: 'Подозрительные лица', year: '1995', type: 'movie', durationSec: 6360, posterPath: '/kfJCvzT19srQaGzQaTx8ltD7CjM.jpg' },
-  { id: 77, title: 'Помни', year: '2000', type: 'movie', durationSec: 6780, posterPath: '/sP3GaLR1kRz0Fj5exKJmYKvIYzz.jpg' }
-];
-
-const HORROR_POOL: TvPlaylistItem[] = [
-  { id: 138843, title: 'Заклятие', year: '2013', type: 'movie', durationSec: 6720, posterPath: '/dq99MpZPTpHOFaZCGvYz3o2uwQk.jpg' },
-  { id: 49018, title: 'Астрал', year: '2010', type: 'movie', durationSec: 6180, posterPath: '/xWQzDOslE1XrpnmflRakEEnBIBC.jpg' },
-  { id: 346364, title: 'Оно', year: '2017', type: 'movie', durationSec: 8100, posterPath: '/tM3xcPo8UNuJFCXO0CkmchBjPvd.jpg' },
-  { id: 694, title: 'Сияние', year: '1980', type: 'movie', durationSec: 8760, posterPath: '/bu3Qb0fpAFtTLcRAPgj8bK5KrIG.jpg' },
-  { id: 447332, title: 'Тихое место', year: '2018', type: 'movie', durationSec: 5400, posterPath: '/b6MMVZWO7LPITq9XS5a4R22CZjG.jpg' },
-  { id: 1091, title: 'Нечто', year: '1982', type: 'movie', durationSec: 6540, posterPath: '/cxywW6Dl0IJfpywo8o9cqc4EApE.jpg' },
-  { id: 493922, title: 'Реинкарнация', year: '2018', type: 'movie', durationSec: 7620, posterPath: '/jccWP5cOTvveMippGXen81qaSf1.jpg' },
-  { id: 176, title: 'Пила', year: '2004', type: 'movie', durationSec: 6180, posterPath: '/ghBc5iOJxDcEHPi7OvQYdVXiGeF.jpg' },
-  { id: 10673, title: 'Звонок', year: '2002', type: 'movie', durationSec: 6900, posterPath: '/EbefMT6YLajtP1rodN3qebzwGQ.jpg' },
-  { id: 565, title: 'Зловещие мертвецы 2', year: '1987', type: 'movie', durationSec: 5040, posterPath: '/vwldpALjeYsr0kHR7UWa1PdKpvc.jpg' }
-];
-
-const ANIMATION_POOL: TvPlaylistItem[] = [
-  { id: 354912, title: 'Тайна Коко', year: '2017', type: 'movie', durationSec: 6300, posterPath: '/jvYsGaUqN8ymH696kRfVJjJ3GIl.jpg' },
-  { id: 809, title: 'Шрек 2', year: '2004', type: 'movie', durationSec: 5580, posterPath: '/vALSn7rJEuX742gWKcmCVLquw5J.jpg' },
-  { id: 14160, title: 'Вверх', year: '2009', type: 'movie', durationSec: 5760, posterPath: '/47DEnHvvLCOPLPG7QpM8mXLCJG5.jpg' },
-  { id: 2062, title: 'Рататуй', year: '2007', type: 'movie', durationSec: 6660, posterPath: '/ojJnDAWLy656Lx9ksj6nP7ubQjq.jpg' },
-  { id: 324857, title: 'Человек-паук: Через вселенные', year: '2018', type: 'movie', durationSec: 7020, posterPath: '/oCAi3NdfXNYLd8PROu5ycUhVety.jpg' },
-  { id: 129, title: 'Унесённые призраками', year: '2001', type: 'movie', durationSec: 7500, posterPath: '/txaVo4whnSduKuczZiJexhLDVQC.jpg' },
-  { id: 862, title: 'История игрушек', year: '1995', type: 'movie', durationSec: 4860, posterPath: '/gRLk7XpdRyNa697taDKtFx3l6qV.jpg' },
-  { id: 12, title: 'В поисках Немо', year: '2003', type: 'movie', durationSec: 6000, posterPath: '/wwUYKw29xtFLk5PIZV9iDAs6zlW.jpg' },
-  { id: 10681, title: 'ВАЛЛ-И', year: '2008', type: 'movie', durationSec: 5880, posterPath: '/uR79KoBwDMz1qbxwmuY0bpcDYtf.jpg' },
-  { id: 9502, title: 'Кунг-фу Панда', year: '2008', type: 'movie', durationSec: 5520, posterPath: '/dWteA8uhU6SWyawy5f4l7BnYQCm.jpg' }
-];
-
-// Полный реестр каналов MediaBox TV с 70 тайтлами в пуле
+// РЕЕСТР КАНАЛОВ MEDIABOX TV (19 КАНАЛОВ ФИЛЬМОВ + 16 КАНАЛОВ СЕРИАЛОВ)
 export const TV_CHANNELS: TvChannel[] = [
+  // ================= 19 КАНАЛОВ ФИЛЬМОВ (ПО 100 ТАЙТЛОВ ИЗ TMDB ПО РЕЙТИНГУ) =================
+  {
+    id: 'ch-popular',
+    category: 'movies',
+    genreNameRu: 'Топ 100',
+    genreNameEn: 'Top 100',
+    nameRu: 'Топ 100 ТВ',
+    nameEn: 'Top 100 TV',
+    icon: '',
+    color: 'from-amber-500 to-orange-600',
+    moviePool: CATALOG_POPULAR
+  },
   {
     id: 'ch-action',
     category: 'movies',
@@ -187,9 +148,9 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameEn: 'Action',
     nameRu: 'Боевик ТВ',
     nameEn: 'Action TV',
-    icon: '💥',
+    icon: '',
     color: 'from-orange-600 to-red-600',
-    weeklyPool: generateWeeklyCatalog(ACTION_POOL)
+    moviePool: CATALOG_ACTION
   },
   {
     id: 'ch-comedy',
@@ -198,9 +159,9 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameEn: 'Comedy',
     nameRu: 'Комедия ТВ',
     nameEn: 'Comedy TV',
-    icon: '😂',
+    icon: '',
     color: 'from-amber-500 to-yellow-500',
-    weeklyPool: generateWeeklyCatalog(COMEDY_POOL)
+    moviePool: CATALOG_COMEDY
   },
   {
     id: 'ch-scifi',
@@ -209,9 +170,9 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameEn: 'Sci-Fi',
     nameRu: 'Фантастика ТВ',
     nameEn: 'Sci-Fi TV',
-    icon: '🚀',
+    icon: '',
     color: 'from-blue-600 to-indigo-600',
-    weeklyPool: generateWeeklyCatalog(SCIFI_POOL)
+    moviePool: CATALOG_SCIFI
   },
   {
     id: 'ch-thriller',
@@ -220,9 +181,20 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameEn: 'Thriller',
     nameRu: 'Триллер ТВ',
     nameEn: 'Thriller TV',
-    icon: '🕵️',
+    icon: '',
     color: 'from-purple-700 to-slate-900',
-    weeklyPool: generateWeeklyCatalog(THRILLER_POOL)
+    moviePool: CATALOG_THRILLER
+  },
+  {
+    id: 'ch-detective',
+    category: 'movies',
+    genreNameRu: 'Детективы',
+    genreNameEn: 'Detective',
+    nameRu: 'Детектив ТВ',
+    nameEn: 'Detective TV',
+    icon: '',
+    color: 'from-violet-900 to-slate-900',
+    moviePool: CATALOG_DETECTIVE
   },
   {
     id: 'ch-horror',
@@ -231,9 +203,9 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameEn: 'Horror',
     nameRu: 'Ужасы ТВ',
     nameEn: 'Horror TV',
-    icon: '👻',
+    icon: '',
     color: 'from-red-900 to-black',
-    weeklyPool: generateWeeklyCatalog(HORROR_POOL)
+    moviePool: CATALOG_HORROR
   },
   {
     id: 'ch-animation',
@@ -241,64 +213,401 @@ export const TV_CHANNELS: TvChannel[] = [
     genreNameRu: 'Мультфильмы',
     genreNameEn: 'Animation',
     nameRu: 'Мульт ТВ',
-    nameEn: 'Cartoon TV',
-    icon: '🦁',
+    nameEn: 'Animation TV',
+    icon: '',
     color: 'from-emerald-500 to-teal-600',
-    weeklyPool: generateWeeklyCatalog(ANIMATION_POOL)
+    moviePool: CATALOG_ANIMATION
+  },
+  {
+    id: 'ch-drama',
+    category: 'movies',
+    genreNameRu: 'Драмы',
+    genreNameEn: 'Drama',
+    nameRu: 'Драма ТВ',
+    nameEn: 'Drama TV',
+    icon: '',
+    color: 'from-rose-800 to-pink-950',
+    moviePool: CATALOG_DRAMA
+  },
+  {
+    id: 'ch-crime',
+    category: 'movies',
+    genreNameRu: 'Криминал',
+    genreNameEn: 'Crime',
+    nameRu: 'Криминал ТВ',
+    nameEn: 'Crime TV',
+    icon: '',
+    color: 'from-zinc-700 to-neutral-900',
+    moviePool: CATALOG_CRIME
+  },
+  {
+    id: 'ch-romance',
+    category: 'movies',
+    genreNameRu: 'Мелодрамы',
+    genreNameEn: 'Romance',
+    nameRu: 'Мелодрама ТВ',
+    nameEn: 'Romance TV',
+    icon: '',
+    color: 'from-pink-600 to-rose-700',
+    moviePool: CATALOG_ROMANCE
+  },
+  {
+    id: 'ch-adventure',
+    category: 'movies',
+    genreNameRu: 'Приключения',
+    genreNameEn: 'Adventure',
+    nameRu: 'Приключения ТВ',
+    nameEn: 'Adventure TV',
+    icon: '',
+    color: 'from-cyan-600 to-blue-700',
+    moviePool: CATALOG_ADVENTURE
+  },
+  {
+    id: 'ch-fantasy',
+    category: 'movies',
+    genreNameRu: 'Фэнтези',
+    genreNameEn: 'Fantasy',
+    nameRu: 'Фэнтези ТВ',
+    nameEn: 'Fantasy TV',
+    icon: '',
+    color: 'from-indigo-700 to-purple-800',
+    moviePool: CATALOG_FANTASY
+  },
+  {
+    id: 'ch-family',
+    category: 'movies',
+    genreNameRu: 'Семейные',
+    genreNameEn: 'Family',
+    nameRu: 'Семейное ТВ',
+    nameEn: 'Family TV',
+    icon: '',
+    color: 'from-sky-600 to-teal-700',
+    moviePool: CATALOG_FAMILY
+  },
+  {
+    id: 'ch-documentary',
+    category: 'movies',
+    genreNameRu: 'Документальные',
+    genreNameEn: 'Documentary',
+    nameRu: 'Документальное ТВ',
+    nameEn: 'Documentary TV',
+    icon: '',
+    color: 'from-emerald-700 to-cyan-900',
+    moviePool: CATALOG_DOCUMENTARY
+  },
+  {
+    id: 'ch-history',
+    category: 'movies',
+    genreNameRu: 'Исторические',
+    genreNameEn: 'History',
+    nameRu: 'Историческое ТВ',
+    nameEn: 'History TV',
+    icon: '',
+    color: 'from-amber-800 to-stone-900',
+    moviePool: CATALOG_HISTORY
+  },
+  {
+    id: 'ch-war',
+    category: 'movies',
+    genreNameRu: 'Военные',
+    genreNameEn: 'War',
+    nameRu: 'Военное ТВ',
+    nameEn: 'War TV',
+    icon: '',
+    color: 'from-stone-700 to-zinc-950',
+    moviePool: CATALOG_WAR
+  },
+  {
+    id: 'ch-music',
+    category: 'movies',
+    genreNameRu: 'Музыкальные',
+    genreNameEn: 'Music',
+    nameRu: 'Музыкальное ТВ',
+    nameEn: 'Music TV',
+    icon: '',
+    color: 'from-fuchsia-600 to-purple-900',
+    moviePool: CATALOG_MUSIC
+  },
+  {
+    id: 'ch-western',
+    category: 'movies',
+    genreNameRu: 'Вестерны',
+    genreNameEn: 'Western',
+    nameRu: 'Вестерн ТВ',
+    nameEn: 'Western TV',
+    icon: '',
+    color: 'from-amber-700 to-yellow-950',
+    moviePool: CATALOG_WESTERN
   },
 
-  // КАНАЛЫ СЕРИАЛОВ (70 серий строго по порядку, по 10 серий в сутки)
+  // ================= 16 КАНАЛОВ СЕРИАЛОВ (СКВОЗНЫЕ ОЧЕРЕДИ СЕЗОНОВ) =================
   {
-    id: 'ch-series-sitcom',
+    id: 'ch-series-dorama',
     category: 'series',
-    genreNameRu: 'Ситкомы',
-    genreNameEn: 'Sitcom Series',
-    nameRu: 'Ситком ТВ: Друзья',
-    nameEn: 'Sitcom TV: Friends',
-    icon: '☕',
-    color: 'from-amber-600 to-orange-500',
-    weeklyPool: generateSeriesEpisodes(1668, 'Друзья', 'Friends', '1994', '/zBOs8S3UOHyWLzOl9gF8lknBxlL.jpg', 70, 1500)
+    genreNameRu: 'Дорамы',
+    genreNameEn: 'Dorama & K-Drama',
+    nameRu: 'Дорама ТВ',
+    nameEn: 'Dorama TV',
+    icon: '',
+    color: 'from-pink-500 to-rose-700',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 94796, title: 'Аварийная посадка любви', originTitle: 'Crash Landing on You', year: '2019', posterPath: '/kHq1u6L3gX39a04Wq82Vq8G352o.jpg', seasons: [16], epDurationSec: 4200 },
+      { id: 67915, title: 'Гоблин / Демон', originTitle: 'Guardian: The Lonely and Great God', year: '2016', posterPath: '/v4f25P6YgDcx8018h2LgOqK0iU3.jpg', seasons: [16], epDurationSec: 4200 },
+      { id: 117376, title: 'Винченцо', originTitle: 'Vincenzo', year: '2021', posterPath: '/dvXJgEDQXqLqWd58oD4lE2i6q5F.jpg', seasons: [20], epDurationSec: 4500 },
+      { id: 99966, title: 'Мы все мертвы', originTitle: 'All of Us Are Dead', year: '2022', posterPath: '/7PIItwy2Eby1z7jruewAeMH9NaL.jpg', seasons: [12], epDurationSec: 3600 },
+      { id: 154825, title: 'Деловое предложение', originTitle: 'Business Proposal', year: '2022', posterPath: '/ahsZ2kLzSAMDXVb8fZoVLScWsHS.jpg', seasons: [12], epDurationSec: 3600 },
+      { id: 136283, title: 'Слава', originTitle: 'The Glory', year: '2022', posterPath: '/dbuIoJKnnAFGof9imZ9UFa3O42S.jpg', seasons: [16], epDurationSec: 3300 },
+      { id: 96162, title: 'Итхэвонский класс', originTitle: 'Itaewon Class', year: '2020', posterPath: '/2tTMci6Hq99gkagpYe19RulNXRr.jpg', seasons: [16], epDurationSec: 3900 }
+    ])
+  },
+  {
+    id: 'ch-series-anime',
+    category: 'series',
+    genreNameRu: 'Аниме',
+    genreNameEn: 'Anime Series',
+    nameRu: 'Аниме ТВ',
+    nameEn: 'Anime TV',
+    icon: '',
+    color: 'from-violet-600 to-indigo-800',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 85937, title: 'Клинок, рассекающий демонов', originTitle: 'Demon Slayer: Kimetsu no Yaiba', year: '2019', posterPath: '/wrCVHknDaBW7usMiHG9fGRKGKOa.jpg', seasons: [26, 11, 11, 8], epDurationSec: 1500 },
+      { id: 1429, title: 'Атака титанов', originTitle: 'Attack on Titan', year: '2013', posterPath: '/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg', seasons: [25, 12, 22, 28], epDurationSec: 1500 },
+      { id: 95479, title: 'Магическая битва', originTitle: 'Jujutsu Kaisen', year: '2020', posterPath: '/fHpKW7qQ9c8pWdZ3314gU2P1s6q.jpg', seasons: [24, 23], epDurationSec: 1500 },
+      { id: 13916, title: 'Тетрадь смерти', originTitle: 'Death Note', year: '2006', posterPath: '/yzTD7P7dmZRxAQjoNxC1GxOLRiH.jpg', seasons: [37], epDurationSec: 1400 },
+      { id: 114410, title: 'Человек-бензопила', originTitle: 'Chainsaw Man', year: '2022', posterPath: '/npHNjld2VT0v6HGwSpW9191d8s.jpg', seasons: [12], epDurationSec: 1500 }
+    ])
+  },
+  {
+    id: 'ch-series-popular',
+    category: 'series',
+    genreNameRu: 'Популярное',
+    genreNameEn: 'Popular Series',
+    nameRu: 'Популярные сериалы ТВ',
+    nameEn: 'Popular Series TV',
+    icon: '',
+    color: 'from-amber-600 to-red-600',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 100088, title: 'Одни из нас', originTitle: 'The Last of Us', year: '2023', posterPath: '/69loIrm9JPpPRE3Akw4yRoitSYn.jpg', seasons: [9], epDurationSec: 3600 },
+      { id: 93405, title: 'Игра в кальмара', originTitle: 'Squid Game', year: '2021', posterPath: '/6zHKgCKht3vwrtSXFvSUntSRsJh.jpg', seasons: [9, 6], epDurationSec: 3300 },
+      { id: 119051, title: 'Уэнздей', originTitle: 'Wednesday', year: '2022', posterPath: '/lx7ipUuzHmbOa1qzMPj4ypZ7A8u.jpg', seasons: [8], epDurationSec: 3000 }
+    ])
+  },
+  {
+    id: 'ch-series-action',
+    category: 'series',
+    genreNameRu: 'Боевики',
+    genreNameEn: 'Action Series',
+    nameRu: 'Боевики сериалы ТВ',
+    nameEn: 'Action Series TV',
+    icon: '',
+    color: 'from-red-600 to-rose-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 61889, title: 'Сорвиголова', originTitle: 'Daredevil', year: '2015', posterPath: '/QWbPaDxiB6LW2vllhgPhknX2fD.jpg', seasons: [13, 13, 13], epDurationSec: 3200 },
+      { id: 67178, title: 'Каратель', originTitle: 'The Punisher', year: '2017', posterPath: '/sO2p6x139kP3fT1xS210jK5k8B4.jpg', seasons: [13, 13], epDurationSec: 3100 },
+      { id: 108978, title: 'Ричер', originTitle: 'Reacher', year: '2022', posterPath: '/zLqlW0rXmHwOZRhmOjeod14sGiT.jpg', seasons: [8, 8, 8, 8], epDurationSec: 3000 },
+      { id: 41727, title: 'Банши', originTitle: 'Banshee', year: '2013', posterPath: '/1FS2Oj1mXBDNif6MuifULdGVU6w.jpg', seasons: [10, 10, 10, 8], epDurationSec: 3300 }
+    ])
+  },
+  {
+    id: 'ch-series-comedy',
+    category: 'series',
+    genreNameRu: 'Комедии',
+    genreNameEn: 'Comedy Series',
+    nameRu: 'Комедийные сериалы ТВ',
+    nameEn: 'Comedy Series TV',
+    icon: '',
+    color: 'from-amber-500 to-yellow-500',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 1668, title: 'Друзья', originTitle: 'Friends', year: '1994', posterPath: '/zBOs8S3UOHyWLzOl9gF8lknBxlL.jpg', seasons: [24, 24, 25, 24, 24, 25, 24, 24, 24, 18], epDurationSec: 1500 },
+      { id: 2316, title: 'Офис', originTitle: 'The Office', year: '2005', posterPath: '/zjW7g5PGsJMy7pIr0hKdBKWcH9V.jpg', seasons: [6, 22, 25, 19, 28, 26, 26, 24, 25], epDurationSec: 1500 },
+      { id: 48891, title: 'Бруклин 9-9', originTitle: 'Brooklyn Nine-Nine', year: '2013', posterPath: '/77mEUuM28cSV8YSn4EcF3koRHHT.jpg', seasons: [22, 23, 23, 22, 22, 18, 13, 10], epDurationSec: 1500 }
+    ])
   },
   {
     id: 'ch-series-crime',
     category: 'series',
     genreNameRu: 'Криминал',
     genreNameEn: 'Crime Series',
-    nameRu: 'Криминал ТВ: Во все тяжкие',
-    nameEn: 'Crime TV: Breaking Bad',
-    icon: '🧪',
+    nameRu: 'Криминальные сериалы ТВ',
+    nameEn: 'Crime Series TV',
+    icon: '',
     color: 'from-emerald-700 to-lime-600',
-    weeklyPool: generateSeriesEpisodes(1396, 'Во все тяжкие', 'Breaking Bad', '2008', '/gwB6E7Zi5L3J9WA2y0zLeKuc3ul.jpg', 70, 2880)
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 1396, title: 'Во все тяжкие', originTitle: 'Breaking Bad', year: '2008', posterPath: '/gwB6E7Zi5L3J9WA2y0zLeKuc3ul.jpg', seasons: [7, 13, 13, 13, 16], epDurationSec: 2880 },
+      { id: 71694, title: 'Снегопад', originTitle: 'Snowfall', year: '2017', posterPath: '/bgSvSxnu7seQrfnlLEAStcJZBbx.jpg', seasons: [10, 10, 10, 10, 10, 10], epDurationSec: 2700 },
+      { id: 60059, title: 'Лучше звоните Солу', originTitle: 'Better Call Saul', year: '2015', posterPath: '/o2jgxiP6PNaZQzlql8DgouwTBvz.jpg', seasons: [10, 10, 10, 10, 10, 13], epDurationSec: 3000 },
+      { id: 1438, title: 'Прослушка', originTitle: 'The Wire', year: '2002', posterPath: '/aoy6XphJtLvCfVmLFqBLaR56BAW.jpg', seasons: [13, 12, 12, 13, 10], epDurationSec: 3600 }
+    ])
+  },
+  {
+    id: 'ch-series-gangster',
+    category: 'series',
+    genreNameRu: 'Гангстеры',
+    genreNameEn: 'Gangster Series',
+    nameRu: 'Гангстерские сериалы ТВ',
+    nameEn: 'Gangster Series TV',
+    icon: '',
+    color: 'from-slate-800 to-amber-950',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 60574, title: 'Острые козырьки', originTitle: 'Peaky Blinders', year: '2013', posterPath: '/pVJzfWgb3sHN29hLaiI5jmBN9vx.jpg', seasons: [6, 6, 6, 6, 6, 6], epDurationSec: 3420 },
+      { id: 1398, title: 'Сопрано', originTitle: 'The Sopranos', year: '1999', posterPath: '/l7kBNxisz66jJApaa82WxqjtKbb.jpg', seasons: [13, 13, 13, 13, 13, 21], epDurationSec: 3300 },
+      { id: 1621, title: 'Подпольная империя', originTitle: 'Boardwalk Empire', year: '2010', posterPath: '/bVUUXRKGaEslWrIrCTOLB7WzxbT.jpg', seasons: [12, 12, 12, 12, 8], epDurationSec: 3400 }
+    ])
   },
   {
     id: 'ch-series-scifi',
     category: 'series',
-    genreNameRu: 'Sci-Fi',
+    genreNameRu: 'Фантастика',
     genreNameEn: 'Sci-Fi Series',
-    nameRu: 'Sci-Fi ТВ: Очень странные дела',
-    nameEn: 'Sci-Fi TV: Stranger Things',
-    icon: '🚲',
-    color: 'from-rose-800 to-indigo-950',
-    weeklyPool: generateSeriesEpisodes(66732, 'Очень странные дела', 'Stranger Things', '2016', '/nW3cral1e2r3xfLySPE1U9bailS.jpg', 70, 3120)
+    nameRu: 'Фантастические сериалы ТВ',
+    nameEn: 'Sci-Fi Series TV',
+    icon: '',
+    color: 'from-blue-700 to-indigo-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 66732, title: 'Очень странные дела', originTitle: 'Stranger Things', year: '2016', posterPath: '/nW3cral1e2r3xfLySPE1U9bailS.jpg', seasons: [8, 9, 8, 9], epDurationSec: 3120 },
+      { id: 76479, title: 'Пацаны', originTitle: 'The Boys', year: '2019', posterPath: '/3NqlBDpWI83TgQ9nmeFwTVxEmtZ.jpg', seasons: [8, 8, 8, 8], epDurationSec: 3600 },
+      { id: 82856, title: 'Мандалорец', originTitle: 'The Mandalorian', year: '2019', posterPath: '/3JcJfU9wm6sA2R6LQtnsBJsHMmY.jpg', seasons: [8, 8, 8], epDurationSec: 2500 }
+    ])
+  },
+  {
+    id: 'ch-series-medical',
+    category: 'series',
+    genreNameRu: 'Медицина',
+    genreNameEn: 'Medical Series',
+    nameRu: 'Медицинские сериалы ТВ',
+    nameEn: 'Medical Series TV',
+    icon: '',
+    color: 'from-cyan-800 to-blue-950',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 1408, title: 'Доктор Хаус', originTitle: 'House', year: '2004', posterPath: '/3Cz7ySOQJmqiuTdrc6CY0r65yDI.jpg', seasons: [22, 24, 24, 16, 24, 22, 23, 22], epDurationSec: 2640 },
+      { id: 71712, title: 'Хороший доктор', originTitle: 'The Good Doctor', year: '2017', posterPath: '/c3WPgJl5OjAMJotI7qPeL1zgcCX.jpg', seasons: [18, 18, 20, 20, 18, 22, 10], epDurationSec: 2520 }
+    ])
+  },
+  {
+    id: 'ch-series-detective',
+    category: 'series',
+    genreNameRu: 'Детективы',
+    genreNameEn: 'Detective Series',
+    nameRu: 'Детективные сериалы ТВ',
+    nameEn: 'Detective Series TV',
+    icon: '',
+    color: 'from-violet-900 to-slate-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 19885, title: 'Шерлок', originTitle: 'Sherlock', year: '2010', posterPath: '/7WTsnHkbA0FaG6R9twfFde0I9hl.jpg', seasons: [3, 3, 3, 3], epDurationSec: 5400 },
+      { id: 46648, title: 'Настоящий детектив', originTitle: 'True Detective', year: '2014', posterPath: '/1p60ehq2diow72QQC8pyppfexky.jpg', seasons: [8, 8, 8, 6], epDurationSec: 3600 },
+      { id: 67744, title: 'Охотник за разумом', originTitle: 'MINDHUNTER', year: '2017', posterPath: '/tEBOVb1ZGT5XapLn5YLXk3Msr8N.jpg', seasons: [10, 9], epDurationSec: 3300 }
+    ])
   },
   {
     id: 'ch-series-drama',
     category: 'series',
     genreNameRu: 'Драмы',
     genreNameEn: 'Drama Series',
-    nameRu: 'Драма ТВ: Острые козырьки',
-    nameEn: 'Drama TV: Peaky Blinders',
-    icon: '🥃',
-    color: 'from-slate-800 to-amber-950',
-    weeklyPool: generateSeriesEpisodes(60574, 'Острые козырьки', 'Peaky Blinders', '2013', '/pVJzfWgb3sHN29hLaiI5jmBN9vx.jpg', 70, 3420)
+    nameRu: 'Драматические сериалы ТВ',
+    nameEn: 'Drama Series TV',
+    icon: '',
+    color: 'from-rose-800 to-purple-950',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 87108, title: 'Чернобыль', originTitle: 'Chernobyl', year: '2019', posterPath: '/qhzSVp06AGGcziMoibInZ5PY0Eg.jpg', seasons: [5], epDurationSec: 3600 },
+      { id: 76331, title: 'Наследники', originTitle: 'Succession', year: '2018', posterPath: '/5vZjUwl2NxNJY2cH7e8tmXdIjBA.jpg', seasons: [10, 10, 9, 10], epDurationSec: 3600 },
+      { id: 65494, title: 'Корона', originTitle: 'The Crown', year: '2016', posterPath: '/1fgswE7VWpGQPD68DUFx6KPnWWa.jpg', seasons: [10, 10, 10, 10, 10, 10], epDurationSec: 3400 }
+    ])
+  },
+  {
+    id: 'ch-series-fantasy',
+    category: 'series',
+    genreNameRu: 'Фэнтези',
+    genreNameEn: 'Fantasy Series',
+    nameRu: 'Фэнтези сериалы ТВ',
+    nameEn: 'Fantasy Series TV',
+    icon: '',
+    color: 'from-purple-800 to-amber-950',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 1399, title: 'Игра Престолов', originTitle: 'Game of Thrones', year: '2011', posterPath: '/1sIAsLSaMwm3mb7Y6jISMv56McR.jpg', seasons: [10, 10, 10, 10, 10, 10, 7, 6], epDurationSec: 3400 },
+      { id: 94997, title: 'Дом Дракона', originTitle: 'House of the Dragon', year: '2022', posterPath: '/hXyYN6LFo7QnKUA3QBx7B3KsnJE.jpg', seasons: [10, 8], epDurationSec: 3600 },
+      { id: 71912, title: 'Ведьмак', originTitle: 'The Witcher', year: '2019', posterPath: '/rY2c2LhN07CRKlAbRaDZxN2XjvK.jpg', seasons: [8, 8, 8], epDurationSec: 3300 }
+    ])
+  },
+  {
+    id: 'ch-series-history',
+    category: 'series',
+    genreNameRu: 'История',
+    genreNameEn: 'History Series',
+    nameRu: 'Исторические сериалы ТВ',
+    nameEn: 'History Series TV',
+    icon: '',
+    color: 'from-amber-800 to-stone-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 1807, title: 'Рим', originTitle: 'Rome', year: '2005', posterPath: '/hoowzozsn0XQGtgH8nyivAMZfPN.jpg', seasons: [12, 10], epDurationSec: 3300 },
+      { id: 44217, title: 'Викинги', originTitle: 'Vikings', year: '2013', posterPath: '/1de3R902B5EEMmohBQsExd5V87Y.jpg', seasons: [9, 10, 10, 20, 20, 20], epDurationSec: 2800 },
+      { id: 1425, title: 'Карточный домик', originTitle: 'House of Cards', year: '2013', posterPath: '/ffsZwNarxYv9br5DyslkBXFspgp.jpg', seasons: [13, 13, 13, 13, 13, 8], epDurationSec: 3300 }
+    ])
+  },
+  {
+    id: 'ch-series-romance',
+    category: 'series',
+    genreNameRu: 'Мелодрамы',
+    genreNameEn: 'Romance Series',
+    nameRu: 'Романтические сериалы ТВ',
+    nameEn: 'Romance Series TV',
+    icon: '',
+    color: 'from-pink-600 to-rose-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 91239, title: 'Бриджертоны', originTitle: 'Bridgerton', year: '2020', posterPath: '/o3wfK8LeHnFj560M5Gs8ZOg57Lo.jpg', seasons: [8, 8, 8], epDurationSec: 3600 },
+      { id: 93812, title: 'Нормальные люди', originTitle: 'Normal People', year: '2020', posterPath: '/7sbuKNu7vdSUH95HneuPlRu6Tnh.jpg', seasons: [12], epDurationSec: 1800 },
+      { id: 56570, title: 'Чужестранка', originTitle: 'Outlander', year: '2014', posterPath: '/yHeEKtVZFinHMMuj9zEOeSYosoS.jpg', seasons: [16, 13, 13, 13, 12, 8, 16], epDurationSec: 3600 }
+    ])
+  },
+  {
+    id: 'ch-series-doc',
+    category: 'series',
+    genreNameRu: 'Документальные',
+    genreNameEn: 'Documentary Series',
+    nameRu: 'Документальные сериалы ТВ',
+    nameEn: 'Documentary Series TV',
+    icon: '',
+    color: 'from-teal-700 to-cyan-900',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 83880, title: 'Наша планета', originTitle: 'Our Planet', year: '2019', posterPath: '/65SESUs3ZO31p3N9VfymO8C5oCv.jpg', seasons: [8, 4], epDurationSec: 3000 },
+      { id: 79525, title: 'Последний танец', originTitle: 'The Last Dance', year: '2020', posterPath: '/bpYvXRmgB8Kd9LZQ2xB4DD7Ejzj.jpg', seasons: [10], epDurationSec: 3000 },
+      { id: 58474, title: 'Космос: Пространство и время', originTitle: 'Cosmos: A Spacetime Odyssey', year: '2014', posterPath: '/vReLRjDV9XPhiOSEW7QWow4DXwf.jpg', seasons: [13], epDurationSec: 2700 }
+    ])
+  },
+  {
+    id: 'ch-series-family',
+    category: 'series',
+    genreNameRu: 'Семейные',
+    genreNameEn: 'Family Series',
+    nameRu: 'Семейные сериалы ТВ',
+    nameEn: 'Family Series TV',
+    icon: '',
+    color: 'from-sky-600 to-indigo-700',
+    seriesEpisodes: generateSeriesQueueEpisodes([
+      { id: 77169, title: 'Кобра Кай', originTitle: 'Cobra Kai', year: '2018', posterPath: '/5z5HNOfP225TCZLjeeQ2mKyyjVa.jpg', seasons: [10, 10, 10, 10, 10, 15], epDurationSec: 2100 },
+      { id: 2004, title: 'Малкольм в центре внимания', originTitle: 'Malcolm in the Middle', year: '2000', posterPath: '/tuskpLz1wWwDKxdQR9Ih7o47dcV.jpg', seasons: [16, 25, 22, 22, 22, 22, 22], epDurationSec: 1300 },
+      { id: 70785, title: 'Энн', originTitle: 'Anne with an E', year: '2017', posterPath: '/2CWfSle6I5vbDjJW991Up9rXrPr.jpg', seasons: [7, 10, 10], epDurationSec: 2600 }
+    ])
   }
 ];
 
-// Получить список ровно из 10 фильмов на конкретный день недели (0 = Пн .. 6 = Вс)
-export function getChannelDayItems(channel: TvChannel, dayOfWeek: number): TvPlaylistItem[] {
-  const safeDay = ((dayOfWeek % 7) + 7) % 7;
-  const startIndex = safeDay * 10;
-  return channel.weeklyPool.slice(startIndex, startIndex + 10);
+// Получить список ровно из 10 передач на конкретный день недели.
+// ДЛЯ ФИЛЬМОВ (Dayparting Rating-Tiered + Monthly Rotation):
+// 100 фильмов ранжированы по рейтингу:
+// - Tier 1 (Топ 1–30 по рейтингу): Прайм-тайм эфир (вечер, слоты 7, 8, 9)
+// - Tier 2 (Топ 31–70): Дневной эфир (слоты 3, 4, 5, 6)
+// - Tier 3 (Топ 71–100): Ночной и утренний эфир (слоты 0, 1, 2)
+// Ротация циклически смещается каждый день недели и каждый месяц (monthShift),
+// гарантируя разнообразие прайм-тайма и нулевое зависание одних и тех же фильмов.
+// Опорная эпоха глобальной синхронизации непрерывного вещания (2025-01-01 00:00:00 UTC)
+// Гарантирует абсолютную идентичность эфира секунда-в-секунду для всех зрителей во всем мире
+export const EPOCH_ANCHOR_SEC = 1735689600;
+
+// Извлечение упорядоченного пула тайтлов телеканала
+export function getChannelPool(channel: TvChannel): TvPlaylistItem[] {
+  if (channel.category === 'series') {
+    return channel.seriesEpisodes || channel.weeklyPool || [];
+  }
+  return channel.moviePool || channel.weeklyPool || [];
 }
 
 // Форматирование секунд в ММ:СС или ЧЧ:ММ:СС
@@ -321,95 +630,183 @@ export function formatClockTime(timestampSec: number): string {
   return `${h}:${m}`;
 }
 
-// Расчёт текущего состояния эфира (10 слотов по 8640с, ротация раз в сутки)
+// Расчёт текущего состояния прямого эфира (непрерывная 24/7 FAST-цепочка по фактическому хронометражу)
 export function getChannelScheduleState(
   channel: TvChannel, 
   currentTimestampSec?: number
 ): ChannelScheduleState {
   const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
-  const d = new Date(now * 1000);
+  const pool = getChannelPool(channel);
 
-  // Секунды от начала текущих суток в локальном времени пользователя (0..86399)
-  const secondsInDay = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-
-  // День недели (0 = Понедельник, 1 = Вторник, ..., 6 = Воскресенье)
-  const dayOfWeek = (d.getDay() + 6) % 7;
-
-  // Номер слота сегодня: ровно 10 слотов (0..9)
-  const slotIndex = Math.min(9, Math.floor(secondsInDay / SLOT_DURATION_SEC));
-  const elapsedInSlot = secondsInDay - slotIndex * SLOT_DURATION_SEC;
-
-  // 10 тайтлов на сегодня
-  const dayItems = getChannelDayItems(channel, dayOfWeek);
-  const currentItem = dayItems[slotIndex] || dayItems[0];
-
-  // Смещение внутри тайтла (если фильм короче 144 минут, удерживаем или зацикливаем внутри слота)
-  const durationSec = currentItem.durationSec;
-  const initialTimecode = elapsedInSlot < durationSec 
-    ? elapsedInSlot 
-    : (elapsedInSlot % durationSec);
-
-  const remainingInSlot = Math.max(0, SLOT_DURATION_SEC - elapsedInSlot);
-  const progressPercent = Math.min(100, Math.max(0, (elapsedInSlot / SLOT_DURATION_SEC) * 100));
-
-  // Определение следующего тайтла
-  let nextItem: TvPlaylistItem;
-  if (slotIndex < 9) {
-    nextItem = dayItems[slotIndex + 1];
-  } else {
-    // 10-й слот суток -> следующая передача начнётся в 00:00 следующих суток
-    const nextDay = (dayOfWeek + 1) % 7;
-    const nextDayItems = getChannelDayItems(channel, nextDay);
-    nextItem = nextDayItems[0];
+  // Страховочный fallback при пустом пуле
+  if (pool.length === 0) {
+    const dummy: TvPlaylistItem = {
+      id: 278,
+      title: 'Побег из Шоушенка',
+      origin_title: 'The Shawshank Redemption',
+      year: '1994',
+      type: 'movie',
+      durationSec: 8280,
+      posterPath: '/yvmKPlTIi0xdcFQIFcQKQJcI63W.jpg'
+    };
+    return {
+      channel,
+      currentItem: dummy,
+      initialTimecode: 0,
+      elapsedSec: 0,
+      remainingSec: 8280,
+      durationSec: 8280,
+      progressPercent: 0,
+      nextItem: dummy,
+      nextStartTime: now + 8280,
+      formattedElapsed: '0:00',
+      formattedDuration: '2:18:00',
+      formattedTimeRemaining: 'осталось 138 мин',
+      formattedNextTime: formatClockTime(now + 8280),
+      slotIndex: 0,
+      dayOfWeek: 0
+    };
   }
 
-  const nextStartTime = now + remainingInSlot;
-  const remainingMinutes = Math.ceil(remainingInSlot / 60);
+  // Суммарная продолжительность полного непрерывного цикла канала в секундах
+  let totalCycleDurationSec = 0;
+  for (let i = 0; i < pool.length; i++) {
+    totalCycleDurationSec += (pool[i].durationSec || 7200);
+  }
+
+  // Секунды от опорной эпохи (целочисленный остаток по модулю длины цикла)
+  const elapsedSinceEpoch = now - EPOCH_ANCHOR_SEC;
+  const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
+
+  // Быстрый O(N) поиск текущего фильма в непрерывной цепочке (100 элементов суммируются за 0.002 мс)
+  let accumulatedSec = 0;
+  let currentIndex = 0;
+  let elapsedInItem = 0;
+
+  for (let i = 0; i < pool.length; i++) {
+    const itemDuration = pool[i].durationSec || 7200;
+    if (offsetInCycle < accumulatedSec + itemDuration) {
+      currentIndex = i;
+      elapsedInItem = offsetInCycle - accumulatedSec;
+      break;
+    }
+    accumulatedSec += itemDuration;
+  }
+
+  const currentItem = pool[currentIndex];
+  const durationSec = currentItem.durationSec || 7200;
+  const elapsedSec = Math.max(0, Math.min(durationSec, elapsedInItem));
+  const remainingSec = Math.max(0, durationSec - elapsedSec);
+  // Прогресс-бар считается строго по реальному хронометражу текущего тайтла: 0..100%
+  const progressPercent = Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
+
+  // Следующий тайтл в непрерывной цепочке эфира
+  const nextItem = pool[(currentIndex + 1) % pool.length];
+  const nextStartTime = now + remainingSec;
+
+  const remainingMinutes = Math.ceil(remainingSec / 60);
   const formattedTimeRemaining = remainingMinutes >= 60 
     ? `осталось ${Math.floor(remainingMinutes / 60)} ч ${remainingMinutes % 60} мин` 
     : `осталось ${remainingMinutes} мин`;
 
+  const d = new Date(now * 1000);
+  const dayOfWeek = (d.getDay() + 6) % 7;
+
   return {
     channel,
     currentItem,
-    initialTimecode,
-    elapsedSec: initialTimecode,
-    remainingSec: remainingInSlot,
+    initialTimecode: elapsedSec,
+    elapsedSec,
+    remainingSec,
     durationSec,
     progressPercent,
     nextItem,
     nextStartTime,
-    formattedElapsed: formatTimecode(initialTimecode),
+    formattedElapsed: formatTimecode(elapsedSec),
     formattedDuration: formatTimecode(durationSec),
     formattedTimeRemaining,
     formattedNextTime: formatClockTime(nextStartTime),
-    slotIndex,
+    slotIndex: currentIndex % 10,
     dayOfWeek
   };
 }
 
-// Получение расписания передач на сегодня (ровно 10 передач суток)
+// Получение непрерывного расписания на 10 передач (текущая + 9 последующих) с реальным временем старта
 export function getChannelUpcomingSchedule(
   channel: TvChannel, 
   currentTimestampSec?: number
 ): Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number }> {
   const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
-  const d = new Date(now * 1000);
-  const secondsInDay = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  const dayStartTimestamp = now - secondsInDay;
-  const dayOfWeek = (d.getDay() + 6) % 7;
-  const currentSlotIndex = Math.min(9, Math.floor(secondsInDay / SLOT_DURATION_SEC));
+  const state = getChannelScheduleState(channel, now);
+  const pool = getChannelPool(channel);
+  if (pool.length === 0) return [];
 
-  const dayItems = getChannelDayItems(channel, dayOfWeek);
+  // Индекс текущего воспроизводимого тайтла в пуле канала
+  const currentIdx = pool.findIndex(it => 
+    it.id === state.currentItem.id && 
+    (it.type !== 'tv' || (it.season === state.currentItem.season && it.episode === state.currentItem.episode))
+  );
+  const baseIdx = currentIdx >= 0 ? currentIdx : 0;
 
-  return dayItems.map((item, idx) => {
-    const slotStartTime = dayStartTimestamp + idx * SLOT_DURATION_SEC;
-    return {
-      item,
-      startTimeSec: slotStartTime,
-      formattedStartTime: formatClockTime(slotStartTime),
-      isCurrent: idx === currentSlotIndex,
-      slotNum: idx + 1
-    };
+  const result: Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number }> = [];
+
+  // 1. Текущий активный эфир
+  const currentStartTime = now - state.elapsedSec;
+  result.push({
+    item: state.currentItem,
+    startTimeSec: currentStartTime,
+    formattedStartTime: formatClockTime(currentStartTime),
+    isCurrent: true,
+    slotNum: 1
   });
+
+  // 2. Следующие 9 передач с непрерывным временем старта по фактическому хронометражу
+  let cumulativeTime = now + state.remainingSec;
+  for (let step = 1; step < 10; step++) {
+    const nextIdx = (baseIdx + step) % pool.length;
+    const nextItem = pool[nextIdx];
+    result.push({
+      item: nextItem,
+      startTimeSec: cumulativeTime,
+      formattedStartTime: formatClockTime(cumulativeTime),
+      isCurrent: false,
+      slotNum: step + 1
+    });
+    cumulativeTime += (nextItem.durationSec || 7200);
+  }
+
+  return result;
+}
+
+// Совместимость с экспортом getChannelDayItems: возвращает окно тайтлов вещания
+export function getChannelDayItems(channel: TvChannel, _dayOfWeek?: number, currentTimestampSec?: number): TvPlaylistItem[] {
+  const upcoming = getChannelUpcomingSchedule(channel, currentTimestampSec);
+  return upcoming.map(u => u.item);
+}
+
+// Получение локализованного названия передачи / фильма
+export function getItemTitle(item?: TvPlaylistItem | null, lang?: string): string {
+  if (!item) return '';
+  if (!lang || lang.startsWith('ru')) {
+    return item.title;
+  }
+  return item.origin_title || item.title;
+}
+
+// Получение локализованного названия канала
+export function getChannelName(channel?: TvChannel | null, lang?: string): string {
+  if (!channel) return '';
+  if (!lang || lang.startsWith('ru')) {
+    return channel.nameRu;
+  }
+  return channel.nameEn || channel.nameRu;
+}
+
+// Получение локализованного жанра канала
+export function getChannelGenre(channel?: TvChannel | null, lang?: string): string {
+  if (!channel) return '';
+  if (!lang || lang.startsWith('ru')) {
+    return channel.genreNameRu;
+  }
+  return channel.genreNameEn || channel.genreNameRu;
 }

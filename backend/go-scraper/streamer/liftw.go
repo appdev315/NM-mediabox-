@@ -57,7 +57,8 @@ type TMDBAltTitles struct {
 
 type TMDBTranslations struct {
 	Translations []struct {
-		Data struct {
+		Iso639_1 string `json:"iso_639_1"`
+		Data     struct {
 			Name  string `json:"name"`
 			Title string `json:"title"`
 		} `json:"data"`
@@ -93,7 +94,10 @@ type LiftwInfoResponse struct {
 	Episodes  interface{} `json:"episodes"`
 }
 
-var normRegex = regexp.MustCompile(`[^a-zа-я0-9]`)
+var (
+	normRegex        = regexp.MustCompile(`[^a-zа-я0-9]`)
+	validScriptRegex = regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-–—_:.,'\"!?+&()/\\#]+$`)
+)
 
 func normString(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
@@ -116,38 +120,130 @@ func cleanWords(s string) []string {
 	return words
 }
 
-func matchesWords(itemWords, candWords []string) bool {
-	if len(candWords) == 0 || len(itemWords) == 0 {
-		return false
+// calculateTokenDice вычисляет коэффициент Дайса (Dice similarity) для двух наборов токенов
+func calculateTokenDice(itemWords, candWords []string) float64 {
+	if len(itemWords) == 0 || len(candWords) == 0 {
+		return 0
 	}
-	// If candidate is a single word, require >= 4 runes to prevent trivial collisions
-	if len(candWords) == 1 {
-		cw := candWords[0]
-		if len([]rune(cw)) < 4 {
-			return false
+	itemFreq := make(map[string]int, len(itemWords))
+	for _, w := range itemWords {
+		itemFreq[w]++
+	}
+	matches := 0
+	for _, w := range candWords {
+		if itemFreq[w] > 0 {
+			matches++
+			itemFreq[w]--
 		}
-		for _, iw := range itemWords {
-			if iw == cw {
-				return true
-			}
-		}
-		return false
+	}
+	return float64(2*matches) / float64(len(itemWords)+len(candWords))
+}
+
+// calculateMatchScore оценивает релевантность кандидата донора относительно тайтла (0–110 баллов)
+func calculateMatchScore(item LiftwSearchItem, candidate string, targetYear int) (int, bool) {
+	cn := normString(candidate)
+	if cn == "" {
+		return 0, false
 	}
 
-	// For multi-word candidates, check sub-sequence
-	for i := 0; i <= len(itemWords)-len(candWords); i++ {
-		match := true
-		for j := 0; j < len(candWords); j++ {
-			if itemWords[i+j] != candWords[j] {
-				match = false
+	nameLower := normString(item.Name)
+	origLower := normString(item.OriginName)
+	itemWords := cleanWords(item.Name)
+	origWords := cleanWords(item.OriginName)
+	candWords := cleanWords(candidate)
+
+	isExact := false
+	baseScore := 0
+
+	// 1. Абсолютное совпадение полного названия или сегмента через слэш
+	if nameLower == cn || origLower == cn {
+		isExact = true
+		baseScore = 100
+	} else {
+		for _, part := range strings.Split(item.Name, "/") {
+			if normString(part) == cn {
+				isExact = true
+				baseScore = 100
 				break
 			}
 		}
-		if match {
-			return true
+		if !isExact && item.OriginName != "" {
+			for _, part := range strings.Split(item.OriginName, "/") {
+				if normString(part) == cn {
+					isExact = true
+					baseScore = 100
+					break
+				}
+			}
 		}
 	}
-	return false
+
+	// 2. Нечёткое совпадение по токенам (если нет 100% точного совпадения строки)
+	if !isExact && len(candWords) > 0 {
+		if len(candWords) == 1 {
+			cw := candWords[0]
+			// Однословные кандидаты допускаются ТОЛЬКО если и тайтл донора состоит не более чем из 2 слов
+			matchInShort := false
+			if len(itemWords) <= 2 {
+				for _, iw := range itemWords {
+					if iw == cw {
+						matchInShort = true
+						break
+					}
+				}
+			}
+			if !matchInShort && len(origWords) <= 2 {
+				for _, ow := range origWords {
+					if ow == cw {
+						matchInShort = true
+						break
+					}
+				}
+			}
+			if matchInShort {
+				baseScore = 75
+			}
+		} else {
+			diceName := calculateTokenDice(itemWords, candWords)
+			diceOrig := calculateTokenDice(origWords, candWords)
+			bestDice := diceName
+			if diceOrig > bestDice {
+				bestDice = diceOrig
+			}
+			if bestDice >= 0.70 {
+				baseScore = int(bestDice*90 + 0.5)
+			}
+		}
+	}
+
+	if baseScore == 0 {
+		return 0, false
+	}
+
+	// 3. Валидация года выпуска: строгая дельта +/- 2 года
+	yearDelta := 0
+	if targetYear > 0 && item.Year > 0 {
+		yearDelta = item.Year - targetYear
+		if yearDelta < 0 {
+			yearDelta = -yearDelta
+		}
+	}
+
+	yearBonus := 0
+	if targetYear == 0 || item.Year == 0 {
+		yearBonus = 0
+	} else if yearDelta == 0 {
+		yearBonus = 10
+	} else if yearDelta == 1 {
+		yearBonus = 5
+	} else if yearDelta == 2 {
+		yearBonus = 0
+	} else {
+		// Разница более 2 лет дисквалифицирует совпадение
+		return 0, false
+	}
+
+	return baseScore + yearBonus, isExact
 }
 
 func hasCyrillic(s string) bool {
@@ -327,10 +423,11 @@ func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear 
 	defer cancel()
 
 	var (
-		once      sync.Once
-		bestMatch *LiftwSearchItem
-		errMu     sync.Mutex
-		wg        sync.WaitGroup
+		itemsMu  sync.Mutex
+		allItems []LiftwSearchItem
+		seenIds  = make(map[int]bool)
+		errMu    sync.Mutex
+		wg       sync.WaitGroup
 	)
 
 	for _, cand := range candidates[:searchLimit] {
@@ -364,77 +461,45 @@ func searchLiftwCandidates(ctx context.Context, candidates []string, targetYear 
 				return
 			}
 
-			for i := range sRes.Items {
-				if searchCtx.Err() != nil {
-					return
-				}
-
-				item := sRes.Items[i]
-				if !validTypesMap[item.Type] {
-					continue
-				}
-
-				nameLower := normString(item.Name)
-				origLower := normString(item.OriginName)
-				matched := false
-				for _, candName := range candidates {
-					cn := normString(candName)
-					if cn == "" {
-						continue
-					}
-					// 1. Exact match on full string
-					if nameLower == cn || origLower == cn {
-						matched = true
-						break
-					}
-					// 2. Exact match on slash-separated alternative titles (e.g. "Замужняя убийца / Замужняя женщина-убийца")
-					for _, part := range strings.Split(item.Name, "/") {
-						if normString(part) == cn {
-							matched = true
-							break
-						}
-					}
-					if matched {
-						break
-					}
-					for _, part := range strings.Split(item.OriginName, "/") {
-						if normString(part) == cn {
-							matched = true
-							break
-						}
-					}
-					if matched {
-						break
-					}
-
-					// 3. Word-level match: if candidate matches whole word in item (e.g. "Ричер" in "Джек Ричер")
-					cWords := cleanWords(candName)
-					if len(cWords) > 0 {
-						nameWords := cleanWords(item.Name)
-						origWords := cleanWords(item.OriginName)
-						if matchesWords(nameWords, cWords) || matchesWords(origWords, cWords) {
-							matched = true
-							break
-						}
-					}
-				}
-
-				if matched {
-					// Flexible +/- 2 year allowance for international festival & documentary release disparities
-					if targetYear == 0 || (item.Year >= targetYear-2 && item.Year <= targetYear+2) {
-						found := item
-						once.Do(func() {
-							bestMatch = &found
-							cancel() // Early exit: cancel other concurrent searches immediately
-						})
-						return
-					}
+			itemsMu.Lock()
+			for _, it := range sRes.Items {
+				if !seenIds[it.ID] {
+					seenIds[it.ID] = true
+					allItems = append(allItems, it)
 				}
 			}
+			itemsMu.Unlock()
 		}(cand)
 	}
 
 	wg.Wait()
+
+	// Выбор лучшего совпадения (Best-Match) по максимальному скорингу вместо жадного первого совпадения
+	var bestMatch *LiftwSearchItem
+	highestScore := 0
+
+	for i := range allItems {
+		item := allItems[i]
+		if !validTypesMap[item.Type] {
+			continue
+		}
+
+		for _, candName := range candidates {
+			score, _ := calculateMatchScore(item, candName, targetYear)
+			if score >= 70 && score > highestScore {
+				highestScore = score
+				found := item
+				bestMatch = &found
+				if highestScore >= 110 {
+					break
+				}
+			}
+		}
+		if highestScore >= 110 {
+			break
+		}
+	}
+
 	return bestMatch
 }
 
@@ -555,23 +620,28 @@ func ResolveLiftw(ctx context.Context, title, yearStr, vType, tmdb, titleRu, ori
 					if res.StatusCode == 200 {
 						var tData TMDBResponse
 						if err := json.NewDecoder(res.Body).Decode(&tData); err == nil {
-							candidates = append(candidates, strings.TrimSpace(tData.Title))
-							candidates = append(candidates, strings.TrimSpace(tData.Name))
-							candidates = append(candidates, strings.TrimSpace(tData.OriginalTitle))
-							candidates = append(candidates, strings.TrimSpace(tData.OriginalName))
+							appendIfValid := func(s string) {
+								s = strings.TrimSpace(s)
+								if s != "" && validScriptRegex.MatchString(s) {
+									candidates = append(candidates, s)
+								}
+							}
+							appendIfValid(tData.Title)
+							appendIfValid(tData.Name)
+							appendIfValid(tData.OriginalTitle)
+							appendIfValid(tData.OriginalName)
 
 							for _, r := range tData.AlternativeTitles.Results {
-								candidates = append(candidates, strings.TrimSpace(r.Title))
+								appendIfValid(r.Title)
 							}
 							for _, t := range tData.AlternativeTitles.Titles {
-								candidates = append(candidates, strings.TrimSpace(t.Title))
+								appendIfValid(t.Title)
 							}
 							for _, tr := range tData.Translations.Translations {
-								if tr.Data.Name != "" {
-									candidates = append(candidates, strings.TrimSpace(tr.Data.Name))
-								}
-								if tr.Data.Title != "" {
-									candidates = append(candidates, strings.TrimSpace(tr.Data.Title))
+								iso := tr.Iso639_1
+								if iso == "ru" || iso == "en" || iso == "uk" || iso == "be" {
+									appendIfValid(tr.Data.Name)
+									appendIfValid(tr.Data.Title)
 								}
 							}
 						}

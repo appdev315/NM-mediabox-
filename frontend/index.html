@@ -21,7 +21,7 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // 1. Register PWA Service Worker (enables true WebAPK single-instance installation on mobile)
+      // 1. Регистрация PWA Service Worker с автообновлением при новом релизе
       if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js').then(function(reg) {
@@ -29,6 +29,15 @@
           }).catch(function(err) {
             console.debug('[SW] Registration skipped:', err);
           });
+        });
+
+        // Бесшовный автоподхват: при активации нового сервис-воркера мгновенно перезагружаем страницу
+        var isRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (!isRefreshing) {
+            isRefreshing = true;
+            window.location.reload();
+          }
         });
       }
 

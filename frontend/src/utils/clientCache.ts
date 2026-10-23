@@ -365,8 +365,41 @@ async function purgeExpiredIndexedDB(): Promise<void> {
   } catch (_) {}
 }
 
+declare const __APP_BUILD_TIME__: string;
+
+// Автоматическая инвалидация устаревшего кэша при развертывании нового билда:
+// Гарантирует, что при обновлении кода зрители мгновенно получают свежие видеопотоки без старых 404
+function checkBuildVersionAndPurge(): void {
+  if (typeof window === 'undefined') return;
+  const BUILD_VERSION_KEY = 'mb_build_timestamp';
+  const currentBuild = typeof __APP_BUILD_TIME__ !== 'undefined' ? __APP_BUILD_TIME__ : 'dev';
+  const lastBuild = localStorage.getItem(BUILD_VERSION_KEY);
+
+  if (lastBuild && lastBuild !== currentBuild) {
+    memoryCache.clear();
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CACHE_PREFIX)) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (_) {}
+
+    getDB().then((db) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).clear();
+    }).catch(() => {});
+  }
+
+  try {
+    localStorage.setItem(BUILD_VERSION_KEY, currentBuild);
+  } catch (_) {}
+}
+
 // Initialize IndexedDB hydration in background
 if (typeof window !== 'undefined') {
+  checkBuildVersionAndPurge();
   initIndexedDBCache();
   // Отложенный запуск GC через 4 секунды после старта приложения
   setTimeout(() => {
@@ -377,4 +410,5 @@ if (typeof window !== 'undefined') {
     }
   }, 4000);
 }
+
 

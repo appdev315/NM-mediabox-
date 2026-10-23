@@ -20,7 +20,7 @@ interface PlayerProps {
 }
 
 export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose }: PlayerProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wakeLockRef = useRef<any>(null);
@@ -91,14 +91,16 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     );
     const timecode = isInitialEpisode ? initialTimecodeRef.current : 0;
     const startSec = Math.floor(timecode || 0);
-    const startParams = startSec > 5 
+    // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
+    const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
+    const startParams = (startSec > 5 
       ? `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}&autoplay=1&autoPlay=1#t=${startSec}`
-      : '&autoplay=1&autoPlay=1';
+      : '&autoplay=1&autoPlay=1') + langParams;
     if (cleanUrl.includes('?')) {
       return `${cleanUrl}${startParams}`;
     }
     return `${cleanUrl}?${startParams.slice(1)}`;
-  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
+  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language]);
 
   // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
   // verified fallback or season changes navigate iframe.src directly.
@@ -149,9 +151,25 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             '*'
           );
         }
+
+        // 3. Адаптация аудиодорожки: для не-русского интерфейса шлём postMessage рукопожатие на переключение на английский / оригинал
+        if (!language.startsWith('ru')) {
+          iframeRef.current.contentWindow.postMessage(
+            { event: 'setAudio', lang: 'en', audio: 'en', translation: 'original' },
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            { api: 'setTranslation', translation: 'en' },
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            { command: 'setAudio', lang: 'en' },
+            '*'
+          );
+        }
       }
     } catch (_) {}
-  }, []);
+  }, [language]);
 
   // Listen for episode changes and player events inside embedded player
   useEffect(() => {
@@ -595,7 +613,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   // NOTE: Объявлен до условного return — нарушение порядка хуков между рендерами крашит поддерево.
   const containerStyle = useMemo<React.CSSProperties>(() => {
     if (!isWebFullscreen) {
-      return { width: '100%', aspectRatio: '16/9' };
+      // Сохраняем строгое соотношение 16:9 без вылета за границы родителя при любом aspect-ratio экрана
+      return { width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', aspectRatio: '16/9' };
     }
     return {
       position: 'fixed',
@@ -641,7 +660,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         className={`transition-opacity duration-300 z-20 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="eager"
         referrerPolicy="strict-origin-when-cross-origin"
-        allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+        allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; accelerometer *; gyroscope *"
         allowFullScreen
         style={{
           border: 'none',
