@@ -43,6 +43,23 @@ export function MediaBoxTvPlayer({
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(true);
   const [streamError, setStreamError] = useState(false);
+  // Состояние активного воспроизведения прямого эфира:
+  // До старта (false) клик передается в донорский плеер для снятия блокировки автоплея браузера со звуком.
+  // После старта (true) опускается защитный экран, блокирующий паузу и сохраняющий непрерывный живой эфир.
+  const [isLivePlaying, setIsLivePlaying] = useState(false);
+
+  // Сброс статуса воспроизведения при переключении канала или слота передачи
+  useEffect(() => {
+    setIsLivePlaying(false);
+  }, [channel.id, scheduleState.slotIndex]);
+
+  // Автоматический переход в live-режим, если поток стартовал самостоятельно по autoplay=1
+  const handlePlayerReady = useCallback(() => {
+    const timer = setTimeout(() => {
+      setIsLivePlaying(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Напоминание о возможности переключения дорожки звука в плеере (на 7 секунд)
   const [showAudioBadge, setShowAudioBadge] = useState(true);
@@ -181,6 +198,8 @@ export function MediaBoxTvPlayer({
 
   // 2. ЗАЩИТА ОТ ПАУЗЫ И ПЕРЕМОТКИ (Anti-Pause & Anti-Seek Watchdog):
   useEffect(() => {
+    let clickTimer: any = null;
+
     const handleTvMessage = (e: MessageEvent) => {
       try {
         let data: any = e.data;
@@ -192,6 +211,23 @@ export function MediaBoxTvPlayer({
           }
         }
         if (!data || typeof data !== 'object') return;
+
+        // Фиксация старта прямого эфира: донор начал проигрывание потока
+        if (
+          data.event === 'startWatching' || 
+          data.event === 'viewProgress' || 
+          data.event === 'play' || 
+          data.event === 'playing' ||
+          data.event === 'timeupdate' ||
+          data.event === 'adStart' ||
+          data.type === 'play' ||
+          data.type === 'playing' ||
+          data.type === 'timeupdate' ||
+          data.status === 'play' ||
+          data.action === 'play'
+        ) {
+          setIsLivePlaying(true);
+        }
 
         // Если донор встал на паузу от клавиатуры или внешнего клика — мгновенно продолжаем воспроизведение
         if (data.event === 'pause' || data.type === 'pause' || data.status === 'pause') {
@@ -217,9 +253,22 @@ export function MediaBoxTvPlayer({
       } catch (_) {}
     };
 
+    // Детекция первого физического клика по незащищенному iframe на десктопе и Android
+    const handleWindowBlur = () => {
+      clickTimer = setTimeout(() => {
+        const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+        if (document.activeElement === ifr || document.activeElement?.tagName === 'IFRAME') {
+          setIsLivePlaying(true);
+        }
+      }, 300);
+    };
+
     window.addEventListener('message', handleTvMessage);
+    window.addEventListener('blur', handleWindowBlur);
     return () => {
       window.removeEventListener('message', handleTvMessage);
+      window.removeEventListener('blur', handleWindowBlur);
+      if (clickTimer) clearTimeout(clickTimer);
     };
   }, []);
 
@@ -472,7 +521,17 @@ export function MediaBoxTvPlayer({
               )}
 
               {/* Адаптивный видеофрейм 16:9 (max-w-full max-h-full aspect-video) без обрезки краев на экранах любого формата */}
-              <div className="relative w-full h-full max-w-full max-h-full aspect-video flex items-center justify-center overflow-hidden">
+              <div 
+                className="relative w-full h-full max-w-full max-h-full aspect-video flex items-center justify-center overflow-hidden"
+                onPointerDownCapture={() => {
+                  // При первом физическом клике/тапе пользователя по плееру активируем защитный экран с безопасной задержкой 400мс
+                  if (!isLivePlaying) {
+                    setTimeout(() => {
+                      setIsLivePlaying(true);
+                    }, 400);
+                  }
+                }}
+              >
                 {/* Видеоплеер с уникальным ключом для детерминированного перемонтирования при смене фильма или серии */}
                 {iframeUrl && !streamError && (
                   <Player
@@ -481,14 +540,18 @@ export function MediaBoxTvPlayer({
                     initialTimecode={initialTimecode}
                     targetEpisode={isSeries && currentItem.season ? { season: currentItem.season, episode: currentItem.episode || '1' } : undefined}
                     isTv={true}
+                    onReady={handlePlayerReady}
                   />
                 )}
 
                 {/* 5. ЭКРАН ЗАЩИТЫ ОТ ПАУЗЫ (100% No-Pause Video Shield): */}
-                {/* Постоянно активен (pointer-events-auto): блокирует паузу, будит ТВ-панель и отправляет play при касании */}
+                {/* До старта воспроизведения (isLivePlaying = false) клики и тачи свободно проходят в плеер для снятия блока автоплея. */}
+                {/* После старта (isLivePlaying = true) экран перехватывает клики и тачи, блокируя паузу и сохраняя живой эфир. */}
                 {/* А. Основная часть экрана: на мобильных оставляет компактный угол 56px, на десктопе 280px для шестеренки */}
                 <div 
-                  className="absolute top-0 bottom-0 left-0 right-14 sm:right-[280px] z-20 bg-transparent pointer-events-auto cursor-pointer"
+                  className={`absolute top-0 bottom-0 left-0 right-14 sm:right-[280px] z-20 bg-transparent ${
+                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
+                  }`}
                   style={{ touchAction: 'manipulation' }}
                   onClick={handleShieldInteraction}
                   onTouchStart={handleShieldInteraction}
@@ -501,7 +564,9 @@ export function MediaBoxTvPlayer({
 
                 {/* Б. Правая нижняя часть экрана: на мобильных ниже угла 56px (top-14 w-14), на десктопе ниже 300px (top-[300px] w-[280px]) */}
                 <div 
-                  className="absolute top-14 sm:top-[300px] bottom-0 right-0 w-14 sm:w-[280px] z-20 bg-transparent pointer-events-auto cursor-pointer"
+                  className={`absolute top-14 sm:top-[300px] bottom-0 right-0 w-14 sm:w-[280px] z-20 bg-transparent ${
+                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
+                  }`}
                   style={{ touchAction: 'manipulation' }}
                   onClick={handleShieldInteraction}
                   onTouchStart={handleShieldInteraction}

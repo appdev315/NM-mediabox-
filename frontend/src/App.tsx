@@ -96,10 +96,10 @@ function BottomNav({ isAdultApp = false }: { isAdultApp?: boolean }) {
     );
   }
 
-  const { activeTab, setActiveTab, isSearchOpen, setIsSearchOpen, isSearching, searchQuery } = homeState;
+  const { activeTab, setActiveTab, setIsSearchOpen, isSearching, searchQuery } = homeState;
 
   const isHome = location.pathname === '/' || location.pathname === '/movies';
-  const isSearchActive = isHome && (isSearchOpen || isSearching || Boolean(searchQuery));
+  const isSearchActive = isHome && (isSearching || Boolean(searchQuery));
   const isMovieActive = isHome && activeTab === 'movie' && !isSearchActive;
   const isSeriesActive = isHome && activeTab === 'series' && !isSearchActive;
   const isMusicActive = location.pathname === '/music';
