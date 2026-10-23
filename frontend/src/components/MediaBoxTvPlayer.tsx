@@ -43,23 +43,63 @@ export function MediaBoxTvPlayer({
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(true);
   const [streamError, setStreamError] = useState(false);
-  // Состояние активного воспроизведения прямого эфира:
-  // До старта (false) клик передается в донорский плеер для снятия блокировки автоплея браузера со звуком.
-  // После старта (true) опускается защитный экран, блокирующий паузу и сохраняющий непрерывный живой эфир.
+  // Состояние активного воспроизведения прямого эфира
   const [isLivePlaying, setIsLivePlaying] = useState(false);
 
-  // Сброс статуса воспроизведения при переключении канала или слота передачи
+  // Списки опций и текущие параметры потока из донорского плеера Liftw (player-venom)
+  const [soundList, setSoundList] = useState<string[]>([]);
+  const [currentSound, setCurrentSound] = useState<string>('');
+  const [qualityList, setQualityList] = useState<string[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>('');
+  const [ccList, setCcList] = useState<string[]>([]);
+  const [currentCc, setCurrentCc] = useState<string>('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'sound' | 'quality' | 'cc'>('sound');
+
+  // Отправка команды изменения настроек в iframe донора Liftw через postMessage API
+  const sendDonorSetting = useCallback((key: 'sound' | 'quality' | 'cc', value: string) => {
+    try {
+      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+      if (ifr && ifr.contentWindow) {
+        ifr.contentWindow.postMessage({ req: 'setting set', key, value }, '*');
+      }
+    } catch (_) {}
+  }, []);
+
+  // Запрос текущих списков настроек и активных значений из плеера Liftw
+  const queryDonorSettings = useCallback(() => {
+    try {
+      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+      if (ifr && ifr.contentWindow) {
+        ['sound', 'quality', 'cc'].forEach((key) => {
+          ifr.contentWindow!.postMessage({ req: 'setting ls', key }, '*');
+          ifr.contentWindow!.postMessage({ req: 'setting get', key }, '*');
+        });
+      }
+    } catch (_) {}
+  }, []);
+
+  // Сброс статуса воспроизведения и настроек при переключении канала или слота передачи
   useEffect(() => {
     setIsLivePlaying(false);
+    setIsSettingsOpen(false);
+    setSoundList([]);
+    setCurrentSound('');
+    setQualityList([]);
+    setCurrentQuality('');
+    setCcList([]);
+    setCurrentCc('');
   }, [channel.id, scheduleState.slotIndex]);
 
-  // Автоматический переход в live-режим, если поток стартовал самостоятельно по autoplay=1
+  // Автоматический переход в live-режим и опрос доступных дорожек при старте потока
   const handlePlayerReady = useCallback(() => {
+    queryDonorSettings();
     const timer = setTimeout(() => {
       setIsLivePlaying(true);
+      queryDonorSettings();
     }, 2500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [queryDonorSettings]);
 
   // Напоминание о возможности переключения дорожки звука в плеере (на 7 секунд)
   const [showAudioBadge, setShowAudioBadge] = useState(true);
@@ -76,15 +116,21 @@ export function MediaBoxTvPlayer({
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const hideControlsTimerRef = useRef<any>(null);
 
-  // Состояние полноэкранного режима плеера
-  const [isFullscreen, setIsFullscreen] = useState(() => {
-    return Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
-  });
+  // Состояние полноэкранного режима плеера (декларативный React Web Fullscreen)
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Переключение полноэкранного режима браузера / контейнера
+  // Переключение полноэкранного режима с поддержкой Telegram WebApp и десктопа
   const toggleFullscreen = useCallback(async () => {
     try {
-      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      const nextState = !isFullscreen;
+      setIsFullscreen(nextState);
+
+      if (nextState) {
+        // Вызов полноэкранного режима внутри Telegram WebApp
+        if (WebApp && typeof WebApp.requestFullscreen === 'function') {
+          try { WebApp.requestFullscreen(); } catch (_) {}
+        }
+        // Нативный вызов для браузеров на десктопе
         const root = document.documentElement;
         if (root.requestFullscreen) {
           await root.requestFullscreen();
@@ -92,21 +138,31 @@ export function MediaBoxTvPlayer({
           await (root as any).webkitRequestFullscreen();
         }
       } else {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
+        // Выход из полноэкранного режима в Telegram
+        if (WebApp && typeof WebApp.exitFullscreen === 'function') {
+          try { WebApp.exitFullscreen(); } catch (_) {}
+        }
+        // Нативный выход в браузере
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          }
         }
       }
     } catch (err) {
       console.warn('[MediaBoxTv] Ошибка переключения полноэкранного режима:', err);
     }
-  }, []);
+  }, [isFullscreen]);
 
-  // Слушатель системных событий перехода в/из полноэкранного режима
+  // Слушатель системного выхода из полноэкранного режима (клавиша Esc на десктопе)
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement));
+      const isNativeFs = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!isNativeFs && isFullscreen) {
+        setIsFullscreen(false);
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
@@ -114,7 +170,7 @@ export function MediaBoxTvPlayer({
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, []);
+  }, [isFullscreen]);
 
   // Сброс таймера автоскрытия OSD при любом взаимодействии пользователя
   const triggerUserActivity = useCallback(() => {
@@ -136,19 +192,6 @@ export function MediaBoxTvPlayer({
     };
   }, [triggerUserActivity]);
 
-  // Гарантированная отправка команды воспроизведения в донорский плеер при любом касании защитного экрана
-  const handleShieldInteraction = useCallback((e: React.SyntheticEvent) => {
-    e.stopPropagation();
-    triggerUserActivity();
-    try {
-      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-      if (ifr && ifr.contentWindow) {
-        ifr.contentWindow.postMessage({ event: 'play' }, '*');
-        ifr.contentWindow.postMessage({ api: 'play' }, '*');
-        ifr.contentWindow.postMessage({ command: 'play' }, '*');
-      }
-    } catch (_) {}
-  }, [triggerUserActivity]);
 
   // 1. НАВИГАЦИЯ НАЗАД ВНЕ БРАУЗЕРА (Telegram WebApp, Android Capacitor, History Popstate)
   useEffect(() => {
@@ -229,6 +272,43 @@ export function MediaBoxTvPlayer({
           setIsLivePlaying(true);
         }
 
+        // Запрос настроек при готовности плеера
+        if (data.event === 'playerReady' || data.event === 'startWatching') {
+          queryDonorSettings();
+        }
+
+        // Обработка списков настроек от плеера Liftw ('setting ls')
+        if (data.event === 'setting ls') {
+          if (data.key === 'sound' && Array.isArray(data.ls)) {
+            setSoundList(data.ls);
+            // Автоматическое восстановление сохраненной аудиодорожки (например, любимый перевод)
+            try {
+              const prefSound = localStorage.getItem('mediabox_pref_sound');
+              if (prefSound && data.ls.includes(prefSound)) {
+                sendDonorSetting('sound', prefSound);
+              }
+            } catch (_) {}
+          } else if (data.key === 'quality' && Array.isArray(data.ls)) {
+            setQualityList(data.ls);
+          } else if (data.key === 'cc' && Array.isArray(data.ls)) {
+            setCcList(data.ls);
+          }
+        }
+
+        // Обработка активных выбранных значений из донора Liftw ('setting')
+        if (data.event === 'setting') {
+          if (data.key === 'sound' && typeof data.value === 'string') {
+            setCurrentSound(data.value);
+            try {
+              localStorage.setItem('mediabox_pref_sound', data.value);
+            } catch (_) {}
+          } else if (data.key === 'quality' && typeof data.value === 'string') {
+            setCurrentQuality(data.value);
+          } else if (data.key === 'cc' && typeof data.value === 'string') {
+            setCurrentCc(data.value);
+          }
+        }
+
         // Если донор встал на паузу от клавиатуры или внешнего клика — мгновенно продолжаем воспроизведение
         if (data.event === 'pause' || data.type === 'pause' || data.status === 'pause') {
           const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
@@ -270,7 +350,7 @@ export function MediaBoxTvPlayer({
       window.removeEventListener('blur', handleWindowBlur);
       if (clickTimer) clearTimeout(clickTimer);
     };
-  }, []);
+  }, [queryDonorSettings, sendDonorSetting]);
 
   // 3. ОПТИМИЗАЦИЯ CPU (SLEEP MODE ДЛЯ ТАЙМЕРА):
   // Таймер 1 сек работает ИСКЛЮЧИТЕЛЬНО пока открыто OSD (isControlsVisible === true).
@@ -413,12 +493,14 @@ export function MediaBoxTvPlayer({
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowAudioBadge(false);
+                  setIsSettingsOpen(true);
+                  triggerUserActivity();
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-bold shadow-xl border border-white/20 cursor-pointer backdrop-blur-md select-none animate-pulse"
                 title={t('clickToHide') || 'Нажмите, чтобы скрыть'}
               >
                 <span>🎧 {t('audioLanguageHint') || 'Переключи язык аудио здесь'}</span>
-                <span className="text-amber-300 font-black text-sm shrink-0">↘️</span>
+                <span className="text-amber-300 font-black text-sm shrink-0">⚙️</span>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -544,41 +626,6 @@ export function MediaBoxTvPlayer({
                   />
                 )}
 
-                {/* 5. ЭКРАН ЗАЩИТЫ ОТ ПАУЗЫ (100% No-Pause Video Shield): */}
-                {/* До старта воспроизведения (isLivePlaying = false) клики и тачи свободно проходят в плеер для снятия блока автоплея. */}
-                {/* После старта (isLivePlaying = true) экран перехватывает клики и тачи, блокируя паузу и сохраняя живой эфир. */}
-                {/* А. Основная часть экрана: на мобильных оставляет компактный угол 56px, на десктопе 280px для шестеренки */}
-                <div 
-                  className={`absolute top-0 bottom-0 left-0 right-14 sm:right-[280px] z-20 bg-transparent ${
-                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
-                  }`}
-                  style={{ touchAction: 'manipulation' }}
-                  onClick={handleShieldInteraction}
-                  onTouchStart={handleShieldInteraction}
-                  onPointerDown={handleShieldInteraction}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    toggleFullscreen();
-                  }}
-                />
-
-                {/* Б. Правая нижняя часть экрана: на мобильных ниже угла 56px (top-14 w-14), на десктопе ниже 300px (top-[300px] w-[280px]) */}
-                <div 
-                  className={`absolute top-14 sm:top-[300px] bottom-0 right-0 w-14 sm:w-[280px] z-20 bg-transparent ${
-                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
-                  }`}
-                  style={{ touchAction: 'manipulation' }}
-                  onClick={handleShieldInteraction}
-                  onTouchStart={handleShieldInteraction}
-                  onPointerDown={handleShieldInteraction}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    toggleFullscreen();
-                  }}
-                />
-                {/* Правый верхний угол (на мобильных 56×56px, на десктопе 280×300px) ОСТАЁТСЯ ОТКРЫТЫМ: */}
-                {/* Клики и тачи свободно передаются в шестеренку донора (аудиодорожки, субтитры, качество) */}
-
                 {/* 5. Защитный глухой блэкаут-экран над нижней панелью донора: */}
                 {/* На 100% глухо скрывает донорский таймлайн, кнопку паузы и громкость строго на поверхности видео */}
                 <div
@@ -619,8 +666,24 @@ export function MediaBoxTvPlayer({
                     </span>
                   </div>
 
-                  {/* Справа: Собственная кнопка во весь экран */}
+                  {/* Справа: Кнопка параметров и кнопка во весь экран */}
                   <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {/* Кнопка открытия параметров (звук, качество, субтитры) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSettingsOpen(prev => !prev);
+                        triggerUserActivity();
+                      }}
+                      className={`w-8 h-8 rounded-lg ${isSettingsOpen ? 'bg-amber-500 text-black border-amber-400 font-bold' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'} active:scale-95 flex items-center justify-center transition-all cursor-pointer pointer-events-auto border backdrop-blur-md shrink-0`}
+                      title={t('tvSettings')}
+                      aria-label={t('tvSettings')}
+                    >
+                      <span className="text-sm">⚙️</span>
+                    </button>
+
+                    {/* Собственная кнопка во весь экран */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -649,6 +712,162 @@ export function MediaBoxTvPlayer({
                   />
                 </div>
               </div>
+
+              {/* 7. НАШЕ СОБСТВЕННОЕ ВСПЛЫВАЮЩЕЕ МЕНЮ НАСТРОЕК (ПЕРЕВОД, КАЧЕСТВО, СУБТИТРЫ) */}
+              {isSettingsOpen && (
+                <div 
+                  className="absolute inset-x-3 sm:inset-x-auto sm:right-4 bottom-16 z-50 max-w-sm sm:w-80 rounded-2xl bg-black/95 backdrop-blur-2xl border border-white/20 p-4 shadow-2xl text-white select-none animate-fade-in pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Заголовок меню и кнопка закрытия */}
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+                    <span className="font-extrabold text-xs uppercase tracking-wider text-white/90">
+                      {t('tvSettings')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsSettingsOpen(false)}
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white/60 hover:text-white bg-white/10 hover:bg-white/20 transition-all text-xs cursor-pointer"
+                      aria-label={t('close')}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Вкладки переключения: Перевод | Качество | Субтитры */}
+                  <div className="flex p-1 bg-white/10 rounded-xl mb-3 gap-1 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingsTab('sound')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        activeSettingsTab === 'sound'
+                          ? 'bg-amber-500 text-black shadow font-black'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      {t('tvAudio')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingsTab('quality')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        activeSettingsTab === 'quality'
+                          ? 'bg-amber-500 text-black shadow font-black'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      {t('tvQuality')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingsTab('cc')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        activeSettingsTab === 'cc'
+                          ? 'bg-amber-500 text-black shadow font-black'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      {t('tvSubtitles')}
+                    </button>
+                  </div>
+
+                  {/* Список доступных опций выбранной вкладки */}
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                    {activeSettingsTab === 'sound' && (
+                      soundList.length > 0 ? (
+                        soundList.map((item) => {
+                          const isSelected = item === currentSound;
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => {
+                                sendDonorSetting('sound', item);
+                                setCurrentSound(item);
+                                try {
+                                  localStorage.setItem('mediabox_pref_sound', item);
+                                } catch (_) {}
+                              }}
+                              className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
+                                  : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10 hover:text-white'
+                              }`}
+                            >
+                              <span className="truncate pr-2">{item}</span>
+                              {isSelected && <span className="text-amber-400 font-bold text-sm shrink-0">✓</span>}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-white/50 text-[11px]">
+                          {t('loading')}
+                        </div>
+                      )
+                    )}
+
+                    {activeSettingsTab === 'quality' && (
+                      qualityList.length > 0 ? (
+                        qualityList.map((item) => {
+                          const isSelected = item === currentQuality;
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => {
+                                sendDonorSetting('quality', item);
+                                setCurrentQuality(item);
+                              }}
+                              className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
+                                  : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10 hover:text-white'
+                              }`}
+                            >
+                              <span className="truncate pr-2">{item}</span>
+                              {isSelected && <span className="text-amber-400 font-bold text-sm shrink-0">✓</span>}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-white/50 text-[11px]">
+                          {t('loading')}
+                        </div>
+                      )
+                    )}
+
+                    {activeSettingsTab === 'cc' && (
+                      ccList.length > 0 ? (
+                        ccList.map((item) => {
+                          const isSelected = item === currentCc;
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => {
+                                sendDonorSetting('cc', item);
+                                setCurrentCc(item);
+                              }}
+                              className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
+                                  : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10 hover:text-white'
+                              }`}
+                            >
+                              <span className="truncate pr-2">{item}</span>
+                              {isSelected && <span className="text-amber-400 font-bold text-sm shrink-0">✓</span>}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-white/50 text-[11px]">
+                          {t('tvStreamUnavailable')}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

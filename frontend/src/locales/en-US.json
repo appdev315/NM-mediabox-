@@ -259,5 +259,9 @@
   "tvNextChannel": "Next channel",
   "tvSubtitle": "24/7 movies and TV series broadcast",
   "tvBackToChannels": "Back to channels",
-  "tvWatchLive": "Start Live"
+  "tvWatchLive": "Start Live",
+  "tvAudio": "Audio",
+  "tvQuality": "Quality",
+  "tvSubtitles": "Subtitles",
+  "tvSettings": "Settings"
 }

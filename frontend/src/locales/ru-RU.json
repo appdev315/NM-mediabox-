@@ -259,5 +259,9 @@
   "tvNextChannel": "Следующий канал",
   "tvSubtitle": "Круглосуточный эфир кино и сериалов",
   "tvBackToChannels": "Назад к каналам",
-  "tvWatchLive": "Включить эфир"
+  "tvWatchLive": "Включить эфир",
+  "tvAudio": "Перевод",
+  "tvQuality": "Качество",
+  "tvSubtitles": "Субтитры",
+  "tvSettings": "Настройки"
 }
