@@ -204,7 +204,7 @@ export function MediaBoxTvPlayer({
     };
   }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id]);
 
-  const { currentItem, initialTimecode, nextItem, formattedNextTime, elapsedSec, durationSec, progressPercent, slotIndex } = scheduleState;
+  const { currentItem, initialTimecode, nextItem, formattedNextTime, elapsedSec, durationSec, progressPercent } = scheduleState;
   const isSeries = currentItem.type === 'tv';
 
   return (
@@ -241,9 +241,6 @@ export function MediaBoxTvPlayer({
                 <span className="inline-flex items-center gap-1 bg-red-600/90 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded shadow tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   ЭФИР
-                </span>
-                <span className="text-[10px] text-white/50 font-mono">
-                  {slotIndex + 1}/10
                 </span>
               </div>
               <p className="text-xs text-white/70 truncate max-w-[200px] sm:max-w-md">
@@ -315,24 +312,11 @@ export function MediaBoxTvPlayer({
           />
         )}
 
-        {/* 3. ПРОЗРАЧНЫЙ СЛОЙ-ПЕРЕХВАТЧИК (Анти-Пауза): клики показывают/скрывают OSD без остановки видео */}
-        <div 
-          className="absolute inset-0 bottom-[44px] z-25 cursor-pointer bg-transparent"
-          onClick={(e) => {
-            e.stopPropagation();
-            triggerUserActivity();
-          }}
-          onTouchStart={(e) => {
-            e.stopPropagation();
-            triggerUserActivity();
-          }}
-        />
-
-        {/* 4. ПРОЗРАЧНАЯ ЗАГЛУШКА ТАЙМИНГА (Seek Shield) */}
-        {/* Физически закрывает ползунок перемотки в нижней части фрейма (left:0, right: 150px) */}
-        {/* Правый сектор (150px) оставляем ОТКРЫТЫМ, чтобы пользователь мог нажать выбор дубляжа и полноэкранный режим */}
+        {/* Защита таймлайна прямого эфира: закрывает только нижнюю полосу перемотки (36px). */}
+        {/* Клик по центру экрана свободно передается в iframe VenomPlayer для старта видео, */}
+        {/* а правый угол (150px) остается открытым для выбора озвучки и полноэкранного режима. */}
         <div
-          className="absolute bottom-0 left-0 right-[150px] h-[44px] z-30 cursor-default bg-transparent"
+          className="absolute bottom-0 left-0 right-[150px] h-[36px] z-30 cursor-default bg-transparent"
           title="Прямой эфир (перемотка отключена)"
           onClick={(e) => {
             e.stopPropagation();
