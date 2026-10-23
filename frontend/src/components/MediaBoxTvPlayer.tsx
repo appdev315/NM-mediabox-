@@ -34,19 +34,15 @@ export function MediaBoxTvPlayer({
   const [scheduleState, setScheduleState] = useState<ChannelScheduleState>(() => 
     getChannelScheduleState(channel)
   );
+  // Актуальная ссылка на состояние эфира для безопасного доступа внутри таймеров и обработчиков событий
+  const scheduleStateRef = useRef(scheduleState);
+  useEffect(() => {
+    scheduleStateRef.current = scheduleState;
+  }, [scheduleState]);
 
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(true);
   const [streamError, setStreamError] = useState(false);
-  // Состояние активного воспроизведения прямого эфира:
-  // До старта (false) клик передается в донорский плеер для снятия блокировки автоплея браузера со звуком.
-  // После старта (true) опускается защитный экран, блокирующий паузу и сохраняющий непрерывный живой эфир.
-  const [isLivePlaying, setIsLivePlaying] = useState(false);
-
-  // Сброс статуса воспроизведения при переключении канала или слота передачи
-  useEffect(() => {
-    setIsLivePlaying(false);
-  }, [channel.id, scheduleState.slotIndex]);
 
   // Напоминание о возможности переключения дорожки звука в плеере (на 7 секунд)
   const [showAudioBadge, setShowAudioBadge] = useState(true);
@@ -123,6 +119,20 @@ export function MediaBoxTvPlayer({
     };
   }, [triggerUserActivity]);
 
+  // Гарантированная отправка команды воспроизведения в донорский плеер при любом касании защитного экрана
+  const handleShieldInteraction = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    triggerUserActivity();
+    try {
+      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+      if (ifr && ifr.contentWindow) {
+        ifr.contentWindow.postMessage({ event: 'play' }, '*');
+        ifr.contentWindow.postMessage({ api: 'play' }, '*');
+        ifr.contentWindow.postMessage({ command: 'play' }, '*');
+      }
+    } catch (_) {}
+  }, [triggerUserActivity]);
+
   // 1. НАВИГАЦИЯ НАЗАД ВНЕ БРАУЗЕРА (Telegram WebApp, Android Capacitor, History Popstate)
   useEffect(() => {
     // А. Telegram WebApp BackButton в нативной шапке мессенджера
@@ -169,29 +179,22 @@ export function MediaBoxTvPlayer({
     };
   }, [onClose]);
 
-  // 2. ЗАЩИТА ОТ ПАУЗЫ (Anti-Pause Watchdog) И ДЕТЕКЦИЯ СТАРТА ЭФИРА:
-  // При первом событии воспроизведения опускается защитный экран, блокирующий клики паузы
+  // 2. ЗАЩИТА ОТ ПАУЗЫ И ПЕРЕМОТКИ (Anti-Pause & Anti-Seek Watchdog):
   useEffect(() => {
-    let clickTimer: any = null;
-
     const handleTvMessage = (e: MessageEvent) => {
       try {
-        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (!data) return;
-
-        // Фиксация старта прямого эфира: донор начал проигрывание потока
-        if (
-          data.event === 'startWatching' || 
-          data.event === 'viewProgress' || 
-          data.event === 'play' || 
-          data.event === 'timeupdate' ||
-          data.event === 'adStart'
-        ) {
-          setIsLivePlaying(true);
+        let data: any = e.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch (_) {
+            data = { event: data, type: data };
+          }
         }
+        if (!data || typeof data !== 'object') return;
 
-        // Если донор встал на паузу от клавиатуры или клика — мгновенно продолжаем воспроизведение
-        if (data.event === 'pause' || data.type === 'pause') {
+        // Если донор встал на паузу от клавиатуры или внешнего клика — мгновенно продолжаем воспроизведение
+        if (data.event === 'pause' || data.type === 'pause' || data.status === 'pause') {
           const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
           if (ifr && ifr.contentWindow) {
             ifr.contentWindow.postMessage({ event: 'play' }, '*');
@@ -199,27 +202,24 @@ export function MediaBoxTvPlayer({
             ifr.contentWindow.postMessage({ command: 'play' }, '*');
           }
         }
+
+        // Защита от попыток перемотки эфира (Anti-Seek Watchdog): немедленный возврат к реальному таймкоду
+        if (data.event === 'seek' || data.event === 'seeking' || data.type === 'seek' || data.action === 'seek') {
+          const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+          if (ifr && ifr.contentWindow) {
+            const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
+            ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
+            ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
+            ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
+            ifr.contentWindow.postMessage({ event: 'play' }, '*');
+          }
+        }
       } catch (_) {}
     };
 
-    // Детекция первого физического клика по незащищенному iframe:
-    // Когда пользователь кликает по нативному Play донора, фокус окна уходит на iframe.
-    // С безопасным дебаунсом 300мс активируем завесу, защищающую от последующих нажатий на паузу.
-    const handleWindowBlur = () => {
-      clickTimer = setTimeout(() => {
-        const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-        if (document.activeElement === ifr || document.activeElement?.tagName === 'IFRAME') {
-          setIsLivePlaying(true);
-        }
-      }, 300);
-    };
-
     window.addEventListener('message', handleTvMessage);
-    window.addEventListener('blur', handleWindowBlur);
     return () => {
       window.removeEventListener('message', handleTvMessage);
-      window.removeEventListener('blur', handleWindowBlur);
-      if (clickTimer) clearTimeout(clickTimer);
     };
   }, []);
 
@@ -480,48 +480,45 @@ export function MediaBoxTvPlayer({
                     iframeUrl={iframeUrl}
                     initialTimecode={initialTimecode}
                     targetEpisode={isSeries && currentItem.season ? { season: currentItem.season, episode: currentItem.episode || '1' } : undefined}
+                    isTv={true}
                   />
                 )}
 
                 {/* 5. ЭКРАН ЗАЩИТЫ ОТ ПАУЗЫ (100% No-Pause Video Shield): */}
-                {/* До старта воспроизведения (isLivePlaying = false) клики свободно проходят в плеер для снятия блока автоплея. */}
-                {/* После старта (isLivePlaying = true) экран перехватывает клики и будит OSD, не позволяя поставить живой эфир на паузу. */}
-                {/* А. Левая и центральная часть экрана (открыт правый верхний угол ~240-280px для шестеренки и меню) */}
+                {/* Постоянно активен (pointer-events-auto): блокирует паузу, будит ТВ-панель и отправляет play при касании */}
+                {/* А. Основная часть экрана: на мобильных оставляет компактный угол 56px, на десктопе 280px для шестеренки */}
                 <div 
-                  className={`absolute top-0 bottom-0 left-0 right-[240px] sm:right-[280px] z-20 bg-transparent ${
-                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    triggerUserActivity();
-                  }}
+                  className="absolute top-0 bottom-0 left-0 right-14 sm:right-[280px] z-20 bg-transparent pointer-events-auto cursor-pointer"
+                  style={{ touchAction: 'manipulation' }}
+                  onClick={handleShieldInteraction}
+                  onTouchStart={handleShieldInteraction}
+                  onPointerDown={handleShieldInteraction}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     toggleFullscreen();
                   }}
                 />
 
-                {/* Б. Правая нижняя часть экрана (ниже выпадающего меню настроек 260-300px) */}
+                {/* Б. Правая нижняя часть экрана: на мобильных ниже угла 56px (top-14 w-14), на десктопе ниже 300px (top-[300px] w-[280px]) */}
                 <div 
-                  className={`absolute top-[260px] sm:top-[300px] bottom-0 right-0 w-[240px] sm:w-[280px] z-20 bg-transparent ${
-                    isLivePlaying ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    triggerUserActivity();
-                  }}
+                  className="absolute top-14 sm:top-[300px] bottom-0 right-0 w-14 sm:w-[280px] z-20 bg-transparent pointer-events-auto cursor-pointer"
+                  style={{ touchAction: 'manipulation' }}
+                  onClick={handleShieldInteraction}
+                  onTouchStart={handleShieldInteraction}
+                  onPointerDown={handleShieldInteraction}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     toggleFullscreen();
                   }}
                 />
-                {/* Правый верхний угол (~240-280px x 260-300px) ОСТАЁТСЯ ОТКРЫТЫМ: */}
-                {/* Мышь свободно передается в iframe (донор не прячет шестеренку), а клики попадают в пункты меню (дорожки, субтитры) */}
+                {/* Правый верхний угол (на мобильных 56×56px, на десктопе 280×300px) ОСТАЁТСЯ ОТКРЫТЫМ: */}
+                {/* Клики и тачи свободно передаются в шестеренку донора (аудиодорожки, субтитры, качество) */}
 
                 {/* 5. Защитный глухой блэкаут-экран над нижней панелью донора: */}
                 {/* На 100% глухо скрывает донорский таймлайн, кнопку паузы и громкость строго на поверхности видео */}
                 <div
                   className="absolute bottom-0 left-0 right-0 h-[48px] sm:h-[70px] z-30 cursor-default bg-black pointer-events-auto shadow-[0_-8px_16px_rgba(0,0,0,0.9)]"
+                  style={{ touchAction: 'none' }}
                   title={t('tvLive')}
                   onClick={(e) => {
                     e.stopPropagation();

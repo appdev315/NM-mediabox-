@@ -17,9 +17,10 @@ interface PlayerProps {
   onEpisodeChange?: (season: string, episode: string) => void;
   onFullscreenChange?: (isFullscreen: boolean) => void;
   onClose?: () => void;
+  isTv?: boolean;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose, isTv = false }: PlayerProps) {
   const { t, language } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -490,7 +491,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const wasLandscapeRef = useRef(false);
 
   useEffect(() => {
-    if (!isMobileDevice) return;
+    // В ТВ-режиме отключаем перехват экрана плеером: ориентацией и экраном управляет MediaBoxTvPlayer
+    if (!isMobileDevice || isTv) return;
 
     const handleOrientationChange = () => {
       const landscape = window.matchMedia('(orientation: landscape)').matches;
@@ -523,7 +525,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       }
       window.removeEventListener('orientationchange', handleOrientationChange);
     };
-  }, [isMobileDevice]);
+  }, [isMobileDevice, isTv]);
 
   // Orientation hint in portrait fullscreen mode (fades out after 4 seconds)
   const [showRotateHint, setShowRotateHint] = useState(true);
@@ -590,7 +592,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     const platform = WebApp.platform || 'unknown';
     const isMobile = ['android', 'android_x', 'ios'].includes(platform);
     
-    if (isMobile && WebApp.requestFullscreen) {
+    // В ТВ-режиме полноэкранным представлением управляет исключительно MediaBoxTvPlayer
+    if (isMobile && WebApp.requestFullscreen && !isTv) {
       WebApp.requestFullscreen();
     }
 
@@ -612,7 +615,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
   // NOTE: Объявлен до условного return — нарушение порядка хуков между рендерами крашит поддерево.
   const containerStyle = useMemo<React.CSSProperties>(() => {
-    if (!isWebFullscreen) {
+    if (!isWebFullscreen || isTv) {
       // Сохраняем строгое соотношение 16:9 без вылета за границы родителя при любом aspect-ratio экрана
       return { width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', aspectRatio: '16/9' };
     }
@@ -629,7 +632,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       zIndex: 99999,
       backgroundColor: '#000',
     };
-  }, [isWebFullscreen]);
+  }, [isWebFullscreen, isTv]);
 
   const isSafeUrl = typeof lockedSrc === 'string' && /^https?:\/\//i.test(lockedSrc);
   if (!isSafeUrl) {
