@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { WebApp } from '../telegram';
 import { Player } from './Player';
 import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
@@ -23,7 +25,7 @@ export function MediaBoxTvPlayer({
   onSelectChannel, 
   allChannels 
 }: MediaBoxTvPlayerProps) {
-  // Вычисление моментального состояния эфира канала
+  // Вычисление моментального состояния эфира канала (10 слотов по 144 мин)
   const [scheduleState, setScheduleState] = useState<ChannelScheduleState>(() => 
     getChannelScheduleState(channel)
   );
@@ -33,18 +35,18 @@ export function MediaBoxTvPlayer({
   const [streamError, setStreamError] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  // Состояние видимости OSD (исчезает при отсутствии активности пользователя)
+  // Состояние видимости OSD: полностью скрывается при отсутствии активности (НИКАКИХ ПОСТОЯННЫХ КНОПОК)
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const hideControlsTimerRef = useRef<any>(null);
 
-  // Сброс таймера автоскрытия OSD при любом взаимодействии
+  // Сброс таймера автоскрытия OSD при любом взаимодействии пользователя
   const triggerUserActivity = useCallback(() => {
     setIsControlsVisible(true);
     if (hideControlsTimerRef.current) {
       clearTimeout(hideControlsTimerRef.current);
     }
     hideControlsTimerRef.current = setTimeout(() => {
-      // Не скрываем панель, если открыта программа передач
+      // Скрываем все элементы управления через 3.5 секунды неактивности
       setIsControlsVisible(false);
     }, 3500);
   }, []);
@@ -57,19 +59,87 @@ export function MediaBoxTvPlayer({
     };
   }, [triggerUserActivity]);
 
-  // Периодическое обновление секунд таймлайна (раз в секунду)
+  // 1. НАВИГАЦИЯ НАЗАД ВНЕ БРАУЗЕРА (Telegram WebApp, Android Capacitor, History Popstate)
+  useEffect(() => {
+    // А. Telegram WebApp BackButton в нативной шапке мессенджера
+    try {
+      if (WebApp && WebApp.BackButton) {
+        WebApp.BackButton.show();
+        WebApp.BackButton.onClick(onClose);
+      }
+    } catch (_) {}
+
+    // Б. Аппаратная кнопка и свайп «Назад» на Android (Capacitor)
+    let backListenerHandle: any = null;
+    try {
+      CapacitorApp.addListener('backButton', () => {
+        onClose();
+      }).then(handle => {
+        backListenerHandle = handle;
+      });
+    } catch (_) {}
+
+    // В. Нативный свайп iOS/Android и кнопка браузера через popstate
+    try {
+      window.history.pushState({ modal: 'tv-player' }, '');
+    } catch (_) {}
+
+    const handlePopState = () => {
+      onClose();
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      try {
+        if (WebApp && WebApp.BackButton) {
+          WebApp.BackButton.offClick(onClose);
+          WebApp.BackButton.hide();
+        }
+      } catch (_) {}
+
+      if (backListenerHandle && typeof backListenerHandle.remove === 'function') {
+        backListenerHandle.remove();
+      }
+
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onClose]);
+
+  // 2. ЗАЩИТА ОТ ПАУЗЫ (Anti-Pause Watchdog): эфир воспроизводится непрерывно
+  useEffect(() => {
+    const handleTvMessage = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (!data) return;
+
+        // Если донор встал на паузу от клавиатуры или клика — мгновенно продолжаем воспроизведение
+        if (data.event === 'pause' || data.type === 'pause') {
+          const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+          if (ifr && ifr.contentWindow) {
+            ifr.contentWindow.postMessage({ event: 'play' }, '*');
+            ifr.contentWindow.postMessage({ api: 'play' }, '*');
+            ifr.contentWindow.postMessage({ command: 'play' }, '*');
+          }
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('message', handleTvMessage);
+    return () => window.removeEventListener('message', handleTvMessage);
+  }, []);
+
+  // Периодическое обновление секунд таймлайна эфира (раз в секунду)
   useEffect(() => {
     const interval = setInterval(() => {
       setScheduleState(prevState => {
         const fresh = getChannelScheduleState(channel);
-        // Если тайтл или серия сменились по времени, запускаем подгрузку следующего видео
         if (fresh.currentItem.id !== prevState.currentItem.id || 
-            fresh.currentItem.episode !== prevState.currentItem.episode) {
+            fresh.currentItem.episode !== prevState.currentItem.episode ||
+            fresh.slotIndex !== prevState.slotIndex) {
           return fresh;
         }
         return {
           ...fresh,
-          // Актуализируем текущее прошедшее время
           elapsedSec: fresh.elapsedSec,
           progressPercent: fresh.progressPercent
         };
@@ -79,7 +149,7 @@ export function MediaBoxTvPlayer({
     return () => clearInterval(interval);
   }, [channel]);
 
-  // Подгрузка видеопотока из Liftw API при смене канала или тайтла
+  // Подгрузка видеопотока из Liftw с обязательными параметрами autoplay и timecode
   useEffect(() => {
     let isCancelled = false;
     const { currentItem } = scheduleState;
@@ -132,9 +202,9 @@ export function MediaBoxTvPlayer({
     return () => {
       isCancelled = true;
     };
-  }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, channel.id]);
+  }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id]);
 
-  const { currentItem, initialTimecode, nextItem, formattedNextTime, elapsedSec, durationSec, progressPercent } = scheduleState;
+  const { currentItem, initialTimecode, nextItem, formattedNextTime, elapsedSec, durationSec, progressPercent, slotIndex } = scheduleState;
   const isSeries = currentItem.type === 'tv';
 
   return (
@@ -145,6 +215,7 @@ export function MediaBoxTvPlayer({
       onTouchStart={triggerUserActivity}
     >
       {/* 1. Верхний скрывающийся OSD-бар: Кнопка Назад, Название канала, Программа передач */}
+      {/* Полностью исчезает (opacity-0 pointer-events-none) при неактивности — НИКАКИХ ПОСТОЯННЫХ КНОПОК */}
       <div 
         className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
           isControlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -170,6 +241,9 @@ export function MediaBoxTvPlayer({
                 <span className="inline-flex items-center gap-1 bg-red-600/90 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded shadow tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   ЭФИР
+                </span>
+                <span className="text-[10px] text-white/50 font-mono">
+                  {slotIndex + 1}/10
                 </span>
               </div>
               <p className="text-xs text-white/70 truncate max-w-[200px] sm:max-w-md">
@@ -241,11 +315,24 @@ export function MediaBoxTvPlayer({
           />
         )}
 
-        {/* 3. ПРОЗРАЧНАЯ ЗАГЛУШКА ТАЙМИНГА (Seek Shield) */}
+        {/* 3. ПРОЗРАЧНЫЙ СЛОЙ-ПЕРЕХВАТЧИК (Анти-Пауза): клики показывают/скрывают OSD без остановки видео */}
+        <div 
+          className="absolute inset-0 bottom-[44px] z-25 cursor-pointer bg-transparent"
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerUserActivity();
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            triggerUserActivity();
+          }}
+        />
+
+        {/* 4. ПРОЗРАЧНАЯ ЗАГЛУШКА ТАЙМИНГА (Seek Shield) */}
         {/* Физически закрывает ползунок перемотки в нижней части фрейма (left:0, right: 150px) */}
-        {/* Правый сектор (150px) оставляем ОТКРЫТЫМ, чтобы пользователь мог нажать шестеренку выбора дубляжа и полноэкранный режим */}
+        {/* Правый сектор (150px) оставляем ОТКРЫТЫМ, чтобы пользователь мог нажать выбор дубляжа и полноэкранный режим */}
         <div
-          className="absolute bottom-0 left-0 right-[150px] h-[36px] z-30 cursor-default bg-transparent"
+          className="absolute bottom-0 left-0 right-[150px] h-[44px] z-30 cursor-default bg-transparent"
           title="Прямой эфир (перемотка отключена)"
           onClick={(e) => {
             e.stopPropagation();
@@ -255,7 +342,8 @@ export function MediaBoxTvPlayer({
           onTouchStart={(e) => e.stopPropagation()}
         />
 
-        {/* 4. СКРЫВАЮЩИЙСЯ НИЖНИЙ ИНФОРМАЦИОННЫЙ OSD-БАР НАД ТАЙМИНГОМ */}
+        {/* 5. СКРЫВАЮЩИЙСЯ НИЖНИЙ ИНФОРМАЦИОННЫЙ OSD-БАР НАД ТАЙМИНГОМ */}
+        {/* Полностью исчезает (opacity-0) при неактивности — экран остаётся на 100% чистым */}
         <div 
           className={`absolute bottom-0 left-0 right-0 z-40 px-4 py-3 bg-gradient-to-t from-black/95 via-black/75 to-transparent transition-opacity duration-300 pointer-events-none ${
             isControlsVisible ? 'opacity-100' : 'opacity-0'
@@ -299,7 +387,7 @@ export function MediaBoxTvPlayer({
         </div>
       </div>
 
-      {/* 5. Всплывающая панель: Программа передач (EPG Drawer) */}
+      {/* 6. Всплывающая панель: Программа передач (EPG Drawer) */}
       {showGuide && (
         <div 
           className="absolute inset-y-0 right-0 w-full sm:w-96 z-50 bg-[#141b22]/95 backdrop-blur-xl border-l border-white/10 p-4 flex flex-col gap-3 shadow-2xl animate-in slide-in-from-right duration-200"
@@ -310,7 +398,7 @@ export function MediaBoxTvPlayer({
               <span className="text-xl">{channel.icon}</span>
               <div>
                 <h3 className="font-bold text-white text-sm">{channel.nameRu}</h3>
-                <span className="text-[11px] text-white/50">Программа передач</span>
+                <span className="text-[11px] text-white/50">Программа на сегодня (10 передач)</span>
               </div>
             </div>
             <button
@@ -322,13 +410,13 @@ export function MediaBoxTvPlayer({
             </button>
           </div>
 
-          {/* Список запланированных тайтлов */}
+          {/* Список запланированных тайтлов на сутки */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 hide-scrollbar">
-            {getChannelUpcomingSchedule(channel, 8).map((sched, idx) => (
+            {getChannelUpcomingSchedule(channel).map((sched) => (
               <div 
-                key={`${sched.item.id}_${sched.item.episode || ''}_${idx}`}
+                key={`${sched.item.id}_${sched.item.episode || ''}_${sched.slotNum}`}
                 className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
-                  idx === 0 
+                  sched.isCurrent 
                     ? 'bg-red-600/10 border-red-500/30 text-white' 
                     : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10'
                 }`}
@@ -341,13 +429,13 @@ export function MediaBoxTvPlayer({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                      idx === 0 ? 'bg-red-600 text-white' : 'bg-white/10 text-white/70'
+                      sched.isCurrent ? 'bg-red-600 text-white' : 'bg-white/10 text-white/70'
                     }`}>
                       {sched.formattedStartTime}
                     </span>
-                    {idx === 0 && (
+                    {sched.isCurrent && (
                       <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
-                        • СЕЙЧАС
+                        • В ЭФИРЕ
                       </span>
                     )}
                   </div>

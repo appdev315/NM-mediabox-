@@ -55,7 +55,7 @@ export function MediaBoxTv() {
           }`}
         >
           <span>🎬</span>
-          <span>Фильмы по жанрам</span>
+          <span>Фильмы</span>
         </button>
 
         <button
@@ -68,7 +68,7 @@ export function MediaBoxTv() {
           }`}
         >
           <span>🍿</span>
-          <span>Сериалы (по порядку)</span>
+          <span>Сериалы</span>
         </button>
       </div>
 

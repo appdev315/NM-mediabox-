@@ -90,12 +90,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       targetEpisode.episode === initialEpisodeRef.current?.episode
     );
     const timecode = isInitialEpisode ? initialTimecodeRef.current : 0;
-    if (!timecode || timecode <= 5) return cleanUrl;
-    const startSec = Math.floor(timecode);
+    const startSec = Math.floor(timecode || 0);
+    const startParams = startSec > 5 
+      ? `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}&autoplay=1&autoPlay=1#t=${startSec}`
+      : '&autoplay=1&autoPlay=1';
     if (cleanUrl.includes('?')) {
-      return `${cleanUrl}&start=${startSec}#t=${startSec}`;
+      return `${cleanUrl}${startParams}`;
     }
-    return `${cleanUrl}?start=${startSec}#t=${startSec}`;
+    return `${cleanUrl}?${startParams.slice(1)}`;
   }, [rawUrl, targetEpisode?.season, targetEpisode?.episode]);
 
   // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
@@ -123,6 +125,20 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           { event: 'adFree', free: true },
           '*'
         );
+        iframeRef.current.contentWindow.postMessage(
+          { event: 'play' },
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          { api: 'play' },
+          '*'
+        );
+        if (initialTimecodeRef.current && initialTimecodeRef.current > 5) {
+          const s = Math.floor(initialTimecodeRef.current);
+          iframeRef.current.contentWindow.postMessage({ event: 'seek', time: s }, '*');
+          iframeRef.current.contentWindow.postMessage({ api: 'seek', set: s }, '*');
+          iframeRef.current.contentWindow.postMessage({ command: 'seek', time: s }, '*');
+        }
 
         // 2. For series: command target season and episode without race-inducing repeats
         if (targetSeason || targetEp) {
@@ -166,8 +182,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           activeSeasonRef.current = s;
           onEpisodeChange?.(s, e);
         }
-        if (data.event === 'playerReady') {
-          // Send adFree handshake
+        if (data.event === 'playerReady' || data.event === 'startWatching' || data.event === 'play') {
+          // Send adFree, play and initial seek handshake
           sendPlayCommands();
           // If player became ready while an episode change is pending, dispatch command immediately
           if (pendingTargetRef.current) {
