@@ -215,14 +215,14 @@ export function MediaBoxTvPlayer({
       onTouchStart={triggerUserActivity}
     >
       {/* 1. Верхний скрывающийся OSD-бар: Кнопка Назад, Название канала, Программа передач */}
-      {/* Полностью исчезает (opacity-0 pointer-events-none) при неактивности — НИКАКИХ ПОСТОЯННЫХ КНОПОК */}
+      {/* Контейнер pointer-events-none: клики по правому верхнему углу свободно проходят в iframe к нативной шестеренке */}
       <div 
-        className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
-          isControlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none ${
+          isControlsVisible ? 'opacity-100' : 'opacity-0'
         }`}
         style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pointer-events-auto">
           <button
             type="button"
             onClick={onClose}
@@ -243,15 +243,13 @@ export function MediaBoxTvPlayer({
                   ЭФИР
                 </span>
               </div>
-              <p className="text-xs text-white/70 truncate max-w-[200px] sm:max-w-md">
+              <p className="text-xs text-white/70 truncate max-w-[170px] sm:max-w-xs">
                 {currentItem.title} {isSeries && currentItem.season ? `(S${currentItem.season}E${currentItem.episode})` : ''}
               </p>
             </div>
           </div>
-        </div>
 
-        {/* Кнопка вызова программы передач */}
-        <div className="flex items-center gap-2">
+          {/* Кнопка вызова программы передач (смещена влево к информации о канале) */}
           <button
             type="button"
             onClick={(e) => {
@@ -259,7 +257,7 @@ export function MediaBoxTvPlayer({
               setShowGuide(prev => !prev);
               triggerUserActivity();
             }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+            className={`ml-2 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
               showGuide 
                 ? 'bg-amber-500 text-black border-amber-400' 
                 : 'bg-white/10 text-white border-white/10 hover:bg-white/20'
@@ -269,6 +267,9 @@ export function MediaBoxTvPlayer({
             <span className="hidden sm:inline">Программа</span>
           </button>
         </div>
+
+        {/* Правый верхний угол шириной 140px оставляем полностью свободным для нативной шестерёнки плеера */}
+        <div className="w-28 sm:w-36 h-10 pointer-events-none" />
       </div>
 
       {/* 2. Контейнер видеоплеера */}
