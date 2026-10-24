@@ -265,5 +265,6 @@
   "tvSubtitles": "Субтитры",
   "tvSettings": "Настройки",
   "tvNoSubtitles": "Субтитры недоступны",
-  "tvOpenInCatalog": "Смотреть в каталоге"
+  "tvOpenInCatalog": "Смотреть в каталоге",
+  "tvTapToStart": "Нажмите, чтобы включить эфир"
 }

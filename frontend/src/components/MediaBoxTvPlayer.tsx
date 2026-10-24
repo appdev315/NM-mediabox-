@@ -98,14 +98,11 @@ export function MediaBoxTvPlayer({
     setCurrentCc('');
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
-  // Автоматический переход в live-режим и опрос доступных дорожек при старте потока
+  // Опрос доступных дорожек при готовности плеера.
+  // ВАЖНО: шилд отныне активен С МОНТАЖА и не активируется по таймеру —
+  // premature-армирование на 2.5с перекрывало пользователю кнопку Play донора на мобильном.
   const handlePlayerReady = useCallback(() => {
     queryDonorSettings();
-    const timer = setTimeout(() => {
-      setIsLivePlaying(true);
-      queryDonorSettings();
-    }, 2500);
-    return () => clearTimeout(timer);
   }, [queryDonorSettings]);
 
   // Напоминание о возможности переключения дорожки звука в плеере (на 7 секунд)
@@ -212,6 +209,28 @@ export function MediaBoxTvPlayer({
       if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
     };
   }, [triggerUserActivity]);
+
+  // Тап по шилду: будим OSD и шлём команды воспроизведения в донора.
+  // До старта эфира это ЕДИНСТВЕННЫЙ способ запуска (нативная кнопка Play донора недоступна),
+  // после старта — страховка Anti-Pause при клавиатурной/внешней паузе.
+  const handleShieldTap = useCallback(() => {
+    triggerUserActivity();
+    try {
+      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+      if (ifr && ifr.contentWindow) {
+        ifr.contentWindow.postMessage({ event: 'play' }, '*');
+        ifr.contentWindow.postMessage({ api: 'play' }, '*');
+        ifr.contentWindow.postMessage({ command: 'play' }, '*');
+      }
+    } catch (_) {}
+  }, [triggerUserActivity]);
+
+  // Реакция OSD на фактический старт эфира: один раз показываем панель
+  useEffect(() => {
+    if (isLivePlaying) {
+      triggerUserActivity();
+    }
+  }, [isLivePlaying, triggerUserActivity]);
 
 
   // 1. НАВИГАЦИЯ НАЗАД ВНЕ БРАУЗЕРА (Telegram WebApp, Android Capacitor, History Popstate)
@@ -644,25 +663,33 @@ export function MediaBoxTvPlayer({
                   />
                 )}
 
-                {/* 5. ПРОЗРАЧНЫЙ ЭКРАН ЗАЩИТЫ ПРЯМОГО ЭФИРА: */}
-                {/* До старта потока (isLivePlaying=false) клики проходят в донора для снятия autoplay-блока со звуком. */}
-                {/* После старта (isLivePlaying=true) мембрана на 100% глухая для тапов: блокирует тап-паузу, перемотку, */}
-                {/* нативные меню донора на мобильном. Донорский таймлайн остаётся ВИДИМЫМ, но мёртвым; субтитры донора */}
-                {/* не перекрываются. Любое касание будит наш OSD, двойной тап — наш фуллскрин. */}
+                {/* 5. ГЛУХОЙ ЭКРАН ЗАЩИТЫ ПРЯМОГО ЭФИРА — АКТИВЕН С МОНТАЖА, ВО ВСЕХ РЕЖИМАХ: */}
+                {/* 100% тапов/кликов/свайпов не доходят к донору ни ДО запуска, ни ПОСЛЕ — */}
+                {/* управление эфиром возможно ТОЛЬКО нашими кнопками (OSD: фуллскрин, ⚙️ дорожки/качество/субтитры). */}
+                {/* Тап по мембране будит OSD и отправляет в донора команды play (запуск эфира / Anti-Pause). */}
+                {/* Донорский таймлайн остаётся видимым, но мёртвым; субтитры донора не перекрываются. */}
                 <div
-                  className={`absolute inset-0 z-30 bg-transparent ${
-                    isLivePlaying ? 'pointer-events-auto' : 'pointer-events-none'
-                  }`}
+                  className="absolute inset-0 z-30 bg-transparent pointer-events-auto"
                   style={{ touchAction: 'none' }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
-                    triggerUserActivity();
+                    handleShieldTap();
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     toggleFullscreen();
                   }}
                 />
+
+                {/* Подсказка до старта эфира: куда нажать, если автоплей заблокирован браузером */}
+                {!isLivePlaying && !isLoadingStream && !streamError && (
+                  <div className="absolute inset-0 z-[32] flex items-center justify-center pointer-events-none">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-2xl animate-pulse">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
+                      <span>{t('tvTapToStart')}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 6. СКРЫВАЮЩИЙСЯ НИЖНИЙ ИНФОРМАЦИОННЫЙ OSD-БАР НАД ТАЙМИНГОМ */}

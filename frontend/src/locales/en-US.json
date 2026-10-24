@@ -265,5 +265,6 @@
   "tvSubtitles": "Subtitles",
   "tvSettings": "Settings",
   "tvNoSubtitles": "No subtitles available",
-  "tvOpenInCatalog": "Open in catalog"
+  "tvOpenInCatalog": "Open in catalog",
+  "tvTapToStart": "Tap to start the live stream"
 }
