@@ -1,5 +1,6 @@
 import React, { createContext, useContext, Suspense, lazy, useMemo, useState } from 'react';
 import type { TvChannel } from '../utils/tvSchedule';
+import { useAudioPlayer } from './AudioPlayerContext';
 
 // Плеер ТВ загружается лениво: оверлей монтируется только по факту открытия канала,
 // каталог пулов tvSchedule не попадает в бандл главной страницы
@@ -28,11 +29,16 @@ export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [activeChannel, setActiveChannel] = useState<TvChannel | null>(null);
   // Состояние свернутого мини-плеера (Picture-in-Picture внутри приложения)
   const [isMinimized, setIsMinimized] = useState(false);
+  const { stop: stopAudio } = useAudioPlayer();
 
   const value = useMemo<TvPlayerContextValue>(() => ({
     activeChannel,
     isMinimized,
     openTv: (channel) => {
+      // Глушим фоновое радио/музыку при старте телевизионной трансляции
+      try {
+        stopAudio();
+      } catch (_) {}
       setActiveChannel(channel);
       setIsMinimized(false);
     },
@@ -43,7 +49,7 @@ export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     minimizeTv: () => setIsMinimized(true),
     expandTv: () => setIsMinimized(false),
     selectChannel: (channel) => setActiveChannel(channel)
-  }), [activeChannel, isMinimized]);
+  }), [activeChannel, isMinimized, stopAudio]);
 
   return (
     <TvPlayerContext.Provider value={value}>

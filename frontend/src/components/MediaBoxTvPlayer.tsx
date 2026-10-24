@@ -238,6 +238,10 @@ export function MediaBoxTvPlayer({
     if (!el) return;
 
     const blockWheel = (e: WheelEvent) => {
+      // Разрешаем свободную прокрутку колесом мыши внутри меню настроек (дорожки, качество, субтитры)
+      if ((e.target as HTMLElement)?.closest?.('[data-settings-menu]')) {
+        return;
+      }
       // Изолируем колесо мыши от донорского iframe с отменой стандартного действия
       e.preventDefault();
       e.stopPropagation();
@@ -824,6 +828,7 @@ export function MediaBoxTvPlayer({
               {/* 8. НАШЕ СОБСТВЕННОЕ ВСПЛЫВАЮЩЕЕ МЕНЮ НАСТРОЕК (ПЕРЕВОД, КАЧЕСТВО, СУБТИТРЫ) */}
               {!isMinimized && isSettingsOpen && (
                 <div 
+                  data-settings-menu="true"
                   className="absolute inset-x-3 sm:inset-x-auto sm:right-4 top-16 z-50 max-w-sm sm:w-80 rounded-2xl bg-black/95 backdrop-blur-2xl border border-white/20 p-4 shadow-2xl text-white select-none animate-fade-in pointer-events-auto"
                   onClick={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}

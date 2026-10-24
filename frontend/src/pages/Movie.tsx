@@ -448,6 +448,7 @@ export function Movie() {
 
   // Episode choice is the single launch trigger: commands Player via targetEpisode prop.
   const handleEpisodeSelect = (episode: string) => {
+    setIsMovieMinimized(false);
     const season = activeSeason || sortedSeasons[0] || '1';
     handleSeasonEpisodeChange(season, episode);
     userSelectedRef.current = true;
@@ -758,6 +759,7 @@ export function Movie() {
 
   const handleWatch = async (forceRefresh = false) => {
     if (!movie) return;
+    setIsMovieMinimized(false);
     if (isUnreleased) {
       if (trailerVideo) {
         stopAudio();
@@ -1387,6 +1389,7 @@ export function Movie() {
             sortedEpisodes={sortedEpisodes}
             activeEpisode={activeEpisode}
             onSeasonChange={(season) => {
+              setIsMovieMinimized(false);
               const availableEpisodes = Array.isArray(liftwEpisodes?.[season]) ? liftwEpisodes[season] : ["1"];
               const sortedAvail = sortNumericKeys(availableEpisodes);
               const targetEp = sortedAvail[0] || "1";
