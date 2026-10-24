@@ -187,8 +187,11 @@ export function Home() {
   const [modalTrailerTarget, setModalTrailerTarget] = useState<{ id?: number; index?: number } | null>(null);
   const [loadingMoreCategories, setLoadingMoreCategories] = useState(false);
   const [hasMoreCategories, setHasMoreCategories] = useState(true);
+  const [hasMoreItems, setHasMoreItems] = useState(true);
   const isFirstRender = useRef(true);
   const hasRestoredScrollRef = useRef(false);
+  // Защита от гонки состояний: номер поколения запроса для отбрасывания устаревших ответов API
+  const loadSeqRef = useRef<number>(0);
   // Live search: debounce timer + abort for stale requests
   const searchDebounceRef = useRef<any>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -330,21 +333,29 @@ export function Home() {
     }
 
     const loadContent = async () => {
+      // Инкрементируем поколение запроса: если пользователь сменил таб или фильтр,
+      // ответ предыдущего асинхронного вызова будет отброшен без мутации стейта
+      const loadSeq = ++loadSeqRef.current;
+
       try {
         if (searchQuery.trim().length > 0) {
           setIsSearching(true);
-          // Cancel stale live-search request before starting a new one
+          // Отменяем устаревший live-search перед стартом нового
           try { searchAbortRef.current?.abort(); } catch (_) {}
           const ctrl = new AbortController();
           searchAbortRef.current = ctrl;
           try {
             const results = await searchContent(searchQuery, ctrl.signal);
-            if (!ctrl.signal.aborted) setItems(results);
+            if (!ctrl.signal.aborted && loadSeq === loadSeqRef.current) {
+              setItems(results);
+              setHasMoreItems(false);
+            }
           } catch (err: any) {
-            // Stale (aborted) searches are silently ignored
-            if (!ctrl.signal.aborted) {
+            // Устаревшие отмененные поисковые запросы игнорируются
+            if (!ctrl.signal.aborted && loadSeq === loadSeqRef.current) {
               console.error('Failed to search content', err);
               setItems([]);
+              setHasMoreItems(false);
             }
           }
         } else if (selectedGenre || sortBy === 'vote_average.desc' || page > 1) {
@@ -353,6 +364,7 @@ export function Home() {
             try {
               const randPage = Math.floor(Math.random() * 4);
               const data = await fetchAdultSearch('popular', randPage);
+              if (loadSeq !== loadSeqRef.current) return;
               const list = Array.isArray(data) ? data : [];
               const seen = new Set();
               const unique = list.filter((v: any) => {
@@ -372,55 +384,79 @@ export function Home() {
                 isAdult: true
               }));
               setItems(adultItems);
+              setHasMoreItems(false);
             } catch (err) {
-              console.error('Failed to fetch adult content:', err);
-              setItems([]);
+              if (loadSeq === loadSeqRef.current) {
+                console.error('Failed to fetch adult content:', err);
+                setItems([]);
+                setHasMoreItems(false);
+              }
             }
           } else {
             const fetchFn = activeTab === 'movie' ? fetchMovies : fetchSeries;
             const results = await fetchFn(page, selectedGenre, sortBy);
-            if (page === 1) {
-              setItems(results || []);
+            if (loadSeq !== loadSeqRef.current) return;
+
+            if (!results || results.length === 0) {
+              setHasMoreItems(false);
+              if (page === 1) setItems([]);
             } else {
-              setItems(prev => {
-                const existingIds = new Set(prev.map(i => i.id));
-                const newItems = (results || []).filter((i: any) => !existingIds.has(i.id));
-                return [...prev, ...newItems];
-              });
+              setHasMoreItems(results.length >= 12);
+              if (page === 1) {
+                setItems(results || []);
+              } else {
+                setItems(prev => {
+                  const existingIds = new Set(prev.map(i => i.id));
+                  const newItems = (results || []).filter((i: any) => !existingIds.has(i.id));
+                  return [...prev, ...newItems];
+                });
+              }
             }
           }
         } else {
-          // Default categorized home feed (12 cards per genre section, cached for 24 hours)
+          // Главная лента категорий (12 карточек в секции, кэш 24 часа)
           setIsSearching(false);
           setHasMoreCategories(true);
 
           const cacheKey = `categorized_home_v8_${activeTab === 'movie' ? 'movie' : 'tv'}_${language}`;
           const cachedSync = clientCache.get(cacheKey) as any[];
           if (Array.isArray(cachedSync) && cachedSync.length > 0) {
-            // Instant 0ms render from client cache
+            // Мгновенный 0ms рендер из локального кэша
             setHomeSections(sanitizeSections(cachedSync));
-            // Silent background update without triggering loading state
-            fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
-              if (Array.isArray(fresh) && fresh.length > 0) setHomeSections(sanitizeSections(fresh));
+            // Фоновое обновление с защитой от перезаписи пользовательских категорий и смены таба
+            const targetTab = activeTab;
+            fetchCategorizedHome(targetTab === 'movie' ? 'movie' : 'tv', true).then((fresh: any) => {
+              if (loadSeq === loadSeqRef.current && Array.isArray(fresh) && fresh.length > 0) {
+                setHomeSections((prev: any[]) => {
+                  // Сохраняем секции, добавленные пользователем через кнопку «Больше категорий»
+                  const freshIds = new Set(fresh.map((s: any) => String(s.id)));
+                  const additional = (prev || []).filter((s: any) => !freshIds.has(String(s.id)));
+                  return sanitizeSections([...fresh, ...additional]);
+                });
+              }
             });
           } else {
             const sections = await fetchCategorizedHome(activeTab === 'movie' ? 'movie' : 'tv');
-            setHomeSections(sanitizeSections((sections as any[]) || []));
+            if (loadSeq === loadSeqRef.current) {
+              setHomeSections(sanitizeSections((sections as any[]) || []));
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to load content', err);
+        if (loadSeq === loadSeqRef.current) {
+          console.error('Failed to load content', err);
+        }
       }
     };
 
     loadContent();
   }, [activeTab, page, selectedGenre, sortBy, searchQuery, fetchMovies, fetchSeries, searchContent, fetchCategorizedHome, sanitizeSections, language]);
 
-  // Infinite scroll listener (active in single-genre, search, or Top IMDb mode for movies & series)
+  // Слушатель бесконечной прокрутки (только в режимах фильтрации/поиска при наличии данных)
   useEffect(() => {
     let ticking = false;
     const handleScroll = () => {
-      if (loading || isSearching || selectedGenre === 'adult' || (!selectedGenre && sortBy === 'popularity.desc' && !searchQuery)) return;
+      if (loading || isSearching || !hasMoreItems || selectedGenre === 'adult' || (!selectedGenre && sortBy === 'popularity.desc' && !searchQuery)) return;
       
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -439,7 +475,7 @@ export function Home() {
     
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, isSearching, page, selectedGenre, sortBy, searchQuery]);
+  }, [loading, isSearching, hasMoreItems, page, selectedGenre, sortBy, searchQuery]);
 
 
 

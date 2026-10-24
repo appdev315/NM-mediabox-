@@ -94,12 +94,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     const startSec = Math.floor(timecode || 0);
     // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
     const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
-    // Для ТВ-эфира (isTv = true) глубокий таймкод НЕ передается напрямую в iframe URL:
-    // HLS донора Liftw падает в дедлок и вечный лоадер при попытке сика до первичной буферизации.
-    // Для ТВ плеер запускается с чистым autoplay, а seek выполняется через postMessage после готовности потока.
-    const startParams = (!isTv && startSec > 5 
-      ? `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}&autoplay=1&autoPlay=1#t=${startSec}`
-      : '&autoplay=1&autoPlay=1') + langParams;
+    // Для ТВ-эфира (isTv = true) передаем канонический параметр time=<секунды> напрямую в URL:
+    // Серверный рендерер Liftw (embed.liftw.ws) инициализирует opts.time = <time>, запуская HLS с нужной секунды эфира.
+    // Исключаем хэш #t= и дублирующие параметры start=/t=, вызывавшие дедлок буфера HLS донора.
+    const timeParams = startSec > 5
+      ? (isTv ? `&time=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
+      : '';
+    const startParams = `&autoplay=1&autoPlay=1${timeParams}${langParams}`;
     if (cleanUrl.includes('?')) {
       return `${cleanUrl}${startParams}`;
     }

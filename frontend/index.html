@@ -31,11 +31,14 @@
           });
         });
 
-        // Бесшовный автоподхват: при активации нового сервис-воркера мгновенно перезагружаем страницу
+        // Бесшовный автоподхват: при активации нового сервис-воркера перезагружаем страницу с защитой от циклов (не чаще 1 раза в минуту)
         var isRefreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', function() {
-          if (!isRefreshing) {
+          var lastReload = Number(sessionStorage.getItem('mb_sw_last_reload') || '0');
+          var now = Date.now();
+          if (!isRefreshing && (now - lastReload > 60000)) {
             isRefreshing = true;
+            sessionStorage.setItem('mb_sw_last_reload', String(now));
             window.location.reload();
           }
         });
@@ -73,8 +76,13 @@
 
         window.addEventListener('error', function(event) {
           var target = event.target;
+          var root = document.getElementById('root');
+          // Перезагрузка разрешена ТОЛЬКО если React еще НЕ смонтирован (белый экран при старте из-за битого чанка)
+          // Ошибки рантайма сторонних скриптов/баннеров/линков после успешного монтирования не должны крашить SPA
           if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
-            healOnce();
+            if (root && (!root.firstElementChild || root.children.length === 0)) {
+              healOnce();
+            }
           }
         }, true);
 

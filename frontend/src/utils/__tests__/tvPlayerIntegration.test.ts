@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { TV_CHANNELS, getChannelScheduleState, getChannelPhaseOffset } from '../tvSchedule';
-import { CATALOG_NEW_RELEASES } from '../tvCatalogData';
+import { TV_CHANNELS, getChannelPhaseOffset } from '../tvSchedule';
 
 describe('MediaBox TV & Player Integration Verification', () => {
-  it('verifies that TV player mode strictly strips deep seek parameters from initial iframe URL', () => {
+  it('verifies that TV player mode passes canonical time parameter without hash or start duplicate', () => {
     // Симуляция логики генерации currentUrl из Player.tsx
     const rawUrl = 'https://api.media-box.xyz/api/liftw?tmdb=1153576&type=movie';
     const isTv = true;
@@ -11,16 +10,17 @@ describe('MediaBox TV & Player Integration Verification', () => {
     const language = 'ru-RU';
 
     const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
-    const startParams = (!isTv && startSec > 5 
-      ? `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}&autoplay=1&autoPlay=1#t=${startSec}`
-      : '&autoplay=1&autoPlay=1') + langParams;
+    const timeParams = startSec > 5
+      ? (isTv ? `&time=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
+      : '';
+    const startParams = `&autoplay=1&autoPlay=1${timeParams}${langParams}`;
     
     const finalUrl = `${rawUrl}${startParams}`;
 
-    // В ТВ-режиме deep seek не должен присутствовать в начальном URL, чтобы избежать дедлока HLS
+    // В ТВ-режиме передается чистый time=4500 для Liftw server render opts.time, без хэша #t=
     expect(finalUrl).toContain('&autoplay=1');
+    expect(finalUrl).toContain('&time=4500');
     expect(finalUrl).not.toContain('&start=');
-    expect(finalUrl).not.toContain('&time=');
     expect(finalUrl).not.toContain('#t=');
   });
 

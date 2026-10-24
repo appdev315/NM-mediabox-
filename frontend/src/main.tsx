@@ -14,15 +14,17 @@ window.addEventListener('vite:preloadError', () => {
   }
 });
 
-// После успешного коммита дерева React снимаем защитные флаги reload-цикла.
-// Синхронный сброс сразу после render() бесполезен: монтирование асинхронно,
-// и битый lazy-чанк успевал обнулить счётчик до падения — получался вечный reload.
+// После успешного коммита дерева React снимаем защитные флаги reload-цикла с задержкой (15 секунд),
+// предотвращая бесконечный цикл перезагрузок при периодических сбоях динамических импортов
 function MountSuccess() {
   useEffect(() => {
-    try {
-      sessionStorage.removeItem('mb_pwa_heal_attempts');
-      sessionStorage.removeItem('mb_preload_error_reload');
-    } catch {}
+    const timer = setTimeout(() => {
+      try {
+        sessionStorage.removeItem('mb_pwa_heal_attempts');
+        sessionStorage.removeItem('mb_preload_error_reload');
+      } catch {}
+    }, 15000);
+    return () => clearTimeout(timer);
   }, []);
   return null;
 }

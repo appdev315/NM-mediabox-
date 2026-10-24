@@ -64,6 +64,7 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
               scrolling="no"
               frameBorder="0"
               title={`adsterra-movie-leaderboard-${slotId}`}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               style={{ width: '728px', height: '90px', border: 'none', overflow: 'hidden' }}
             />
           </div>
@@ -78,6 +79,7 @@ export const MovieBottomBanner: React.FC<MovieBottomBannerProps> = ({
               scrolling="no"
               frameBorder="0"
               title={`adsterra-movie-mobile-banner-${slotId}`}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               style={{ width: '320px', height: '50px', border: 'none', overflow: 'hidden' }}
             />
           </div>
