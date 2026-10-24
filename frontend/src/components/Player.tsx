@@ -94,14 +94,17 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     const startSec = Math.floor(timecode || 0);
     // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
     const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
-    const startParams = (startSec > 5 
+    // Для ТВ-эфира (isTv = true) глубокий таймкод НЕ передается напрямую в iframe URL:
+    // HLS донора Liftw падает в дедлок и вечный лоадер при попытке сика до первичной буферизации.
+    // Для ТВ плеер запускается с чистым autoplay, а seek выполняется через postMessage после готовности потока.
+    const startParams = (!isTv && startSec > 5 
       ? `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}&autoplay=1&autoPlay=1#t=${startSec}`
       : '&autoplay=1&autoPlay=1') + langParams;
     if (cleanUrl.includes('?')) {
       return `${cleanUrl}${startParams}`;
     }
     return `${cleanUrl}?${startParams.slice(1)}`;
-  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language]);
+  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language, isTv]);
 
   // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
   // verified fallback or season changes navigate iframe.src directly.

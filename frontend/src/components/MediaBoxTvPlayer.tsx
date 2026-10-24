@@ -46,6 +46,9 @@ export function MediaBoxTvPlayer({
     scheduleStateRef.current = scheduleState;
   }, [scheduleState]);
 
+  // Ссылка на контейнер плеера для перехвата событий колесика мыши
+  const videoBoxRef = useRef<HTMLDivElement>(null);
+
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(true);
   const [streamError, setStreamError] = useState(false);
@@ -221,6 +224,34 @@ export function MediaBoxTvPlayer({
     }
   }, [isLivePlaying, triggerUserActivity]);
 
+  // 0. ПРЕДОТВРАЩЕНИЕ ДУБЛИРОВАНИЯ ПЛАШКИ ГРОМКОСТИ:
+  // Блокируем захват колесика мыши и стрелок громкости донорским iframe (player-venom),
+  // чтобы не вызывать всплывающий слайдер громкости плеера поверх нативной системной громкости.
+  useEffect(() => {
+    const el = videoBoxRef.current;
+    if (!el) return;
+
+    const blockWheel = (e: WheelEvent) => {
+      // Изолируем колесо мыши от донорского iframe с отменой стандартного действия
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const blockKeyArrows = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        // Перехватываем стрелки громкости в capture-фазе, защищая от наслоения плашек
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener('wheel', blockWheel, { passive: false });
+    window.addEventListener('keydown', blockKeyArrows, { capture: true });
+
+    return () => {
+      el.removeEventListener('wheel', blockWheel);
+      window.removeEventListener('keydown', blockKeyArrows, { capture: true });
+    };
+  }, []);
 
   // 1. НАВИГАЦИЯ НАЗАД ВНЕ БРАУЗЕРА (Telegram WebApp, Android Capacitor, History Popstate)
   useEffect(() => {
@@ -541,6 +572,7 @@ export function MediaBoxTvPlayer({
 
           {/* 1. Контейнер видеоплеера: в оконном режиме flex-1 aspect-video, в полноэкранном — 100% viewport */}
           <div 
+            ref={videoBoxRef}
             className={
               isFullscreen
                 ? "relative w-full h-full flex flex-col bg-black overflow-hidden"
@@ -667,6 +699,10 @@ export function MediaBoxTvPlayer({
                     isLivePlaying ? 'pointer-events-auto' : 'pointer-events-none'
                   }`}
                   style={{ touchAction: 'none' }}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     handleShieldTap();

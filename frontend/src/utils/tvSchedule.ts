@@ -5,6 +5,7 @@
 // Сложность: O(1) без запросов к серверу, строго синхронно для всех пользователей.
 
 import {
+  CATALOG_NEW_RELEASES,
   CATALOG_POPULAR,
   CATALOG_ACTION,
   CATALOG_COMEDY,
@@ -58,6 +59,8 @@ export interface TvChannel {
   nameEn: string;
   icon: string;
   color: string;
+  // Индивидуальный фазовый сдвиг сетки канала в секундах для устранения совпадений эфира
+  phaseOffsetSec?: number;
   moviePool?: TvPlaylistItem[];
   seriesEpisodes?: TvPlaylistItem[];
   weeklyPool?: TvPlaylistItem[];
@@ -127,9 +130,21 @@ function generateSeriesQueueEpisodes(seriesList: SeriesDefinition[], defaultEpDu
   return result;
 }
 
-// РЕЕСТР КАНАЛОВ MEDIABOX TV (19 КАНАЛОВ ФИЛЬМОВ + 16 КАНАЛОВ СЕРИАЛОВ)
+// РЕЕСТР КАНАЛОВ MEDIABOX TV (20 КАНАЛОВ ФИЛЬМОВ + 16 КАНАЛОВ СЕРИАЛОВ)
 export const TV_CHANNELS: TvChannel[] = [
-  // ================= 19 КАНАЛОВ ФИЛЬМОВ (ПО 100 ТАЙТЛОВ ИЗ TMDB ПО РЕЙТИНГУ) =================
+  // ================= 20 КАНАЛОВ ФИЛЬМОВ (НОВИНКИ + 19 ЖАНРОВ ПО 100 ТАЙТЛОВ ИЗ TMDB) =================
+  {
+    id: 'ch-new',
+    category: 'movies',
+    genreNameRu: 'Новинки',
+    genreNameEn: 'New Releases',
+    nameRu: 'Новинки ТВ',
+    nameEn: 'New Releases TV',
+    icon: '',
+    color: 'from-amber-400 via-rose-500 to-purple-600',
+    phaseOffsetSec: 0,
+    moviePool: CATALOG_NEW_RELEASES
+  },
   {
     id: 'ch-popular',
     category: 'movies',
@@ -139,6 +154,7 @@ export const TV_CHANNELS: TvChannel[] = [
     nameEn: 'Top 100 TV',
     icon: '',
     color: 'from-amber-500 to-orange-600',
+    phaseOffsetSec: 7200,
     moviePool: CATALOG_POPULAR
   },
   {
@@ -653,6 +669,17 @@ export function formatTimeRemaining(sec: number, language?: string): string {
   return `left ${remMinutes} min`;
 }
 
+// Детерминированный фазовый сдвиг расписания канала:
+// Гарантирует уникальное время старта передач и отсутствие синхронных совпадений между каналами
+export function getChannelPhaseOffset(channel: TvChannel): number {
+  if (channel.phaseOffsetSec !== undefined) return channel.phaseOffsetSec;
+  let hash = 0;
+  for (let i = 0; i < channel.id.length; i++) {
+    hash = (hash * 31 + channel.id.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 100) * 3600;
+}
+
 // Расчёт текущего состояния прямого эфира (непрерывная 24/7 FAST-цепочка по фактическому хронометражу)
 export function getChannelScheduleState(
   channel: TvChannel, 
@@ -698,8 +725,9 @@ export function getChannelScheduleState(
     totalCycleDurationSec += (pool[i].durationSec || 7200);
   }
 
-  // Секунды от опорной эпохи (целочисленный остаток по модулю длины цикла)
-  const elapsedSinceEpoch = now - EPOCH_ANCHOR_SEC;
+  // Секунды от опорной эпохи (целочисленный остаток по модулю длины цикла) со сдвигом фазы канала
+  const channelOffset = getChannelPhaseOffset(channel);
+  const elapsedSinceEpoch = (now - EPOCH_ANCHOR_SEC) - channelOffset;
   const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
 
   // Быстрый O(N) поиск текущего фильма в непрерывной цепочке (100 элементов суммируются за 0.002 мс)

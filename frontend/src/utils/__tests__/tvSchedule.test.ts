@@ -89,12 +89,14 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     // Регулярное выражение для проверки отсутствия эмодзи
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
 
-    expect(TV_CHANNELS.length).toBe(35);
+    expect(TV_CHANNELS.length).toBe(36);
     const dorama = TV_CHANNELS.find(c => c.id === 'ch-series-dorama');
     const anime = TV_CHANNELS.find(c => c.id === 'ch-series-anime');
+    const newReleases = TV_CHANNELS.find(c => c.id === 'ch-new');
 
     expect(dorama).toBeDefined();
     expect(anime).toBeDefined();
+    expect(newReleases).toBeDefined();
 
     for (const ch of TV_CHANNELS) {
       expect(ch.icon).toBe('');
@@ -178,8 +180,28 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     }
   });
 
-  it('should guarantee 100% continuous 24h schedule continuity across all 35 channels', () => {
-    // Проверяем непрерывность сетки вещания для всех 35 каналов (10 предстоящих слотов с возрастающим временем)
+  it('should enforce unique TMDB IDs across all movie channels (zero duplicates in FAST TV)', () => {
+    // Проверяем 100% уникальность фильмов во всех каналах кино
+    const movieChannels = TV_CHANNELS.filter(c => c.category === 'movies');
+    const seenIds = new Map<number, string>();
+    const duplicates: string[] = [];
+
+    for (const ch of movieChannels) {
+      const pool = ch.moviePool || [];
+      for (const item of pool) {
+        if (seenIds.has(item.id)) {
+          duplicates.push(`Фильм "${item.title}" (ID: ${item.id}) дублируется в каналах "${seenIds.get(item.id)}" и "${ch.nameRu}"`);
+        } else {
+          seenIds.set(item.id, ch.nameRu);
+        }
+      }
+    }
+
+    expect(duplicates).toEqual([]);
+  });
+
+  it('should guarantee 100% continuous 24h schedule continuity across all 36 channels', () => {
+    // Проверяем непрерывность сетки вещания для всех 36 каналов (10 предстоящих слотов с возрастающим временем)
     for (const channel of TV_CHANNELS) {
       const state = getChannelScheduleState(channel);
       expect(state.currentItem).toBeDefined();
