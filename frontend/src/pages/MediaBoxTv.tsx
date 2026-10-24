@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react';
 import { 
   TV_CHANNELS, 
-  type TvChannel, 
   getChannelScheduleState,
   getItemTitle,
   getChannelName,
   getChannelGenre
 } from '../utils/tvSchedule';
-import { MediaBoxTvPlayer } from '../components/MediaBoxTvPlayer';
 import { getTmdbImageUrl } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
+import { useTvPlayer } from '../context/TvPlayerContext';
 
 export function MediaBoxTv() {
   const { t, language } = useLanguage();
+  const { openTv } = useTvPlayer();
   const [activeCategory, setActiveCategory] = useState<'movies' | 'series'>('movies');
-  const [activeChannel, setActiveChannel] = useState<TvChannel | null>(null);
 
   // Периодическое обновление информации об эфире в карточках каталога (раз в 15 секунд)
   const [, setTick] = useState(0);
@@ -75,14 +74,14 @@ export function MediaBoxTv() {
       {/* 3. Сетка каналов выбранной категории */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredChannels.map(channel => {
-          const state = getChannelScheduleState(channel);
+          const state = getChannelScheduleState(channel, language);
           const { currentItem, nextItem, formattedNextTime, progressPercent, formattedTimeRemaining } = state;
           const isSeries = currentItem.type === 'tv';
 
           return (
             <div
               key={channel.id}
-              onClick={() => setActiveChannel(channel)}
+              onClick={() => openTv(channel)}
               className="group relative rounded-2xl bg-[#17212b]/80 border border-white/10 hover:border-white/20 p-3.5 flex flex-col gap-3 shadow-xl transition-all active:scale-[0.99] cursor-pointer overflow-hidden backdrop-blur-sm"
             >
               {/* Верхняя шапка канала с жанром и цветным индикатором */}
@@ -168,16 +167,6 @@ export function MediaBoxTv() {
           );
         })}
       </div>
-
-      {/* 4. Полноэкранный плеер выбранного канала */}
-      {activeChannel && (
-        <MediaBoxTvPlayer
-          channel={activeChannel}
-          onClose={() => setActiveChannel(null)}
-          onSelectChannel={(newCh) => setActiveChannel(newCh)}
-          allChannels={filteredChannels}
-        />
-      )}
     </div>
   );
 }

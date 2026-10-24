@@ -47,5 +47,12 @@
   "tvStreamUnavailableDesc": "Siaran sedang dipulihkan. Coba ganti saluran atau muat ulang.",
   "tvNextChannel": "Saluran berikutnya",
   "tvSubtitle": "Siaran film dan serial 24/7",
-  "tvBackToChannels": "Kembali ke saluran"
+  "tvBackToChannels": "Kembali ke saluran",
+  "tvWatchLive": "Putar siaran langsung",
+  "tvAudio": "Audio",
+  "tvQuality": "Kualitas",
+  "tvSubtitles": "Subtitle",
+  "tvSettings": "Pengaturan",
+  "tvNoSubtitles": "Subtitle tidak tersedia",
+  "tvOpenInCatalog": "Buka di katalog"
 }

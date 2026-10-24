@@ -263,5 +263,7 @@
   "tvAudio": "Перевод",
   "tvQuality": "Качество",
   "tvSubtitles": "Субтитры",
-  "tvSettings": "Настройки"
+  "tvSettings": "Настройки",
+  "tvNoSubtitles": "Субтитры недоступны",
+  "tvOpenInCatalog": "Смотреть в каталоге"
 }

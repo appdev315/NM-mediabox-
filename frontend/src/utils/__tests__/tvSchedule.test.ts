@@ -3,6 +3,7 @@ import {
   SLOT_DURATION_SEC, 
   TV_CHANNELS, 
   getChannelScheduleState, 
+  getChannelPool,
   getChannelUpcomingSchedule,
   formatTimecode,
   getItemTitle,
@@ -23,7 +24,8 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     expect(state).toBeDefined();
     expect(state.channel.id).toBe(channel.id);
     expect(state.slotIndex).toBeGreaterThanOrEqual(0);
-    expect(state.slotIndex).toBeLessThan(10);
+    // slotIndex — порядковый индекс тайтла в непрерывном пуле канала, а не номер слота дня
+    expect(state.slotIndex).toBeLessThan(getChannelPool(channel).length);
     expect(state.currentItem).toBeDefined();
     expect(state.currentItem.id).toBeGreaterThan(0);
     expect(state.initialTimecode).toBeGreaterThanOrEqual(0);

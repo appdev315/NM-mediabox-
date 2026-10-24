@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { Player } from './Player';
 import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
@@ -12,23 +13,29 @@ import {
   getChannelUpcomingSchedule,
   formatTimecode,
   getItemTitle,
-  getChannelName
+  getChannelName,
+  TV_CHANNELS
 } from '../utils/tvSchedule';
 
 interface MediaBoxTvPlayerProps {
   channel: TvChannel;
   onClose: () => void;
   onSelectChannel: (channel: TvChannel) => void;
-  allChannels: TvChannel[];
 }
 
 export function MediaBoxTvPlayer({ 
   channel, 
   onClose, 
-  onSelectChannel, 
-  allChannels 
+  onSelectChannel
 }: MediaBoxTvPlayerProps) {
   const { t, language } = useLanguage();
+  const navigate = useNavigate();
+
+  // Каналы той же категории (ТВ-программа и переключение при недоступном потоке)
+  const siblingChannels = useMemo(
+    () => TV_CHANNELS.filter(ch => ch.category === channel.category),
+    [channel.category]
+  );
 
   // Вычисление моментального состояния эфира канала (10 слотов по 144 мин)
   const [scheduleState, setScheduleState] = useState<ChannelScheduleState>(() => 
@@ -79,7 +86,7 @@ export function MediaBoxTvPlayer({
     } catch (_) {}
   }, []);
 
-  // Сброс статуса воспроизведения и настроек при переключении канала или слота передачи
+  // Сброс статуса воспроизведения и настроек при смене канала, тайтла или эпизода эфира
   useEffect(() => {
     setIsLivePlaying(false);
     setIsSettingsOpen(false);
@@ -89,7 +96,7 @@ export function MediaBoxTvPlayer({
     setCurrentQuality('');
     setCcList([]);
     setCurrentCc('');
-  }, [channel.id, scheduleState.slotIndex]);
+  }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
   // Автоматический переход в live-режим и опрос доступных дорожек при старте потока
   const handlePlayerReady = useCallback(() => {
@@ -110,7 +117,7 @@ export function MediaBoxTvPlayer({
       setShowAudioBadge(false);
     }, 7000);
     return () => clearTimeout(timer);
-  }, [channel.id, scheduleState.slotIndex]);
+  }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.episode]);
 
   // Состояние видимости OSD: полностью скрывается при отсутствии активности
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -119,31 +126,29 @@ export function MediaBoxTvPlayer({
   // Состояние полноэкранного режима плеера (декларативный React Web Fullscreen)
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Переключение полноэкранного режима с поддержкой Telegram WebApp и десктопа
+  // Переключение полноэкранного режима: фирменный фуллскрин Telegram или нативный браузерный.
+  // Двойной вызов (WebApp + documentElement параллельно) устранён — второе API конфликтует с первым.
   const toggleFullscreen = useCallback(async () => {
     try {
       const nextState = !isFullscreen;
       setIsFullscreen(nextState);
 
       if (nextState) {
-        // Вызов полноэкранного режима внутри Telegram WebApp
         if (WebApp && typeof WebApp.requestFullscreen === 'function') {
           try { WebApp.requestFullscreen(); } catch (_) {}
-        }
-        // Нативный вызов для браузеров на десктопе
-        const root = document.documentElement;
-        if (root.requestFullscreen) {
-          await root.requestFullscreen();
-        } else if ((root as any).webkitRequestFullscreen) {
-          await (root as any).webkitRequestFullscreen();
+        } else {
+          // Нативный вызов для обычных браузеров (десктоп / PWA)
+          const root = document.documentElement;
+          if (root.requestFullscreen) {
+            await root.requestFullscreen();
+          } else if ((root as any).webkitRequestFullscreen) {
+            await (root as any).webkitRequestFullscreen();
+          }
         }
       } else {
-        // Выход из полноэкранного режима в Telegram
         if (WebApp && typeof WebApp.exitFullscreen === 'function') {
           try { WebApp.exitFullscreen(); } catch (_) {}
-        }
-        // Нативный выход в браузере
-        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        } else if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
           if (document.exitFullscreen) {
             await document.exitFullscreen();
           } else if ((document as any).webkitExitFullscreen) {
@@ -156,7 +161,7 @@ export function MediaBoxTvPlayer({
     }
   }, [isFullscreen]);
 
-  // Слушатель системного выхода из полноэкранного режима (клавиша Esc на десктопе)
+  // Слушатель выхода из полноэкранного режима (Esc на десктопе + событие Telegram fullscreenChanged)
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isNativeFs = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
@@ -166,9 +171,25 @@ export function MediaBoxTvPlayer({
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    // Telegram WebApp не триггерит document fullscreenchange — синхронизируемся по фирменному событию
+    const handleTgFullscreen = () => {
+      try { setIsFullscreen(Boolean((WebApp as any).isFullscreen)); } catch (_) {}
+    };
+    try {
+      if (WebApp && typeof (WebApp as any).onEvent === 'function') {
+        (WebApp as any).onEvent('fullscreenChanged', handleTgFullscreen);
+      }
+    } catch (_) {}
+
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      try {
+        if (WebApp && typeof (WebApp as any).offEvent === 'function') {
+          (WebApp as any).offEvent('fullscreenChanged', handleTgFullscreen);
+        }
+      } catch (_) {}
     };
   }, [isFullscreen]);
 
@@ -245,6 +266,11 @@ export function MediaBoxTvPlayer({
 
     const handleTvMessage = (e: MessageEvent) => {
       try {
+        // Принимаем события только от нашего донорского iframe:
+        // посторонние фреймы (реклама и т.п.) не должны управлять эфиром
+        const donorFrame = document.querySelector<HTMLIFrameElement>('#video-iframe');
+        if (!donorFrame || !donorFrame.contentWindow || e.source !== donorFrame.contentWindow) return;
+
         let data: any = e.data;
         if (typeof data === 'string') {
           try {
@@ -541,7 +567,7 @@ export function MediaBoxTvPlayer({
               style={isFullscreen ? { paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' } : undefined}
             >
               {/* Слева: только круглая кнопка закрытия ✕. Левый верхний угол остаётся свободным под заголовок фильма донора */}
-              <div className="flex items-center pointer-events-auto">
+              <div className={`flex items-center ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                 <button
                   type="button"
                   onClick={onClose}
@@ -553,7 +579,7 @@ export function MediaBoxTvPlayer({
               </div>
 
               {/* По центру: плавающая полупрозрачная капсула с названием канала и бейджем ЭФИР */}
-              <div className="pointer-events-auto flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg">
+              <div className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                 <span className="font-bold text-white text-xs sm:text-sm tracking-wide truncate max-w-[130px] sm:max-w-xs">
                   {getChannelName(channel, language)}
                 </span>
@@ -570,7 +596,7 @@ export function MediaBoxTvPlayer({
             {/* 3. Рабочая область плеера с защитным экраном против паузы */}
             <div className="relative flex-1 w-full h-full flex items-center justify-center bg-black overflow-hidden">
               {isLoadingStream && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black gap-3 text-white">
+                <div className="absolute inset-0 z-[35] flex flex-col items-center justify-center bg-black gap-3 text-white">
                   <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
                   <span className="text-xs font-medium text-white/80 tracking-wide">
                     {t('tvConnecting')}
@@ -579,7 +605,7 @@ export function MediaBoxTvPlayer({
               )}
 
               {streamError && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black gap-4 p-6 text-center text-white">
+                <div className="absolute inset-0 z-[35] flex flex-col items-center justify-center bg-black gap-4 p-6 text-center text-white">
                   <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center text-white/70 font-bold text-xl">
                     !
                   </div>
@@ -592,7 +618,7 @@ export function MediaBoxTvPlayer({
                   <button
                     type="button"
                     onClick={() => {
-                      const nextChannel = allChannels.find(c => c.id !== channel.id) || allChannels[0];
+                      const nextChannel = siblingChannels.find(c => c.id !== channel.id) || siblingChannels[0];
                       onSelectChannel(nextChannel);
                     }}
                     className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer"
@@ -605,14 +631,6 @@ export function MediaBoxTvPlayer({
               {/* Адаптивный видеофрейм 16:9 (max-w-full max-h-full aspect-video) без обрезки краев на экранах любого формата */}
               <div 
                 className="relative w-full h-full max-w-full max-h-full aspect-video flex items-center justify-center overflow-hidden"
-                onPointerDownCapture={() => {
-                  // При первом физическом клике/тапе пользователя по плееру активируем защитный экран с безопасной задержкой 400мс
-                  if (!isLivePlaying) {
-                    setTimeout(() => {
-                      setIsLivePlaying(true);
-                    }, 400);
-                  }
-                }}
               >
                 {/* Видеоплеер с уникальным ключом для детерминированного перемонтирования при смене фильма или серии */}
                 {iframeUrl && !streamError && (
@@ -626,18 +644,24 @@ export function MediaBoxTvPlayer({
                   />
                 )}
 
-                {/* 5. Защитный глухой блэкаут-экран над нижней панелью донора: */}
-                {/* На 100% глухо скрывает донорский таймлайн, кнопку паузы и громкость строго на поверхности видео */}
+                {/* 5. ПРОЗРАЧНЫЙ ЭКРАН ЗАЩИТЫ ПРЯМОГО ЭФИРА: */}
+                {/* До старта потока (isLivePlaying=false) клики проходят в донора для снятия autoplay-блока со звуком. */}
+                {/* После старта (isLivePlaying=true) мембрана на 100% глухая для тапов: блокирует тап-паузу, перемотку, */}
+                {/* нативные меню донора на мобильном. Донорский таймлайн остаётся ВИДИМЫМ, но мёртвым; субтитры донора */}
+                {/* не перекрываются. Любое касание будит наш OSD, двойной тап — наш фуллскрин. */}
                 <div
-                  className="absolute bottom-0 left-0 right-0 h-[48px] sm:h-[70px] z-30 cursor-default bg-black pointer-events-auto shadow-[0_-8px_16px_rgba(0,0,0,0.9)]"
+                  className={`absolute inset-0 z-30 bg-transparent ${
+                    isLivePlaying ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`}
                   style={{ touchAction: 'none' }}
-                  title={t('tvLive')}
-                  onClick={(e) => {
+                  onPointerDown={(e) => {
                     e.stopPropagation();
                     triggerUserActivity();
                   }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    toggleFullscreen();
+                  }}
                 />
               </div>
 
@@ -676,7 +700,7 @@ export function MediaBoxTvPlayer({
                         setIsSettingsOpen(prev => !prev);
                         triggerUserActivity();
                       }}
-                      className={`w-8 h-8 rounded-lg ${isSettingsOpen ? 'bg-amber-500 text-black border-amber-400 font-bold' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'} active:scale-95 flex items-center justify-center transition-all cursor-pointer pointer-events-auto border backdrop-blur-md shrink-0`}
+                      className={`w-8 h-8 rounded-lg ${isSettingsOpen ? 'bg-amber-500 text-black border-amber-400 font-bold' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'} active:scale-95 flex items-center justify-center transition-all cursor-pointer ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'} border backdrop-blur-md shrink-0`}
                       title={t('tvSettings')}
                       aria-label={t('tvSettings')}
                     >
@@ -691,7 +715,8 @@ export function MediaBoxTvPlayer({
                         toggleFullscreen();
                         triggerUserActivity();
                       }}
-                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer pointer-events-auto border border-white/10 backdrop-blur-md shrink-0"
+                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 backdrop-blur-md shrink-0"
+                      style={{ pointerEvents: isControlsVisible ? 'auto' : 'none' }}
                       title={t('tvFullscreen')}
                       aria-label={t('tvFullscreen')}
                     >
@@ -861,7 +886,7 @@ export function MediaBoxTvPlayer({
                         })
                       ) : (
                         <div className="text-center py-4 text-white/50 text-[11px]">
-                          {t('tvStreamUnavailable')}
+                          {t('tvNoSubtitles')}
                         </div>
                       )
                     )}
@@ -889,6 +914,21 @@ export function MediaBoxTvPlayer({
                 {t('tvAt')} {formattedNextTime}
               </span>
             </div>
+          )}
+
+          {/* Переход к тайтлу в каталоге: оверлей эфира живёт на уровне App, трансляция продолжается поверх каталога */}
+          {!isFullscreen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/movie/${currentItem.id}?type=${currentItem.type === 'tv' ? 'series' : 'movie'}`);
+              }}
+              className="w-full mt-2 px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-bold shadow-xl border border-white/15 flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer pointer-events-auto select-none"
+            >
+              <span>🎬</span>
+              <span>{t('tvOpenInCatalog')}</span>
+            </button>
           )}
         </div>
 
@@ -951,7 +991,7 @@ export function MediaBoxTvPlayer({
                 {t('tvOtherChannels')}
               </span>
               <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-                {allChannels.map(ch => (
+                {siblingChannels.map(ch => (
                   <button
                     key={ch.id}
                     type="button"

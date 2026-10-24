@@ -22,6 +22,7 @@ const AdultFavorites = lazy(() => import('./pages/AdultFavorites').then(m => ({ 
 
 import { ThemeProvider } from './context/ThemeContext';
 import { HomeStateProvider, useHomeState } from './context/HomeStateContext';
+import { TvPlayerProvider } from './context/TvPlayerContext';
 import { AdProvider } from './context/AdManager';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { FloatingTitle } from './components/FloatingTitle';
@@ -333,34 +334,36 @@ function MainAppAdultAdWatcher() {
 function MainApp() {
   return (
     <BrowserRouter>
-      <MainAppAdultAdWatcher />
-      <DeepLinkHandler isAdultApp={false} />
-      <HardwareBackButtonHandler />
-      <NetworkBanner />
-      <div className="pb-24 min-h-screen relative flex flex-col">
-        <ErrorBoundary>
-          <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/movies" element={<Home />} />
-              <Route path="/movie/:id" element={<Movie />} />
-              <Route path="/music" element={<Music />} />
-              <Route path="/radio" element={<Radio />} />
-              <Route path="/tv" element={<MediaBoxTv />} />
-              <Route path="/adult" element={<Adult />} />
-              <Route path="/adult/:id" element={<AdultVideo />} />
-              <Route path="/adult/favorites" element={<AdultFavorites />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/favorites" element={<Favorites />} />
-              {/* Catch-all: неизвестный URL вместо пустого экрана ведёт на главную */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </ErrorBoundary>
-      </div>
-      <BottomNav isAdultApp={false} />
-      <FloatingTitle />
-      <GlobalAudioPlayer />
+      <TvPlayerProvider>
+        <MainAppAdultAdWatcher />
+        <DeepLinkHandler isAdultApp={false} />
+        <HardwareBackButtonHandler />
+        <NetworkBanner />
+        <div className="pb-24 min-h-screen relative flex flex-col">
+          <ErrorBoundary>
+            <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/movies" element={<Home />} />
+                <Route path="/movie/:id" element={<Movie />} />
+                <Route path="/music" element={<Music />} />
+                <Route path="/radio" element={<Radio />} />
+                <Route path="/tv" element={<MediaBoxTv />} />
+                <Route path="/adult" element={<Adult />} />
+                <Route path="/adult/:id" element={<AdultVideo />} />
+                <Route path="/adult/favorites" element={<AdultFavorites />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/favorites" element={<Favorites />} />
+                {/* Catch-all: неизвестный URL вместо пустого экрана ведёт на главную */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+        <BottomNav isAdultApp={false} />
+        <FloatingTitle />
+        <GlobalAudioPlayer />
+      </TvPlayerProvider>
     </BrowserRouter>
   );
 }

@@ -263,5 +263,7 @@
   "tvAudio": "Audio",
   "tvQuality": "Quality",
   "tvSubtitles": "Subtitles",
-  "tvSettings": "Settings"
+  "tvSettings": "Settings",
+  "tvNoSubtitles": "No subtitles available",
+  "tvOpenInCatalog": "Open in catalog"
 }

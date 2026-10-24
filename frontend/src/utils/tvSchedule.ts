@@ -77,7 +77,7 @@ export interface ChannelScheduleState {
   formattedDuration: string;
   formattedTimeRemaining: string;
   formattedNextTime: string;
-  slotIndex: number; // 0..9 (номер передачи сегодня)
+  slotIndex: number; // индекс текущего тайтла в пуле канала (порядковый номер эфира в цикле)
   dayOfWeek: number; // 0..6 (Пн..Вс)
 }
 
@@ -630,9 +630,33 @@ export function formatClockTime(timestampSec: number): string {
   return `${h}:${m}`;
 }
 
+// Локализованное «осталось X ч Y мин» (ранее строка была зашита на русском для всех языков)
+export function formatTimeRemaining(sec: number, language?: string): string {
+  const remMinutes = Math.ceil(Math.max(0, sec) / 60);
+  const lang = (language || 'ru').toLowerCase();
+  const isRu = lang.startsWith('ru');
+  const hours = Math.floor(remMinutes / 60);
+  const mins = remMinutes % 60;
+  if (remMinutes >= 60) {
+    if (isRu) return `осталось ${hours} ч ${mins} мин`;
+    if (lang.startsWith('es')) return `quedan ${hours} h ${mins} min`;
+    if (lang.startsWith('fr')) return `restant ${hours} h ${mins} min`;
+    if (lang.startsWith('de')) return `übrig ${hours} h ${mins} min`;
+    if (lang.startsWith('id')) return `tersisa ${hours} j ${mins}mnt`;
+    return `left ${hours} h ${mins} min`;
+  }
+  if (isRu) return `осталось ${remMinutes} мин`;
+  if (lang.startsWith('es')) return `quedan ${remMinutes} min`;
+  if (lang.startsWith('fr')) return `restant ${remMinutes} min`;
+  if (lang.startsWith('de')) return `übrig ${remMinutes} min`;
+  if (lang.startsWith('id')) return `tersisa ${remMinutes} mnt`;
+  return `left ${remMinutes} min`;
+}
+
 // Расчёт текущего состояния прямого эфира (непрерывная 24/7 FAST-цепочка по фактическому хронометражу)
 export function getChannelScheduleState(
   channel: TvChannel, 
+  language?: string,
   currentTimestampSec?: number
 ): ChannelScheduleState {
   const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
@@ -661,7 +685,7 @@ export function getChannelScheduleState(
       nextStartTime: now + 8280,
       formattedElapsed: '0:00',
       formattedDuration: '2:18:00',
-      formattedTimeRemaining: 'осталось 138 мин',
+      formattedTimeRemaining: formatTimeRemaining(8280, language),
       formattedNextTime: formatClockTime(now + 8280),
       slotIndex: 0,
       dayOfWeek: 0
@@ -704,11 +728,6 @@ export function getChannelScheduleState(
   const nextItem = pool[(currentIndex + 1) % pool.length];
   const nextStartTime = now + remainingSec;
 
-  const remainingMinutes = Math.ceil(remainingSec / 60);
-  const formattedTimeRemaining = remainingMinutes >= 60 
-    ? `осталось ${Math.floor(remainingMinutes / 60)} ч ${remainingMinutes % 60} мин` 
-    : `осталось ${remainingMinutes} мин`;
-
   const d = new Date(now * 1000);
   const dayOfWeek = (d.getDay() + 6) % 7;
 
@@ -724,9 +743,9 @@ export function getChannelScheduleState(
     nextStartTime,
     formattedElapsed: formatTimecode(elapsedSec),
     formattedDuration: formatTimecode(durationSec),
-    formattedTimeRemaining,
+    formattedTimeRemaining: formatTimeRemaining(remainingSec, language),
     formattedNextTime: formatClockTime(nextStartTime),
-    slotIndex: currentIndex % 10,
+    slotIndex: currentIndex,
     dayOfWeek
   };
 }
@@ -737,7 +756,7 @@ export function getChannelUpcomingSchedule(
   currentTimestampSec?: number
 ): Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number }> {
   const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
-  const state = getChannelScheduleState(channel, now);
+  const state = getChannelScheduleState(channel, undefined, now);
   const pool = getChannelPool(channel);
   if (pool.length === 0) return [];
 

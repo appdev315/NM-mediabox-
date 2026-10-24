@@ -30,7 +30,7 @@ describe('Comprehensive End-to-End Verification', () => {
   it('verifies 24/7 continuous FAST stream schedule calculation', () => {
     const top100 = TV_CHANNELS.find(c => c.id === 'ch-popular')!;
     const now = Math.floor(Date.now() / 1000);
-    const state = getChannelScheduleState(top100, now);
+    const state = getChannelScheduleState(top100, undefined, now);
     expect(state.currentItem).toBeDefined();
     expect(state.elapsedSec).toBeGreaterThanOrEqual(0);
     expect(state.remainingSec).toBeGreaterThanOrEqual(0);
