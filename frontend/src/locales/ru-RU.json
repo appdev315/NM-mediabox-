@@ -103,6 +103,8 @@
   "copy": "Копировать",
   "addressCopied": "Адрес скопирован в буфер обмена!",
   "close": "Закрыть",
+  "minimize": "Свернуть",
+  "expand": "Развернуть",
   "downloadAndroid": "Скачать MediaBox на Android",
   "downloadIos": "Скачать MediaBox iOS",
   "mediaBoxTelegram": "MediaBox в Telegram",

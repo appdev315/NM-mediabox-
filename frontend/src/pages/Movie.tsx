@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useTvPlayer } from '../context/TvPlayerContext';
 import { Player } from '../components/Player';
 import { useAdManager } from '../context/AdManager';
 import { useApi, EXPRESS_API_BASE, CF_API_BASE } from '../hooks/useApi';
@@ -33,8 +34,11 @@ export function Movie() {
   const { fetchMovieDetails, fetchPersonDetails, fetchSeasonDetails, fetchRecommendations, searchContent, searchTmdb, loading } = useApi();
   const { t, language } = useLanguage();
   const { stop: stopAudio } = useAudioPlayer();
+  const { closeTv, activeChannel } = useTvPlayer();
   const { triggerMovieAd } = useAdManager();
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  // Состояние свернутого мини-плеера фильма/сериала
+  const [isMovieMinimized, setIsMovieMinimized] = useState(false);
   const [sources, setSources] = useState<{name: string, url: string, label?: string, isLiftw?: boolean, episodes?: any}[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -718,10 +722,18 @@ export function Movie() {
     triggerMovieAd();
   }, [id, triggerMovieAd]); // re-trigger when movie id changes
 
+  // Автоматическая остановка ТВ-эфира при старте фильма/сериала для исключения конфликта декодеров
+  useEffect(() => {
+    if (iframeUrl && activeChannel) {
+      closeTv();
+    }
+  }, [iframeUrl, activeChannel, closeTv]);
+
   const handleClosePlayer = useCallback(() => {
     setIframeUrl(null);
     setIsExtracting(false);
     setIsPlayerFullscreen(false);
+    setIsMovieMinimized(false);
   }, []);
 
   useEffect(() => {
@@ -1226,8 +1238,88 @@ export function Movie() {
             </div>
           )}
           {(isExtracting || iframeUrl) && (
-            <div className={`relative w-full ${isPlayerFullscreen ? "z-[99999]" : "md:w-[80%] mx-auto mt-2 mb-8"}`}>
-              {showAudioHint && !isExtracting && iframeUrl && !isPlayerFullscreen && (
+            <div 
+              className={
+                isMovieMinimized
+                  ? "fixed bottom-20 right-3 sm:right-6 z-50 w-72 sm:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black flex flex-col pointer-events-auto transition-all animate-fade-in group cursor-pointer select-none"
+                  : `relative w-full ${isPlayerFullscreen ? "z-[99999]" : "md:w-[80%] mx-auto mt-2 mb-8"}`
+              }
+              onClick={isMovieMinimized ? () => setIsMovieMinimized(false) : undefined}
+            >
+              {/* Компактная плашка управления мини-плеером фильма (PiP) */}
+              {isMovieMinimized && (
+                <div 
+                  className="absolute top-0 left-0 right-0 z-40 px-3 py-2 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div 
+                    className="flex items-center gap-1.5 min-w-0 cursor-pointer"
+                    onClick={() => setIsMovieMinimized(false)}
+                  >
+                    <span className="font-bold text-white text-xs truncate max-w-[140px]">
+                      {movie?.title || ''}
+                    </span>
+                    {mediaType === 'tv' && activeSeason && (
+                      <span className="text-[10px] text-amber-300 font-mono font-bold shrink-0">
+                        S{activeSeason}E{activeEpisode || '1'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsMovieMinimized(false)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/15 hover:bg-white/25 active:scale-95 text-white transition-all cursor-pointer border border-white/15 text-xs font-bold"
+                      title={t('expand') || 'Развернуть'}
+                      aria-label={t('expand') || 'Развернуть'}
+                    >
+                      ⤢
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClosePlayer}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-600/80 hover:bg-red-600 active:scale-95 text-white transition-all cursor-pointer border border-white/15 text-xs font-bold"
+                      title={t('close') || 'Закрыть'}
+                      aria-label={t('close') || 'Закрыть'}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Верхняя компактная панель плеера фильма в обычном режиме */}
+              {!isMovieMinimized && !isPlayerFullscreen && iframeUrl && (
+                <div className="w-full flex items-center justify-between pb-1.5 px-0.5 pointer-events-auto">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-white/90 truncate">
+                      {movie?.title || ''} {mediaType === 'tv' && activeSeason ? `(S${activeSeason}E${activeEpisode || '1'})` : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsMovieMinimized(true)}
+                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border border-white/10"
+                      title={t('minimize') || 'В окно'}
+                    >
+                      <span className="text-xs">⤓</span>
+                      <span>{t('minimize') || 'Свернуть'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClosePlayer}
+                      className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-bold flex items-center justify-center transition-all cursor-pointer border border-white/10"
+                      title={t('close') || 'Закрыть'}
+                      aria-label={t('close') || 'Закрыть'}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showAudioHint && !isExtracting && iframeUrl && !isPlayerFullscreen && !isMovieMinimized && (
                 <div
                   onClick={() => setShowAudioHint(false)}
                   className="absolute -top-10 sm:-top-11 right-0 sm:right-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-extrabold shadow-lg border border-white/20 cursor-pointer select-none max-w-[calc(100%-16px)] animate-pulse"
@@ -1245,7 +1337,7 @@ export function Movie() {
                 </div>
               )}
 
-              <div id="video-player" className={`relative w-full ${isPlayerFullscreen ? "bg-black" : "aspect-video rounded-lg overflow-hidden bg-black shadow-xl flex items-center justify-center"}`}>
+              <div id="video-player" className={`relative w-full ${isMovieMinimized ? "aspect-video rounded-2xl overflow-hidden bg-black flex flex-col" : isPlayerFullscreen ? "bg-black" : "aspect-video rounded-lg overflow-hidden bg-black shadow-xl flex items-center justify-center"}`}>
                 {isExtracting ? (
                   <div className="flex flex-col items-center justify-center text-white/70 w-full px-8">
                     <div className="w-full max-w-[200px] h-1.5 bg-gray-800 rounded-full overflow-hidden mb-4 shadow-inner">
@@ -1265,6 +1357,7 @@ export function Movie() {
                         targetEpisode={mediaType === "tv" ? targetEpisode : undefined}
                         onFullscreenChange={setIsPlayerFullscreen}
                         onClose={handleClosePlayer}
+                        onMinimize={() => setIsMovieMinimized(true)}
                         onEpisodeChange={(s, e) => {
                           if (userSelectedAtRef.current && Date.now() - userSelectedAtRef.current < 3500) {
                             if (targetEpisode && (s !== targetEpisode.season || e !== targetEpisode.episode)) {

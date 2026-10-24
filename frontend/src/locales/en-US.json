@@ -103,6 +103,8 @@
   "copy": "Copy",
   "addressCopied": "Address copied to clipboard!",
   "close": "Close",
+  "minimize": "Minimize",
+  "expand": "Expand",
   "downloadAndroid": "Download MediaBox for Android",
   "downloadIos": "Download MediaBox iOS",
   "mediaBoxTelegram": "MediaBox on Telegram",

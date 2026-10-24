@@ -17,10 +17,11 @@ interface PlayerProps {
   onEpisodeChange?: (season: string, episode: string) => void;
   onFullscreenChange?: (isFullscreen: boolean) => void;
   onClose?: () => void;
+  onMinimize?: () => void;
   isTv?: boolean;
 }
 
-export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose, isTv = false }: PlayerProps) {
+export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose, onMinimize, isTv = false }: PlayerProps) {
   const { t, language } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -692,26 +693,45 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         />
       )}
 
-      {/* Floating exit/close button when in Web Fullscreen mode (auto-hides after 3.5s of inactivity) */}
+      {/* Floating exit/close/minimize buttons when in Web Fullscreen mode (auto-hides after 3.5s of inactivity) */}
       {isWebFullscreen && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handleExitFullscreenOrClose();
-          }}
-          className={`absolute top-4 left-4 z-40 px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all duration-300 cursor-pointer select-none ${
-            showControls ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
-          }`}
-          style={{ 
-            paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))',
-            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0.75rem))'
-          }}
-        >
-          <span className="text-sm leading-none">✕</span>
-          <span>{onClose ? (t('close') || 'Закрыть') : (t('showLess') || 'Свернуть')}</span>
-        </button>
+        <div className={`absolute top-4 left-4 z-40 flex items-center gap-2 transition-all duration-300 ${
+          showControls ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+        }`}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleExitFullscreenOrClose();
+            }}
+            className="px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
+            style={{ 
+              paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))',
+              paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0.75rem))'
+            }}
+          >
+            <span className="text-sm leading-none">✕</span>
+            <span>{onClose ? (t('close') || 'Закрыть') : (t('showLess') || 'Свернуть')}</span>
+          </button>
+          {onMinimize && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsWebFullscreen(false);
+                onFullscreenChange?.(false);
+                onMinimize();
+              }}
+              className="px-3.5 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all cursor-pointer select-none"
+              title={t('minimize') || 'В окно'}
+            >
+              <span className="text-sm font-bold">⤓</span>
+              <span>{t('minimize') || 'В окно'}</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* Subtle orientation tip in portrait fullscreen mode */}

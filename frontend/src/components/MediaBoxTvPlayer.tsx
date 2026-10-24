@@ -18,12 +18,18 @@ import {
 
 interface MediaBoxTvPlayerProps {
   channel: TvChannel;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
+  onExpand?: () => void;
   onClose: () => void;
   onSelectChannel: (channel: TvChannel) => void;
 }
 
 export function MediaBoxTvPlayer({ 
   channel, 
+  isMinimized = false,
+  onMinimize,
+  onExpand,
   onClose, 
   onSelectChannel
 }: MediaBoxTvPlayerProps) {
@@ -521,27 +527,31 @@ export function MediaBoxTvPlayer({
   return (
     <div 
       className={
-        isFullscreen
-          ? "fixed inset-0 z-50 bg-black flex flex-col select-none overflow-hidden"
-          : "fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 select-none overflow-hidden"
+        isMinimized
+          ? "fixed bottom-20 right-3 sm:right-6 z-50 w-72 sm:w-80 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-black flex flex-col select-none pointer-events-auto transition-all animate-fade-in group cursor-pointer"
+          : isFullscreen
+            ? "fixed inset-0 z-50 bg-black flex flex-col select-none overflow-hidden"
+            : "fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 select-none overflow-hidden"
       }
-      onClick={isFullscreen ? triggerUserActivity : onClose}
+      onClick={isMinimized ? onExpand : isFullscreen ? triggerUserActivity : onClose}
       onMouseMove={triggerUserActivity}
       onTouchStart={triggerUserActivity}
     >
       {/* Обертка для оконного режима: объединяет плеер и правый сайдбар на десктопе */}
       <div 
         className={
-          isFullscreen
-            ? "w-full h-full flex flex-col"
-            : "relative w-full max-w-6xl xl:max-w-7xl flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 max-h-[92vh]"
+          isMinimized
+            ? "relative w-full h-full flex flex-col"
+            : isFullscreen
+              ? "w-full h-full flex flex-col"
+              : "relative w-full max-w-6xl xl:max-w-7xl flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 max-h-[92vh]"
         }
       >
         {/* Колонка плеера: включает плашку звука сверху и плашку «ДАЛЕЕ» снизу в вертикальном/оконном режиме */}
-        <div className={isFullscreen ? "w-full h-full flex flex-col" : "flex-1 w-full flex flex-col items-center justify-center max-w-full"}>
+        <div className={isMinimized ? "w-full h-full flex flex-col" : isFullscreen ? "w-full h-full flex flex-col" : "flex-1 w-full flex flex-col items-center justify-center max-w-full"}>
           
           {/* Вспомогательный Smart Audio Badge над плеером в вертикальном/оконном режиме со стрелкой на шестеренку */}
-          {showAudioBadge && !isLoadingStream && !streamError && !isFullscreen && (
+          {showAudioBadge && !isLoadingStream && !streamError && !isFullscreen && !isMinimized && (
             <div className="w-full flex justify-end pb-2 pointer-events-auto">
               <div
                 onClick={(e) => {
@@ -574,38 +584,102 @@ export function MediaBoxTvPlayer({
           <div 
             ref={videoBoxRef}
             className={
-              isFullscreen
-                ? "relative w-full h-full flex flex-col bg-black overflow-hidden"
-                : "relative w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/15 bg-black flex flex-col"
+              isMinimized
+                ? "relative w-full aspect-video rounded-2xl overflow-hidden bg-black flex flex-col"
+                : isFullscreen
+                  ? "relative w-full h-full flex flex-col bg-black overflow-hidden"
+                  : "relative w-full aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/15 bg-black flex flex-col"
             }
             onClick={(e) => {
+              if (isMinimized && onExpand) {
+                e.stopPropagation();
+                onExpand();
+                return;
+              }
               e.stopPropagation();
               triggerUserActivity();
             }}
             onDoubleClick={(e) => {
-              e.stopPropagation();
-              toggleFullscreen();
+              if (!isMinimized) {
+                e.stopPropagation();
+                toggleFullscreen();
+              }
             }}
           >
-            {/* 2. Верхний скрывающийся OSD-бар: Кнопка Назад, Название канала, Программа передач */}
-            {/* Контейнер pointer-events-none: клики по правому верхнему углу свободно проходят в iframe к нативной шестеренке */}
-            <div 
-              className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none ${
-                isControlsVisible ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={isFullscreen ? { paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' } : undefined}
-            >
-              {/* Слева: только круглая кнопка закрытия ✕. Левый верхний угол остаётся свободным под заголовок фильма донора */}
-              <div className={`flex items-center ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all cursor-pointer backdrop-blur-md border border-white/10"
-                  aria-label={t('tvBackToChannels')}
+            {/* 1.1 Компактная плашка управления мини-плеером (PiP) */}
+            {isMinimized && (
+              <div 
+                className="absolute top-0 left-0 right-0 z-40 px-3 py-2 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div 
+                  className="flex items-center gap-1.5 min-w-0 cursor-pointer"
+                  onClick={onExpand}
                 >
-                  ✕
-                </button>
+                  <span className="font-bold text-white text-xs truncate max-w-[130px]">
+                    {getChannelName(channel, language)}
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse shrink-0" />
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onExpand && (
+                    <button
+                      type="button"
+                      onClick={onExpand}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/15 hover:bg-white/25 active:scale-95 text-white transition-all cursor-pointer border border-white/15 text-xs font-bold"
+                      title={t('expand') || 'Развернуть'}
+                      aria-label={t('expand') || 'Развернуть'}
+                    >
+                      ⤢
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-600/80 hover:bg-red-600 active:scale-95 text-white transition-all cursor-pointer border border-white/15 text-xs font-bold"
+                    title={t('close') || 'Закрыть'}
+                    aria-label={t('close') || 'Закрыть'}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* 2. Верхний скрывающийся OSD-бар: Кнопка Назад, Свернуть, Название канала, Шестеренка */}
+            {!isMinimized && (
+              <div 
+                className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none ${
+                  isControlsVisible ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={isFullscreen ? { paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' } : undefined}
+              >
+                {/* Слева: кнопка закрытия ✕ и кнопка сворачивания в мини-плеер ⤓ */}
+                <div className={`flex items-center gap-1.5 ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all cursor-pointer backdrop-blur-md border border-white/10"
+                    aria-label={t('tvBackToChannels')}
+                    title={t('close') || 'Закрыть'}
+                  >
+                    ✕
+                  </button>
+                  {onMinimize && !isFullscreen && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMinimize();
+                      }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-all cursor-pointer backdrop-blur-md border border-white/10"
+                      aria-label={t('minimize') || 'Свернуть'}
+                      title={t('minimize') || 'Свернуть'}
+                    >
+                      <span className="text-sm font-bold">⤓</span>
+                    </button>
+                  )}
+                </div>
 
               {/* По центру: плавающая полупрозрачная капсула с названием канала и бейджем ЭФИР */}
               <div className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-lg ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
@@ -639,8 +713,9 @@ export function MediaBoxTvPlayer({
                 </button>
               </div>
             </div>
+          )}
 
-            {/* 3. Рабочая область плеера с защитным экраном против паузы */}
+          {/* 3. Рабочая область плеера с защитным экраном против паузы */}
             <div className="relative flex-1 w-full h-full flex items-center justify-center bg-black overflow-hidden">
               {isLoadingStream && (
                 <div className="absolute inset-0 z-[35] flex flex-col items-center justify-center bg-black gap-3 text-white">
@@ -747,10 +822,12 @@ export function MediaBoxTvPlayer({
               </div>
 
               {/* 8. НАШЕ СОБСТВЕННОЕ ВСПЛЫВАЮЩЕЕ МЕНЮ НАСТРОЕК (ПЕРЕВОД, КАЧЕСТВО, СУБТИТРЫ) */}
-              {isSettingsOpen && (
+              {!isMinimized && isSettingsOpen && (
                 <div 
                   className="absolute inset-x-3 sm:inset-x-auto sm:right-4 top-16 z-50 max-w-sm sm:w-80 rounded-2xl bg-black/95 backdrop-blur-2xl border border-white/20 p-4 shadow-2xl text-white select-none animate-fade-in pointer-events-auto"
                   onClick={(e) => e.stopPropagation()}
+                  onWheel={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
                 >
                   {/* Заголовок меню и кнопка закрытия */}
                   <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
@@ -804,8 +881,11 @@ export function MediaBoxTvPlayer({
                     </button>
                   </div>
 
-                  {/* Список доступных опций выбранной вкладки */}
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                  {/* Список доступных опций выбранной вкладки: плавная прокрутка всех 18+ дорожек */}
+                  <div 
+                    className="max-h-60 sm:max-h-72 overflow-y-auto space-y-1.5 pr-1.5 text-xs overscroll-contain touch-pan-y scrollbar-thin"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
                     {activeSettingsTab === 'sound' && (
                       soundList.length > 0 ? (
                         soundList.map((item) => {
@@ -904,8 +984,8 @@ export function MediaBoxTvPlayer({
             </div>
           </div>
 
-          {/* Плашка «ДАЛЕЕ» вынесена под плеер в вертикальном/оконном положении; в горизонтальном/полноэкранном режиме отсутствует */}
-          {!isFullscreen && (
+          {/* Плашка «ДАЛЕЕ» вынесена под плеер в вертикальном/оконном положении; в горизонтальном/полноэкранном режиме и PiP отсутствует */}
+          {!isFullscreen && !isMinimized && (
             <div 
               onClick={(e) => e.stopPropagation()}
               className="w-full mt-3 px-4 py-2.5 rounded-xl bg-[#141b22]/90 backdrop-blur-xl border border-white/10 flex items-center justify-between text-xs text-white shadow-lg pointer-events-auto"
@@ -924,12 +1004,15 @@ export function MediaBoxTvPlayer({
             </div>
           )}
 
-          {/* Переход к тайтлу в каталоге: оверлей эфира живёт на уровне App, трансляция продолжается поверх каталога */}
-          {!isFullscreen && (
+          {/* Переход к тайтлу в каталоге: оверлей эфира сворачивается в компактный PiP, трансляция продолжается в углу поверх каталога */}
+          {!isFullscreen && !isMinimized && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (onMinimize) {
+                  onMinimize();
+                }
                 navigate(`/movie/${currentItem.id}?type=${currentItem.type === 'tv' ? 'series' : 'movie'}`);
               }}
               className="w-full mt-2 px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-bold shadow-xl border border-white/15 flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer pointer-events-auto select-none"
@@ -940,8 +1023,8 @@ export function MediaBoxTvPlayer({
           )}
         </div>
 
-        {/* 7. Внешний сайдбар программы передач: строго при !isFullscreen и только на десктопе (hidden lg:flex) */}
-        {!isFullscreen && (
+        {/* 7. Внешний сайдбар программы передач: строго при !isFullscreen, !isMinimized и только на десктопе (hidden lg:flex) */}
+        {!isFullscreen && !isMinimized && (
           <aside 
             className="hidden lg:flex w-80 xl:w-96 rounded-2xl bg-[#141b22]/90 backdrop-blur-xl border border-white/10 p-4 flex-col gap-3 shadow-2xl overflow-hidden shrink-0 self-stretch"
             onClick={(e) => e.stopPropagation()}

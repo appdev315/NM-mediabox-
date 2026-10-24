@@ -9,27 +9,41 @@ const LazyTvPlayer = lazy(() =>
 
 interface TvPlayerContextValue {
   activeChannel: TvChannel | null;
+  isMinimized: boolean;
   openTv: (channel: TvChannel) => void;
   closeTv: () => void;
+  minimizeTv: () => void;
+  expandTv: () => void;
   selectChannel: (channel: TvChannel) => void;
 }
 
 const TvPlayerContext = createContext<TvPlayerContextValue | undefined>(undefined);
 
 /**
- * Провайдер ТВ-эфира: оверлей плеера живёт на уровне App ВНЕ <Routes>,
- * поэтому переход по роуту (/movie/:id — кнопка «Смотреть в каталоге») не размонтирует
- * трансляцию: эфир продолжается поверх любого экрана каталога.
+ * Провайдер ТВ-эфира: оверлей плеера живёт на уровне App ВНЕ <Routes>.
+ * Поддерживает полноэкранный/оконный режим и свернутый мини-виджет (PiP)
+ * для одновременного просмотра эфира и работы с каталогом фильмов.
  */
 export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeChannel, setActiveChannel] = useState<TvChannel | null>(null);
+  // Состояние свернутого мини-плеера (Picture-in-Picture внутри приложения)
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const value = useMemo<TvPlayerContextValue>(() => ({
     activeChannel,
-    openTv: (channel) => setActiveChannel(channel),
-    closeTv: () => setActiveChannel(null),
+    isMinimized,
+    openTv: (channel) => {
+      setActiveChannel(channel);
+      setIsMinimized(false);
+    },
+    closeTv: () => {
+      setActiveChannel(null);
+      setIsMinimized(false);
+    },
+    minimizeTv: () => setIsMinimized(true),
+    expandTv: () => setIsMinimized(false),
     selectChannel: (channel) => setActiveChannel(channel)
-  }), [activeChannel]);
+  }), [activeChannel, isMinimized]);
 
   return (
     <TvPlayerContext.Provider value={value}>
@@ -38,7 +52,13 @@ export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         <Suspense fallback={null}>
           <LazyTvPlayer
             channel={activeChannel}
-            onClose={() => setActiveChannel(null)}
+            isMinimized={isMinimized}
+            onMinimize={() => setIsMinimized(true)}
+            onExpand={() => setIsMinimized(false)}
+            onClose={() => {
+              setActiveChannel(null);
+              setIsMinimized(false);
+            }}
             onSelectChannel={(nextChannel) => setActiveChannel(nextChannel)}
           />
         </Suspense>

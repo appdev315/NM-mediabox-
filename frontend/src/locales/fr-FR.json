@@ -132,6 +132,8 @@
   "copy": "Copier",
   "addressCopied": "Adresse copiée dans le presse-papiers !",
   "close": "Fermer",
+  "minimize": "Réduire",
+  "expand": "Agrandir",
   "downloadAndroid": "Télécharger MediaBox pour Android",
   "downloadIos": "Télécharger MediaBox iOS",
   "mediaBoxTelegram": "MediaBox sur Telegram",
