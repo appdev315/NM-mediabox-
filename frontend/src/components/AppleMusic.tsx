@@ -124,6 +124,15 @@ export function AppleMusic() {
 
   useEffect(() => {
     refreshCacheStats();
+
+    // Реактивная подписка на фоновые изменения локального оффлайн-кэша треков
+    const handleCacheUpdate = () => {
+      refreshCacheStats();
+    };
+    window.addEventListener('music-cache-updated', handleCacheUpdate);
+    return () => {
+      window.removeEventListener('music-cache-updated', handleCacheUpdate);
+    };
   }, [refreshCacheStats]);
 
   const toggleFav = (track: MusicTrack, e?: React.MouseEvent) => {

@@ -11,7 +11,6 @@ import {
   type ChannelScheduleState, 
   getChannelScheduleState, 
   getChannelUpcomingSchedule,
-  formatTimecode,
   getItemTitle,
   getChannelName,
   TV_CHANNELS
@@ -210,19 +209,9 @@ export function MediaBoxTvPlayer({
     };
   }, [triggerUserActivity]);
 
-  // Тап по шилду: будим OSD и шлём команды воспроизведения в донора.
-  // До старта эфира это ЕДИНСТВЕННЫЙ способ запуска (нативная кнопка Play донора недоступна),
-  // после старта — страховка Anti-Pause при клавиатурной/внешней паузе.
+  // Тап по активному шилду: пробуждаем OSD-элементы интерфейса
   const handleShieldTap = useCallback(() => {
     triggerUserActivity();
-    try {
-      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-      if (ifr && ifr.contentWindow) {
-        ifr.contentWindow.postMessage({ event: 'play' }, '*');
-        ifr.contentWindow.postMessage({ api: 'play' }, '*');
-        ifr.contentWindow.postMessage({ command: 'play' }, '*');
-      }
-    } catch (_) {}
   }, [triggerUserActivity]);
 
   // Реакция OSD на фактический старт эфира: один раз показываем панель
@@ -375,24 +364,13 @@ export function MediaBoxTvPlayer({
             ifr.contentWindow.postMessage({ event: 'play' }, '*');
           }
         }
+        // Обработка сообщений плеера Liftw о фактическом воспроизведении
       } catch (_) {}
     };
 
-    // Детекция первого физического клика по незащищенному iframe на десктопе и Android
-    const handleWindowBlur = () => {
-      clickTimer = setTimeout(() => {
-        const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-        if (document.activeElement === ifr || document.activeElement?.tagName === 'IFRAME') {
-          setIsLivePlaying(true);
-        }
-      }, 300);
-    };
-
     window.addEventListener('message', handleTvMessage);
-    window.addEventListener('blur', handleWindowBlur);
     return () => {
       window.removeEventListener('message', handleTvMessage);
-      window.removeEventListener('blur', handleWindowBlur);
       if (clickTimer) clearTimeout(clickTimer);
     };
   }, [queryDonorSettings, sendDonorSetting]);
@@ -506,7 +484,7 @@ export function MediaBoxTvPlayer({
     };
   }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id]);
 
-  const { currentItem, initialTimecode, nextItem, formattedNextTime, elapsedSec, durationSec, progressPercent } = scheduleState;
+  const { currentItem, initialTimecode, nextItem, formattedNextTime } = scheduleState;
   const isSeries = currentItem.type === 'tv';
 
   return (
@@ -608,8 +586,26 @@ export function MediaBoxTvPlayer({
                 </span>
               </div>
 
-              {/* Справа: Пустой прозрачный угол под шестеренку донора (аудиодорожки, субтитры, качество) */}
-              <div className="w-16 h-10 pointer-events-none" />
+              {/* Справа: Наша фирменная кнопка настроек (звук, качество, субтитры) */}
+              <div className={`flex items-center ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSettingsOpen(prev => !prev);
+                    triggerUserActivity();
+                  }}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border ${
+                    isSettingsOpen 
+                      ? 'bg-amber-500 text-black border-amber-400 font-bold shadow-lg scale-105' 
+                      : 'bg-white/10 hover:bg-white/20 active:scale-95 text-white border-white/10'
+                  }`}
+                  title={t('tvSettings')}
+                  aria-label={t('tvSettings')}
+                >
+                  <span className="text-base">⚙️</span>
+                </button>
+              </div>
             </div>
 
             {/* 3. Рабочая область плеера с защитным экраном против паузы */}
@@ -663,13 +659,9 @@ export function MediaBoxTvPlayer({
                   />
                 )}
 
-                {/* 5. FIREWALL-ШИЛД С ОДНОРАЗОВЫМ ПРОПУСКОМ (LATCH): */}
-                {/* До старта эфира (isLivePlaying=false) мембрана прозрачна для событий: РОВНО ПЕРВЫЙ тап проходит */}
-                {/* в донора и запускает эфир его нативной кнопкой Play — user activation не переносится из родителя */}
-                {/* в cross-origin iframe, поэтому пост-сообщение play стартовать поток физически не может. */}
-                {/* Армирование мгновенно по факту тапа: window.blur (activeElement=iframe) или события воспроизведения. */}
-                {/* После армирования — 100% блок: пауза/перемотка/нативные меню донора недостижимы, тапы по мембране */}
-                {/* шлют play (Anti-Pause) и будят наш OSD. Управление эфиром — только наши кнопки. */}
+                {/* 5. ЭКРАН ЗАЩИТЫ ВИДЕО (БЛОКИРОВКА ПАУЗЫ ПОСЛЕ СТАРТА): */}
+                {/* До старта потока (isLivePlaying=false) экран прозрачен: один нативный клик пользователя */}
+                {/* запускает Play донора. После старта (isLivePlaying=true) экран наглухо блокируется от тапов-пауз. */}
                 <div
                   className={`absolute inset-0 z-30 bg-transparent ${
                     isLivePlaying ? 'pointer-events-auto' : 'pointer-events-none'
@@ -685,94 +677,43 @@ export function MediaBoxTvPlayer({
                   }}
                 />
 
-                {/* Подсказка до старта эфира: куда нажать, если автоплей заблокирован браузером */}
-                {!isLivePlaying && !isLoadingStream && !streamError && (
-                  <div className="absolute inset-0 z-[32] flex items-center justify-center pointer-events-none">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-2xl animate-pulse">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
-                      <span>{t('tvTapToStart')}</span>
-                    </div>
-                  </div>
-                )}
+                {/* 6. ГЛУХОЙ БАРЬЕР НИЖНЕЙ ЗОНЫ (ТАЙМЛАЙН И НАВЕРХУ ДОНОРСКИЕ МЕНЮ): */}
+                {/* 100% блокирует клики по таймлайну и нативной шестеренке донора. Таймлайн виден, но не интерактивен. */}
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-11 z-30 bg-transparent pointer-events-auto"
+                  style={{ touchAction: 'none' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerUserActivity();
+                  }}
+                />
+
+                {/* 7. ЕДИНСТВЕННЫЙ АКТИВНЫЙ ЭЛЕМЕНТ ВНИЗУ: КНОПКА ВО ВЕСЬ ЭКРАН */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFullscreen();
+                    triggerUserActivity();
+                  }}
+                  className={`absolute bottom-2 right-2.5 z-40 w-8 h-8 rounded-lg bg-black/75 hover:bg-black/90 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20 backdrop-blur-md shadow-xl ${
+                    isControlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                  }`}
+                  title={t('tvFullscreen')}
+                  aria-label={t('tvFullscreen')}
+                >
+                  {isFullscreen ? (
+                    <span className="text-sm font-bold">✕</span>
+                  ) : (
+                    <span className="text-base font-bold leading-none">⛶</span>
+                  )}
+                </button>
               </div>
 
-              {/* 6. СКРЫВАЮЩИЙСЯ НИЖНИЙ ИНФОРМАЦИОННЫЙ OSD-БАР НАД ТАЙМИНГОМ */}
-              {/* Полностью исчезает (opacity-0) при неактивности — экран остаётся на 100% чистым */}
-              <div 
-                className={`absolute bottom-0 left-0 right-0 z-40 px-4 py-3 bg-gradient-to-t from-black/95 via-black/75 to-transparent transition-opacity duration-300 pointer-events-none ${
-                  isControlsVisible ? 'opacity-100' : 'opacity-0'
-                }`}
-                style={isFullscreen ? { paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' } : undefined}
-              >
-                {/* Информационная строка над полосой прогресса: чистый эфир без нагромождения */}
-                <div className="flex items-center justify-between text-xs text-white font-medium mb-1.5 drop-shadow">
-                  {/* Текущий статус эфира и таймкод */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="flex items-center gap-1 font-bold text-red-500 tracking-wide shrink-0">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
-                      {t('tvNowOnAir')}
-                    </span>
-                    <span className="text-white font-semibold truncate max-w-[170px] sm:max-w-md">
-                      {getItemTitle(currentItem, language)}
-                      {isSeries && currentItem.season ? ` (S${currentItem.season}E${currentItem.episode})` : ''}
-                    </span>
-                    <span className="text-white/60 text-[11px] font-mono shrink-0">
-                      ({formatTimecode(elapsedSec)} / {formatTimecode(durationSec)})
-                    </span>
-                  </div>
-
-                  {/* Справа: Кнопка параметров и кнопка во весь экран */}
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    {/* Кнопка открытия параметров (звук, качество, субтитры) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsSettingsOpen(prev => !prev);
-                        triggerUserActivity();
-                      }}
-                      className={`w-8 h-8 rounded-lg ${isSettingsOpen ? 'bg-amber-500 text-black border-amber-400 font-bold' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'} active:scale-95 flex items-center justify-center transition-all cursor-pointer ${isControlsVisible ? 'pointer-events-auto' : 'pointer-events-none'} border backdrop-blur-md shrink-0`}
-                      title={t('tvSettings')}
-                      aria-label={t('tvSettings')}
-                    >
-                      <span className="text-sm">⚙️</span>
-                    </button>
-
-                    {/* Собственная кнопка во весь экран */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFullscreen();
-                        triggerUserActivity();
-                      }}
-                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10 backdrop-blur-md shrink-0"
-                      style={{ pointerEvents: isControlsVisible ? 'auto' : 'none' }}
-                      title={t('tvFullscreen')}
-                      aria-label={t('tvFullscreen')}
-                    >
-                      {isFullscreen ? (
-                        <span className="text-sm font-bold">✕</span>
-                      ) : (
-                        <span className="text-base font-bold leading-none">⛶</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Визуальная линия прогресса прямого эфира */}
-                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-red-600 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_8px_rgba(239,68,68,0.8)]"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* 7. НАШЕ СОБСТВЕННОЕ ВСПЛЫВАЮЩЕЕ МЕНЮ НАСТРОЕК (ПЕРЕВОД, КАЧЕСТВО, СУБТИТРЫ) */}
+              {/* 8. НАШЕ СОБСТВЕННОЕ ВСПЛЫВАЮЩЕЕ МЕНЮ НАСТРОЕК (ПЕРЕВОД, КАЧЕСТВО, СУБТИТРЫ) */}
               {isSettingsOpen && (
                 <div 
-                  className="absolute inset-x-3 sm:inset-x-auto sm:right-4 bottom-16 z-50 max-w-sm sm:w-80 rounded-2xl bg-black/95 backdrop-blur-2xl border border-white/20 p-4 shadow-2xl text-white select-none animate-fade-in pointer-events-auto"
+                  className="absolute inset-x-3 sm:inset-x-auto sm:right-4 top-16 z-50 max-w-sm sm:w-80 rounded-2xl bg-black/95 backdrop-blur-2xl border border-white/20 p-4 shadow-2xl text-white select-none animate-fade-in pointer-events-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Заголовок меню и кнопка закрытия */}
