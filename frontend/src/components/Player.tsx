@@ -21,6 +21,26 @@ interface PlayerProps {
   isTv?: boolean;
 }
 
+/**
+ * Вычисляет минимальное доступное качество видеопотока из списка (напр. '360p', '480p')
+ * для сверхбыстрой начальной буферизации на слабом интернете.
+ */
+export function findLowestQuality(qualities: string[]): string | null {
+  if (!qualities || qualities.length === 0) return null;
+  const numericList = qualities
+    .map(q => {
+      const match = q.match(/\d+/);
+      return { raw: q, val: match ? parseInt(match[0], 10) : 999999 };
+    })
+    .filter(item => item.val > 0 && item.val < 999999);
+
+  if (numericList.length > 0) {
+    numericList.sort((a, b) => a.val - b.val);
+    return numericList[0].raw;
+  }
+  return qualities[qualities.length - 1] || qualities[0];
+}
+
 export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose, onMinimize, isTv = false }: PlayerProps) {
   const { t, language } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -32,10 +52,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const [mirrorIndex, setMirrorIndex] = useState(0);
   // Число неудачных зеркал за текущий источник: защита от вечного цикла перезагрузок
   const mirrorAttemptsRef = useRef(0);
+  // Флаг принудительной установки минимального стартового качества для предотвращения зависания при медленном интернете
+  const hasSetInitialQualityRef = useRef(false);
   useEffect(() => {
-    // Новый фильм/новый список зеркал — счётчик попыток начинаем заново
+    // Новый фильм/новый список зеркал — счётчик попыток и флаг качества начинаем заново
     mirrorAttemptsRef.current = 0;
-  }, [iframeUrl, mirrors]);
+    hasSetInitialQualityRef.current = false;
+  }, [iframeUrl, mirrors, targetEpisode?.season, targetEpisode?.episode]);
 
   // Compute full mirror list
   const activeMirrors = useMemo(() => {
@@ -95,11 +118,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     const startSec = Math.floor(timecode || 0);
     // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
     const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
-    // Для ТВ-эфира (isTv = true) передаем канонический параметр time=<секунды> напрямую в URL:
-    // Серверный рендерер Liftw (embed.liftw.ws) инициализирует opts.time = <time>, запуская HLS с нужной секунды эфира.
-    // Исключаем хэш #t= и дублирующие параметры start=/t=, вызывавшие дедлок буфера HLS донора.
+    // Для ТВ-эфира (isTv = true) передаем параметры time=<секунды> и t=<секунды> напрямую в URL:
+    // Серверный рендерер Liftw (embed.liftw.ws) инициализирует opts.time = <time>, а клиентский
+    // ProgressTracker (player-venom) парсит URL-параметр t=<секунды>, гарантируя запуск с точного момента.
+    // Исключаем хэш #t= и сторонние start=, вызывавшие дедлок буфера HLS донора.
     const timeParams = startSec > 5
-      ? (isTv ? `&time=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
+      ? (isTv ? `&time=${startSec}&t=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
       : '';
     const startParams = `&autoplay=1&autoPlay=1${timeParams}${langParams}`;
     if (cleanUrl.includes('?')) {
@@ -209,9 +233,25 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         if (data.event === 'playerReady' || data.event === 'startWatching' || data.event === 'play') {
           // Send adFree, play and initial seek handshake
           sendPlayCommands();
+          // Запрашиваем список доступных качеств для автоматического выбора минимального на старте
+          try {
+            if (iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage({ req: 'setting ls', key: 'quality' }, '*');
+            }
+          } catch (_) {}
           // If player became ready while an episode change is pending, dispatch command immediately
           if (pendingTargetRef.current) {
             sendPlayCommands(pendingTargetRef.current.season, pendingTargetRef.current.episode);
+          }
+        }
+        // Обработка списка качеств от плеера Liftw ('setting ls') для выбора минимального на старте
+        if (data.event === 'setting ls' && data.key === 'quality' && Array.isArray(data.ls)) {
+          if (!hasSetInitialQualityRef.current && data.ls.length > 0) {
+            const minQuality = findLowestQuality(data.ls);
+            if (minQuality && iframeRef.current?.contentWindow) {
+              hasSetInitialQualityRef.current = true;
+              iframeRef.current.contentWindow.postMessage({ req: 'setting set', key: 'quality', value: minQuality }, '*');
+            }
           }
         }
         // When playback commences, clear pending fallback reload ONLY IF no pending episode switch

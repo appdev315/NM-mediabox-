@@ -291,21 +291,20 @@ export const clientCache = {
       } catch (_) {}
     } else if (key.startsWith('liftw_stream_') || key.includes('_stream_')) {
       try {
-        // Guard against localStorage 5MB quota: mirror compact playback descriptor.
-        // episodes tree is kept: it is tiny (season -> [episode] strings, <1KB)
-        // and dropping it breaks series UI after F5 (sync get() reads only memory + localStorage).
+        // Сохраняем компактный дескриптор в localStorage для мгновенного 0мс монтирования плеера
         const streamData = data as any;
         const compactData = streamData && typeof streamData === 'object' ? {
           iframe: streamData.iframe,
           liftwId: streamData.liftwId,
           liftwType: streamData.liftwType,
           name: streamData.name,
+          durationSec: streamData.durationSec,
           episodes: streamData.episodes,
         } : data;
         const compactEntry: CacheEntry<any> = { data: compactData, expiry };
         localStorage.setItem(fullKey, JSON.stringify(compactEntry));
 
-        // Enforce max 10 stream entries in localStorage to prevent storage pressure
+        // Лимит в 30 стримов в localStorage защищает квоту 5МБ, пока полная база хранится в IndexedDB (до 90 дней)
         const streamKeys: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const lk = localStorage.key(i);
@@ -313,8 +312,8 @@ export const clientCache = {
             streamKeys.push(lk);
           }
         }
-        if (streamKeys.length > 10) {
-          for (let i = 0; i < streamKeys.length - 10; i++) {
+        if (streamKeys.length > 30) {
+          for (let i = 0; i < streamKeys.length - 30; i++) {
             localStorage.removeItem(streamKeys[i]);
           }
         }

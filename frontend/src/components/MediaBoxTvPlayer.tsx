@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { Player } from './Player';
+import { Player, findLowestQuality } from './Player';
 import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   type TvChannel, 
@@ -15,6 +16,17 @@ import {
   getChannelName,
   TV_CHANNELS
 } from '../utils/tvSchedule';
+
+// Фолбэк AbortSignal для старых WebView / iOS Safari
+function timeoutSignal(ms: number): AbortSignal {
+  const anyAbortSignal = AbortSignal as any;
+  if (typeof anyAbortSignal?.timeout === 'function') {
+    return anyAbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
 
 interface MediaBoxTvPlayerProps {
   channel: TvChannel;
@@ -71,6 +83,11 @@ export function MediaBoxTvPlayer({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'sound' | 'quality' | 'cc'>('sound');
 
+  // Реальная длительность потока в секундах из манифеста донора (для предотвращения SEEK_PAST_EOF)
+  const actualDurationRef = useRef<number | null>(null);
+  // Флаг установки минимального начального качества при старте стрима
+  const hasSetInitialQualityRef = useRef(false);
+
   // Отправка команды изменения настроек в iframe донора Liftw через postMessage API
   const sendDonorSetting = useCallback((key: 'sound' | 'quality' | 'cc', value: string) => {
     try {
@@ -104,6 +121,8 @@ export function MediaBoxTvPlayer({
     setCurrentQuality('');
     setCcList([]);
     setCurrentCc('');
+    hasSetInitialQualityRef.current = false;
+    actualDurationRef.current = null;
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
   // Опрос доступных дорожек при готовности плеера.
@@ -365,6 +384,15 @@ export function MediaBoxTvPlayer({
             } catch (_) {}
           } else if (data.key === 'quality' && Array.isArray(data.ls)) {
             setQualityList(data.ls);
+            // Если начальное качество еще не выбрано — автоматически выставляем минимальное для стабильного старта на слабом интернете
+            if (!hasSetInitialQualityRef.current && data.ls.length > 0) {
+              const minQuality = findLowestQuality(data.ls);
+              if (minQuality) {
+                hasSetInitialQualityRef.current = true;
+                sendDonorSetting('quality', minQuality);
+                setCurrentQuality(minQuality);
+              }
+            }
           } else if (data.key === 'cc' && Array.isArray(data.ls)) {
             setCcList(data.ls);
           }
@@ -469,21 +497,33 @@ export function MediaBoxTvPlayer({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [channel]);
 
-  // Подгрузка видеопотока из Liftw с обязательными параметрами autoplay и timecode
+  const loadStreamRef = useRef<((bypassCache?: boolean) => Promise<void>) | null>(null);
+
+  // Подгрузка видеопотока из Liftw с поддержкой персистентного кэша и аварийного обновления
   useEffect(() => {
     let isCancelled = false;
     const { currentItem } = scheduleState;
+    const cacheKey = `liftw_stream_v2_${currentItem.id}_${currentItem.type}`;
 
-    const loadStream = async () => {
+    const loadStream = async (bypassCache = false) => {
       setIsLoadingStream(true);
       setStreamError(false);
 
-      const cacheKey = `liftw_stream_v2_${currentItem.id}_${currentItem.type}`;
-      const cached = clientCache.get<any>(cacheKey);
-      if (cached && cached.iframe && !isCancelled) {
-        setIframeUrl(cached.iframe);
-        setIsLoadingStream(false);
-        return;
+      if (bypassCache) {
+        // Принудительный сброс локального кеша при падении или повторе
+        clientCache.remove(cacheKey);
+        actualDurationRef.current = null;
+      } else {
+        // 1. Проверяем локальный кэш (синхронный localStorage и асинхронный IndexedDB)
+        const cached = clientCache.get<any>(cacheKey) || (await clientCache.getAsync<any>(cacheKey));
+        if (cached && cached.iframe && !isCancelled) {
+          if (cached.durationSec) {
+            actualDurationRef.current = cached.durationSec;
+          }
+          setIframeUrl(cached.iframe);
+          setIsLoadingStream(false);
+          return;
+        }
       }
 
       try {
@@ -495,15 +535,28 @@ export function MediaBoxTvPlayer({
           year: currentItem.year
         });
 
-        const res = await fetch(`${CF_API_BASE}/liftw?${query.toString()}`, {
-          signal: AbortSignal.timeout(8000)
+        if (bypassCache) {
+          query.set('bypass_cache', 'true');
+        }
+
+        // Запрос с умным повтором (2 попытки) и расширенным таймаутом (14 сек) для слабого интернета
+        const res = await fetchWithRetry(`${CF_API_BASE}/liftw?${query.toString()}`, {
+          maxRetries: 2,
+          baseDelayMs: 300,
+          maxDelayMs: 1500,
+          signal: timeoutSignal(14000)
         });
 
-        if (!res.ok) throw new Error('Поток не найден');
+        if (!res.ok) throw new Error(`Поток недоступен (${res.status})`);
         const data = await res.json() as any;
 
         if (data && data.iframe && !isCancelled) {
-          clientCache.set(cacheKey, data, currentItem.type === 'tv' ? 86400 : 2592000);
+          // Сохраняем в кэш на 90 дней (7776000 сек) для фильмов и сериалов
+          const ttlSeconds = 7776000;
+          clientCache.set(cacheKey, data, ttlSeconds);
+          if (data.durationSec) {
+            actualDurationRef.current = data.durationSec;
+          }
           setIframeUrl(data.iframe);
           setIsLoadingStream(false);
         } else if (!isCancelled) {
@@ -512,13 +565,16 @@ export function MediaBoxTvPlayer({
       } catch (err) {
         if (!isCancelled) {
           console.error('[MediaBoxTv] Ошибка загрузки потока:', err);
+          // При ошибке очищаем поврежденный кэш, чтобы при следующем запросе источник обновился
+          clientCache.remove(cacheKey);
           setStreamError(true);
           setIsLoadingStream(false);
         }
       }
     };
 
-    loadStream();
+    loadStreamRef.current = loadStream;
+    loadStream(false);
 
     return () => {
       isCancelled = true;
@@ -527,6 +583,12 @@ export function MediaBoxTvPlayer({
 
   const { currentItem, initialTimecode, nextItem, formattedNextTime } = scheduleState;
   const isSeries = currentItem.type === 'tv';
+
+  // Вычисляем безопасный таймкод с учетом реальной длительности потока из манифеста донора,
+  // предотвращая выход за пределы EOF и сброс на 0:00 при разнице между слотом ТВ и хронометражем
+  const maxDuration = actualDurationRef.current || currentItem.durationSec;
+  const safeTimecode = maxDuration > 30 ? Math.floor(initialTimecode % maxDuration) : initialTimecode;
+  const finalTimecode = Math.min(safeTimecode, Math.max(0, (maxDuration || 7200) - 15));
 
   return (
     <div 
@@ -741,16 +803,25 @@ export function MediaBoxTvPlayer({
                       {t('tvStreamUnavailableDesc')}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextChannel = siblingChannels.find(c => c.id !== channel.id) || siblingChannels[0];
-                      onSelectChannel(nextChannel);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer"
-                  >
-                    {t('tvNextChannel')}
-                  </button>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => loadStreamRef.current?.(true)}
+                      className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer"
+                    >
+                      {t('retry') || 'Повторить'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextChannel = siblingChannels.find(c => c.id !== channel.id) || siblingChannels[0];
+                        onSelectChannel(nextChannel);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer"
+                    >
+                      {t('tvNextChannel')}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -763,7 +834,7 @@ export function MediaBoxTvPlayer({
                   <Player
                     key={`${currentItem.id}_${currentItem.type}_${currentItem.season || ''}_${currentItem.episode || ''}_${scheduleState.slotIndex}`}
                     iframeUrl={iframeUrl}
-                    initialTimecode={initialTimecode}
+                    initialTimecode={finalTimecode}
                     targetEpisode={isSeries && currentItem.season ? { season: currentItem.season, episode: currentItem.episode || '1' } : undefined}
                     isTv={true}
                     onReady={handlePlayerReady}

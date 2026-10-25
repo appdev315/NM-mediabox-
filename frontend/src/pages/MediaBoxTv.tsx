@@ -9,6 +9,7 @@ import {
 import { getTmdbImageUrl } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { useTvPlayer } from '../context/TvPlayerContext';
+import { prewarmStream } from '../utils/streamPreloader';
 
 export function MediaBoxTv() {
   const { t, language } = useLanguage();
@@ -23,6 +24,34 @@ export function MediaBoxTv() {
   }, []);
 
   const filteredChannels = TV_CHANNELS.filter(ch => ch.category === activeCategory);
+
+  // Smart Slice предпрогрев: для первых 6 каналов в активной категории
+  // фоново подгружаем дескрипторы потоков с шагом 250 мс, чтобы при клике на канал
+  // плеер открывался мгновенно из локального кеша без сетевых задержек.
+  useEffect(() => {
+    const topChannels = filteredChannels.slice(0, 6);
+    const timers: any[] = [];
+
+    topChannels.forEach((ch, idx) => {
+      const timer = setTimeout(() => {
+        try {
+          const state = getChannelScheduleState(ch, language);
+          const item = state.currentItem;
+          prewarmStream(item.id, {
+            title: item.title,
+            original_title: item.origin_title,
+            year: item.year,
+            type: item.type === 'tv' ? 'tv' : 'movie'
+          }, language);
+        } catch (_) {}
+      }, idx * 250);
+      timers.push(timer);
+    });
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [activeCategory, language]);
 
   return (
     <div 

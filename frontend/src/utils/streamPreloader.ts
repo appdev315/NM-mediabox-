@@ -101,6 +101,12 @@ export function prewarmStream(
 
   const promise = (async () => {
     try {
+      // 0. Проверяем асинхронный IndexedDB-кэш устройства перед походом в сеть
+      const asyncCached = await clientCache.getAsync<any>(streamCacheKey);
+      if (asyncCached && asyncCached.iframe) {
+        return asyncCached;
+      }
+
       // 1. Query Cloudflare Edge (primary edge, 0 redundant backend hits)
       let data: any = null;
       try {
@@ -119,7 +125,8 @@ export function prewarmStream(
       } catch (_) {}
 
       if (data && data.iframe) {
-        const ttlSeconds = resolvedType === 'tv' ? 86400 : 2592000; // 1 day for TV, 30 days for Movies
+        // Долговечный кеш дескрипторов стрима для фильмов и сериалов: 90 дней (7776000 сек)
+        const ttlSeconds = 7776000;
         clientCache.set(streamCacheKey, data, ttlSeconds);
         setAvailability(resolvedType, id, 'available');
       }

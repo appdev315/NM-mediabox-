@@ -223,8 +223,9 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
     }
   }
 
-  if (!title && !liftwIdParam) {
-    return c.json({ error: 'Title or liftw_id is required' }, 400);
+  // Разрешаем запрос при наличии любого ключевого идентификатора: title, liftw_id или tmdb
+  if (!title && !liftwIdParam && !tmdb) {
+    return c.json({ error: 'Title, tmdb or liftw_id is required' }, 400);
   }
 
   // Fast reject non-cinema / adult queries from hitting liftw movie donor
@@ -524,7 +525,7 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
         'Access-Control-Allow-Origin': '*',
       });
     }
-    const info = await infoRes.json() as { id: number; type: number; name: string; iframe_uri: string; episodes?: any };
+    const info = await infoRes.json() as any;
     
     if (!info.iframe_uri) {
       recordDonorMetric('liftw_fail');
@@ -535,11 +536,22 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
       });
     }
 
+    // Извлечение хронометража из метаданных донора для точной синхронизации ТВ-сетки и предотвращения вылета за пределы файла
+    let parsedDurationSec: number | null = null;
+    const rawTime = info?.info?.time || '';
+    if (typeof rawTime === 'string' && rawTime) {
+      const match = rawTime.match(/(\d+)\s*мин/i);
+      if (match) {
+        parsedDurationSec = parseInt(match[1], 10) * 60;
+      }
+    }
+
     const result: Record<string, any> = {
       liftwId: info.id,
       liftwType: info.type,
       name: info.name,
       iframe: info.iframe_uri,
+      durationSec: parsedDurationSec,
     };
     if (info.episodes) {
       result.episodes = info.episodes;
@@ -568,7 +580,8 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
     }
 
     const isTv = canonicalType === 'tv';
-    const cacheTtl = isTv ? 1800 : 2592000; // 30m for TV (rapid ongoing episode pickup), 30 days for Movies (no immutable)
+    // Максимальное время жизни кэша: 90 дней для фильмов, 30 дней для сериалов с автоматической ротацией
+    const cacheTtl = isTv ? 2592000 : 7776000;
 
     const resHeaders: Record<string, string> = {
       'Cache-Control': `public, max-age=${cacheTtl}, s-maxage=${cacheTtl}`,
