@@ -97,8 +97,9 @@ userRouter.get('/favorites', async (c) => {
   }
 
   try {
+    // Защита памяти изолята Worker (128 МБ) от OOM при разрастании списка избранного
     const { results } = await c.env.DB.prepare(
-      `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC`
+      `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC LIMIT 100`
     ).bind(user.id).all();
 
     const items = (results || []).map((row: any) => {

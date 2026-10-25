@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { AppEnv, AnalyticsEvent } from '../types';
-import { safeWaitUntil, verifyAdminAuth, normString } from '../utils/helpers';
+import { safeWaitUntil, verifyAdminAuth, normString, edgeCacheKey } from '../utils/helpers';
 
 export const analyticsRouter = new Hono<AppEnv>();
 
@@ -74,7 +74,9 @@ analyticsRouter.post('/analytics/track', async (c) => {
   const country = clampStr(c.get('country'), 8);
   const sessionId = clampStr(body.session_id || c.get('sessionId') || '', 100) || '';
   const tgUser = c.get('tgUser');
-  const bodyUserId = body.user_id != null ? Number(body.user_id) : undefined;
+  // Валидация целочисленного user_id для защиты от записи NaN в базу SQLite D1
+  const parsedUserId = body.user_id != null ? Number(body.user_id) : undefined;
+  const bodyUserId = Number.isSafeInteger(parsedUserId) ? parsedUserId : undefined;
 
   try {
     const stmt = c.env.DB.prepare(
@@ -324,6 +326,8 @@ analyticsRouter.post('/cache/purge', async (c) => {
     if (liftwId) {
       const liftwUrl = `${orig}/api/liftw?liftw_id=${encodeURIComponent(liftwId)}`;
       try {
+        // Удаляем версионированный ключ edge-кэша (&cv=cv8) и базовый URL
+        await edgeCache.delete(edgeCacheKey(c, liftwUrl));
         await edgeCache.delete(new Request(liftwUrl, { method: 'GET' }));
         if (!purgedUrls.includes(liftwUrl)) purgedUrls.push(liftwUrl);
       } catch (_) {}
@@ -331,6 +335,7 @@ analyticsRouter.post('/cache/purge', async (c) => {
     if (tmdb) {
       const canonicalUrl = `${orig}/api/liftw?tmdb=${encodeURIComponent(tmdb)}&type=${canonicalType}`;
       try {
+        await edgeCache.delete(edgeCacheKey(c, canonicalUrl));
         await edgeCache.delete(new Request(canonicalUrl, { method: 'GET' }));
         if (!purgedUrls.includes(canonicalUrl)) purgedUrls.push(canonicalUrl);
       } catch (_) {}
@@ -338,11 +343,13 @@ analyticsRouter.post('/cache/purge', async (c) => {
     if (title) {
       const titleUrl = `${orig}/api/liftw?title=${encodeURIComponent(normString(title))}&year=${encodeURIComponent(year)}&type=${canonicalType}`;
       try {
+        await edgeCache.delete(edgeCacheKey(c, titleUrl));
         await edgeCache.delete(new Request(titleUrl, { method: 'GET' }));
         if (!purgedUrls.includes(titleUrl)) purgedUrls.push(titleUrl);
       } catch (_) {}
     }
   }
+
 
   const hfBase = c.env.HF_BACKEND_URL || 'https://evro90-nm6.hf.space';
   const hfParams = new URLSearchParams({

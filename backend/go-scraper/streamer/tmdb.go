@@ -29,16 +29,17 @@ var (
 	tmdbApiKeyOnce  sync.Once
 )
 
+// getTMDBApiKey извлекает API-ключ из окружения; открытые строковые литералы исключены
 func getTMDBApiKey() string {
+	if k := os.Getenv("TMDB_API_KEY"); k != "" {
+		return k
+	}
 	tmdbApiKeyOnce.Do(func() {
-		tmdbApiKey = os.Getenv("TMDB_API_KEY")
-		if tmdbApiKey == "" {
-			tmdbApiKey = "cd5b69242e715dc87d65957d7460eba2"
-			log.Println("[INFO] TMDB_API_KEY env not set, using default key")
-		}
+		log.Println("[WARN] TMDB_API_KEY environment variable is not configured")
 	})
-	return tmdbApiKey
+	return ""
 }
+
 
 func init() {
 	// Background sweeper to remove expired TMDB cache entries every hour
@@ -85,7 +86,13 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queryParams.Set("api_key", getTMDBApiKey())
+	apiKey := getTMDBApiKey()
+	if apiKey == "" {
+		// Защита: отказ в обслуживании с кодом 503 при незаданном ключе во избежание спама апстрима
+		http.Error(w, `{"error":"TMDB API key not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+	queryParams.Set("api_key", apiKey)
 	targetUrl.RawQuery = queryParams.Encode()
 
 	cacheKey := targetUrl.String()
@@ -127,7 +134,12 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 		var attemptErr error
 
 		for attempt := 1; attempt <= 3; attempt++ {
-			req, err := http.NewRequest("GET", targetUrl.String(), nil)
+			// Проверка отмены запроса клиентом: исключает утечку сокетов и паразитные ретраи
+			if r.Context().Err() != nil {
+				attemptErr = r.Context().Err()
+				break
+			}
+			req, err := http.NewRequestWithContext(r.Context(), "GET", targetUrl.String(), nil)
 			if err != nil {
 				attemptErr = err
 				break
@@ -140,7 +152,12 @@ func TMDBApiHandler(w http.ResponseWriter, r *http.Request) {
 				attemptErr = err
 				log.Printf("[TMDB] Fetch attempt %d failed for %s: %v", attempt, path, err)
 				if attempt < 3 {
-					time.Sleep(time.Duration(attempt) * 1 * time.Second)
+					select {
+					case <-time.After(time.Duration(attempt) * time.Second):
+					case <-r.Context().Done():
+						attemptErr = r.Context().Err()
+						break
+					}
 				}
 				continue
 			}

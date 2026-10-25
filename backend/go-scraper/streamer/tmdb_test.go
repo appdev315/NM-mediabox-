@@ -50,6 +50,9 @@ func TestTMDBApiHandler_CyrillicOversizedBlocked(t *testing.T) {
 }
 
 func TestTMDBApiHandler_Cyrillic120CharsAllowed(t *testing.T) {
+	// Устанавливаем тестовый API-ключ в окружении для прохождения валидации
+	t.Setenv("TMDB_API_KEY", "test_mock_api_key")
+
 	// 100 Cyrillic characters (200 bytes in UTF-8, 600 bytes in URL-encode)
 	// Under 150 runes and under 2048 bytes URL - MUST NOT be blocked by guard!
 	cyrillic100 := strings.Repeat("кино", 25)
@@ -57,6 +60,7 @@ func TestTMDBApiHandler_Cyrillic120CharsAllowed(t *testing.T) {
 	// Pre-seed cache to intercept network call
 	vals := url.Values{}
 	vals.Set("api_key", getTMDBApiKey())
+
 	vals.Set("query", cyrillic100)
 	cacheURL := "https://api.themoviedb.org/3/search/multi?" + vals.Encode()
 	dummyData := []byte(`{"page":1,"results":[{"id":123,"title":"Тест"}],"total_pages":1,"total_results":1}`)
@@ -102,3 +106,18 @@ func TestTMDBApiHandler_OversizedRawQueryGuard(t *testing.T) {
 		t.Fatalf("expected body %s, got %s", expected, body)
 	}
 }
+
+func TestTMDBApiHandler_MissingApiKeyReturns503(t *testing.T) {
+	// Проверяем, что при отсутствии ключа эндпоинт возвращает HTTP 503 вместо обращения к апстриму
+	t.Setenv("TMDB_API_KEY", "")
+	req := httptest.NewRequest("GET", "/api/tmdb/movie/550", nil)
+	w := httptest.NewRecorder()
+
+	TMDBApiHandler(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected status 503 Service Unavailable, got %d", resp.StatusCode)
+	}
+}
+
