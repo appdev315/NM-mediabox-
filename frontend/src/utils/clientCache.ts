@@ -87,7 +87,10 @@ async function initIndexedDBCache(): Promise<void> {
       if (cursor && loadedCount < 200) {
         const key = cursor.key as string;
         const entry = cursor.value as CacheEntry<any>;
-        if (entry && !isExpired(entry.expiry, now)) {
+        // Негативные маркеры блокировки треков удаляем на старте: временные ошибки не должны отравлять сессию
+        if (key && key.includes('neg_resolved_')) {
+          try { cursor.delete(); } catch (_) {}
+        } else if (entry && !isExpired(entry.expiry, now)) {
           if (!memoryCache.has(key)) {
             memoryCache.set(key, entry);
             loadedCount++;
@@ -328,6 +331,51 @@ export const clientCache = {
     idbRemove(fullKey);
     try {
       localStorage.removeItem(fullKey);
+    } catch (_) {}
+  },
+
+  // Комплексный сброс музыкального кэша и негативных маркеров из всех уровней хранилища
+  async clearMusicCache(): Promise<void> {
+    const isMusicKey = (k: string) =>
+      k.includes('resolved_audio_') ||
+      k.includes('neg_resolved_') ||
+      k.includes('cache_music_search_') ||
+      k.includes('inv_health_') ||
+      k.includes('inv_instances_');
+
+    // 1. Очистка оперативной памяти
+    for (const k of Array.from(memoryCache.keys())) {
+      if (isMusicKey(k)) {
+        memoryCache.delete(k);
+      }
+    }
+
+    // 2. Очистка localStorage
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && isMusicKey(k)) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (_) {}
+
+    // 3. Очистка дисковой IndexedDB
+    try {
+      const db = await getDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.openCursor();
+      request.onsuccess = (event: any) => {
+        const cursor = event.target.result as IDBCursorWithValue;
+        if (cursor) {
+          const k = String(cursor.key || '');
+          if (isMusicKey(k)) {
+            try { cursor.delete(); } catch (_) {}
+          }
+          cursor.continue();
+        }
+      };
     } catch (_) {}
   }
 };

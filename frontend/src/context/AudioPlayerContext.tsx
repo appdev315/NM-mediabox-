@@ -583,6 +583,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           );
           if (isStale()) return;
           finalUrl = resolved || '';
+          // Если резолвер не вернул новый URL, но у трека уже есть рабочий прямой поток — используем его
+          if (!finalUrl && track.url && !track.url.includes('preview') && !track.url.includes('dzcdn')) {
+            finalUrl = track.url;
+          }
         } else {
           finalUrl = track.url;
         }
@@ -770,12 +774,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     syncToPeers(track, true, true);
 
     if (track.type === 'music') {
-      const isFav = favoritesManager.isFavorite('music', track.id);
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+      const hasDirectStream = !needsFullResolve(track) && Boolean(track.url) && !track.url.includes('preview') && !track.url.includes('dzcdn');
 
-      // Синхронный fast-path ТОЛЬКО для не-избранных треков из поиска с уже разрешённым прямым URL.
-      // Треки из «Избранного» направляются в startMusicTrack, где проверяется локальный оффлайн-кэш
-      // (0 мс задержки, 0 байт мобильного трафика) и автоматический апгрейд качества до 320 kbps.
-      if (!isFav && !needsFullResolve(track) && track.url && !track.url.includes('preview') && !track.url.includes('dzcdn')) {
+      // Мгновенный прямой запуск (Fast-Path) для любых треков с готовым потоком в сети.
+      // Исключает лишнюю задержку и падение на пустом кэше для треков из «Избранного».
+      if (isOnline && hasDirectStream) {
         const resolvedTrack = track;
         setCurrentTrack(resolvedTrack);
         if (audio.src !== track.url) {

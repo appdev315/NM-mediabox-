@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
 import { favoritesManager } from '../utils/favoritesManager';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
+import { clientCache } from '../utils/clientCache';
 
 const formatTrackDuration = (secs?: number | string): string => {
   if (!secs) return '';
@@ -204,7 +205,9 @@ export function AppleMusic() {
     try {
       WebApp?.HapticFeedback?.notificationOccurred('success');
     } catch (_) {}
+    // Очищаем оффлайн-блобы аудио и дисковые/оперативные кэши резолвера
     await audioOfflineManager.clearAudioCache();
+    await clientCache.clearMusicCache();
     await refreshCacheStats();
   };
 

@@ -63,11 +63,9 @@ export const setMusicDataSaver = (enabled: boolean): void => {
 };
 
 /**
- * Third-party hobby deployment of the Saavn API. Kept only as the last-resort
- * fallback — primary access goes through the own edge-cached Worker mirror
- * (`/api/music/saavn/*`) so a single Vercel instance is no longer a hard SPOF.
+ * Резервный апстрим Saavn API (используется при недоступности основного Cloudflare Edge Proxy)
  */
-const SAAVN_FALLBACK_BASE = 'https://jiosaavn-api-amber.vercel.app/api';
+const SAAVN_FALLBACK_BASE = 'https://saavn-api-delta.vercel.app/api';
 
 const saavnApiFetch = async (relativePath: string, signal?: AbortSignal): Promise<Response | null> => {
   try {
@@ -295,19 +293,20 @@ export const resolveFullAudioUrl = async (
       const isStaleLowBitrate = !saving && /_96\.|_48\./.test(cached);
       if (!isHighBitrateSaavn && !isStaleLowBitrate) return cached;
     }
-    // Negative cache (60 min): a track that just failed to resolve must not
-    // hammer Saavn/Invidious on every replay. bypassCache force-bypasses it.
+    // Короткий троттлинг негативного кэша (30 сек): не блокирует трек при наличии fallback-ссылки
     const negative = clientCache.get<string>(negCacheKey) || await clientCache.getAsync<string>(negCacheKey);
-    if (negative) return '';
+    if (negative) {
+      if (_fallbackUrl && !_fallbackUrl.includes('preview') && !_fallbackUrl.includes('dzcdn')) {
+        return _fallbackUrl;
+      }
+      return '';
+    }
   }
 
   // 1. Try JioSaavn CDN (Instant 320k / 160k direct stream) — Multi-pass search
   // Для YouTube-треков (trackId начинается с yt_) используем JioSaavn CDN исключительно при
   // строгом совпадении названия и исполнителя, чтобы предотвратить подмену оригинального трека.
   const isYtTrack = Boolean(trackId && trackId.startsWith('yt_'));
-  // Маркер временного сбоя (сеть/инстансы лежат): трек не должен блокироваться
-  // часовым негативным кэшем из-за транзиентной ошибки.
-  let transientFailure = false;
   try {
     const queries = [
       `${primaryArtist} ${cleanTitle}`,
@@ -363,10 +362,7 @@ export const resolveFullAudioUrl = async (
         }
       } catch (_) {}
     }
-  } catch (_) {
-    // JioSaavn полностью недоступен — сбой, а не отсутствие трека
-    transientFailure = true;
-  }
+  } catch (_) {}
 
   // 2. Try YouTube Music + Invidious direct 206 audio stream (Covers Russian rap, rock, obscure tracks)
   try {
@@ -412,19 +408,17 @@ export const resolveFullAudioUrl = async (
           continue;
         }
       }
-    } else {
-      // videoId не получен (воркер не ответил или поиск пуст) — считаем транзиентным:
-      // 10 минут негативного кэша вместо часа
-      transientFailure = true;
     }
-  } catch (_) {
-    transientFailure = true;
+  } catch (_) {}
+
+  // Если поиск не дал нового потока, но переданный fallback уже является рабочим потоком — отдаем его
+  if (_fallbackUrl && !_fallbackUrl.includes('preview') && !_fallbackUrl.includes('dzcdn')) {
+    clientCache.remove(negCacheKey);
+    return _fallbackUrl;
   }
 
-  // Strictly Full Tracks: Never return Deezer 30s preview snippet as a fake full track!
-  // При транзиентном сбое (сеть/инстансы лежали) трек блокируется только на 10 минут,
-  // а не на час — после восстановления связи повторная попытка происходит быстро.
-  clientCache.set(negCacheKey, '1', transientFailure ? 600 : 3600);
+  // Защита от долгосрочного отравления кэша: блокируем повторный сетевой опрос строго на 30 секунд, а не на час
+  clientCache.set(negCacheKey, '1', 30);
   return '';
 };
 

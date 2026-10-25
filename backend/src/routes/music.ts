@@ -5,9 +5,8 @@ import { safeWaitUntil, edgeCacheKey } from "../utils/helpers";
 export const musicRouter = new Hono<AppEnv>();
 
 // --- SAAVN MIRROR PROXY & POOL CONFIGURATION ---
-// Пул живых апстримов Saavn с автоматическим фолбэком. Переопределяется через переменную окружения SAAVN_API_BASES.
+// Пул живых апстримов Saavn: исключен удаленный jiosaavn-api-amber (404 Deployment Not Found)
 const SAAVN_DEFAULT_BASES = [
-  'https://jiosaavn-api-amber.vercel.app/api',
   'https://saavn-api-delta.vercel.app/api',
 ];
 
