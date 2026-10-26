@@ -387,8 +387,8 @@ musicRouter.get('/api/music/invidious/instances', async (c: Context) => {
 
   let instances: string[] = [];
   try {
-    const res = await fetch('https://api.invidious.io/instances?pretty=1&sort_by=health', {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
+    const res = await fetch('https://api.invidious.io/instances.json?sort_by=health', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
       signal: AbortSignal.timeout(6000),
     });
     if (res.ok) {
@@ -410,6 +410,109 @@ musicRouter.get('/api/music/invidious/instances', async (c: Context) => {
       safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}
   }
+  return response;
+});
+
+// --- SERVER-SIDE AUDIO RESOLVER (10-12 min edge cache, competitive instance racing with local=true) ---
+musicRouter.get('/api/music/resolve', async (c: Context) => {
+  const id = (c.req.query('id') || '').trim();
+  const artist = (c.req.query('artist') || '').trim();
+  const title = (c.req.query('title') || '').trim();
+
+  if (!id && !title) {
+    return c.json({ success: false, error: 'missing id or title' }, 400, {
+      'Access-Control-Allow-Origin': '*',
+    });
+  }
+
+  const edgeCache = (caches as any).default;
+  const cacheReq = edgeCacheKey(c);
+  try {
+    const cached = await edgeCache.match(cacheReq);
+    if (cached) return cached;
+  } catch (_) {}
+
+  let resolvedUrl = '';
+
+  // 1. YouTube track resolution with local=true Invidious race
+  if (id.startsWith('yt_')) {
+    const videoId = id.replace(/^yt_/, '');
+    const seedInstances = [
+      'https://invidious.schenkel.eti.br',
+      'https://yt.chocolatemoo53.com',
+      'https://inv.nadeko.net',
+      'https://yewtu.be',
+      'https://invidious.nerdvpn.de',
+    ];
+
+    const fetchInstance = async (inst: string): Promise<string> => {
+      const res = await fetch(`${inst}/api/v1/videos/${videoId}?local=true`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const data: any = await res.json();
+      const audioFormats = (data?.adaptiveFormats || []).filter(
+        (f: any) => f && typeof f.type === 'string' && f.type.startsWith('audio') && f.url
+      );
+      if (audioFormats.length === 0) throw new Error('No audio');
+      audioFormats.sort((a: any, b: any) => (parseInt(a.bitrate || '0', 10) - parseInt(b.bitrate || '0', 10)));
+      const highM4a = audioFormats.filter((f: any) => f.type.includes('mp4') || f.container === 'm4a').pop();
+      return highM4a?.url || audioFormats[audioFormats.length - 1]?.url || '';
+    };
+
+    try {
+      resolvedUrl = await Promise.any(seedInstances.map(fetchInstance));
+    } catch (_) {}
+  }
+
+  // 2. JioSaavn fallback by title + artist if YT failed or not a YT track
+  if (!resolvedUrl && (artist || title)) {
+    try {
+      const cleanTitle = title.replace(/\([^)]*\)|\[[^\]]*\]/g, '').trim();
+      const primaryArtist = artist.split(/(?:feat\.|ft\.|,|&|\/)/i)[0].trim();
+      const query = `${primaryArtist} ${cleanTitle}`.trim();
+      const bases = saavnUpstreamBases(c);
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${base}/search/songs?query=${encodeURIComponent(query)}&limit=3`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!res.ok) continue;
+          const data: any = await res.json();
+          const results = data?.data?.results;
+          if (Array.isArray(results) && results.length > 0) {
+            const first = results[0];
+            const dUrls = first.downloadUrl;
+            if (Array.isArray(dUrls) && dUrls.length > 0) {
+              const best = dUrls.find((u: any) => u.quality === '320kbps') || dUrls[dUrls.length - 1];
+              if (best?.url) {
+                resolvedUrl = best.url;
+                break;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  const success = Boolean(resolvedUrl);
+  // Edge Cache TTL: 10 минут (600 сек) для успешных потоков во избежание протухания временных токенов
+  const response = c.json({ success, url: resolvedUrl, id }, success ? 200 : 404, {
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': success
+      ? 'public, max-age=300, s-maxage=600, stale-while-revalidate=120'
+      : 'no-cache, no-store',
+  });
+
+  if (success) {
+    try {
+      safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
+    } catch (_) {}
+  }
+
   return response;
 });
 

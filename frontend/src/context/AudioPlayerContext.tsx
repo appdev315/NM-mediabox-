@@ -68,7 +68,12 @@ function needsFullResolve(t: Track): boolean {
     || u.includes('dzcdn') || u.includes('invidious') || t.id.startsWith('yt_');
 }
 
-function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): void {
+function prefetchNextTrack(
+  current: Track,
+  queue: Track[],
+  shuffle: boolean,
+  onWarmUrl?: (trackId: string | number, url: string) => void
+): void {
   try {
     if (current.type !== 'music' || queue.length < 2) return;
     // No silent network work on metered links or with the Traffic saver toggle on:
@@ -87,7 +92,7 @@ function prefetchNextTrack(current: Track, queue: Track[], shuffle: boolean): vo
             ''
           );
           if (u && !u.includes('preview') && !u.includes('dzcdn')) {
-            target.url = u; // Pre-warm stream URL directly in queue item for 0ms synchronous lockscreen transition
+            onWarmUrl?.(target.id, u);
           }
         } catch (_) {}
       })();
@@ -129,6 +134,56 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
   const musicRetryTokenRef = useRef<string | null>(null); // Guard against infinite onError re-resolve loops
+
+  // Forward ref for nextTrack to allow auto-skip invocation from resolver & error handlers
+  const nextTrackRef = useRef<() => void>(() => {});
+
+  // Автоматический пропуск недоступных треков: лимит 3 подряд, защита от зацикливания
+  const consecutiveSkipsRef = useRef(0);
+  const autoSkipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAutoSkipTimer = useCallback(() => {
+    if (autoSkipTimeoutRef.current) {
+      clearTimeout(autoSkipTimeoutRef.current);
+      autoSkipTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Реактивное обновление URL трека в очереди без прямых мутаций объектов
+  const updateQueueTrackUrl = useCallback((trackId: string | number, url: string) => {
+    if (!url || url.startsWith('blob:')) return;
+    setQueue((prev) => {
+      const idx = prev.findIndex((t) => t.id === trackId);
+      if (idx === -1 || prev[idx].url === url) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], url };
+      queueRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const triggerAutoSkip = useCallback((failedTrackId: string | number) => {
+    clearAutoSkipTimer();
+    const currentQueue = queueRef.current;
+    if (!currentQueue || currentQueue.length <= 1) return;
+
+    if (consecutiveSkipsRef.current >= 3) {
+      console.warn('[Audio] Auto-skip halted: 3 consecutive tracks failed to play.');
+      consecutiveSkipsRef.current = 0;
+      setIsBuffering(false);
+      setIsPlaying(false);
+      return;
+    }
+
+    consecutiveSkipsRef.current += 1;
+    console.warn(`[Audio] Scheduling auto-skip for track ${failedTrackId} in 1.5s (skip #${consecutiveSkipsRef.current}/3)...`);
+    autoSkipTimeoutRef.current = setTimeout(() => {
+      if (!isUserPausedRef.current) {
+        nextTrackRef.current();
+      }
+    }, 1500);
+  }, [clearAutoSkipTimer]);
+
   const { hlsRef, initHls, destroyHls } = useHlsPlayer();
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -184,6 +239,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     isAudioMasterRef.current = false;
     musicResolveRef.current++;
     resolvingIdRef.current = null;
+    clearAutoSkipTimer();
+    consecutiveSkipsRef.current = 0;
 
     // 1. Broadcast stop command to any other active windows ONLY if initiated locally (prevents ping-pong loop)
     if (!isRemote) {
@@ -363,6 +420,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const togglePlayPause = useCallback(() => {
+    if (!isUserPausedRef.current) {
+      clearAutoSkipTimer();
+      consecutiveSkipsRef.current = 0;
+    }
     if (!isAudioMasterRef.current) {
       // Non-master tab: forward command to the master; master syncs state back.
       // Do not flip local state optimistically — it desyncs UI from real audio.
@@ -591,8 +652,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           finalUrl = track.url;
         }
 
-        // 3. Fallback to offline cache if network resolution failed and track is a favorite
-        if (!finalUrl && isFav && !bypassCache) {
+        // 3. Fallback to offline cache if network resolution failed and track is a favorite (даже при bypassCache)
+        if (!finalUrl && isFav) {
           try {
             const blob = await audioOfflineManager.getTrackAudioUrl(track.url, track.id);
             if (isStale()) {
@@ -610,12 +671,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Pre-warm the queue entry with the resolved URL to avoid repeated network round-trips
+      // Реактивно обновляем URL трека в очереди без прямых мутаций объектов
       if (finalUrl && !finalUrl.startsWith('blob:')) {
-        const qIndex = queueRef.current.findIndex(t => t.id === track.id);
-        if (qIndex !== -1) {
-          queueRef.current[qIndex] = { ...queueRef.current[qIndex], url: finalUrl };
-        }
+        updateQueueTrackUrl(track.id, finalUrl);
       }
 
       // Strictly Full Tracks: Refuse to play any 30-second preview cut!
@@ -634,6 +692,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
             trackError('music', track.title || '', String(track.id), 'full_stream_unavailable');
           } catch (_) {}
         }
+        triggerAutoSkip(track.id);
         return;
       }
 
@@ -678,7 +737,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         setIsPlaying(true);
         setIsBuffering(false);
         syncToPeers(resolvedTrack, true, false);
-        prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current);
+        prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current, updateQueueTrackUrl);
         trackOpen('music', `${resolvedTrack.artist} - ${resolvedTrack.title}`, resolvedTrack.id);
       } catch (err) {
         if (isStale()) return;
@@ -697,6 +756,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [syncToPeers]);
 
   const playTrack = useCallback(async (track: Track, newQueue?: Track[]) => {
+    clearAutoSkipTimer();
+    consecutiveSkipsRef.current = 0;
     if (newQueue && newQueue.length > 0) {
       setQueue(newQueue);
       queueRef.current = newQueue;
@@ -799,7 +860,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           setIsPlaying(true);
           setIsBuffering(false);
           syncToPeers(resolvedTrack, true, false);
-          prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current);
+          prefetchNextTrack(resolvedTrack, queueRef.current, isShuffleRef.current, updateQueueTrackUrl);
           trackOpen('music', `${resolvedTrack.artist} - ${resolvedTrack.title}`, resolvedTrack.id);
           return;
         } catch (err) {
@@ -937,7 +998,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
   const togglePlayPauseRef = useRef(togglePlayPause);
   const stopRef = useRef(stop);
-  const nextTrackRef = useRef(nextTrack);
   const prevTrackRef = useRef(prevTrack);
 
   useEffect(() => {
@@ -1215,6 +1275,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const onPlay = () => {
       setIsPlaying(true);
       isPausedByDeviceRef.current = false;
+      clearAutoSkipTimer();
       // Восстанавливаем контекст и накладываем настройки эквалайзера при старте воспроизведения любого трека
       try {
         audioEqualizerManager.reapplySettings();
@@ -1228,6 +1289,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
       stalledCountRef.current = 0;
+      clearAutoSkipTimer();
+      consecutiveSkipsRef.current = 0;
       try {
         audioEqualizerManager.reapplySettings();
       } catch (_) {}
@@ -1326,6 +1389,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         try {
           trackError('music', track.title || '', String(track.id), 'playback_error');
         } catch (_) {}
+        // Автоматический переход к следующему треку очереди во избежание мертвого зависания плеера
+        if (track?.id) {
+          triggerAutoSkip(track.id);
+        }
       } else {
         setIsPlaying(false);
         setIsBuffering(false);
