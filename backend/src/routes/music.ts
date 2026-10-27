@@ -418,6 +418,7 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
   const id = (c.req.query('id') || '').trim();
   const artist = (c.req.query('artist') || '').trim();
   const title = (c.req.query('title') || '').trim();
+  const noCache = c.req.query('nocache') === '1';
 
   if (!id && !title) {
     return c.json({ success: false, error: 'missing id or title' }, 400, {
@@ -427,10 +428,12 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
 
   const edgeCache = (caches as any).default;
   const cacheReq = edgeCacheKey(c);
-  try {
-    const cached = await edgeCache.match(cacheReq);
-    if (cached) return cached;
-  } catch (_) {}
+  if (!noCache) {
+    try {
+      const cached = await edgeCache.match(cacheReq);
+      if (cached) return cached;
+    } catch (_) {}
+  }
 
   let resolvedUrl = '';
 
@@ -441,8 +444,8 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
       return c.json({ error: 'invalid id' }, 400);
     }
     const seedInstances = [
-      'https://invidious.schenkel.eti.br',
       'https://yt.chocolatemoo53.com',
+      'https://invidious.tiekoetter.com',
       'https://inv.nadeko.net',
       'https://yewtu.be',
       'https://invidious.nerdvpn.de',
@@ -451,7 +454,7 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
     const fetchInstance = async (inst: string): Promise<string> => {
       const res = await fetch(`${inst}/api/v1/videos/${videoId}?local=true`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(3000),
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const data: any = await res.json();
@@ -461,7 +464,19 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
       if (audioFormats.length === 0) throw new Error('No audio');
       audioFormats.sort((a: any, b: any) => (parseInt(a.bitrate || '0', 10) - parseInt(b.bitrate || '0', 10)));
       const highM4a = audioFormats.filter((f: any) => f.type.includes('mp4') || f.container === 'm4a').pop();
-      return highM4a?.url || audioFormats[audioFormats.length - 1]?.url || '';
+      const streamUrl = highM4a?.url || audioFormats[audioFormats.length - 1]?.url || '';
+      if (!streamUrl) throw new Error('No audio URL');
+
+      // Валидация стрима: отсекаем инстансы, отдающие JSON, но зависающие при передаче аудиобайтов
+      const probeRes = await fetch(streamUrl, {
+        headers: { Range: 'bytes=0-100', 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(2000),
+      });
+      try { probeRes.body?.cancel(); } catch (_) {}
+      if (!probeRes.ok && probeRes.status !== 206) {
+        throw new Error(`Stream probe failed: ${probeRes.status}`);
+      }
+      return streamUrl;
     };
 
     try {
@@ -474,29 +489,37 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
     try {
       const cleanTitle = title.replace(/\([^)]*\)|\[[^\]]*\]/g, '').trim();
       const primaryArtist = artist.split(/(?:feat\.|ft\.|,|&|\/)/i)[0].trim();
-      const query = `${primaryArtist} ${cleanTitle}`.trim();
+      const queries = [
+        `${primaryArtist} ${cleanTitle}`.trim(),
+        cleanTitle,
+      ].filter(Boolean);
       const bases = saavnUpstreamBases(c);
       for (const base of bases) {
-        try {
-          const res = await fetch(`${base}/search/songs?query=${encodeURIComponent(query)}&limit=3`, {
-            headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!res.ok) continue;
-          const data: any = await res.json();
-          const results = data?.data?.results;
-          if (Array.isArray(results) && results.length > 0) {
-            const first = results[0];
-            const dUrls = first.downloadUrl;
-            if (Array.isArray(dUrls) && dUrls.length > 0) {
-              const best = dUrls.find((u: any) => u.quality === '320kbps') || dUrls[dUrls.length - 1];
-              if (best?.url) {
-                resolvedUrl = best.url;
-                break;
+        let found = false;
+        for (const query of queries) {
+          try {
+            const res = await fetch(`${base}/search/songs?query=${encodeURIComponent(query)}&limit=3`, {
+              headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+              signal: AbortSignal.timeout(4000),
+            });
+            if (!res.ok) continue;
+            const data: any = await res.json();
+            const results = data?.data?.results;
+            if (Array.isArray(results) && results.length > 0) {
+              const first = results[0];
+              const dUrls = first.downloadUrl;
+              if (Array.isArray(dUrls) && dUrls.length > 0) {
+                const best = dUrls.find((u: any) => u.quality === '320kbps') || dUrls[dUrls.length - 1];
+                if (best?.url) {
+                  resolvedUrl = best.url;
+                  found = true;
+                  break;
+                }
               }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+        if (found) break;
       }
     } catch (_) {}
   }
@@ -510,7 +533,7 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
       : 'no-cache, no-store',
   });
 
-  if (success) {
+  if (success && !noCache) {
     try {
       safeWaitUntil(c, edgeCache.put(cacheReq, response.clone()));
     } catch (_) {}

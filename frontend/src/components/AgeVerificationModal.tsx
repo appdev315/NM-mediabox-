@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';

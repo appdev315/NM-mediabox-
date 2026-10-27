@@ -1159,46 +1159,79 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       if (!isPlayingRef.current) return;
       const audio = audioRef.current;
       const track = currentTrackRef.current;
-      if (!audio || !track || track.type !== 'radio' || isUserPausedRef.current) {
+      if (!audio || !track || isUserPausedRef.current) {
         return;
       }
 
-      // If audio paused unintentionally (e.g. minor buffer underrun), attempt soft play first
-      if (audio.paused) {
-        stalledCountRef.current++;
-        // Ticks 1-3 (up to 9s): Try soft resume on existing open socket
-        if (stalledCountRef.current <= 3) {
-          audio.play().catch(() => {});
+      if (track.type === 'radio') {
+        // If audio paused unintentionally (e.g. minor buffer underrun), attempt soft play first
+        if (audio.paused) {
+          stalledCountRef.current++;
+          // Ticks 1-3 (up to 9s): Try soft resume on existing open socket
+          if (stalledCountRef.current <= 3) {
+            audio.play().catch(() => {});
+            return;
+          }
+          // Only if stuck for >= 12 seconds, trigger a reconnect
+          if (stalledCountRef.current >= 4) {
+            stalledCountRef.current = 0;
+            attemptReconnect('watchdog: audio element paused unexpectedly');
+          }
           return;
         }
-        // Only if stuck for >= 12 seconds, trigger a reconnect
-        if (stalledCountRef.current >= 4) {
-          stalledCountRef.current = 0;
-          attemptReconnect('watchdog: audio element paused unexpectedly');
-        }
-        return;
-      }
 
-      const currentTime = audio.currentTime;
-      const hasProgressed = Math.abs(currentTime - lastTimeRef.current) >= 0.05;
-      const isBufferingGrace = audio.readyState >= 2; // HAVE_CURRENT_DATA or HAVE_ENOUGH_DATA
+        const currentTime = audio.currentTime;
+        const hasProgressed = Math.abs(currentTime - lastTimeRef.current) >= 0.05;
+        const isBufferingGrace = audio.readyState >= 2; // HAVE_CURRENT_DATA or HAVE_ENOUGH_DATA
 
-      if (!hasProgressed && !isBufferingGrace) {
-        stalledCountRef.current++;
-        // Stalled for >= 12.0 seconds (4 ticks * 3s) without forward progression -> Trigger auto-recovery
-        if (stalledCountRef.current >= 4) {
+        if (!hasProgressed && !isBufferingGrace) {
+          stalledCountRef.current++;
+          // Stalled for >= 12.0 seconds (4 ticks * 3s) without forward progression -> Trigger auto-recovery
+          if (stalledCountRef.current >= 4) {
+            stalledCountRef.current = 0;
+            attemptReconnect('watchdog: stream playback frozen');
+          }
+        } else {
           stalledCountRef.current = 0;
-          attemptReconnect('watchdog: stream playback frozen');
+          lastTimeRef.current = currentTime;
+          reconnectAttemptRef.current = 0; // Stream is moving forward reliably
         }
-      } else {
-        stalledCountRef.current = 0;
-        lastTimeRef.current = currentTime;
-        reconnectAttemptRef.current = 0; // Stream is moving forward reliably
+      } else if (track.type === 'music') {
+        // Watchdog для музыки: выявляет мёртвые проксированные потоки, не генерирующие onerror
+        const currentTime = audio.currentTime;
+        const hasProgressed = Math.abs(currentTime - lastTimeRef.current) >= 0.05;
+        const isBufferingGrace = audio.readyState >= 2 && !audio.paused;
+
+        if (!hasProgressed && !isBufferingGrace) {
+          stalledCountRef.current++;
+          // Если музыка зависла на >= 6 секунд (2 тика по 3 сек):
+          if (stalledCountRef.current >= 2) {
+            stalledCountRef.current = 0;
+            console.warn(`[Audio Watchdog] Music stream frozen for ${track.artist} - ${track.title}. Triggering recovery.`);
+            if (track.id && musicRetryTokenRef.current !== track.id) {
+              musicRetryTokenRef.current = track.id;
+              setIsBuffering(true);
+              const myToken = ++musicResolveRef.current;
+              startMusicTrack(track, audio, myToken, true /* bypassCache */);
+            } else {
+              // Повторный резолв тоже завис или не дал результата -> автоскип
+              setIsBuffering(false);
+              setIsPlaying(false);
+              if (track?.id) {
+                markTrackUnplayable(track.id);
+                triggerAutoSkip(track.id);
+              }
+            }
+          }
+        } else {
+          stalledCountRef.current = 0;
+          lastTimeRef.current = currentTime;
+        }
       }
     }, 3000);
 
     return () => clearInterval(watchdogInterval);
-  }, [attemptReconnect]);
+  }, [attemptReconnect, startMusicTrack, markTrackUnplayable, triggerAutoSkip]);
 
   // Background visibility & Tab Focus recovery
   useEffect(() => {

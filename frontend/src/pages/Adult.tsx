@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { WebApp } from '../telegram';
 import { useApi } from '../hooks/useApi';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';

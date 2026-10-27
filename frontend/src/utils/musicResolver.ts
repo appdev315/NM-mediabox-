@@ -64,8 +64,8 @@ export const saavnApiFetch = async (relativePath: string, signal?: AbortSignal):
 // --- ПУЛ ИНСТАНСОВ INVIDIOUS И СКОРИНГ ДОСТУПНОСТИ ---
 
 export const INVIDIOUS_SEED_INSTANCES = [
-  'https://invidious.schenkel.eti.br',
   'https://yt.chocolatemoo53.com',
+  'https://invidious.tiekoetter.com',
   'https://inv.nadeko.net',
   'https://yewtu.be',
   'https://invidious.nerdvpn.de',
@@ -337,7 +337,7 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
 
   const attemptInstance = async (instance: string): Promise<string> => {
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), 6000);
+    const timeoutId = setTimeout(() => timeoutController.abort(), 2500);
 
     const onRaceAbort = () => {
       timeoutController.abort();
@@ -353,8 +353,6 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
         maxRetries: 0,
         signal: timeoutController.signal,
       });
-      clearTimeout(timeoutId);
-      raceController.signal.removeEventListener('abort', onRaceAbort);
 
       if (!res || !res.ok) {
         throw new Error(`Instance ${instance} returned status ${res?.status}`);
@@ -364,6 +362,8 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
       if (!streamUrl) {
         throw new Error(`No audio format from ${instance}`);
       }
+      clearTimeout(timeoutId);
+      raceController.signal.removeEventListener('abort', onRaceAbort);
       recordInvidiousOutcome(instance, true);
       return streamUrl;
     } catch (err: any) {
@@ -399,7 +399,7 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
  * Серверный резолвер Cloudflare Worker:
  * Проксирует запрос через край сети с edge-кэшем на 10-12 минут
  */
-export const resolveViaWorker = async (trackId?: string, artist?: string, title?: string): Promise<string> => {
+export const resolveViaWorker = async (trackId?: string, artist?: string, title?: string, bypassCache: boolean = false): Promise<string> => {
   if (!trackId && !title) return '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -408,10 +408,12 @@ export const resolveViaWorker = async (trackId?: string, artist?: string, title?
     if (trackId) params.set('id', trackId);
     if (artist) params.set('artist', artist);
     if (title) params.set('title', title);
+    if (bypassCache) params.set('nocache', '1');
 
     const res = await fetchWithRetry(`${CF_API_BASE}/music/resolve?${params.toString()}`, {
       maxRetries: 0,
       signal: controller.signal,
+      ...(bypassCache ? { cache: 'no-store' } : {})
     });
     clearTimeout(timeoutId);
     if (res && res.ok) {
@@ -476,7 +478,7 @@ export const resolveFullAudioUrl = async (
     // 2. Для YouTube-треков: приоритетное разрешение через серверный Worker или конкурентную гонку инстансов
     if (keys.isYt && keys.videoId) {
       // 2a. Пробуем серверный воркер
-      const workerUrl = await resolveViaWorker(trackId, artist, title);
+      const workerUrl = await resolveViaWorker(trackId, artist, title, bypassCache);
       if (workerUrl) {
         clientCache.set(keys.cacheKey, workerUrl, 900); // 15 мин TTL
         clientCache.remove(keys.negCacheKey);
@@ -534,9 +536,9 @@ export const resolveFullAudioUrl = async (
                 (c.rArtists.includes(normArtist) || normArtist.includes(c.rArtists))
               );
 
-              const exactTitle = !keys.isYt
-                ? candidates.find((c: any) => c.rTitle === normQueryTitle && (c.rArtists.includes(normArtist) || normArtist.includes(c.rArtists) || candidates.length === 1))
-                : null;
+              const exactTitle = candidates.find((c: any) =>
+                c.rTitle === normQueryTitle && (c.rArtists.includes(normArtist) || normArtist.includes(c.rArtists) || candidates.length === 1)
+              );
 
               const match = titleAndArtist || exactTitle;
 
