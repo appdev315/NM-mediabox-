@@ -83,7 +83,24 @@ const INV_COOLDOWN_MS = 30 * 60 * 1000;
 export interface InvHealthEntry { ok: number; fail: number; cooldownUntil: number }
 export type InvHealth = Record<string, InvHealthEntry>;
 
+let lastHealthSaveTs = 0;
+let pendingHealthSnapshot: InvHealth | null = null;
+let healthDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const flushHealthToCache = () => {
+  if (healthDebounceTimer) {
+    clearTimeout(healthDebounceTimer);
+    healthDebounceTimer = null;
+  }
+  if (!pendingHealthSnapshot) return;
+  try {
+    clientCache.set(INV_HEALTH_KEY, pendingHealthSnapshot, 30 * 24 * 3600);
+    lastHealthSaveTs = Date.now();
+  } catch (_) {}
+};
+
 export const getInvHealth = (): InvHealth => {
+  if (pendingHealthSnapshot) return pendingHealthSnapshot;
   try {
     return clientCache.get<InvHealth>(INV_HEALTH_KEY) || {};
   } catch (_) {
@@ -93,8 +110,8 @@ export const getInvHealth = (): InvHealth => {
 
 export const recordInvidiousOutcome = (base: string, ok: boolean): void => {
   try {
-    const health = getInvHealth();
-    const entry = health[base] || { ok: 0, fail: 0, cooldownUntil: 0 };
+    const health = { ...getInvHealth() };
+    const entry = health[base] ? { ...health[base] } : { ok: 0, fail: 0, cooldownUntil: 0 };
     if (ok) {
       entry.ok += 1;
       entry.cooldownUntil = 0;
@@ -105,7 +122,14 @@ export const recordInvidiousOutcome = (base: string, ok: boolean): void => {
     if (entry.ok > 500) entry.ok = 500;
     if (entry.fail > 500) entry.fail = 500;
     health[base] = entry;
-    clientCache.set(INV_HEALTH_KEY, health, 30 * 24 * 3600);
+    pendingHealthSnapshot = health;
+
+    const now = Date.now();
+    if (now - lastHealthSaveTs >= 5000) {
+      flushHealthToCache();
+    } else if (!healthDebounceTimer) {
+      healthDebounceTimer = setTimeout(flushHealthToCache, 5000 - (now - lastHealthSaveTs));
+    }
   } catch (_) {}
 };
 
@@ -309,16 +333,29 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
   if (allInstances.length === 0) return '';
 
   const candidates = allInstances.slice(0, 4);
+  const raceController = new AbortController();
 
   const attemptInstance = async (instance: string): Promise<string> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), 6000);
+
+    const onRaceAbort = () => {
+      timeoutController.abort();
+    };
+    if (raceController.signal.aborted) {
+      clearTimeout(timeoutId);
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    raceController.signal.addEventListener('abort', onRaceAbort, { once: true });
+
     try {
       const res = await fetchWithRetry(`${instance}/api/v1/videos/${videoId}?local=true`, {
         maxRetries: 0,
-        signal: controller.signal,
+        signal: timeoutController.signal,
       });
       clearTimeout(timeoutId);
+      raceController.signal.removeEventListener('abort', onRaceAbort);
+
       if (!res || !res.ok) {
         throw new Error(`Instance ${instance} returned status ${res?.status}`);
       }
@@ -329,15 +366,22 @@ export const raceInvidiousInstances = async (videoId: string, isSlow: boolean): 
       }
       recordInvidiousOutcome(instance, true);
       return streamUrl;
-    } catch (err) {
+    } catch (err: any) {
       clearTimeout(timeoutId);
-      recordInvidiousOutcome(instance, false);
+      raceController.signal.removeEventListener('abort', onRaceAbort);
+
+      // 2.3-доп: не штрафуем зеркало, если запрос был отменен общим контроллером гонки
+      if (!raceController.signal.aborted) {
+        recordInvidiousOutcome(instance, false);
+      }
       throw err;
     }
   };
 
   try {
-    return await Promise.any(candidates.map(attemptInstance));
+    const winner = await Promise.any(candidates.map(attemptInstance));
+    raceController.abort();
+    return winner;
   } catch (_) {
     // Если топ-4 инстанса отклонили запрос — пробуем запасные следующие 2 инстанса последовательно
     const fallbacks = allInstances.slice(4, 6);

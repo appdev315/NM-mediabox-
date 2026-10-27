@@ -27,7 +27,7 @@ export interface MusicAlbum {
   songCount?: number;
 }
 
-export {
+import {
   type NetworkSpeedInfo,
   getNetworkSpeed,
   isMusicDataSaverEnabled,
@@ -44,6 +44,24 @@ export {
   saavnApiFetch,
   INVIDIOUS_SEED_INSTANCES
 } from '../utils/musicResolver';
+
+export {
+  type NetworkSpeedInfo,
+  getNetworkSpeed,
+  isMusicDataSaverEnabled,
+  setMusicDataSaver,
+  resolveFullAudioUrl,
+  getInvidiousInstances,
+  recordInvidiousOutcome,
+  parseYtDuration,
+  extractInvidiousAudio,
+  extractAudioUrl,
+  extractLowAudioUrl,
+  extractArtwork,
+  decodeHtmlEntities,
+  saavnApiFetch,
+  INVIDIOUS_SEED_INSTANCES
+};
 
 export const PLACEHOLDER_ARTWORK = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="%238E8E93"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
 
@@ -110,8 +128,8 @@ export const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
   return { title, artist };
 };
 
-// Стоп-слова немузыкального контента (видео, стендап, подкасты, интервью, шоу, стримы)
-const NON_MUSIC_REGEX = /\b(?:стендап|подкаст|podcast|standup|интервью|импров|шоу|выпуск|livestream|live\s*stream)\b/i;
+// Стоп-слова немузыкального контента (разговорные шоу, подкасты, интервью, стримы, влоги)
+const NON_MUSIC_REGEX = /\b(?:стендап|подкаст|podcast|standup|интервью|interview|шоу|выпуск|livestream|live\s*stream|влог|vlog|обзор|реакция|reaction)\b/i;
 
 const mapYtSongToTrack = (item: any): MusicTrack | null => {
   if (!item || !item.id || !item.title) return null;
@@ -120,7 +138,6 @@ const mapYtSongToTrack = (item: any): MusicTrack | null => {
   if (dur > 600 || (dur > 0 && dur < 20)) return null;
   const rawTitle = decodeHtmlEntities(item.title);
   const rawAuthor = decodeHtmlEntities(item.author || 'Unknown Artist');
-  // Отсекаем немузыкальные разговорные видеоролики и передачи
   if (NON_MUSIC_REGEX.test(rawTitle) || NON_MUSIC_REGEX.test(rawAuthor)) return null;
 
   const cleanTitle = rawTitle
@@ -141,6 +158,8 @@ const mapYtSongToTrack = (item: any): MusicTrack | null => {
     isResolved: false
   };
 };
+
+
 
 export function useMusicApi() {
   const [loading, setLoading] = useState(false);
@@ -241,7 +260,7 @@ export function useMusicApi() {
       // Multi-provider parallel search:
       // 1. JioSaavn Song Search (320k/160k direct streams с текущей страницей)
       // 2. JioSaavn Artist Search + Top Songs (только на первой странице для экономии запросов)
-      // 3. YouTube Music (Ytify) Search (только на первой странице)
+      // 3. YouTube Music (Ytify) Search (мировой каталог на первой странице)
       const [saavnSongRes, saavnArtistRes, ytRes] = await Promise.allSettled([
         saavnApiFetch(`search/songs?query=${encoded}&page=${page}&limit=${limit}`, signal),
         page === 1 ? saavnApiFetch(`search/artists?query=${encoded}`, signal) : Promise.resolve(null as any),
@@ -253,6 +272,7 @@ export function useMusicApi() {
       const merged: MusicTrack[] = [];
 
       const addTrack = (t: MusicTrack) => {
+        if (!t || !t.id || !t.title) return;
         // Порог длительности треков: максимум 10 минут (600 сек) и минимум 20 сек
         const dur = t.duration || 0;
         if (dur > 600 || (dur > 0 && dur < 20)) return;
@@ -323,7 +343,7 @@ export function useMusicApi() {
         } catch (_) {}
       }
 
-      // 3. Add YouTube Music tracks (guaranteed full tracks with 0s previews eliminated)
+      // 3. Add YouTube Music tracks (guaranteed full tracks)
       if (ytRes.status === 'fulfilled' && ytRes.value && ytRes.value.ok) {
         try {
           const ytList = await ytRes.value.json();

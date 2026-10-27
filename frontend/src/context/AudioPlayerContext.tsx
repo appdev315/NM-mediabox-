@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackOpen, trackError } from '../utils/analytics';
@@ -31,6 +31,7 @@ interface AudioPlayerContextType {
   prevTrack: () => void;
   stop: (fromRemote?: boolean | unknown) => void;
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  isTrackUnplayable: (id?: string | number) => boolean;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
@@ -134,6 +135,36 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const isUserPausedRef = useRef(false); // Track if user explicitly clicked pause in UI
   const isPausedByDeviceRef = useRef(false); // Track if paused by headphone removal or OS audio focus
   const musicRetryTokenRef = useRef<string | null>(null); // Guard against infinite onError re-resolve loops
+
+  // Список ID треков, которые не смогли воспроизвестись (для отображения красного бейджа «Видео»)
+  const [unplayableTrackIds, setUnplayableTrackIds] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('mb_unplayable_tracks');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (_) {
+      return new Set();
+    }
+  });
+
+  const markTrackUnplayable = useCallback((id?: string | number) => {
+    if (!id) return;
+    const clean = String(id).replace(/^saavn_/, '');
+    setUnplayableTrackIds(prev => {
+      if (prev.has(clean)) return prev;
+      const next = new Set(prev);
+      next.add(clean);
+      try {
+        sessionStorage.setItem('mb_unplayable_tracks', JSON.stringify(Array.from(next)));
+      } catch (_) {}
+      return next;
+    });
+  }, []);
+
+  const isTrackUnplayable = useCallback((id?: string | number): boolean => {
+    if (!id) return false;
+    const clean = String(id).replace(/^saavn_/, '');
+    return unplayableTrackIds.has(clean);
+  }, [unplayableTrackIds]);
 
   // Forward ref for nextTrack to allow auto-skip invocation from resolver & error handlers
   const nextTrackRef = useRef<() => void>(() => {});
@@ -453,6 +484,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       setIsBuffering(false);
       syncToPeers(track, false, false);
     } else {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mb-audio-started'));
+      }
       isUserPausedRef.current = false;
       isPausedByDeviceRef.current = false;
       setIsBuffering(true);
@@ -680,6 +714,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       const isPreview = !finalUrl || finalUrl.includes('preview') || finalUrl.includes('dzcdn');
       if (isPreview) {
         console.warn(`[Audio] Full track stream unavailable for ${track.artist} - ${track.title}, refusing 30s preview`);
+        markTrackUnplayable(track.id);
         finishResolving();
         setIsBuffering(false);
         setIsPlaying(false);
@@ -742,6 +777,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         if (isStale()) return;
         console.warn('[Audio] music play failed:', err);
+        finishResolving();
         setIsBuffering(false);
         setIsPlaying(false);
         syncToPeers(resolvedTrack, false, false);
@@ -756,6 +792,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   }, [syncToPeers]);
 
   const playTrack = useCallback(async (track: Track, newQueue?: Track[]) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mb-audio-started'));
+    }
     clearAutoSkipTimer();
     consecutiveSkipsRef.current = 0;
     if (newQueue && newQueue.length > 0) {
@@ -770,10 +809,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const cleanId = (id: string | number | undefined) => String(id || '').replace(/^saavn_/, '');
     const requestedId = cleanId(track.id);
     // Same track: ignore double-taps while prefetching, retry when src was
-    // never set (failed resolve), otherwise toggle play/pause.
+    // never set or errored, otherwise toggle play/pause.
     if (cleanId(currentTrackRef.current?.id) === requestedId && resolvingIdRef.current !== requestedId) {
       const a = audioRef.current;
-      if (!(track.type === 'music' && a && !a.src)) {
+      if (!(track.type === 'music' && a && (!a.src || a.error))) {
         togglePlayPause();
         return;
       }
@@ -816,6 +855,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       } catch (_) {}
     }
     isUserPausedRef.current = false;
+    isPausedByDeviceRef.current = false;
     reconnectAttemptRef.current = 0;
     isReconnectingRef.current = false;
     stalledCountRef.current = 0;
@@ -958,7 +998,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const currentQueue = queueRef.current;
     if (!currentQueue || currentQueue.length === 0) return;
     const current = currentTrackRef.current;
-    const currentIndex = current ? currentQueue.findIndex(t => t.id === current.id) : -1;
+    const cleanId = (id: string | number | undefined) => String(id || '').replace(/^saavn_/, '');
+    const currentCleanId = cleanId(current?.id);
+    const currentIndex = current ? currentQueue.findIndex(t => cleanId(t.id) === currentCleanId) : -1;
     let nextIndex = 0;
     if (isShuffleRef.current && currentQueue.length > 1) {
       let rand = Math.floor(Math.random() * currentQueue.length);
@@ -988,7 +1030,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     const currentQueue = queueRef.current;
     if (!currentQueue || currentQueue.length === 0) return;
     const current = currentTrackRef.current;
-    const currentIndex = current ? currentQueue.findIndex(t => t.id === current.id) : -1;
+    const cleanId = (id: string | number | undefined) => String(id || '').replace(/^saavn_/, '');
+    const currentCleanId = cleanId(current?.id);
+    const currentIndex = current ? currentQueue.findIndex(t => cleanId(t.id) === currentCleanId) : -1;
     const prevIndex = (currentIndex - 1 + currentQueue.length) % currentQueue.length;
     const target = currentQueue[prevIndex];
     if (target) {
@@ -1381,6 +1425,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         }
         setIsBuffering(false);
         isPausedByDeviceRef.current = true;
+        if (track?.id) {
+          markTrackUnplayable(track.id);
+        }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('music-track-unavailable', {
             detail: { title: track.title, artist: track.artist, id: track.id }
@@ -1510,8 +1557,39 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [currentTrack, attemptReconnect, togglePlayPause, nextTrack]);
 
+  const contextValue = useMemo(() => ({
+    currentTrack,
+    isPlaying,
+    isBuffering,
+    queue,
+    isShuffle,
+    toggleShuffle,
+    setQueue: updateQueue,
+    playTrack,
+    togglePlayPause,
+    nextTrack,
+    prevTrack,
+    stop,
+    audioRef,
+    isTrackUnplayable
+  }), [
+    currentTrack,
+    isPlaying,
+    isBuffering,
+    queue,
+    isShuffle,
+    toggleShuffle,
+    updateQueue,
+    playTrack,
+    togglePlayPause,
+    nextTrack,
+    prevTrack,
+    stop,
+    isTrackUnplayable
+  ]);
+
   return (
-    <AudioPlayerContext.Provider value={{ currentTrack, isPlaying, isBuffering, queue, isShuffle, toggleShuffle, setQueue: updateQueue, playTrack, togglePlayPause, nextTrack, prevTrack, stop, audioRef }}>
+    <AudioPlayerContext.Provider value={contextValue}>
       {children}
       <audio ref={audioRef} preload="auto" playsInline crossOrigin="anonymous" />
     </AudioPlayerContext.Provider>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 type Theme = 'auto' | 'light' | 'dark';
 
@@ -50,15 +50,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [theme]);
 
-  const setTheme = (newTheme: Theme) => {
+  const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
     try {
       localStorage.setItem('app_theme', newTheme);
     } catch (_) {}
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    theme,
+    setTheme
+  }), [theme, setTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

@@ -43,7 +43,7 @@ app.use('/api/*', async (c: Context, next) => {
 
 // Монтирование изолированных суб-роутеров
 app.route('/api/user', userRouter);
-app.route('/', analyticsRouter);
+app.route('/api', analyticsRouter);
 app.route('/', moviesRouter);
 app.route('/', catalogRouter);
 app.route('/', musicRouter);

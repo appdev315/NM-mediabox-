@@ -59,8 +59,19 @@ function formatCountry(code?: string): string {
   return upper;
 }
 
+// Anti-spam in-memory rate limiter на IP+session (не более 10 запросов/мин на ключ)
+interface TrackRateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+const trackLimiter = ((globalThis as any).__analyticsTrackLimiter as Map<string, TrackRateLimitEntry>) ||
+  (((globalThis as any).__analyticsTrackLimiter = new Map<string, TrackRateLimitEntry>()));
+
+const TRACK_LIMIT_WINDOW_MS = 60_000;
+const TRACK_MAX_REQUESTS_PER_WINDOW = 10;
+
 // Трекинг пользовательских событий (до 100 событий в пакете)
-analyticsRouter.post('/analytics/track', async (c) => {
+const handleTrack = async (c: any) => {
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
   }
@@ -71,8 +82,27 @@ analyticsRouter.post('/analytics/track', async (c) => {
     return c.json({ ok: true, count: 0 });
   }
 
-  const country = clampStr(c.get('country'), 8);
+  // Anti-spam rate limiting: не более 10 запросов в минуту на IP + sessionId
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
   const sessionId = clampStr(body.session_id || c.get('sessionId') || '', 100) || '';
+  const rateLimitKey = `${ip}:${sessionId}`;
+  const now = Date.now();
+  const entry = trackLimiter.get(rateLimitKey);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= TRACK_MAX_REQUESTS_PER_WINDOW) {
+      return c.json({ error: 'Too many requests' }, 429);
+    }
+    entry.count++;
+  } else {
+    trackLimiter.set(rateLimitKey, { count: 1, resetAt: now + TRACK_LIMIT_WINDOW_MS });
+    if (trackLimiter.size > 10_000) {
+      for (const [k, v] of trackLimiter) {
+        if (now >= v.resetAt) trackLimiter.delete(k);
+      }
+    }
+  }
+
+  const country = clampStr(c.get('country'), 8);
   const tgUser = c.get('tgUser');
   // Валидация целочисленного user_id для защиты от записи NaN в базу SQLite D1
   const parsedUserId = body.user_id != null ? Number(body.user_id) : undefined;
@@ -83,7 +113,7 @@ analyticsRouter.post('/analytics/track', async (c) => {
       `INSERT INTO analytics_events (event_type, country, user_id, session_id, item_type, item_title, item_id, meta, ts)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
     );
-    const batch = events.map((e) =>
+    const batch = events.map((e: AnalyticsEvent) =>
       stmt.bind(
         clampStr(e.event_type, 40) || 'unknown',
         e.country ? clampStr(e.country, 8) : country,
@@ -101,10 +131,16 @@ analyticsRouter.post('/analytics/track', async (c) => {
     console.error('D1 error on analytics track:', e);
     return c.json({ ok: false, count: 0 }, 500);
   }
-});
+};
 
-// Агрегированная статистика для мониторинга
-analyticsRouter.get('/analytics/stats', async (c) => {
+analyticsRouter.post('/track', handleTrack);
+analyticsRouter.post('/analytics/track', handleTrack);
+
+// Агрегированная статистика для мониторинга (требует ADMIN_API_KEY)
+const handleStats = async (c: any) => {
+  if (!verifyAdminAuth(c)) {
+    return c.json({ error: 'Unauthorized: valid Bearer ADMIN_API_KEY required' }, 401);
+  }
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
   }
@@ -187,17 +223,7 @@ analyticsRouter.get('/analytics/stats', async (c) => {
        GROUP BY item_title, meta ORDER BY cnt DESC LIMIT 5`
     ).bind(`-${since} hours`).all();
 
-    // D1 Auto-Retention: очистка записей старше 30 дней строго по Bearer токену администратора
-    if (c.env.DB && verifyAdminAuth(c)) {
-      safeWaitUntil(c, (async () => {
-        try {
-          await c.env.DB.batch([
-            c.env.DB.prepare("DELETE FROM analytics_events WHERE ts < datetime('now', '-30 days')"),
-            c.env.DB.prepare("DELETE FROM parsing_incidents WHERE ts < datetime('now', '-30 days')")
-          ]);
-        } catch (_) {}
-      })());
-    }
+
 
     return c.json({
       windowHours: since,
@@ -239,7 +265,10 @@ analyticsRouter.get('/analytics/stats', async (c) => {
     console.error('D1 error on analytics stats:', e);
     return c.json({ error: 'Failed to get analytics stats' }, 500);
   }
-});
+};
+
+analyticsRouter.get('/stats', handleStats);
+analyticsRouter.get('/analytics/stats', handleStats);
 
 // Диагностика инцидентов парсинга (требует ADMIN_API_KEY)
 analyticsRouter.get('/admin/incidents', async (c) => {
@@ -374,4 +403,24 @@ analyticsRouter.post('/cache/purge', async (c) => {
   }, 200, {
     'Cache-Control': 'no-store, no-cache, must-revalidate'
   });
+});
+
+// Выделенный роут очистки устаревших данных D1 (требует ADMIN_API_KEY)
+analyticsRouter.post('/admin/retention', async (c) => {
+  if (!verifyAdminAuth(c)) {
+    return c.json({ error: 'Unauthorized: valid Bearer ADMIN_API_KEY required' }, 401);
+  }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM analytics_events WHERE ts < datetime('now', '-30 days')"),
+      c.env.DB.prepare("DELETE FROM parsing_incidents WHERE ts < datetime('now', '-30 days')")
+    ]);
+    return c.json({ ok: true, message: 'Retention purge completed' });
+  } catch (e) {
+    console.error('D1 error on retention purge:', e);
+    return c.json({ error: 'Failed to execute retention purge' }, 500);
+  }
 });

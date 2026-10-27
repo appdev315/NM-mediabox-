@@ -20,10 +20,15 @@ catalogRouter.get('/api/tmdb/*', async (c: Context) => {
     return c.json({ error: 'Endpoint not allowed' }, 403);
   }
 
-  // Guard against oversized search queries (prevents HTTP 414 from TMDB)
+  // Защита от перегрузки URL (RFC 7230 / защита Edge от 414 URI Too Long)
+  if (url.search.length > 2048) {
+    return c.json({ error: 'Query too long' }, 400);
+  }
+
+  // Обрезка слишком длинных поисковых запросов до лимита TMDB (150 символов)
   const searchQuery = url.searchParams.get('query');
-  if ((searchQuery && searchQuery.length > 150) || url.search.length > 2048) {
-    return c.json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+  if (searchQuery && searchQuery.length > 150) {
+    url.searchParams.set('query', searchQuery.slice(0, 150));
   }
 
   // Check Cloudflare Edge Cache API for instant response

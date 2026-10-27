@@ -46,11 +46,31 @@ describe('Localization & Language Dictionaries Contract', () => {
 
   it('should have matching TV schedule keys in all languages', () => {
     const tvKeys = ['tvLive', 'tvNowOnAir', 'tvNext', 'tvProgram', 'tvScheduleToday'];
-    const allDicts = [ruDict, enDict, deDict, esDict, frDict];
+    const allDicts = [ruDict, enDict, idDict, deDict, esDict, frDict];
 
     for (const dict of allDicts) {
       for (const k of tvKeys) {
         expect((dict as any)[k]).toBeDefined();
+        expect(typeof (dict as any)[k]).toBe('string');
+      }
+    }
+  });
+
+  it('should have 270 keys synchronized across all 6 locales without missing entries', () => {
+    const enKeys = Object.keys(enDict);
+    expect(enKeys).toHaveLength(270);
+    const all = [
+      { name: 'ru-RU', dict: ruDict },
+      { name: 'en-US', dict: enDict },
+      { name: 'id-ID', dict: idDict },
+      { name: 'de-DE', dict: deDict },
+      { name: 'es-ES', dict: esDict },
+      { name: 'fr-FR', dict: frDict },
+    ];
+    for (const { name, dict } of all) {
+      expect(Object.keys(dict)).toHaveLength(270);
+      for (const k of enKeys) {
+        expect((dict as any)[k], `Missing key ${k} in ${name}`).toBeDefined();
         expect(typeof (dict as any)[k]).toBe('string');
       }
     }

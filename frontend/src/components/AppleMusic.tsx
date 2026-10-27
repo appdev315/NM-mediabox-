@@ -20,7 +20,7 @@ const formatTrackDuration = (secs?: number | string): string => {
 export function AppleMusic() {
   const { t, language } = useLanguage();
   const { loading, searchMusic, searchAlbums, fetchAlbumTracks } = useMusicApi();
-  const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue, isTrackUnplayable } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
   const [dataSaver, setDataSaver] = useState(() => isMusicDataSaverEnabled());
@@ -256,15 +256,18 @@ export function AppleMusic() {
       localStorage.setItem('favorites_music', JSON.stringify(updated));
     } catch (_) {}
 
-    const updatedQueue = updated.map(t => ({
-      id: t.id,
-      title: t.title,
-      artist: t.artist,
-      url: t.audioUrl,
-      coverUrl: t.artworkUrl,
-      type: 'music' as const
-    }));
-    setQueue(updatedQueue);
+    const isPlayingFromFav = currentTrack && updated.some(t => String(t.id) === String(currentTrack.id));
+    if (isPlayingFromFav) {
+      const updatedQueue = updated.map(t => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        url: pickUrl(t),
+        coverUrl: t.artworkUrl,
+        type: 'music' as const
+      }));
+      setQueue(updatedQueue);
+    }
   };
 
   const performSearch = useCallback(async (query: string) => {
@@ -325,6 +328,9 @@ export function AppleMusic() {
     }
   }, [searchQuery, loadingMore, hasMoreSearch, selectedAlbum, activeTab, searchPage, searchMusic]);
 
+  const loadMoreTracksRef = useRef(loadMoreTracks);
+  loadMoreTracksRef.current = loadMoreTracks;
+
   // Callback ref: подключает IntersectionObserver мгновенно при монтировании элемента в DOM
   const sentinelCallbackRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
@@ -335,13 +341,13 @@ export function AppleMusic() {
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        loadMoreTracks();
+        loadMoreTracksRef.current();
       }
     }, { rootMargin: '450px' });
 
     observer.observe(node);
     observerRef.current = observer;
-  }, [hasMoreSearch, activeTab, selectedAlbum, loadMoreTracks]);
+  }, [hasMoreSearch, activeTab, selectedAlbum]);
 
   // Очистка observer при размонтировании компонента
   useEffect(() => {
@@ -880,6 +886,11 @@ export function AppleMusic() {
                       <h3 className="text-sm font-bold truncate" style={{ color: isTrackSelected ? '#FA2D48' : 'var(--text-color)' }}>
                         {track.title}
                       </h3>
+                      {isTrackUnplayable(track.id) && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold flex-shrink-0">
+                          Видео
+                        </span>
+                      )}
                       {isOffline && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-extrabold flex-shrink-0">
                           {t('music_offline')}

@@ -8,6 +8,8 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AdsterraBanner300x250 } from '../components/AdsterraBanner300x250';
 import { MovieBottomBanner } from '../components/MovieBottomBanner';
 import { trackOpen } from '../utils/analytics';
+import { useAdultGate } from '../hooks/useAdultGate';
+import { AgeVerificationModal } from '../components/AgeVerificationModal';
 
 export function AdultVideo() {
   const { id } = useParams();
@@ -16,13 +18,14 @@ export function AdultVideo() {
   const { t } = useLanguage();
   const { stop: stopAudio } = useAudioPlayer();
   const { fetchAdultStream, fetchAdultSearch } = useApi();
+  const { ageConfirmed, confirmAge } = useAdultGate();
   
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState<any>(null);
   const [relatedVideos, setRelatedVideos] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !ageConfirmed) return;
     let isCurrent = true;
 
     const fetchVideoAndRelated = async () => {
@@ -81,7 +84,11 @@ export function AdultVideo() {
     return () => {
       isCurrent = false;
     };
-  }, [id, location.state, fetchAdultStream, fetchAdultSearch]);
+  }, [id, ageConfirmed, location.state, fetchAdultStream, fetchAdultSearch]);
+
+  if (!ageConfirmed) {
+    return <AgeVerificationModal onConfirm={confirmAge} />;
+  }
 
   if (loading) {
     return <div className="p-8 pb-20 text-center font-medium opacity-50 mt-10">{t('loadingVideo')}</div>;

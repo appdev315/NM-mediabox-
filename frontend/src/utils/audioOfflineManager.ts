@@ -58,6 +58,70 @@ class AudioOfflineManager {
     return typeof window !== 'undefined' && 'caches' in window;
   }
 
+  // Вспомогательный метод для разыменования body-less alias с X-Canonical-Url
+  private async resolveMatch(cache: Cache, response: Response | null | undefined): Promise<Response | null> {
+    if (!response) return null;
+    const canonical = response.headers.get('X-Canonical-Url');
+    if (canonical) {
+      const canonicalMatch = await cache.match(canonical);
+      return canonicalMatch || null;
+    }
+    return response;
+  }
+
+  // Единый поиск трека: canonical -> legacy canonical -> прямой URL с fallback на canonical
+  private async matchTrack(cache: Cache, urlOrId?: string, trackId?: string): Promise<Response | null> {
+    const targetId = trackId || (urlOrId && !urlOrId.startsWith('http') ? urlOrId : '');
+    const canonicalUrl = this.getCanonicalUrl(targetId);
+    const legacyCanonicalUrl = this.getLegacyCanonicalUrl(targetId);
+    let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
+    if (!match && legacyCanonicalUrl) {
+      match = await cache.match(legacyCanonicalUrl);
+    }
+    if (!match && urlOrId && urlOrId.startsWith('http')) {
+      const direct = await cache.match(urlOrId);
+      match = await this.resolveMatch(cache, direct);
+    }
+    return match || null;
+  }
+
+  // LRU-очистка: если в кэше более 50 треков, удаляем самые старые
+  private async enforceLruLimit(cache: Cache): Promise<void> {
+    try {
+      const keys = await cache.keys();
+      const origin = this.getOrigin();
+      const canonicalPrefix = `${origin}/offline-audio/track/`;
+      const legacyPrefix = 'https://offline.mediabox.local/track/';
+      const canonicalRequests = keys.filter(req =>
+        req.url.startsWith(canonicalPrefix) || req.url.startsWith(legacyPrefix)
+      );
+
+      if (canonicalRequests.length <= 50) return;
+
+      const items: { req: Request; savedAt: number; sourceUrl?: string }[] = [];
+      for (const req of canonicalRequests) {
+        try {
+          const res = await cache.match(req);
+          if (res) {
+            const savedAt = Number(res.headers.get('X-Audio-Saved-At')) || 0;
+            const sourceUrl = res.headers.get('X-Audio-Source-Url') || undefined;
+            items.push({ req, savedAt, sourceUrl });
+          }
+        } catch (_) {}
+      }
+
+      items.sort((a, b) => a.savedAt - b.savedAt);
+      const toRemove = items.slice(0, items.length - 50);
+
+      for (const item of toRemove) {
+        await cache.delete(item.req).catch(() => {});
+        if (item.sourceUrl) {
+          await cache.delete(item.sourceUrl).catch(() => {});
+        }
+      }
+    } catch (_) {}
+  }
+
   /**
    * Downloads and saves audio file into device Cache Storage as binary Blob.
    * Сохраняет метаданные качества ('X-Audio-Quality': 'low' | 'high'),
@@ -76,35 +140,44 @@ class AudioOfflineManager {
       const isLow = quality === 'low' || /_96\.|_48\./.test(audioUrl);
 
       // Если файл уже есть в кэше и это не апгрейд качества, сохраняем существующий
-      let existing = canonicalUrl ? await cache.match(canonicalUrl) : null;
-      if (!existing && legacyCanonicalUrl) {
-        existing = await cache.match(legacyCanonicalUrl);
-      }
-      if (!existing && rawCanonicalUrl) {
-        existing = await cache.match(rawCanonicalUrl);
-      }
-      if (!existing && legacyRawCanonicalUrl) {
-        existing = await cache.match(legacyRawCanonicalUrl);
-      }
-      if (!existing) {
-        existing = await cache.match(audioUrl);
-      }
+      const existing = await this.matchTrack(cache, audioUrl, id);
 
       if (existing) {
         const existingQuality = existing.headers.get('X-Audio-Quality');
         // Если уже сохранён high-поток или новый тоже low — не тратим трафик на повторный запрос
         if (existingQuality === 'high' || isLow) {
-          if (canonicalUrl) {
-            await cache.put(canonicalUrl, existing.clone());
-          }
-          await cache.put(audioUrl, existing.clone());
           this.notifyCacheUpdated(id, 'save');
           return true;
         }
       }
 
+      // Pre-check квоты хранилища перед скачиванием
+      if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+        try {
+          const estimate = await navigator.storage.estimate();
+          const free = (estimate.quota || 0) - (estimate.usage || 0);
+          if (estimate.quota && free < 5 * 1024 * 1024) {
+            console.warn(`[AudioOffline] Storage quota exceeded before download: ${free} bytes free`);
+            return false;
+          }
+        } catch (_) {}
+      }
+
       const response = await fetchWithTimeout(audioUrl, 90000);
       if (!response.ok) return false;
+
+      // Проверка размера по Content-Length перед считыванием Blob
+      const contentLength = Number(response.headers.get('Content-Length')) || 0;
+      if (contentLength > 0 && typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+        try {
+          const estimate = await navigator.storage.estimate();
+          const free = (estimate.quota || 0) - (estimate.usage || 0);
+          if (estimate.quota && free < contentLength + 1024 * 1024) {
+            console.warn(`[AudioOffline] Storage quota exceeded for content-length ${contentLength}: ${free} bytes free`);
+            return false;
+          }
+        } catch (_) {}
+      }
 
       const blob = await response.blob();
       const headers = new Headers();
@@ -113,6 +186,7 @@ class AudioOfflineManager {
       headers.set('X-Audio-Source-Url', audioUrl);
       headers.set('X-Audio-File-Size', String(blob.size));
       headers.set('Content-Length', String(blob.size));
+      headers.set('X-Audio-Saved-At', String(Date.now()));
 
       const responseToCache = new Response(blob, { headers });
 
@@ -129,12 +203,25 @@ class AudioOfflineManager {
       if (legacyRawCanonicalUrl) {
         await cache.delete(legacyRawCanonicalUrl).catch(() => {});
       }
+      await cache.delete(audioUrl).catch(() => {});
 
-      // Сохраняем в Cache Storage по аудио-URL и каноническому id
-      await cache.put(audioUrl, responseToCache.clone());
+      // Сохраняем полный Blob ОДИН раз под каноническим URL
       if (canonicalUrl) {
-        await cache.put(canonicalUrl, responseToCache.clone());
+        await cache.put(canonicalUrl, responseToCache);
       }
+
+      // Прямой audioUrl сохраняем как body-less lookup-алиас
+      if (canonicalUrl) {
+        const aliasHeaders = new Headers();
+        aliasHeaders.set('X-Canonical-Url', canonicalUrl);
+        aliasHeaders.set('X-Audio-Target-Id', this.cleanId(id));
+        aliasHeaders.set('X-Audio-Saved-At', String(Date.now()));
+        const aliasResponse = new Response(null, { headers: aliasHeaders });
+        await cache.put(audioUrl, aliasResponse);
+      }
+
+      // Применяем LRU-лимит (не более 50 треков)
+      await this.enforceLruLimit(cache);
 
       this.notifyCacheUpdated(id, 'save');
       return true;
@@ -152,15 +239,7 @@ class AudioOfflineManager {
     if (!this.isSupported() || (!trackId && !url)) return false;
     try {
       const cache = await caches.open(CACHE_NAME);
-      const canonicalUrl = this.getCanonicalUrl(trackId);
-      const legacyCanonicalUrl = this.getLegacyCanonicalUrl(trackId);
-      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
-      if (!match && legacyCanonicalUrl) {
-        match = await cache.match(legacyCanonicalUrl);
-      }
-      if (!match && url) {
-        match = await cache.match(url);
-      }
+      const match = await this.matchTrack(cache, url, trackId);
       if (!match) return false;
       const quality = match.headers.get('X-Audio-Quality');
       if (quality === 'low') return true;
@@ -180,16 +259,7 @@ class AudioOfflineManager {
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const targetId = trackId || (!urlOrId.startsWith('http') ? urlOrId : '');
-      const canonicalUrl = this.getCanonicalUrl(targetId);
-      const legacyCanonicalUrl = this.getLegacyCanonicalUrl(targetId);
-      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
-      if (!match && legacyCanonicalUrl) {
-        match = await cache.match(legacyCanonicalUrl);
-      }
-      if (!match && urlOrId && urlOrId.startsWith('http')) {
-        match = await cache.match(urlOrId);
-      }
+      const match = await this.matchTrack(cache, urlOrId, trackId);
       if (!match) return null;
 
       const blob = await match.blob();
@@ -210,16 +280,7 @@ class AudioOfflineManager {
 
     try {
       const cache = await caches.open(CACHE_NAME);
-      const targetId = trackId || (!urlOrId.startsWith('http') ? urlOrId : '');
-      const canonicalUrl = this.getCanonicalUrl(targetId);
-      const legacyCanonicalUrl = this.getLegacyCanonicalUrl(targetId);
-      let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
-      if (!match && legacyCanonicalUrl) {
-        match = await cache.match(legacyCanonicalUrl);
-      }
-      if (!match && urlOrId && urlOrId.startsWith('http')) {
-        match = await cache.match(urlOrId);
-      }
+      const match = await this.matchTrack(cache, urlOrId, trackId);
       return Boolean(match);
     } catch (_) {
       return false;
@@ -240,7 +301,6 @@ class AudioOfflineManager {
       const canonicalUrl = this.getCanonicalUrl(targetId);
       const legacyCanonicalUrl = this.getLegacyCanonicalUrl(targetId);
 
-      // Считываем X-Audio-Source-Url из канонической записи, чтобы удалить и бинарный блоб
       let sourceUrlToDelete = urlOrId && urlOrId.startsWith('http') ? urlOrId : '';
       if (!sourceUrlToDelete && canonicalUrl) {
         const match = await cache.match(canonicalUrl);
@@ -250,13 +310,18 @@ class AudioOfflineManager {
       }
 
       if (sourceUrlToDelete) {
-        await cache.delete(sourceUrlToDelete);
+        const aliasMatch = await cache.match(sourceUrlToDelete);
+        const refCanonical = aliasMatch?.headers?.get('X-Canonical-Url');
+        await cache.delete(sourceUrlToDelete).catch(() => {});
+        if (refCanonical) {
+          await cache.delete(refCanonical).catch(() => {});
+        }
       }
       if (canonicalUrl) {
-        await cache.delete(canonicalUrl);
+        await cache.delete(canonicalUrl).catch(() => {});
       }
       if (legacyCanonicalUrl) {
-        await cache.delete(legacyCanonicalUrl);
+        await cache.delete(legacyCanonicalUrl).catch(() => {});
       }
       this.notifyCacheUpdated(targetId, 'remove');
     } catch (_) {}
@@ -334,16 +399,7 @@ class AudioOfflineManager {
     if (this.isSupported()) {
       try {
         const cache = await caches.open(CACHE_NAME);
-        const targetId = trackId || (!audioUrl.startsWith('http') ? audioUrl : '');
-        const canonicalUrl = this.getCanonicalUrl(targetId);
-        const legacyCanonicalUrl = this.getLegacyCanonicalUrl(targetId);
-        let match = canonicalUrl ? await cache.match(canonicalUrl) : null;
-        if (!match && legacyCanonicalUrl) {
-          match = await cache.match(legacyCanonicalUrl);
-        }
-        if (!match && audioUrl && audioUrl.startsWith('http')) {
-          match = await cache.match(audioUrl);
-        }
+        const match = await this.matchTrack(cache, audioUrl, trackId);
         if (match) {
           const blob = await match.blob();
           if (blob && blob.size > 0) return blob;

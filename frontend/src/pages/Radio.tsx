@@ -165,7 +165,7 @@ export function RadioContent() {
       if (parsed.length === 0) {
         if (country === 'ru' && radioSource === '1') {
           try {
-            const res = await fetch('/radiopotok.json');
+            const res = await fetch('/radiopotok.json', signal ? { signal } : undefined);
             if (res.ok) {
               const data = await res.json();
               parsed = data.map((d: any, idx: number) => ({
@@ -189,8 +189,9 @@ export function RadioContent() {
           ];
 
           for (const mirror of RADIO_MIRRORS) {
+            if (signal?.aborted) break;
             try {
-              const res = await fetchWithRetry(`https://${mirror}/json/stations/search?limit=500&country=${encodeURIComponent(selectedCountry)}&hidebroken=true&order=votes&reverse=true`, { maxRetries: 1 });
+              const res = await fetchWithRetry(`https://${mirror}/json/stations/search?limit=500&country=${encodeURIComponent(selectedCountry)}&hidebroken=true&order=votes&reverse=true`, { maxRetries: 1, ...(signal ? { signal } : {}) });
               if (res && res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) {

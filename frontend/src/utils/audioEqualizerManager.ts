@@ -67,6 +67,8 @@ class AudioEqualizerManager {
   private settings: EqualizerSettings = DEFAULT_SETTINGS;
   private listeners: Set<(settings: EqualizerSettings) => void> = new Set();
 
+  private isGraphConnected = false;
+
   constructor() {
     this.loadSettings();
 
@@ -129,6 +131,7 @@ class AudioEqualizerManager {
    * Предотвращает утечки дескрипторов Web Audio API и накопление фильтров в памяти WebKit/Blink.
    */
   public disconnectGraph() {
+    this.isGraphConnected = false;
     try {
       if (this.sourceNode) {
         try { this.sourceNode.disconnect(); } catch (_) {}
@@ -156,11 +159,52 @@ class AudioEqualizerManager {
   }
 
   /**
+   * Восстанавливает связи между нодами Web Audio графа и направляет сигнал в ctx.destination.
+   */
+  public connectGraph() {
+    if (!this.audioContext || !this.sourceNode || this.filters.length === 0 || !this.splitter || !this.merger || !this.compressor || !this.masterGain) {
+      return;
+    }
+    try {
+      // Chain filters sequentially
+      for (let i = 0; i < this.filters.length - 1; i++) {
+        try { this.filters[i].connect(this.filters[i + 1]); } catch (_) {}
+      }
+
+      if (this.gainLL && this.gainLR && this.gainRL && this.gainRR) {
+        try { this.splitter.connect(this.gainLL, 0); } catch (_) {}
+        try { this.splitter.connect(this.gainRL, 0); } catch (_) {}
+        try { this.splitter.connect(this.gainLR, 1); } catch (_) {}
+        try { this.splitter.connect(this.gainRR, 1); } catch (_) {}
+
+        try { this.gainLL.connect(this.merger, 0, 0); } catch (_) {}
+        try { this.gainLR.connect(this.merger, 0, 0); } catch (_) {}
+        try { this.gainRL.connect(this.merger, 0, 1); } catch (_) {}
+        try { this.gainRR.connect(this.merger, 0, 1); } catch (_) {}
+      }
+
+      try { this.sourceNode.connect(this.filters[0]); } catch (_) {}
+      try { this.filters[this.filters.length - 1].connect(this.splitter); } catch (_) {}
+      try { this.merger.connect(this.compressor); } catch (_) {}
+      try { this.compressor.connect(this.masterGain); } catch (_) {}
+      try { this.masterGain.connect(this.audioContext.destination); } catch (_) {}
+
+      this.isGraphConnected = true;
+      this.applyParameters();
+    } catch (err) {
+      console.warn('[AudioEqualizer] connectGraph error:', err);
+    }
+  }
+
+  /**
    * Initializes Web Audio Context and wires the audio element through
    * the filter bank, M/S spatial matrix, and dynamics compressor.
    */
   public attachAudioElement(audio: HTMLAudioElement) {
     if (this.attachedElement === audio && this.sourceNode && this.filters.length > 0) {
+      if (!this.isGraphConnected) {
+        this.connectGraph();
+      }
       return;
     }
 
@@ -212,11 +256,6 @@ class AudioEqualizerManager {
         return filter;
       });
 
-      // Chain filters sequentially
-      for (let i = 0; i < this.filters.length - 1; i++) {
-        this.filters[i].connect(this.filters[i + 1]);
-      }
-
       // Mid-Side 3D Spatial Matrix
       this.splitter = ctx.createChannelSplitter(2);
       this.merger = ctx.createChannelMerger(2);
@@ -224,16 +263,6 @@ class AudioEqualizerManager {
       this.gainLR = ctx.createGain();
       this.gainRL = ctx.createGain();
       this.gainRR = ctx.createGain();
-
-      this.splitter.connect(this.gainLL, 0);
-      this.splitter.connect(this.gainRL, 0);
-      this.splitter.connect(this.gainLR, 1);
-      this.splitter.connect(this.gainRR, 1);
-
-      this.gainLL.connect(this.merger, 0, 0);
-      this.gainLR.connect(this.merger, 0, 0);
-      this.gainRL.connect(this.merger, 0, 1);
-      this.gainRR.connect(this.merger, 0, 1);
 
       // Dynamics Compressor (Studio glue / peak limiter)
       this.compressor = ctx.createDynamicsCompressor();
@@ -249,14 +278,7 @@ class AudioEqualizerManager {
 
       // Connect complete graph:
       // source -> filter[0]...filter[4] -> splitter -> [MS Matrix] -> merger -> compressor -> masterGain -> destination
-      this.sourceNode.connect(this.filters[0]);
-      this.filters[this.filters.length - 1].connect(this.splitter);
-      this.merger.connect(this.compressor);
-      this.compressor.connect(this.masterGain);
-      this.masterGain.connect(ctx.destination);
-
-      // Apply initial settings
-      this.applyParameters();
+      this.connectGraph();
     } catch (err) {
       console.warn('[AudioEqualizer] Failed to attach audio element:', err);
     }
@@ -301,6 +323,9 @@ class AudioEqualizerManager {
    */
   public reapplySettings() {
     this.resumeContext();
+    if (!this.isGraphConnected && this.sourceNode && this.filters.length > 0) {
+      this.connectGraph();
+    }
     this.applyParameters();
   }
 

@@ -69,7 +69,7 @@ const AudioProgressBar = memo(function AudioProgressBar({ audioRef }: { audioRef
 
 export function GlobalAudioPlayer() {
   const { t } = useLanguage();
-  const { currentTrack, isPlaying, isBuffering, togglePlayPause, nextTrack, prevTrack, stop, audioRef, isShuffle, toggleShuffle } = useAudioPlayer();
+  const { currentTrack, isPlaying, isBuffering, togglePlayPause, nextTrack, prevTrack, stop, audioRef, isShuffle, toggleShuffle, isTrackUnplayable } = useAudioPlayer();
   const [isFav, setIsFav] = useState(false);
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isCardOpen, setIsCardOpen] = useState(false);
@@ -160,8 +160,13 @@ export function GlobalAudioPlayer() {
           }}
           className="flex-1 min-w-0 cursor-pointer"
         >
-          <div className="font-bold text-sm truncate" style={{ color: 'var(--text-color)' }}>
-            {currentTrack.title}
+          <div className="font-bold text-sm truncate flex items-center gap-1.5" style={{ color: 'var(--text-color)' }}>
+            <span className="truncate">{currentTrack.title}</span>
+            {isTrackUnplayable?.(currentTrack.id) && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold flex-shrink-0">
+                Видео
+              </span>
+            )}
           </div>
           <div className="text-xs opacity-70 truncate flex items-center gap-2" style={{ color: 'var(--text-color)' }}>
             {isBuffering && (
@@ -317,7 +322,14 @@ export function GlobalAudioPlayer() {
           <div className="w-full max-w-md mx-auto mb-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex-1 min-w-0 pr-4">
-                <h1 className="text-2xl font-black truncate" style={{ color: 'var(--text-color)' }}>{currentTrack.title}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black truncate" style={{ color: 'var(--text-color)' }}>{currentTrack.title}</h1>
+                  {isTrackUnplayable?.(currentTrack.id) && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold flex-shrink-0">
+                      Видео
+                    </span>
+                  )}
+                </div>
                 <p className="text-base font-semibold truncate opacity-70" style={{ color: 'var(--text-color)' }}>{currentTrack.artist}</p>
               </div>
               <div className="flex items-center gap-3">

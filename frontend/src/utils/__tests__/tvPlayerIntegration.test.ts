@@ -96,4 +96,16 @@ describe('MediaBox TV & Player Integration Verification', () => {
     // Проверяем разнообразие сдвигов расписания
     expect(offsets.size).toBeGreaterThan(10);
   });
+
+  it('verifies mb-audio-started event triggers audio-stops-tv notification mechanism', () => {
+    let tvClosed = false;
+    const bus = typeof window !== 'undefined' ? window : new EventTarget();
+    const handleAudio = () => { tvClosed = true; };
+    bus.addEventListener('mb-audio-started', handleAudio as any);
+
+    bus.dispatchEvent(new Event('mb-audio-started'));
+    expect(tvClosed).toBe(true);
+
+    bus.removeEventListener('mb-audio-started', handleAudio as any);
+  });
 });

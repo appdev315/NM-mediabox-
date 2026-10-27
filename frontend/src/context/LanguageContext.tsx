@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { WebApp } from "../telegram";
 import ruDict from "../locales/ru-RU.json";
 import enDict from "../locales/en-US.json";
@@ -122,14 +122,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [language, loadedDicts]);
 
-  const setLanguage = (lang: Language) => {
+  const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
     try {
       localStorage.setItem("app_language", lang);
     } catch (_) {}
-  };
+  }, []);
 
-  const t = (key: TranslationKey): string => {
+  const t = useCallback((key: TranslationKey): string => {
     // 1. Поиск в загруженном расширенном словаре
     const activeDict = loadedDicts[language];
     if (activeDict && activeDict[key]) return activeDict[key];
@@ -141,10 +141,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // 3. Каскадный фоллбэк: для не-русского интерфейса пробуем en-US, затем ru-RU
     if ((enDict as any)[key]) return (enDict as any)[key];
     return (ruDict as any)[key] || "";
-  };
+  }, [language, loadedDicts]);
+
+  const value = useMemo(() => ({
+    language,
+    setLanguage,
+    t
+  }), [language, setLanguage, t]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

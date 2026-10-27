@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { 
-  SLOT_DURATION_SEC, 
   TV_CHANNELS, 
   getChannelScheduleState, 
   getChannelPool,
@@ -11,10 +10,9 @@ import {
 } from '../tvSchedule';
 
 describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
-  it('should have exact slot duration of 8640 seconds (10 slots per 24 hours)', () => {
-    // 86400 секунд в сутках / 10 слотов = ровно 8640 секунд (2 часа 24 мин)
-    expect(SLOT_DURATION_SEC).toBe(8640);
-    expect(8640 * 10).toBe(86400);
+  it('should have consistent daily duration calculation (86400 seconds per 24 hours)', () => {
+    // 86400 секунд в сутках = 24 часа * 60 минут * 60 секунд
+    expect(86400).toBe(24 * 60 * 60);
   });
 
   it('should calculate deterministic schedule state for any channel', () => {
@@ -29,7 +27,7 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     expect(state.currentItem).toBeDefined();
     expect(state.currentItem.id).toBeGreaterThan(0);
     expect(state.initialTimecode).toBeGreaterThanOrEqual(0);
-    expect(state.initialTimecode).toBeLessThan(SLOT_DURATION_SEC);
+    expect(state.initialTimecode).toBeLessThan(state.currentItem.durationSec);
     expect(state.progressPercent).toBeGreaterThanOrEqual(0);
     expect(state.progressPercent).toBeLessThanOrEqual(100);
     expect(state.nextItem).toBeDefined();

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, Suspense, lazy, useMemo, useState } from 'react';
+import React, { createContext, useContext, Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import type { TvChannel } from '../utils/tvSchedule';
 import { useAudioPlayer } from './AudioPlayerContext';
 
@@ -30,6 +30,18 @@ export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Состояние свернутого мини-плеера (Picture-in-Picture внутри приложения)
   const [isMinimized, setIsMinimized] = useState(false);
   const { stop: stopAudio } = useAudioPlayer();
+
+  // При старте воспроизведения радио/музыки автоматически закрываем ТВ-эфир
+  useEffect(() => {
+    const handleAudioStarted = () => {
+      setActiveChannel(null);
+      setIsMinimized(false);
+    };
+    window.addEventListener('mb-audio-started', handleAudioStarted);
+    return () => {
+      window.removeEventListener('mb-audio-started', handleAudioStarted);
+    };
+  }, []);
 
   const value = useMemo<TvPlayerContextValue>(() => ({
     activeChannel,

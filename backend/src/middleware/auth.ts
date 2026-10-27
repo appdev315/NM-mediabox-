@@ -13,9 +13,8 @@ async function validateTelegramWebAppData(telegramInitData: string, botToken: st
     const authDate = parseInt(authDateStr, 10);
     if (!isNaN(authDate)) {
       const authTimestamp = authDate * 1000;
-      if (Date.now() - authTimestamp > MAX_AUTH_AGE_MS) {
-        return false;
-      }
+      const age = Date.now() - authTimestamp;
+      if (age > MAX_AUTH_AGE_MS || age < -60_000) return false;
     }
   }
   

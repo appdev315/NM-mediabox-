@@ -30,7 +30,7 @@ export function Favorites() {
   const [historyMusic, setHistoryMusic] = useState<any[]>([]);
 
   // Player states
-  const { playTrack, currentTrack, isPlaying, stop, togglePlayPause } = useAudioPlayer();
+  const { playTrack, currentTrack, isPlaying, stop, togglePlayPause, isTrackUnplayable } = useAudioPlayer();
 
   const loadData = () => {
     // Instant 0ms load from LocalStorage
@@ -88,16 +88,18 @@ export function Favorites() {
       const confirmMsg = t('confirmClearFavorites') || 'Вы уверены, что хотите очистить всё избранное?';
       if (window.confirm(confirmMsg)) {
         try {
-          localStorage.removeItem('favorites_movies');
-          localStorage.removeItem('favorites_series');
-          localStorage.removeItem('favorites_radio');
-          localStorage.removeItem('favorites_music');
-          setFavMovies([]);
-          setFavSeries([]);
-          setFavRadio([]);
-          setFavMusic([]);
-          // Очищаем оффлайн-кэш треков при полной очистке Избранного
-          audioOfflineManager.clearAudioCache().catch(() => {});
+          favoritesManager.clearCloud(activeTab).catch(() => {});
+          const key = activeTab === 'movie' ? 'favorites_movies' :
+                      activeTab === 'series' ? 'favorites_series' :
+                      activeTab === 'radio' ? 'favorites_radio' : 'favorites_music';
+          localStorage.removeItem(key);
+          if (activeTab === 'movie') setFavMovies([]);
+          else if (activeTab === 'series') setFavSeries([]);
+          else if (activeTab === 'radio') setFavRadio([]);
+          else if (activeTab === 'music') {
+            setFavMusic([]);
+            audioOfflineManager.clearAudioCache().catch(() => {});
+          }
         } catch (e) {
           console.error(e);
         }
@@ -107,6 +109,7 @@ export function Favorites() {
       if (window.confirm(confirmMsg)) {
         try {
           stop(); // Stop active radio playback
+          favoritesManager.clearCloudHistory().catch(() => {});
           localStorage.removeItem('history_movies');
           localStorage.removeItem('history_series');
           localStorage.removeItem('history_radio');
@@ -348,7 +351,14 @@ export function Favorites() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold truncate">{norm.title}</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold truncate">{norm.title}</h3>
+                  {isTrackUnplayable(norm.id) && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold flex-shrink-0">
+                      Видео
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs truncate" style={{ opacity: 0.65 }}>{norm.artist}</p>
               </div>
               <button

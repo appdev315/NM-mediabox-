@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 type TabType = 'movie' | 'series' | 'radio' | 'tv';
 
@@ -58,7 +58,7 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.setItem('mb_home_activeTab', activeTab);
   }, [activeTab]);
 
-  const setActiveTab = (tab: TabType) => {
+  const setActiveTab = useCallback((tab: TabType) => {
     setActiveTabState(tab);
     setPage(1);
     setItems([]);
@@ -68,55 +68,74 @@ export const HomeStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsSearchingState(false);
     setIsSearchOpenState(false);
     scrollYRef.current = 0;
-  };
+  }, []);
 
-  const setSelectedGenre = (genre: string) => {
+  const setSelectedGenre = useCallback((genre: string) => {
     setSelectedGenreState(genre);
     setPage(1);
     setItems([]);
     setHomeSections([]);
     scrollYRef.current = 0;
-  };
+  }, []);
 
-  const setSearchQuery = (query: string) => {
+  const setSearchQuery = useCallback((query: string) => {
     setSearchQueryState(query);
     setPage(1);
     scrollYRef.current = 0;
-  };
+  }, []);
 
-  const setIsSearching = (searching: boolean) => {
+  const setIsSearching = useCallback((searching: boolean) => {
     setIsSearchingState(searching);
-  };
+  }, []);
 
-  const setIsSearchOpen = (open: boolean) => {
+  const setIsSearchOpen = useCallback((open: boolean) => {
     setIsSearchOpenState(open);
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    activeTab,
+    setActiveTab,
+    items,
+    setItems,
+    homeSections,
+    setHomeSections,
+    page,
+    setPage,
+    selectedGenre,
+    setSelectedGenre,
+    searchQuery,
+    setSearchQuery,
+    isSearching,
+    setIsSearching,
+    isSearchOpen,
+    setIsSearchOpen,
+    // scrollYRef мутирует без ре-рендера — статичное поле в value всегда
+    // содержало устаревшее значение. Единственный корректный доступ — getScrollY().
+    getScrollY,
+    setScrollY,
+  }), [
+    activeTab,
+    setActiveTab,
+    items,
+    setItems,
+    homeSections,
+    setHomeSections,
+    page,
+    setPage,
+    selectedGenre,
+    setSelectedGenre,
+    searchQuery,
+    setSearchQuery,
+    isSearching,
+    setIsSearching,
+    isSearchOpen,
+    setIsSearchOpen,
+    getScrollY,
+    setScrollY,
+  ]);
 
   return (
-    <HomeStateContext.Provider
-      value={{
-        activeTab,
-        setActiveTab,
-        items,
-        setItems,
-        homeSections,
-        setHomeSections,
-        page,
-        setPage,
-        selectedGenre,
-        setSelectedGenre,
-        searchQuery,
-        setSearchQuery,
-        isSearching,
-        setIsSearching,
-        isSearchOpen,
-        setIsSearchOpen,
-        // scrollYRef мутирует без ре-рендера — статичное поле в value всегда
-        // содержало устаревшее значение. Единственный корректный доступ — getScrollY().
-        getScrollY,
-        setScrollY,
-      }}
-    >
+    <HomeStateContext.Provider value={value}>
       {children}
     </HomeStateContext.Provider>
   );

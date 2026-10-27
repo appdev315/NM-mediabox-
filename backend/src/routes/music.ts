@@ -437,6 +437,9 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
   // 1. YouTube track resolution with local=true Invidious race
   if (id.startsWith('yt_')) {
     const videoId = id.replace(/^yt_/, '');
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      return c.json({ error: 'invalid id' }, 400);
+    }
     const seedInstances = [
       'https://invidious.schenkel.eti.br',
       'https://yt.chocolatemoo53.com',

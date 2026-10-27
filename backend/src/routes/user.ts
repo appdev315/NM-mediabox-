@@ -1,6 +1,22 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { tgAuthMiddleware } from '../middleware/auth';
+import { safeWaitUntil } from '../utils/helpers';
+
+const ALLOWED_TYPES = ['movie', 'series', 'radio', 'music', 'adult'] as const;
+
+function extractValidItemId(body: any): string | null {
+  const candidates = [body?.id, body?.movieId, body?.item_id, body?.itemId];
+  for (const val of candidates) {
+    if (typeof val === 'string' || typeof val === 'number') {
+      const s = String(val).trim();
+      if (s && s !== 'undefined' && s !== 'null') {
+        return s;
+      }
+    }
+  }
+  return null;
+}
 
 export const userRouter = new Hono<AppEnv>();
 
@@ -16,8 +32,14 @@ userRouter.post('/favorites', async (c) => {
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400);
   }
-  const rawId = String(body.id || body.movieId || body.item_id);
-  const type = String(body.type || 'movie');
+  const rawId = extractValidItemId(body);
+  if (!rawId) {
+    return c.json({ error: 'Item ID is required' }, 400);
+  }
+  const type = String(body.type || 'movie').trim();
+  if (!ALLOWED_TYPES.includes(type as any)) {
+    return c.json({ error: 'Invalid type' }, 400);
+  }
   // Для музыкальных треков нормализуем id, отсекая префикс saavn_ для единого формата
   const itemId = type === 'music' ? rawId.replace(/^saavn_/, '') : rawId;
   const title = body.title || body.name || '';
@@ -31,9 +53,6 @@ userRouter.post('/favorites', async (c) => {
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
-  }
-  if (!itemId) {
-    return c.json({ error: 'Item ID is required' }, 400);
   }
   
   try {
@@ -63,15 +82,18 @@ userRouter.delete('/favorites', async (c) => {
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400);
   }
-  const rawId = String(body.id || body.movieId || body.item_id);
-  const type = String(body.type || 'movie');
+  const rawId = extractValidItemId(body);
+  if (!rawId) {
+    return c.json({ error: 'Item ID is required' }, 400);
+  }
+  const type = String(body.type || 'movie').trim();
+  if (!ALLOWED_TYPES.includes(type as any)) {
+    return c.json({ error: 'Invalid type' }, 400);
+  }
   const itemId = type === 'music' ? rawId.replace(/^saavn_/, '') : rawId;
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
-  }
-  if (!itemId) {
-    return c.json({ error: 'Item ID is required' }, 400);
   }
 
   try {
@@ -86,6 +108,35 @@ userRouter.delete('/favorites', async (c) => {
   }
 });
 
+userRouter.delete('/favorites/all', async (c) => {
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  const type = c.req.query('type')?.trim();
+  if (type && !ALLOWED_TYPES.includes(type as any)) {
+    return c.json({ error: 'Invalid type' }, 400);
+  }
+  try {
+    if (type) {
+      await c.env.DB.prepare(
+        `DELETE FROM favorites WHERE telegram_id = ? AND type = ?`
+      ).bind(user.id, type).run();
+    } else {
+      await c.env.DB.prepare(
+        `DELETE FROM favorites WHERE telegram_id = ?`
+      ).bind(user.id).run();
+    }
+    return c.json({ success: true });
+  } catch (e) {
+    console.error('D1 error on delete all favorites:', e);
+    return c.json({ error: 'Failed to clear favorites' }, 500);
+  }
+});
+
 userRouter.get('/favorites', async (c) => {
   const user = c.get('tgUser');
   if (!user) {
@@ -95,12 +146,21 @@ userRouter.get('/favorites', async (c) => {
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
   }
-
   try {
+    const typeFilter = c.req.query('type')?.trim();
+    if (typeFilter && !ALLOWED_TYPES.includes(typeFilter as any)) {
+      return c.json({ error: 'Invalid type' }, 400);
+    }
     // Защита памяти изолята Worker (128 МБ) от OOM при разрастании списка избранного
-    const { results } = await c.env.DB.prepare(
-      `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC LIMIT 100`
-    ).bind(user.id).all();
+    const query = typeFilter
+      ? `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? AND type = ? ORDER BY added_at DESC LIMIT 500`
+      : `SELECT item_id as id, type, title, poster, year, data_json FROM favorites WHERE telegram_id = ? ORDER BY added_at DESC LIMIT 500`;
+
+    const stmt = typeFilter
+      ? c.env.DB.prepare(query).bind(user.id, typeFilter)
+      : c.env.DB.prepare(query).bind(user.id);
+
+    const { results } = await stmt.all();
 
     const items = (results || []).map((row: any) => {
       if (row.data_json) {
@@ -125,13 +185,18 @@ userRouter.post('/history', async (c) => {
   if (!body || typeof body !== 'object') {
     return c.json({ error: 'Invalid JSON payload' }, 400);
   }
-  const { itemId, type = 'movie', timecode } = body;
+  const itemId = extractValidItemId(body);
+  if (!itemId) {
+    return c.json({ error: 'Item ID is required' }, 400);
+  }
+  const type = String(body.type || 'movie').trim();
+  if (!ALLOWED_TYPES.includes(type as any)) {
+    return c.json({ error: 'Invalid type' }, 400);
+  }
+  const timecode = typeof body.timecode === 'number' ? body.timecode : 0;
 
   if (!c.env.DB) {
     return c.json({ error: 'Database not available' }, 500);
-  }
-  if (!itemId) {
-    return c.json({ error: 'Item ID is required' }, 400);
   }
 
   try {
@@ -144,7 +209,19 @@ userRouter.post('/history', async (c) => {
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(telegram_id, item_id, type) 
       DO UPDATE SET timecode = excluded.timecode, updated_at = CURRENT_TIMESTAMP
-    `).bind(user.id, String(itemId), type, timecode).run();
+    `).bind(user.id, itemId, type, timecode).run();
+
+    // Асинхронный trim истории до 100 последних записей пользователя
+    safeWaitUntil(c, (async () => {
+      try {
+        await c.env.DB.prepare(
+          `DELETE FROM history WHERE telegram_id = ? AND id NOT IN (SELECT id FROM history WHERE telegram_id = ? ORDER BY updated_at DESC LIMIT 100)`
+        ).bind(user.id, user.id).run();
+      } catch (err) {
+        console.error('D1 trim history error:', err);
+      }
+    })());
+
     return c.json({ success: true });
   } catch (e) {
     console.error('D1 error on history:', e);
@@ -170,3 +247,23 @@ userRouter.get('/history', async (c) => {
     return c.json({ error: 'Failed to get history' }, 500);
   }
 });
+
+userRouter.delete('/history/all', async (c) => {
+  const user = c.get('tgUser');
+  if (!user) {
+    return c.json({ error: 'Unauthorized: user not found' }, 401);
+  }
+  if (!c.env.DB) {
+    return c.json({ error: 'Database not available' }, 500);
+  }
+  try {
+    await c.env.DB.prepare(
+      `DELETE FROM history WHERE telegram_id = ?`
+    ).bind(user.id).run();
+    return c.json({ success: true });
+  } catch (e) {
+    console.error('D1 error on delete all history:', e);
+    return c.json({ error: 'Failed to clear history' }, 500);
+  }
+});
+

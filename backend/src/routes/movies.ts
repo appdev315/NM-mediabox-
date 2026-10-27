@@ -302,7 +302,7 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
       });
       if (infoRes.ok) {
         const info = await infoRes.json() as any;
-        if (info && info.iframe_uri) {
+        if (info && typeof info.iframe_uri === 'string' && info.iframe_uri.startsWith('https://')) {
           const directResult: Record<string, any> = {
             liftwId: info.id,
             liftwType: info.type,
@@ -527,9 +527,9 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
     }
     const info = await infoRes.json() as any;
     
-    if (!info.iframe_uri) {
+    if (!info.iframe_uri || typeof info.iframe_uri !== 'string' || !info.iframe_uri.startsWith('https://')) {
       recordDonorMetric('liftw_fail');
-      recordIncident('empty_iframe', 'unresolved', 'Liftw returned empty iframe_uri');
+      recordIncident('empty_iframe', 'unresolved', 'Liftw returned empty or non-https iframe_uri');
       return c.json({ error: 'liftw stream has no active player' }, 404, {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Access-Control-Allow-Origin': '*',

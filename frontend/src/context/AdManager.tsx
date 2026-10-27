@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo, useCallback } from 'react';
 
 
 interface AdContextType {
@@ -23,16 +23,22 @@ interface AdProviderProps {
 
 export const AdProvider: React.FC<AdProviderProps> = ({ children }) => {
   
-  const triggerAd = () => {
+  const triggerAd = useCallback(() => {
     // No-op for now
-  };
+  }, []);
 
-  const triggerPostAd = () => {
+  const triggerPostAd = useCallback(() => {
     // No-op for now
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    triggerAd,
+    triggerMovieAd: triggerAd,
+    triggerPostAd
+  }), [triggerAd, triggerPostAd]);
 
   return (
-    <AdContext.Provider value={{ triggerAd, triggerMovieAd: triggerAd, triggerPostAd }}>
+    <AdContext.Provider value={value}>
       {children}
       
       {/* We no longer need the mock overlay because Adsgram draws its own iframe/overlay */}

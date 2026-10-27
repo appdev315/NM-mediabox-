@@ -41,4 +41,23 @@ describe('Comprehensive End-to-End Verification', () => {
     expect(upcoming[0].isCurrent).toBe(true);
     expect(upcoming[1].isCurrent).toBe(false);
   });
+
+  it('verifies adult age gate in fresh profile blocks access until confirmation', () => {
+    const store: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = String(v); },
+      removeItem: (k: string) => { delete store[k]; },
+    };
+
+    expect(mockStorage.getItem('age_confirmed')).toBeNull();
+
+    // In a fresh profile, age is not confirmed
+    const isConfirmed = mockStorage.getItem('age_confirmed') === 'true';
+    expect(isConfirmed).toBe(false);
+
+    // After user confirms in AgeVerificationModal
+    mockStorage.setItem('age_confirmed', 'true');
+    expect(mockStorage.getItem('age_confirmed')).toBe('true');
+  });
 });

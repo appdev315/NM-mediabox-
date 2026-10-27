@@ -142,8 +142,10 @@ export const favoritesManager = {
         localStorage.setItem(key, JSON.stringify(updated));
       } catch (e) {}
 
-      // Non-blocking background sync to Cloudflare D1
-      this.syncItemToCloud('POST', type, item);
+      // Non-blocking background sync to Cloudflare D1 (исключая музыку — хранится строго локально на устройстве)
+      if (type !== 'music') {
+        this.syncItemToCloud('POST', type, item);
+      }
       return updated;
     }
     return list;
@@ -161,8 +163,10 @@ export const favoritesManager = {
       localStorage.setItem(key, JSON.stringify(updated));
     } catch (e) {}
 
-    // Non-blocking background sync to Cloudflare D1
-    this.syncItemToCloud('DELETE', type, { id: targetId });
+    // Non-blocking background sync to Cloudflare D1 (исключая музыку)
+    if (type !== 'music') {
+      this.syncItemToCloud('DELETE', type, { id: targetId });
+    }
     return updated;
   },
 
@@ -190,14 +194,53 @@ export const favoritesManager = {
     }
   },
 
+  // 5b. Non-blocking Cloud Clear for Favorites
+  async clearCloud(type?: string): Promise<void> {
+    try {
+      const initData = WebApp?.initData || '';
+      if (!initData) return;
+      const url = type
+        ? `${CF_API_BASE}/user/favorites/all?type=${encodeURIComponent(type)}`
+        : `${CF_API_BASE}/user/favorites/all`;
+      await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${initData}`,
+        },
+      });
+    } catch (e) {
+      console.warn('[FavoritesManager] Cloud favorites clear failed:', e);
+    }
+  },
+
+  // 5c. Non-blocking Cloud Clear for History
+  async clearCloudHistory(): Promise<void> {
+    try {
+      const initData = WebApp?.initData || '';
+      if (!initData) return;
+      await fetch(`${CF_API_BASE}/user/history/all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${initData}`,
+        },
+      });
+    } catch (e) {
+      console.warn('[FavoritesManager] Cloud history clear failed:', e);
+    }
+  },
+
   // 6. Restore / Merge with Cloud Backup on App Launch
   async hydrateFromCloud(type: string): Promise<any[]> {
     const localItems = this.getLocal(type);
+    if (type === 'music') {
+      // Музыка и оффлайн-кэш строго локальны на устройстве: исключаем затирание и лимиты из облака
+      return localItems;
+    }
     try {
       const initData = WebApp?.initData || '';
       if (!initData) return localItems;
 
-      const res = await fetch(`${CF_API_BASE}/user/favorites`, {
+      const res = await fetch(`${CF_API_BASE}/user/favorites?type=${encodeURIComponent(type)}`, {
         headers: { 'Authorization': `Bearer ${initData}` }
       });
 

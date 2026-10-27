@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { Header } from '../components/Header';
+import { useAdultGate } from '../hooks/useAdultGate';
+import { AgeVerificationModal } from '../components/AgeVerificationModal';
 
 export function AdultFavorites() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const { ageConfirmed, confirmAge } = useAdultGate();
 
   const [privateHistory, setPrivateHistory] = useState<any[]>(() => {
     try {
@@ -29,6 +32,10 @@ export function AdultFavorites() {
       setPrivateHistory([]);
     }
   };
+
+  if (!ageConfirmed) {
+    return <AgeVerificationModal onConfirm={confirmAge} />;
+  }
 
   return (
     <div className="p-4 pt-24 pb-24 h-full flex flex-col">

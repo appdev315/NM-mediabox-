@@ -1,5 +1,6 @@
 const CACHE_NAME = 'mediabox-v23';
 const IMG_CACHE_NAME = 'mediabox-img-v1';
+const AUDIO_CACHE_NAME = 'mb_offline_tracks_v1';
 const MAX_CACHED_IMAGES = 40;
 const OFFLINE_FALLBACK = '/index.html';
 const PROXY_IMAGE_BASE = 'https://api.media-box.xyz/api/image';
@@ -18,7 +19,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME && key !== IMG_CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== IMG_CACHE_NAME && key !== AUDIO_CACHE_NAME) {
             return caches.delete(key);
           }
         })

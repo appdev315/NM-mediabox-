@@ -84,9 +84,6 @@ export interface ChannelScheduleState {
   dayOfWeek: number; // 0..6 (Пн..Вс)
 }
 
-// 10 слотов в сутках: ровно 86400 / 10 = 8640 секунд (2 часа 24 минуты на передачу)
-export const SLOT_DURATION_SEC = 8640;
-
 // Генератор непрерывной цепочки эпизодов для очередей сериалов.
 // После финала последнего сезона первого сериала автоматически запускается S01E01 следующего сериала очереди.
 function generateSeriesQueueEpisodes(seriesList: SeriesDefinition[], defaultEpDuration = 3000): TvPlaylistItem[] {
