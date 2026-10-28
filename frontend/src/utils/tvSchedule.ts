@@ -677,7 +677,7 @@ export function getChannelPhaseOffset(channel: TvChannel): number {
   return (hash % 100) * 3600;
 }
 
-// Получить список ровно из 10 передач на конкретный день недели с учетом Dayparting (Топ-30 прайм-тайм)
+// Получить список передач на конкретный день недели с учетом Dayparting (полное 24-часовое заполнение)
 export function getDayItemsForChannel(
   channel: TvChannel, 
   dayOfWeek: number, 
@@ -695,7 +695,7 @@ export function getDayItemsForChannel(
     return items;
   }
 
-  // ДЛЯ ФИЛЬМОВ (Dayparting Rating-Tiered + Weekly Rotation):
+  // ДЛЯ ФИЛЬМОВ (Dayparting Rating-Tiered + Weekly Rotation с полным 24-часовым хронометражем):
   const poolLen = pool.length;
   const t1Count = Math.max(1, Math.round(poolLen * 0.3));
   const t2Count = Math.max(1, Math.round(poolLen * 0.4));
@@ -704,23 +704,29 @@ export function getDayItemsForChannel(
   const tier3 = pool.slice(t1Count + t2Count);
 
   const safeDay = ((dayOfWeek % 7) + 7) % 7;
-  const t3Offset = (weekNumber * 5 + safeDay * 3) % tier3.length;
-  const t2Offset = (weekNumber * 7 + safeDay * 4) % tier2.length;
-  const t1Offset = (weekNumber * 5 + safeDay * 3) % tier1.length;
+  const t3Offset = (weekNumber * 5 + safeDay * 3) % (tier3.length || 1);
+  const t2Offset = (weekNumber * 7 + safeDay * 4) % (tier2.length || 1);
+  const t1Offset = (weekNumber * 5 + safeDay * 3) % (tier1.length || 1);
 
-  const pick = (arr: TvPlaylistItem[], offset: number, count: number) => {
+  const pickUntil = (arr: TvPlaylistItem[], offset: number, targetSec: number, minCount: number): TvPlaylistItem[] => {
+    if (arr.length === 0) return [];
     const res: TvPlaylistItem[] = [];
-    for (let i = 0; i < count; i++) {
-      res.push(arr[(offset + i) % arr.length]);
+    let accSec = 0;
+    let idx = 0;
+    while ((accSec < targetSec || res.length < minCount) && idx < arr.length * 2) {
+      const item = arr[(offset + idx) % arr.length];
+      res.push(item);
+      accSec += (item.durationSec || 7200);
+      idx++;
     }
     return res;
   };
 
-  return [
-    ...pick(tier3, t3Offset, 3), // Ночной и утренний эфир (слоты 0, 1, 2)
-    ...pick(tier2, t2Offset, 4), // Дневной эфир (слоты 3, 4, 5, 6)
-    ...pick(tier1, t1Offset, 3)  // Прайм-тайм вечер (слоты 7, 8, 9)
-  ];
+  const nightMorning = pickUntil(tier3, t3Offset, 28800, 4); // 00:00 - 08:00 (~8ч)
+  const daytime = pickUntil(tier2, t2Offset, 36000, 5);      // 08:00 - 18:00 (~10ч)
+  const primeTime = pickUntil(tier1, t1Offset, 21600, 3);    // 18:00 - 24:00 (~6ч)
+
+  return [...nightMorning, ...daytime, ...primeTime];
 }
 
 // Расчёт текущего состояния прямого эфира (еженедельная суточная ротация с Dayparting)

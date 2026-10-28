@@ -69,6 +69,7 @@ export const TvPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       {activeChannel && (
         <Suspense fallback={null}>
           <LazyTvPlayer
+            key={activeChannel.id}
             channel={activeChannel}
             isMinimized={isMinimized}
             onMinimize={() => setIsMinimized(true)}

@@ -165,7 +165,9 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           { api: 'play' },
           '*'
         );
-        if (initialTimecodeRef.current && initialTimecodeRef.current > 5) {
+        // Для ТВ-эфира (isTv = true) таймкод уже детерминированно зашит в URL iframe (&time=...&t=...),
+        // повторный postMessage seek сбрасывает набранный HLS-буфер донора и удваивает задержку старта.
+        if (!isTv && initialTimecodeRef.current && initialTimecodeRef.current > 5) {
           const s = Math.floor(initialTimecodeRef.current);
           iframeRef.current.contentWindow.postMessage({ event: 'seek', time: s }, '*');
           iframeRef.current.contentWindow.postMessage({ api: 'seek', set: s }, '*');
@@ -199,7 +201,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }
       }
     } catch (_) {}
-  }, [language]);
+  }, [language, isTv]);
 
   // Listen for episode changes and player events inside embedded player
   useEffect(() => {

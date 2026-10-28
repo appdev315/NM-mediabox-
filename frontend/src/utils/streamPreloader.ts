@@ -55,7 +55,7 @@ export function prewarmStream(
 
   const rawType = item.type || 'movie';
   const resolvedType = (rawType === 'series' || rawType === 'tv') ? 'tv' : 'movie';
-  const streamCacheKey = `liftw_stream_v2_${id}_${resolvedType}`;
+  const streamCacheKey = `liftw_stream_v3_${id}_${resolvedType}`;
 
   // 1. Instant check in clientCache
   const cached = clientCache.get<any>(streamCacheKey);

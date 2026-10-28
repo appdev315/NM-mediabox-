@@ -54,7 +54,7 @@ export function MediaBoxTvPlayer({
     [channel.category]
   );
 
-  // Вычисление моментального состояния эфира канала (10 слотов по 144 мин)
+  // Вычисление моментального состояния эфира канала
   const [scheduleState, setScheduleState] = useState<ChannelScheduleState>(() => 
     getChannelScheduleState(channel)
   );
@@ -63,6 +63,14 @@ export function MediaBoxTvPlayer({
   useEffect(() => {
     scheduleStateRef.current = scheduleState;
   }, [scheduleState]);
+
+  // Немедленный сброс и синхронизация состояния эфира при смене канала
+  useEffect(() => {
+    setScheduleState(getChannelScheduleState(channel));
+    setStreamError(false);
+    setIsLoadingStream(true);
+    setIframeUrl(null);
+  }, [channel.id]);
 
   // Ссылка на контейнер плеера для перехвата событий колесика мыши
   const videoBoxRef = useRef<HTMLDivElement>(null);
@@ -87,6 +95,8 @@ export function MediaBoxTvPlayer({
   const actualDurationRef = useRef<number | null>(null);
   // Флаг установки минимального начального качества при старте стрима
   const hasSetInitialQualityRef = useRef(false);
+  // Счётчик попыток перехода на следующий тайтл при 404 (до 2 подряд)
+  const fallbackAttemptsRef = useRef(0);
 
   // Блокировка отката дорожки донором Liftw: после ручного выбора пользователем
   // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
@@ -584,6 +594,7 @@ export function MediaBoxTvPlayer({
         const data = await res.json() as any;
 
         if (data && data.iframe && !isCancelled) {
+          fallbackAttemptsRef.current = 0;
           // Сохраняем в кэш на 90 дней (7776000 сек) для фильмов и сериалов
           const ttlSeconds = 7776000;
           clientCache.set(cacheKey, data, ttlSeconds);
@@ -600,6 +611,23 @@ export function MediaBoxTvPlayer({
           console.error('[MediaBoxTv] Ошибка загрузки потока:', err);
           // При ошибке очищаем поврежденный кэш, чтобы при следующем запросе источник обновился
           clientCache.remove(cacheKey);
+
+          // Бесшовный авто-фолбэк: если фильм отсутствует на доноре Liftw (404),
+          // автоматически подхватываем следующий тайтл сетки вещания (до 2 попыток)
+          if (fallbackAttemptsRef.current < 2 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
+            fallbackAttemptsRef.current += 1;
+            setScheduleState(prev => ({
+              ...prev,
+              currentItem: prev.nextItem,
+              initialTimecode: 0,
+              elapsedSec: 0,
+              remainingSec: prev.nextItem.durationSec || 7200,
+              durationSec: prev.nextItem.durationSec || 7200,
+              progressPercent: 0
+            }));
+            return;
+          }
+
           setStreamError(true);
           setIsLoadingStream(false);
         }

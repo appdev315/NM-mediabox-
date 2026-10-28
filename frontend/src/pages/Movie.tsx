@@ -416,7 +416,7 @@ export function Movie() {
         if (isFatalNotFound && iframeUrl === sources[0]?.url) {
           console.log('[PlayerFallback] Fatal stream not-found signal received, purging dead stream from cache and triggering self-healing...');
           if (id) {
-            clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
+            clientCache.remove(`liftw_stream_v3_${id}_${mediaType}`);
           }
           setContentUnavailable(true);
           try {
@@ -611,7 +611,7 @@ export function Movie() {
         trackOpen(resolvedType === 'tv' ? 'series' : 'movie', d?.title || d?.name || '', id);
 
         // Instant check in clientCache for stream and episodes
-        const streamCacheKey = `liftw_stream_v2_${id}_${resolvedType}`;
+        const streamCacheKey = `liftw_stream_v3_${id}_${resolvedType}`;
         const cachedStream = clientCache.get<any>(streamCacheKey);
         if (cachedStream?.episodes && isMounted) {
           setLiftwEpisodes(cachedStream.episodes);
@@ -846,7 +846,7 @@ export function Movie() {
       const liftwQuery = new URLSearchParams(baseQuery);
       if (forceRefresh) {
         if (id) {
-          clientCache.remove(`liftw_stream_v2_${id}_${mediaType}`);
+          clientCache.remove(`liftw_stream_v3_${id}_${mediaType}`);
         }
         liftwQuery.append('bypass_cache', 'true');
       }
@@ -886,7 +886,7 @@ export function Movie() {
       // 2. Fetch liftw asynchronously (Primary Player — Priority #1, 1080p)
       const fetchLiftw = async () => {
         try {
-          const streamCacheKey = `liftw_stream_v2_${id}_${mediaType}`;
+          const streamCacheKey = `liftw_stream_v3_${id}_${mediaType}`;
           const queryStr = liftwQuery.toString();
 
         // Instant 0ms read from client cache
