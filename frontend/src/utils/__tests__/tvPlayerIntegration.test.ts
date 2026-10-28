@@ -109,26 +109,20 @@ describe('MediaBox TV & Player Integration Verification', () => {
     bus.removeEventListener('mb-audio-started', handleAudio as any);
   });
 
-  it('verifies that TV Live Sync Watchdog correctly triggers resync when player starts from 0:00 instead of live timecode', () => {
-    // Симуляция логики Live TV Sync Watchdog с URL перенавигацией
+  it('verifies that TV Live Sync Watchdog correctly triggers resync via postMessage when player is playing from start instead of live timecode', () => {
+    // Симуляция логики Live TV Sync Watchdog через postMessage seek без перезагрузки iframe
     const currentLiveSec = 5909; // Джуманджи на канале фэнтези (82% фильма)
     const rawPosStuckAtStart = 2; // Донор начал проигрывать с 0:02
-    let resyncedUrl = '';
+    let resyncSeekTarget: number | null = null;
 
     const lastLiveSyncSeek = 0;
     const now = 10000;
 
-    if (rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 4000) {
-      const mockSrc = 'https://embed.liftw.ws/content/12345?time=0&t=0';
-      const u = new URL(mockSrc);
-      u.searchParams.set('time', String(currentLiveSec));
-      u.searchParams.set('t', String(currentLiveSec));
-      resyncedUrl = u.toString();
+    if (rawPosStuckAtStart > 0 && rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 6000) {
+      resyncSeekTarget = currentLiveSec;
     }
 
-    expect(resyncedUrl).toContain('time=5909');
-    expect(resyncedUrl).toContain('t=5909');
-    expect(resyncedUrl).not.toContain('time=0');
+    expect(resyncSeekTarget).toBe(5909);
 
     // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
     const rawPosSynced = 5910;

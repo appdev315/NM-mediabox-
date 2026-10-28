@@ -88,14 +88,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const initialTimecodeRef = useRef(initialTimecode);
   const initialEpisodeRef = useRef(targetEpisode);
   const lastSourceKeyRef = useRef('');
-  const hasForcedLiveSyncRef = useRef(false);
 
   if (lastSourceKeyRef.current !== sourceKey) {
     lastSourceKeyRef.current = sourceKey;
     initialTimecodeRef.current = initialTimecode;
     initialEpisodeRef.current = targetEpisode;
     hasSentInitialSeekRef.current = false;
-    hasForcedLiveSyncRef.current = false;
   }
 
   // Base iframe URL: embeds target season & episode for instant server-rendered series playback
@@ -122,7 +120,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     );
     // Прогресс трансляции ТВ ставится в наивысший приоритет над нулевым запуском
     const timecode = isTv 
-      ? Math.max(initialTimecode || 0, initialTimecodeRef.current || 0)
+      ? (initialTimecodeRef.current || initialTimecode || 0)
       : (isInitialEpisode ? initialTimecodeRef.current : 0);
     const startSec = Math.floor(timecode || 0);
     // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
@@ -139,7 +137,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       return `${cleanUrl}${startParams}`;
     }
     return `${cleanUrl}?${startParams.slice(1)}`;
-  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language, isTv, initialTimecode]);
+  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language, isTv]);
 
   // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
   // verified fallback or season changes navigate iframe.src directly.
@@ -155,21 +153,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     activeSeasonRef.current = targetEpisode?.season || initialEpisodeRef.current?.season || '1';
     setLockedSrc(currentUrl);
   }
-
-  // Для ТВ-эфира: если пришел актуальный ненулевой таймкод трансляции, обновляем initialTimecodeRef и lockedSrc
-  useEffect(() => {
-    if (isTv && initialTimecode && initialTimecode > 5) {
-      if (Math.abs((initialTimecodeRef.current || 0) - initialTimecode) > 10) {
-        initialTimecodeRef.current = initialTimecode;
-        const startSec = Math.floor(initialTimecode);
-        setLockedSrc(prev => {
-          let base = prev.replace(/[?&](start|t|time|timecode)=\d+/g, '');
-          const sep = base.includes('?') ? '&' : '?';
-          return `${base}${sep}time=${startSec}&t=${startSec}`;
-        });
-      }
-    }
-  }, [isTv, initialTimecode]);
 
   // Verified donor commands: adFree (player-venom) + playlist go (opts.playlist).
   // Note: 'playlist hook' is intentionally excluded to preserve native autoPlay on stream change.
@@ -295,21 +278,6 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           if (!pendingTargetRef.current && fallbackNavTimerRef.current) {
             clearTimeout(fallbackNavTimerRef.current);
             fallbackNavTimerRef.current = null;
-          }
-        }
-
-        // Для прямого ТВ-эфира: если донор начал воспроизведение с первых секунд (< 15с),
-        // а эфир ушёл вперёд (> 45с) — принудительно перенаправляем iframe.src с точными параметрами time= и t=
-        if (isTv && (data.event === 'viewProgress' || data.event === 'timeupdate' || data.event === 'time')) {
-          const rawPos = data.time ?? data.currentTime ?? data.position;
-          const liveSec = Math.floor(initialTimecodeRef.current || initialTimecode || 0);
-          if (typeof rawPos === 'number' && rawPos < 15 && liveSec > 45 && !hasForcedLiveSyncRef.current) {
-            hasForcedLiveSyncRef.current = true;
-            setLockedSrc(prev => {
-              let base = prev.replace(/[?&](start|t|time|timecode)=\d+/g, '');
-              const sep = base.includes('?') ? '&' : '?';
-              return `${base}${sep}time=${liveSec}&t=${liveSec}`;
-            });
           }
         }
       } catch (_) {}

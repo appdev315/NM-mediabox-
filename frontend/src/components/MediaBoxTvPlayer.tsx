@@ -386,19 +386,14 @@ export function MediaBoxTvPlayer({
         }
         if (!data || typeof data !== 'object') return;
 
-        // Фиксация старта прямого эфира: донор начал проигрывание потока
+        // Фиксация старта прямого эфира: донор начал фактическое воспроизведение потока
+        const currentTimePos = data.time ?? data.currentTime;
         if (
           data.event === 'startWatching' || 
-          data.event === 'viewProgress' || 
-          data.event === 'play' || 
           data.event === 'playing' ||
-          data.event === 'timeupdate' ||
-          data.event === 'adStart' ||
-          data.type === 'play' ||
           data.type === 'playing' ||
-          data.type === 'timeupdate' ||
-          data.status === 'play' ||
-          data.action === 'play'
+          data.status === 'playing' ||
+          ((data.event === 'viewProgress' || data.event === 'timeupdate') && typeof currentTimePos === 'number' && currentTimePos > 5)
         ) {
           setIsLivePlaying(true);
         }
@@ -479,7 +474,7 @@ export function MediaBoxTvPlayer({
           }
         }
 
-        // Синхронизация прямого эфира (Live TV Sync Watchdog): если донор стартовал сначала (0:00) вместо таймкода эфира
+        // Синхронизация прямого эфира (Live TV Sync Watchdog): если донор начал воспроизведение сначала, а эфир ушёл вперёд
         if (
           data.event === 'timeupdate' || 
           data.event === 'viewProgress' || 
@@ -488,19 +483,17 @@ export function MediaBoxTvPlayer({
           data.type === 'time'
         ) {
           const rawPos = data.time ?? data.currentTime ?? data.position;
-          if (typeof rawPos === 'number') {
+          // Синхронизируем ТОЛЬКО если донор начал фактическое воспроизведение (rawPos > 0), но отстаёт от эфира
+          if (typeof rawPos === 'number' && rawPos > 0 && rawPos < 15) {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
-            // Если донор воспроизводит первые секунды (< 15с), а эфир ушёл вперёд (> 45с) — принудительно синхронизируем через URL
-            if (rawPos < 15 && currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 4000) {
+            if (currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 6000) {
               lastLiveSyncSeekRef.current = Date.now();
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-              if (ifr && ifr.src) {
-                try {
-                  const u = new URL(ifr.src);
-                  u.searchParams.set('time', String(currentLiveSec));
-                  u.searchParams.set('t', String(currentLiveSec));
-                  ifr.src = u.toString();
-                } catch (_) {}
+              if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ event: 'play' }, '*');
               }
             }
           }
@@ -535,6 +528,7 @@ export function MediaBoxTvPlayer({
         }
         return {
           ...fresh,
+          initialTimecode: prevState.initialTimecode,
           elapsedSec: fresh.elapsedSec,
           progressPercent: fresh.progressPercent
         };
@@ -686,17 +680,16 @@ export function MediaBoxTvPlayer({
     : null;
   const maxDuration = validActual || catalogDuration;
 
-  // Прогресс трансляции в наивысший приоритет над нулевым запуском:
-  // Если initialTimecode равен 0 или не передан, берем актуальное смещение текущего эфира
-  const liveState = getChannelScheduleState(channel);
-  const liveElapsedSec = Math.floor(liveState.elapsedSec || 0);
-  const rawBroadcastTimecode = (initialTimecode && initialTimecode > 5) ? initialTimecode : liveElapsedSec;
+  // Начальный таймкод трансляции фиксируется для текущего тайтла эфира
+  const broadcastStartSec = (initialTimecode && initialTimecode > 5)
+    ? initialTimecode
+    : Math.floor(scheduleState.elapsedSec || 0);
 
   let safeTimecode: number;
-  if (rawBroadcastTimecode >= maxDuration) {
+  if (broadcastStartSec >= maxDuration) {
     safeTimecode = Math.max(0, maxDuration - 10);
   } else {
-    safeTimecode = Math.max(0, Math.floor(rawBroadcastTimecode));
+    safeTimecode = Math.max(0, Math.floor(broadcastStartSec));
   }
   const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
 
