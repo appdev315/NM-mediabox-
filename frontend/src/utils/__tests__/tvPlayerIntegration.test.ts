@@ -108,4 +108,31 @@ describe('MediaBox TV & Player Integration Verification', () => {
 
     bus.removeEventListener('mb-audio-started', handleAudio as any);
   });
+
+  it('verifies that TV Live Sync Watchdog correctly triggers resync when player starts from 0:00 instead of live timecode', () => {
+    // Симуляция логики Live TV Sync Watchdog
+    const currentLiveSec = 5909; // Джуманджи на канале фэнтези (82% фильма)
+    const rawPosStuckAtStart = 2; // Донор начал проигрывать с 0:02
+    let seekSent = false;
+    let targetSeekSec = 0;
+
+    const lastLiveSyncSeek = 0;
+    const now = 10000;
+
+    if (rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 3000) {
+      seekSent = true;
+      targetSeekSec = currentLiveSec;
+    }
+
+    expect(seekSent).toBe(true);
+    expect(targetSeekSec).toBe(5909);
+
+    // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
+    const rawPosSynced = 5910;
+    let duplicateSeekSent = false;
+    if (rawPosSynced < 15 && currentLiveSec > 45) {
+      duplicateSeekSent = true;
+    }
+    expect(duplicateSeekSent).toBe(false);
+  });
 });

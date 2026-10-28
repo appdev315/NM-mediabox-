@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useMusicApi, isMusicDataSaverEnabled, setMusicDataSaver, getNetworkSpeed, type MusicTrack, type MusicAlbum, PLACEHOLDER_ARTWORK } from '../hooks/useMusicApi';
+import { 
+  useMusicApi, 
+  getMusicDataSaverMode,
+  setMusicDataSaverMode,
+  isMusicDataSaverEffective,
+  type MusicDataSaverMode,
+  getNetworkSpeed, 
+  type MusicTrack, 
+  type MusicAlbum, 
+  PLACEHOLDER_ARTWORK 
+} from '../hooks/useMusicApi';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { useLanguage } from '../context/LanguageContext';
 import { WebApp } from '../telegram';
@@ -23,7 +33,22 @@ export function AppleMusic() {
   const { playTrack, currentTrack, isPlaying, isBuffering, isShuffle, toggleShuffle, setQueue, isTrackUnplayable } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search');
-  const [dataSaver, setDataSaver] = useState(() => isMusicDataSaverEnabled());
+  const [dataSaverMode, setDataSaverMode] = useState<MusicDataSaverMode>(() => getMusicDataSaverMode());
+  const [dataSaver, setDataSaver] = useState(() => isMusicDataSaverEffective());
+
+  // Реактивная синхронизация при изменении качества сети или переключении режима
+  useEffect(() => {
+    const handleSync = () => {
+      setDataSaverMode(getMusicDataSaverMode());
+      setDataSaver(isMusicDataSaverEffective());
+    };
+    window.addEventListener('mb-datasaver-changed', handleSync);
+    window.addEventListener('mb-network-changed', handleSync);
+    return () => {
+      window.removeEventListener('mb-datasaver-changed', handleSync);
+      window.removeEventListener('mb-network-changed', handleSync);
+    };
+  }, []);
 
   // Traffic saver: pick the low-bitrate stream for every *new* playback from this list
   const pickUrl = useCallback((track: MusicTrack): string =>
@@ -31,11 +56,15 @@ export function AppleMusic() {
   , [dataSaver]);
 
   const toggleDataSaver = () => {
-    const next = !dataSaver;
-    setDataSaver(next);
-    setMusicDataSaver(next);
+    // Циклическое переключение: Авто -> Вкл -> Выкл -> Авто
+    const nextMode: MusicDataSaverMode = 
+      dataSaverMode === 'auto' ? 'on' : (dataSaverMode === 'on' ? 'off' : 'auto');
+    setMusicDataSaverMode(nextMode);
+    setDataSaverMode(nextMode);
+    const nextEffective = isMusicDataSaverEffective();
+    setDataSaver(nextEffective);
     try {
-      WebApp?.HapticFeedback?.notificationOccurred(next ? 'success' : 'warning');
+      WebApp?.HapticFeedback?.notificationOccurred(nextEffective ? 'success' : 'warning');
     } catch (_) {}
   };
   const [searchQuery, setSearchQuery] = useState('');
@@ -467,7 +496,7 @@ export function AppleMusic() {
           </div>
         </div>
 
-        {/* Traffic Saver toggle: low bitrate (< 320 kbps) for weak/metered connections */}
+        {/* Traffic Saver toggle: low bitrate (< 320 kbps) for weak/metered connections with auto adaptation */}
         <button
           onClick={toggleDataSaver}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold border flex-shrink-0 transition-colors active:scale-95 ${
@@ -478,10 +507,17 @@ export function AppleMusic() {
             borderColor: 'var(--hint-color, rgba(150, 150, 150, 0.2))',
             color: 'var(--text-color)'
           } : undefined}
-          title={t('music_data_saver_hint') || 'Низкий битрейт для слабого подключения'}
+          title={
+            dataSaverMode === 'auto'
+              ? (dataSaver ? 'Экономия: Авто (слабая сеть)' : 'Экономия: Авто (быстрая сеть)')
+              : (dataSaverMode === 'on' ? 'Экономия: Включена' : 'Экономия: Выключена')
+          }
         >
           <span>📶</span>
-          <span>{t('music_data_saver') || 'Экономия'}</span>
+          <span>
+            {t('music_data_saver') || 'Экономия'}
+            {dataSaverMode === 'auto' ? ` • ${t('themeAuto') || 'Авто'}` : ''}
+          </span>
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dataSaver ? 'bg-white' : 'bg-emerald-500'}`} />
         </button>
       </div>

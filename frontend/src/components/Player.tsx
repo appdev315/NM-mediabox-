@@ -54,10 +54,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const mirrorAttemptsRef = useRef(0);
   // Флаг принудительной установки минимального стартового качества для предотвращения зависания при медленном интернете
   const hasSetInitialQualityRef = useRef(false);
+  // Флаг однократного стартового сика: предотвращает сброс HLS-буфера при повторных play-событиях
+  const hasSentInitialSeekRef = useRef(false);
   useEffect(() => {
-    // Новый фильм/новый список зеркал — счётчик попыток и флаг качества начинаем заново
+    // Новый фильм/новый список зеркал — счётчик попыток и флаги начинаем заново
     mirrorAttemptsRef.current = 0;
     hasSetInitialQualityRef.current = false;
+    hasSentInitialSeekRef.current = false;
   }, [iframeUrl, mirrors, targetEpisode?.season, targetEpisode?.episode]);
 
   // Compute full mirror list
@@ -90,6 +93,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     lastSourceKeyRef.current = sourceKey;
     initialTimecodeRef.current = initialTimecode;
     initialEpisodeRef.current = targetEpisode;
+    hasSentInitialSeekRef.current = false;
   }
 
   // Base iframe URL: embeds target season & episode for instant server-rendered series playback
@@ -149,7 +153,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
 
   // Verified donor commands: adFree (player-venom) + playlist go (opts.playlist).
   // Note: 'playlist hook' is intentionally excluded to preserve native autoPlay on stream change.
-  const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string) => {
+  const sendPlayCommands = useCallback((targetSeason?: string, targetEp?: string, isPlayerAck = false) => {
     try {
       if (iframeRef.current && iframeRef.current.contentWindow) {
         // 1. Skip donor's VAST ad-wait and trigger instant playback
@@ -165,9 +169,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           { api: 'play' },
           '*'
         );
-        // Для ТВ-эфира (isTv = true) таймкод уже детерминированно зашит в URL iframe (&time=...&t=...),
-        // повторный postMessage seek сбрасывает набранный HLS-буфер донора и удваивает задержку старта.
-        if (!isTv && initialTimecodeRef.current && initialTimecodeRef.current > 5) {
+        // Рукопожатие начального сика (ТВ и фильмы): отправляем к целевому таймкоду.
+        // Фиксируем hasSentInitialSeekRef.current при подтверждении готовности плеера (playerReady/startWatching/play),
+        // исключая сброс HLS-буфера и задержку старта при последующих событиях воспроизведения.
+        if (initialTimecodeRef.current && initialTimecodeRef.current > 5 && !hasSentInitialSeekRef.current) {
+          if (isPlayerAck) {
+            hasSentInitialSeekRef.current = true;
+          }
           const s = Math.floor(initialTimecodeRef.current);
           iframeRef.current.contentWindow.postMessage({ event: 'seek', time: s }, '*');
           iframeRef.current.contentWindow.postMessage({ api: 'seek', set: s }, '*');
@@ -201,7 +209,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }
       }
     } catch (_) {}
-  }, [language, isTv]);
+  }, [language]);
 
   // Listen for episode changes and player events inside embedded player
   useEffect(() => {
@@ -233,8 +241,8 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           onEpisodeChange?.(s, e);
         }
         if (data.event === 'playerReady' || data.event === 'startWatching' || data.event === 'play') {
-          // Send adFree, play and initial seek handshake
-          sendPlayCommands();
+          // Send adFree, play and initial seek handshake with confirmed player readiness
+          sendPlayCommands(undefined, undefined, true);
           // Запрашиваем список доступных качеств для автоматического выбора минимального на старте
           try {
             if (iframeRef.current?.contentWindow) {
@@ -243,7 +251,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
           } catch (_) {}
           // If player became ready while an episode change is pending, dispatch command immediately
           if (pendingTargetRef.current) {
-            sendPlayCommands(pendingTargetRef.current.season, pendingTargetRef.current.episode);
+            sendPlayCommands(pendingTargetRef.current.season, pendingTargetRef.current.episode, true);
           }
         }
         // Обработка списка качеств от плеера Liftw ('setting ls') для выбора минимального на старте

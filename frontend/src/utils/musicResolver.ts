@@ -8,36 +8,99 @@ export interface NetworkSpeedInfo {
   isSlow: boolean;
   effectiveType?: string;
   saveData?: boolean;
+  downlink?: number;
+  rtt?: number;
 }
 
 export const getNetworkSpeed = (): NetworkSpeedInfo => {
   if (typeof navigator === 'undefined') return { isSlow: false };
   const nav = navigator as any;
+  if (nav.onLine === false) return { isSlow: true };
   const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
   if (!conn) return { isSlow: false };
   const effectiveType = conn.effectiveType;
   const saveData = Boolean(conn.saveData);
-  const isSlow = saveData || effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g';
-  return { isSlow, effectiveType, saveData };
+  const downlink = typeof conn.downlink === 'number' ? conn.downlink : undefined;
+  const rtt = typeof conn.rtt === 'number' ? conn.rtt : undefined;
+
+  // Медленное/нестабильное соединение: 2G/3G, режим saveData, скорость < 1.5 Мбит/с или пинг > 450 мс
+  const isSlow = saveData || 
+    effectiveType === 'slow-2g' || 
+    effectiveType === '2g' || 
+    effectiveType === '3g' || 
+    (typeof downlink === 'number' && downlink > 0 && downlink < 1.5) ||
+    (typeof rtt === 'number' && rtt > 450);
+
+  return { isSlow, effectiveType, saveData, downlink, rtt };
 };
 
 const MUSIC_DATA_SAVER_KEY = 'mb_music_data_saver';
 
-/** Пользовательский тумблер «Экономия трафика»: низкий битрейт и отказ от фоновых предзагрузок */
-export const isMusicDataSaverEnabled = (): boolean => {
+export type MusicDataSaverMode = 'auto' | 'on' | 'off';
+
+/** Режим тумблера: auto (адаптивно по сети, по умолчанию), on (всегда вкл), off (всегда выкл) */
+export const getMusicDataSaverMode = (): MusicDataSaverMode => {
   try {
-    return localStorage.getItem(MUSIC_DATA_SAVER_KEY) === '1';
+    const val = localStorage.getItem(MUSIC_DATA_SAVER_KEY);
+    if (val === '1' || val === 'on') return 'on';
+    if (val === '0' || val === 'off') return 'off';
+    return 'auto';
   } catch (_) {
-    return false;
+    return 'auto';
   }
 };
 
-export const setMusicDataSaver = (enabled: boolean): void => {
+/** Фактический статус экономии трафика: учитывает режим и текущую скорость сети */
+export const isMusicDataSaverEffective = (): boolean => {
+  const mode = getMusicDataSaverMode();
+  if (mode === 'on') return true;
+  if (mode === 'off') return false;
+  // 'auto': экономия включается на плохом/нестабильном соединении и выключается на стабильном
+  return getNetworkSpeed().isSlow;
+};
+
+/** Пользовательский тумблер «Экономия трафика»: низкий битрейт и отказ от фоновых предзагрузок */
+export const isMusicDataSaverEnabled = (): boolean => {
+  return isMusicDataSaverEffective();
+};
+
+export const setMusicDataSaverMode = (mode: MusicDataSaverMode): void => {
   try {
-    if (enabled) localStorage.setItem(MUSIC_DATA_SAVER_KEY, '1');
-    else localStorage.removeItem(MUSIC_DATA_SAVER_KEY);
+    if (mode === 'auto') {
+      localStorage.removeItem(MUSIC_DATA_SAVER_KEY);
+    } else {
+      localStorage.setItem(MUSIC_DATA_SAVER_KEY, mode === 'on' ? '1' : '0');
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mb-datasaver-changed', { 
+        detail: { mode, effective: isMusicDataSaverEffective() } 
+      }));
+    }
   } catch (_) {}
 };
+
+export const setMusicDataSaver = (enabled: boolean): void => {
+  setMusicDataSaverMode(enabled ? 'on' : 'off');
+};
+
+// Реактивный слушатель изменения качества сети
+if (typeof window !== 'undefined') {
+  const handleNetChange = () => {
+    window.dispatchEvent(new CustomEvent('mb-network-changed', { detail: getNetworkSpeed() }));
+    window.dispatchEvent(new CustomEvent('mb-datasaver-changed', { 
+      detail: { mode: getMusicDataSaverMode(), effective: isMusicDataSaverEffective() } 
+    }));
+  };
+  window.addEventListener('online', handleNetChange);
+  window.addEventListener('offline', handleNetChange);
+  try {
+    const nav = navigator as any;
+    const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    if (conn && typeof conn.addEventListener === 'function') {
+      conn.addEventListener('change', handleNetChange);
+    }
+  } catch (_) {}
+}
 
 // --- РЕЗЕРВНЫЕ АПСТРИМЫ JIOSAAVN ---
 export const SAAVN_FALLBACK_BASES = [

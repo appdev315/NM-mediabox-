@@ -97,6 +97,8 @@ export function MediaBoxTvPlayer({
   const hasSetInitialQualityRef = useRef(false);
   // Счётчик попыток перехода на следующий тайтл при 404 (до 2 подряд)
   const fallbackAttemptsRef = useRef(0);
+  // Метка времени последней синхронизации эфира (защита от частых сиков)
+  const lastLiveSyncSeekRef = useRef<number>(0);
 
   // Блокировка отката дорожки донором Liftw: после ручного выбора пользователем
   // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
@@ -157,6 +159,7 @@ export function MediaBoxTvPlayer({
     setCurrentCc('');
     hasSetInitialQualityRef.current = false;
     actualDurationRef.current = null;
+    lastLiveSyncSeekRef.current = 0;
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
   // Опрос доступных дорожек при готовности плеера.
@@ -473,6 +476,31 @@ export function MediaBoxTvPlayer({
             ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
             ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
             ifr.contentWindow.postMessage({ event: 'play' }, '*');
+          }
+        }
+
+        // Синхронизация прямого эфира (Live TV Sync Watchdog): если донор стартовал сначала (0:00) вместо таймкода эфира
+        if (
+          data.event === 'timeupdate' || 
+          data.event === 'viewProgress' || 
+          data.type === 'timeupdate' || 
+          data.event === 'time' || 
+          data.type === 'time'
+        ) {
+          const rawPos = data.time ?? data.currentTime ?? data.position;
+          if (typeof rawPos === 'number') {
+            const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
+            // Если донор воспроизводит первые секунды (< 15с), а эфир ушёл вперёд (> 45с) — принудительно синхронизируем
+            if (rawPos < 15 && currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 3000) {
+              lastLiveSyncSeekRef.current = Date.now();
+              const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+              if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ event: 'play' }, '*');
+              }
+            }
           }
         }
         // Обработка сообщений плеера Liftw о фактическом воспроизведении

@@ -29,7 +29,11 @@ export interface MusicAlbum {
 
 import {
   type NetworkSpeedInfo,
+  type MusicDataSaverMode,
   getNetworkSpeed,
+  getMusicDataSaverMode,
+  isMusicDataSaverEffective,
+  setMusicDataSaverMode,
   isMusicDataSaverEnabled,
   setMusicDataSaver,
   resolveFullAudioUrl,
@@ -47,7 +51,11 @@ import {
 
 export {
   type NetworkSpeedInfo,
+  type MusicDataSaverMode,
   getNetworkSpeed,
+  getMusicDataSaverMode,
+  isMusicDataSaverEffective,
+  setMusicDataSaverMode,
   isMusicDataSaverEnabled,
   setMusicDataSaver,
   resolveFullAudioUrl,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   cleanTrackTitle,
   cleanPrimaryArtist,
@@ -8,6 +8,9 @@ import {
   extractInvidiousAudio,
   extractAudioUrl,
   extractLowAudioUrl,
+  getMusicDataSaverMode,
+  setMusicDataSaverMode,
+  isMusicDataSaverEffective,
 } from '../musicResolver';
 
 describe('musicResolver unit tests', () => {
@@ -104,6 +107,42 @@ describe('musicResolver unit tests', () => {
       ];
       expect(extractInvidiousAudio(formats, false)).toBe('https://inst/m4a_high');
       expect(extractInvidiousAudio(formats, true)).toBe('https://inst/opus_low');
+    });
+  });
+
+  describe('adaptive network data saver modes', () => {
+    let mockStore: Record<string, string> = {};
+
+    beforeEach(() => {
+      mockStore = {};
+      const mockStorage = {
+        getItem: (k: string) => mockStore[k] ?? null,
+        setItem: (k: string, v: string) => { mockStore[k] = String(v); },
+        removeItem: (k: string) => { delete mockStore[k]; },
+        clear: () => { mockStore = {}; },
+      };
+      // Polyfill localStorage in Node test environment
+      (globalThis as any).localStorage = mockStorage;
+    });
+
+    it('defaults to auto mode', () => {
+      expect(getMusicDataSaverMode()).toBe('auto');
+    });
+
+    it('sets and reads on/off/auto modes', () => {
+      setMusicDataSaverMode('on');
+      expect(getMusicDataSaverMode()).toBe('on');
+      expect(isMusicDataSaverEffective()).toBe(true);
+      expect(mockStore['mb_music_data_saver']).toBe('1');
+
+      setMusicDataSaverMode('off');
+      expect(getMusicDataSaverMode()).toBe('off');
+      expect(isMusicDataSaverEffective()).toBe(false);
+      expect(mockStore['mb_music_data_saver']).toBe('0');
+
+      setMusicDataSaverMode('auto');
+      expect(getMusicDataSaverMode()).toBe('auto');
+      expect(mockStore['mb_music_data_saver']).toBeUndefined();
     });
   });
 });
