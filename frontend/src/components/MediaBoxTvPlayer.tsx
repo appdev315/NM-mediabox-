@@ -88,6 +88,11 @@ export function MediaBoxTvPlayer({
   // Флаг установки минимального начального качества при старте стрима
   const hasSetInitialQualityRef = useRef(false);
 
+  // Блокировка отката дорожки донором Liftw: после ручного выбора пользователем
+  // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
+  const userSoundLockUntilRef = useRef<number>(0);
+  const userSelectedSoundRef = useRef<string | null>(null);
+
   // Отправка команды изменения настроек в iframe донора Liftw через postMessage API
   const sendDonorSetting = useCallback((key: 'sound' | 'quality' | 'cc', value: string) => {
     try {
@@ -97,6 +102,25 @@ export function MediaBoxTvPlayer({
       }
     } catch (_) {}
   }, []);
+
+  // Надежный выбор аудиодорожки с защитой от .once(AUDIO_TRACK_SWITCHED) сброса донора
+  const selectSoundTrack = useCallback((item: string) => {
+    userSoundLockUntilRef.current = Date.now() + 4000;
+    userSelectedSoundRef.current = item;
+    setCurrentSound(item);
+    try {
+      localStorage.setItem('mediabox_pref_sound', item);
+    } catch (_) {}
+
+    sendDonorSetting('sound', item);
+    // Double-tap handshake: повторная отправка для фиксации после отработки внутреннего сброса донора
+    setTimeout(() => {
+      sendDonorSetting('sound', item);
+    }, 350);
+    setTimeout(() => {
+      sendDonorSetting('sound', item);
+    }, 850);
+  }, [sendDonorSetting]);
 
   // Запрос текущих списков настроек и активных значений из плеера Liftw
   const queryDonorSettings = useCallback(() => {
@@ -401,6 +425,14 @@ export function MediaBoxTvPlayer({
         // Обработка активных выбранных значений из донора Liftw ('setting')
         if (data.event === 'setting') {
           if (data.key === 'sound' && typeof data.value === 'string') {
+            // Если пользователь недавно выбрал дорожку вручную, блокируем откат на дефолтный русский дубляж
+            if (Date.now() < userSoundLockUntilRef.current) {
+              if (userSelectedSoundRef.current && data.value !== userSelectedSoundRef.current) {
+                // Донор пытается откатить дорожку: повторно отправляем команду выбора пользователя
+                sendDonorSetting('sound', userSelectedSoundRef.current);
+              }
+              return;
+            }
             setCurrentSound(data.value);
             try {
               localStorage.setItem('mediabox_pref_sound', data.value);
@@ -503,7 +535,8 @@ export function MediaBoxTvPlayer({
   useEffect(() => {
     let isCancelled = false;
     const { currentItem } = scheduleState;
-    const cacheKey = `liftw_stream_v2_${currentItem.id}_${currentItem.type}`;
+    const cacheKey = `liftw_stream_v3_${currentItem.id}_${currentItem.type}`;
+    const minRealisticSec = currentItem.type === 'tv' ? 300 : 1500;
 
     const loadStream = async (bypassCache = false) => {
       setIsLoadingStream(true);
@@ -517,7 +550,7 @@ export function MediaBoxTvPlayer({
         // 1. Проверяем локальный кэш (синхронный localStorage и асинхронный IndexedDB)
         const cached = clientCache.get<any>(cacheKey) || (await clientCache.getAsync<any>(cacheKey));
         if (cached && cached.iframe && !isCancelled) {
-          if (cached.durationSec) {
+          if (cached.durationSec && cached.durationSec >= minRealisticSec) {
             actualDurationRef.current = cached.durationSec;
           }
           setIframeUrl(cached.iframe);
@@ -554,7 +587,7 @@ export function MediaBoxTvPlayer({
           // Сохраняем в кэш на 90 дней (7776000 сек) для фильмов и сериалов
           const ttlSeconds = 7776000;
           clientCache.set(cacheKey, data, ttlSeconds);
-          if (data.durationSec) {
+          if (data.durationSec && data.durationSec >= minRealisticSec) {
             actualDurationRef.current = data.durationSec;
           }
           setIframeUrl(data.iframe);
@@ -584,11 +617,23 @@ export function MediaBoxTvPlayer({
   const { currentItem, initialTimecode, nextItem, formattedNextTime } = scheduleState;
   const isSeries = currentItem.type === 'tv';
 
-  // Вычисляем безопасный таймкод с учетом реальной длительности потока из манифеста донора,
-  // предотвращая выход за пределы EOF и сброс на 0:00 при разнице между слотом ТВ и хронометражем
-  const maxDuration = actualDurationRef.current || currentItem.durationSec;
-  const safeTimecode = maxDuration > 30 ? Math.floor(initialTimecode % maxDuration) : initialTimecode;
-  const finalTimecode = Math.min(safeTimecode, Math.max(0, (maxDuration || 7200) - 15));
+  // Вычисляем безопасный таймкод с учетом реальной длительности потока из манифеста донора.
+  // Защита от циклического перезапуска: если эфир вышел за фактическую длительность, не делаем modulo (который сбрасывал на 2:38),
+  // а удерживаем воспроизведение за 10 секунд до финала в ожидании естественного перехода сетки на следующий тайтл
+  const catalogDuration = currentItem.durationSec || 7200;
+  const minRealisticSec = isSeries ? 300 : 1500;
+  const validActual = (actualDurationRef.current && actualDurationRef.current >= minRealisticSec)
+    ? actualDurationRef.current
+    : null;
+  const maxDuration = validActual || catalogDuration;
+
+  let safeTimecode: number;
+  if (initialTimecode >= maxDuration) {
+    safeTimecode = Math.max(0, maxDuration - 10);
+  } else {
+    safeTimecode = Math.max(0, Math.floor(initialTimecode));
+  }
+  const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
 
   return (
     <div 
@@ -971,11 +1016,7 @@ export function MediaBoxTvPlayer({
                               key={item}
                               type="button"
                               onClick={() => {
-                                sendDonorSetting('sound', item);
-                                setCurrentSound(item);
-                                try {
-                                  localStorage.setItem('mediabox_pref_sound', item);
-                                } catch (_) {}
+                                selectSoundTrack(item);
                               }}
                               className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
                                 isSelected
@@ -1108,7 +1149,7 @@ export function MediaBoxTvPlayer({
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <h3 className="font-bold text-white text-sm">{getChannelName(channel, language)}</h3>
-                <span className="text-[11px] text-white/50">{t('tvScheduleToday')}</span>
+                <span className="text-[11px] text-white/50">{t('tvProgram')}</span>
               </div>
             </div>
 
@@ -1135,6 +1176,11 @@ export function MediaBoxTvPlayer({
                       }`}>
                         {sched.formattedStartTime}
                       </span>
+                      {sched.isTomorrow && (
+                        <span className="text-[9px] font-bold text-amber-400/90 bg-amber-400/10 border border-amber-400/20 px-1 py-0.2 rounded">
+                          +1д
+                        </span>
+                      )}
                       {sched.isCurrent && (
                         <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
                           • {t('tvLive')}

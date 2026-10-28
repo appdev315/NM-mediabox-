@@ -677,7 +677,53 @@ export function getChannelPhaseOffset(channel: TvChannel): number {
   return (hash % 100) * 3600;
 }
 
-// Расчёт текущего состояния прямого эфира (непрерывная 24/7 FAST-цепочка по фактическому хронометражу)
+// Получить список ровно из 10 передач на конкретный день недели с учетом Dayparting (Топ-30 прайм-тайм)
+export function getDayItemsForChannel(
+  channel: TvChannel, 
+  dayOfWeek: number, 
+  weekNumber = 0
+): TvPlaylistItem[] {
+  const pool = getChannelPool(channel);
+  if (pool.length === 0) return [];
+  if (channel.category === 'series') {
+    const safeDay = ((dayOfWeek % 7) + 7) % 7;
+    const startIndex = (weekNumber * 70 + safeDay * 10) % pool.length;
+    const items: TvPlaylistItem[] = [];
+    for (let i = 0; i < 10; i++) {
+      items.push(pool[(startIndex + i) % pool.length]);
+    }
+    return items;
+  }
+
+  // ДЛЯ ФИЛЬМОВ (Dayparting Rating-Tiered + Weekly Rotation):
+  const poolLen = pool.length;
+  const t1Count = Math.max(1, Math.round(poolLen * 0.3));
+  const t2Count = Math.max(1, Math.round(poolLen * 0.4));
+  const tier1 = pool.slice(0, t1Count);
+  const tier2 = pool.slice(t1Count, t1Count + t2Count);
+  const tier3 = pool.slice(t1Count + t2Count);
+
+  const safeDay = ((dayOfWeek % 7) + 7) % 7;
+  const t3Offset = (weekNumber * 5 + safeDay * 3) % tier3.length;
+  const t2Offset = (weekNumber * 7 + safeDay * 4) % tier2.length;
+  const t1Offset = (weekNumber * 5 + safeDay * 3) % tier1.length;
+
+  const pick = (arr: TvPlaylistItem[], offset: number, count: number) => {
+    const res: TvPlaylistItem[] = [];
+    for (let i = 0; i < count; i++) {
+      res.push(arr[(offset + i) % arr.length]);
+    }
+    return res;
+  };
+
+  return [
+    ...pick(tier3, t3Offset, 3), // Ночной и утренний эфир (слоты 0, 1, 2)
+    ...pick(tier2, t2Offset, 4), // Дневной эфир (слоты 3, 4, 5, 6)
+    ...pick(tier1, t1Offset, 3)  // Прайм-тайм вечер (слоты 7, 8, 9)
+  ];
+}
+
+// Расчёт текущего состояния прямого эфира (еженедельная суточная ротация с Dayparting)
 export function getChannelScheduleState(
   channel: TvChannel, 
   language?: string,
@@ -716,45 +762,103 @@ export function getChannelScheduleState(
     };
   }
 
-  // Суммарная продолжительность полного непрерывного цикла канала в секундах
-  let totalCycleDurationSec = 0;
-  for (let i = 0; i < pool.length; i++) {
-    totalCycleDurationSec += (pool[i].durationSec || 7200);
+  const d = new Date(now * 1000);
+  const dayOfWeek = (d.getDay() + 6) % 7; // 0 = Пн ... 6 = Вс
+  const secondsInDay = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+  const weekNumber = Math.max(0, Math.floor((now - EPOCH_ANCHOR_SEC) / 604800));
+
+  // ДЛЯ СЕРИАЛОВ: Непрерывный сквозной прогон эпизодов (S01E01 -> S01E02...)
+  if (channel.category === 'series') {
+    let totalCycleDurationSec = 0;
+    for (let i = 0; i < pool.length; i++) {
+      totalCycleDurationSec += (pool[i].durationSec || 2700);
+    }
+    const channelOffset = getChannelPhaseOffset(channel);
+    const elapsedSinceEpoch = (now - EPOCH_ANCHOR_SEC) - channelOffset;
+    const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
+
+    let accumulatedSec = 0;
+    let currentIndex = 0;
+    let elapsedInItem = 0;
+
+    for (let i = 0; i < pool.length; i++) {
+      const itemDuration = pool[i].durationSec || 2700;
+      if (offsetInCycle < accumulatedSec + itemDuration) {
+        currentIndex = i;
+        elapsedInItem = offsetInCycle - accumulatedSec;
+        break;
+      }
+      accumulatedSec += itemDuration;
+    }
+
+    const currentItem = pool[currentIndex];
+    const durationSec = currentItem.durationSec || 2700;
+    const elapsedSec = Math.max(0, Math.min(durationSec, elapsedInItem));
+    const remainingSec = Math.max(0, durationSec - elapsedSec);
+    const progressPercent = Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
+    const nextItem = pool[(currentIndex + 1) % pool.length];
+    const nextStartTime = now + remainingSec;
+
+    return {
+      channel,
+      currentItem,
+      initialTimecode: elapsedSec,
+      elapsedSec,
+      remainingSec,
+      durationSec,
+      progressPercent,
+      nextItem,
+      nextStartTime,
+      formattedElapsed: formatTimecode(elapsedSec),
+      formattedDuration: formatTimecode(durationSec),
+      formattedTimeRemaining: formatTimeRemaining(remainingSec, language),
+      formattedNextTime: formatClockTime(nextStartTime),
+      slotIndex: currentIndex,
+      dayOfWeek
+    };
   }
 
-  // Секунды от опорной эпохи (целочисленный остаток по модулю длины цикла) со сдвигом фазы канала
-  const channelOffset = getChannelPhaseOffset(channel);
-  const elapsedSinceEpoch = (now - EPOCH_ANCHOR_SEC) - channelOffset;
-  const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
+  // ДЛЯ ФИЛЬМОВ: Еженедельная суточная ротация с Dayparting (Tier 1, Tier 2, Tier 3)
+  const dayItems = getDayItemsForChannel(channel, dayOfWeek, weekNumber);
+  let dayTotalSec = 0;
+  for (const item of dayItems) {
+    dayTotalSec += (item.durationSec || 7200);
+  }
 
-  // Быстрый O(N) поиск текущего фильма в непрерывной цепочке (100 элементов суммируются за 0.002 мс)
+  const effectiveDaySec = dayTotalSec > 0 ? dayTotalSec : 86400;
+  // Смещение внутри суточного набора фильмов
+  const offsetInDay = ((secondsInDay % effectiveDaySec) + effectiveDaySec) % effectiveDaySec;
+
   let accumulatedSec = 0;
   let currentIndex = 0;
   let elapsedInItem = 0;
 
-  for (let i = 0; i < pool.length; i++) {
-    const itemDuration = pool[i].durationSec || 7200;
-    if (offsetInCycle < accumulatedSec + itemDuration) {
+  for (let i = 0; i < dayItems.length; i++) {
+    const itemDuration = dayItems[i].durationSec || 7200;
+    if (offsetInDay < accumulatedSec + itemDuration) {
       currentIndex = i;
-      elapsedInItem = offsetInCycle - accumulatedSec;
+      elapsedInItem = offsetInDay - accumulatedSec;
       break;
     }
     accumulatedSec += itemDuration;
   }
 
-  const currentItem = pool[currentIndex];
+  const currentItem = dayItems[currentIndex];
   const durationSec = currentItem.durationSec || 7200;
   const elapsedSec = Math.max(0, Math.min(durationSec, elapsedInItem));
   const remainingSec = Math.max(0, durationSec - elapsedSec);
-  // Прогресс-бар считается строго по реальному хронометражу текущего тайтла: 0..100%
   const progressPercent = Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
 
-  // Следующий тайтл в непрерывной цепочке эфира
-  const nextItem = pool[(currentIndex + 1) % pool.length];
+  let nextItem: TvPlaylistItem;
+  if (currentIndex + 1 < dayItems.length) {
+    nextItem = dayItems[currentIndex + 1];
+  } else {
+    const nextDay = (dayOfWeek + 1) % 7;
+    const nextWeek = nextDay === 0 ? weekNumber + 1 : weekNumber;
+    const nextDayItems = getDayItemsForChannel(channel, nextDay, nextWeek);
+    nextItem = nextDayItems[0] || currentItem;
+  }
   const nextStartTime = now + remainingSec;
-
-  const d = new Date(now * 1000);
-  const dayOfWeek = (d.getDay() + 6) % 7;
 
   return {
     channel,
@@ -779,20 +883,18 @@ export function getChannelScheduleState(
 export function getChannelUpcomingSchedule(
   channel: TvChannel, 
   currentTimestampSec?: number
-): Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number }> {
+): Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number; isTomorrow: boolean }> {
   const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
   const state = getChannelScheduleState(channel, undefined, now);
   const pool = getChannelPool(channel);
   if (pool.length === 0) return [];
 
-  // Индекс текущего воспроизводимого тайтла в пуле канала
-  const currentIdx = pool.findIndex(it => 
-    it.id === state.currentItem.id && 
-    (it.type !== 'tv' || (it.season === state.currentItem.season && it.episode === state.currentItem.episode))
-  );
-  const baseIdx = currentIdx >= 0 ? currentIdx : 0;
+  const d = new Date(now * 1000);
+  const currentDay = d.getDate();
+  const dayOfWeek = (d.getDay() + 6) % 7;
+  const weekNumber = Math.max(0, Math.floor((now - EPOCH_ANCHOR_SEC) / 604800));
 
-  const result: Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number }> = [];
+  const result: Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number; isTomorrow: boolean }> = [];
 
   // 1. Текущий активный эфир
   const currentStartTime = now - state.elapsedSec;
@@ -801,20 +903,57 @@ export function getChannelUpcomingSchedule(
     startTimeSec: currentStartTime,
     formattedStartTime: formatClockTime(currentStartTime),
     isCurrent: true,
-    slotNum: 1
+    slotNum: 1,
+    isTomorrow: false
   });
 
-  // 2. Следующие 9 передач с непрерывным временем старта по фактическому хронометражу
+  // Для сериалов: последовательно следующие серии очереди
+  if (channel.category === 'series') {
+    const currentIdx = pool.findIndex(it => 
+      it.id === state.currentItem.id && 
+      (it.type !== 'tv' || (it.season === state.currentItem.season && it.episode === state.currentItem.episode))
+    );
+    const baseIdx = currentIdx >= 0 ? currentIdx : 0;
+    let cumulativeTime = now + state.remainingSec;
+    for (let step = 1; step < 10; step++) {
+      const nextIdx = (baseIdx + step) % pool.length;
+      const nextItem = pool[nextIdx];
+      const isTomorrow = new Date(cumulativeTime * 1000).getDate() !== currentDay;
+      result.push({
+        item: nextItem,
+        startTimeSec: cumulativeTime,
+        formattedStartTime: formatClockTime(cumulativeTime),
+        isCurrent: false,
+        slotNum: step + 1,
+        isTomorrow
+      });
+      cumulativeTime += (nextItem.durationSec || 2700);
+    }
+    return result;
+  }
+
+  // Для фильмов: последовательно оставшиеся фильмы сегодняшней суточной сетки + фильмы следующего дня
+  const todayItems = getDayItemsForChannel(channel, dayOfWeek, weekNumber);
+  const tomorrowDay = (dayOfWeek + 1) % 7;
+  const tomorrowWeek = tomorrowDay === 0 ? weekNumber + 1 : weekNumber;
+  const tomorrowItems = getDayItemsForChannel(channel, tomorrowDay, tomorrowWeek);
+
+  const futureQueue: TvPlaylistItem[] = [
+    ...todayItems.slice(state.slotIndex + 1),
+    ...tomorrowItems
+  ];
+
   let cumulativeTime = now + state.remainingSec;
-  for (let step = 1; step < 10; step++) {
-    const nextIdx = (baseIdx + step) % pool.length;
-    const nextItem = pool[nextIdx];
+  for (let step = 0; step < 9 && step < futureQueue.length; step++) {
+    const nextItem = futureQueue[step];
+    const isTomorrow = new Date(cumulativeTime * 1000).getDate() !== currentDay;
     result.push({
       item: nextItem,
       startTimeSec: cumulativeTime,
       formattedStartTime: formatClockTime(cumulativeTime),
       isCurrent: false,
-      slotNum: step + 1
+      slotNum: step + 2,
+      isTomorrow
     });
     cumulativeTime += (nextItem.durationSec || 7200);
   }
@@ -822,10 +961,11 @@ export function getChannelUpcomingSchedule(
   return result;
 }
 
-// Совместимость с экспортом getChannelDayItems: возвращает окно тайтлов вещания
-export function getChannelDayItems(channel: TvChannel, _dayOfWeek?: number, currentTimestampSec?: number): TvPlaylistItem[] {
-  const upcoming = getChannelUpcomingSchedule(channel, currentTimestampSec);
-  return upcoming.map(u => u.item);
+// Совместимость с экспортом getChannelDayItems: возвращает 10 тайтлов на указанный день недели
+export function getChannelDayItems(channel: TvChannel, dayOfWeek = 0, currentTimestampSec?: number): TvPlaylistItem[] {
+  const now = currentTimestampSec ?? Math.floor(Date.now() / 1000);
+  const weekNumber = Math.max(0, Math.floor((now - EPOCH_ANCHOR_SEC) / 604800));
+  return getDayItemsForChannel(channel, dayOfWeek, weekNumber);
 }
 
 // Получение локализованного названия передачи / фильма

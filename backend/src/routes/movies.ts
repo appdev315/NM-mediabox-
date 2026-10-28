@@ -540,9 +540,29 @@ moviesRouter.get('/api/liftw', async (c: Context) => {
     let parsedDurationSec: number | null = null;
     const rawTime = info?.info?.time || '';
     if (typeof rawTime === 'string' && rawTime) {
-      const match = rawTime.match(/(\d+)\s*мин/i);
-      if (match) {
-        parsedDurationSec = parseInt(match[1], 10) * 60;
+      let totalSec = 0;
+      let matched = false;
+      const hoursMatch = rawTime.match(/(\d+)\s*(?:ч|час|h|hr)/i);
+      const minsMatch = rawTime.match(/(\d+)\s*(?:м|мин|m|min)/i);
+      const secsMatch = rawTime.match(/(\d+)\s*(?:с|сек|s|sec)/i);
+
+      if (hoursMatch || minsMatch || secsMatch) {
+        if (hoursMatch) { totalSec += parseInt(hoursMatch[1], 10) * 3600; matched = true; }
+        if (minsMatch) { totalSec += parseInt(minsMatch[1], 10) * 60; matched = true; }
+        if (secsMatch) { totalSec += parseInt(secsMatch[1], 10); matched = true; }
+      } else {
+        const colonParts = rawTime.trim().split(':').map((p: string) => parseInt(p, 10));
+        if (colonParts.length === 3 && colonParts.every((n: number) => !isNaN(n))) {
+          totalSec = colonParts[0] * 3600 + colonParts[1] * 60 + colonParts[2];
+          matched = true;
+        } else if (colonParts.length === 2 && colonParts.every((n: number) => !isNaN(n))) {
+          totalSec = colonParts[0] * 60 + colonParts[1];
+          matched = true;
+        }
+      }
+
+      if (matched && totalSec > 0) {
+        parsedDurationSec = totalSec;
       }
     }
 

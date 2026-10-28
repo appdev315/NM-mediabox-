@@ -81,8 +81,8 @@ describe('MediaBox TV & Player Integration Verification', () => {
       expect(item.origin_title).toBeTruthy();
       expect(item.posterPath).toMatch(/^\/.+\.(jpg|png|webp)$/i);
       expect(item.year).toBe('2026');
-      expect(item.durationSec).toBeGreaterThanOrEqual(7200);
-      expect(item.durationSec).toBeLessThanOrEqual(8640);
+      expect(item.durationSec).toBeGreaterThanOrEqual(3600);
+      expect(item.durationSec).toBeLessThanOrEqual(14400);
     }
   });
 

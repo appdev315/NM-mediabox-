@@ -214,8 +214,21 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
       for (let i = 0; i < upcoming.length - 1; i++) {
         expect(upcoming[i + 1].startTimeSec).toBeGreaterThan(upcoming[i].startTimeSec);
         expect(upcoming[i].item.durationSec).toBeGreaterThan(0);
+        expect(typeof upcoming[i].isTomorrow).toBe('boolean');
       }
     }
+  });
+
+  it('should have accurate real runtimes for Deadpool & Wolverine and Nightmare Before Christmas', () => {
+    const scifi = TV_CHANNELS.find(c => c.id === 'ch-scifi')!;
+    const deadpool = scifi.moviePool?.find(m => m.id === 533535);
+    expect(deadpool).toBeDefined();
+    expect(deadpool?.durationSec).toBe(7680); // 128 minutes
+
+    const animation = TV_CHANNELS.find(c => c.id === 'ch-animation')!;
+    const nightmare = animation.moviePool?.find(m => m.id === 9479);
+    expect(nightmare).toBeDefined();
+    expect(nightmare?.durationSec).toBe(4560); // 76 minutes
   });
 });
 

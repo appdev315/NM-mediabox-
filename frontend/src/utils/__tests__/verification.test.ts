@@ -24,7 +24,7 @@ describe('Comprehensive End-to-End Verification', () => {
     expect(item?.title).toBe('Приключения Паддингтона 2');
     expect(item?.year).toBe('2017');
     expect(item?.posterPath).toBe('/rqegEjWMbVXiE5XhPJ4NhvDU8ps.jpg');
-    expect(item?.durationSec).toBe(6180);
+    expect(item?.durationSec).toBe(6240); // 104 minutes (TMDB real runtime)
   });
 
   it('verifies 24/7 continuous FAST stream schedule calculation', () => {
