@@ -677,7 +677,7 @@ export function getChannelPhaseOffset(channel: TvChannel): number {
   return (hash % 100) * 3600;
 }
 
-// Получить список передач на конкретный день недели с учетом Dayparting (полное 24-часовое заполнение)
+// Получить список передач на конкретный день недели с полным суточным заполнением без повторов
 export function getDayItemsForChannel(
   channel: TvChannel, 
   dayOfWeek: number, 
@@ -685,48 +685,14 @@ export function getDayItemsForChannel(
 ): TvPlaylistItem[] {
   const pool = getChannelPool(channel);
   if (pool.length === 0) return [];
-  if (channel.category === 'series') {
-    const safeDay = ((dayOfWeek % 7) + 7) % 7;
-    const startIndex = (weekNumber * 70 + safeDay * 10) % pool.length;
-    const items: TvPlaylistItem[] = [];
-    for (let i = 0; i < 10; i++) {
-      items.push(pool[(startIndex + i) % pool.length]);
-    }
-    return items;
-  }
-
-  // ДЛЯ ФИЛЬМОВ (Dayparting Rating-Tiered + Weekly Rotation с полным 24-часовым хронометражем):
-  const poolLen = pool.length;
-  const t1Count = Math.max(1, Math.round(poolLen * 0.3));
-  const t2Count = Math.max(1, Math.round(poolLen * 0.4));
-  const tier1 = pool.slice(0, t1Count);
-  const tier2 = pool.slice(t1Count, t1Count + t2Count);
-  const tier3 = pool.slice(t1Count + t2Count);
-
   const safeDay = ((dayOfWeek % 7) + 7) % 7;
-  const t3Offset = (weekNumber * 5 + safeDay * 3) % (tier3.length || 1);
-  const t2Offset = (weekNumber * 7 + safeDay * 4) % (tier2.length || 1);
-  const t1Offset = (weekNumber * 5 + safeDay * 3) % (tier1.length || 1);
-
-  const pickUntil = (arr: TvPlaylistItem[], offset: number, targetSec: number, minCount: number): TvPlaylistItem[] => {
-    if (arr.length === 0) return [];
-    const res: TvPlaylistItem[] = [];
-    let accSec = 0;
-    let idx = 0;
-    while ((accSec < targetSec || res.length < minCount) && idx < arr.length * 2) {
-      const item = arr[(offset + idx) % arr.length];
-      res.push(item);
-      accSec += (item.durationSec || 7200);
-      idx++;
-    }
-    return res;
-  };
-
-  const nightMorning = pickUntil(tier3, t3Offset, 28800, 4); // 00:00 - 08:00 (~8ч)
-  const daytime = pickUntil(tier2, t2Offset, 36000, 5);      // 08:00 - 18:00 (~10ч)
-  const primeTime = pickUntil(tier1, t1Offset, 21600, 3);    // 18:00 - 24:00 (~6ч)
-
-  return [...nightMorning, ...daytime, ...primeTime];
+  const itemsPerDay = channel.category === 'series' ? 10 : 12;
+  const startIndex = (weekNumber * (itemsPerDay * 7) + safeDay * itemsPerDay) % pool.length;
+  const items: TvPlaylistItem[] = [];
+  for (let i = 0; i < itemsPerDay; i++) {
+    items.push(pool[(startIndex + i) % pool.length]);
+  }
+  return items;
 }
 
 // Расчёт текущего состояния прямого эфира (еженедельная суточная ротация с Dayparting)
@@ -770,100 +736,39 @@ export function getChannelScheduleState(
 
   const d = new Date(now * 1000);
   const dayOfWeek = (d.getDay() + 6) % 7; // 0 = Пн ... 6 = Вс
-  const secondsInDay = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  const weekNumber = Math.max(0, Math.floor((now - EPOCH_ANCHOR_SEC) / 604800));
 
-  // ДЛЯ СЕРИАЛОВ: Непрерывный сквозной прогон эпизодов (S01E01 -> S01E02...)
-  if (channel.category === 'series') {
-    let totalCycleDurationSec = 0;
-    for (let i = 0; i < pool.length; i++) {
-      totalCycleDurationSec += (pool[i].durationSec || 2700);
-    }
-    const channelOffset = getChannelPhaseOffset(channel);
-    const elapsedSinceEpoch = (now - EPOCH_ANCHOR_SEC) - channelOffset;
-    const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
-
-    let accumulatedSec = 0;
-    let currentIndex = 0;
-    let elapsedInItem = 0;
-
-    for (let i = 0; i < pool.length; i++) {
-      const itemDuration = pool[i].durationSec || 2700;
-      if (offsetInCycle < accumulatedSec + itemDuration) {
-        currentIndex = i;
-        elapsedInItem = offsetInCycle - accumulatedSec;
-        break;
-      }
-      accumulatedSec += itemDuration;
-    }
-
-    const currentItem = pool[currentIndex];
-    const durationSec = currentItem.durationSec || 2700;
-    const elapsedSec = Math.max(0, Math.min(durationSec, elapsedInItem));
-    const remainingSec = Math.max(0, durationSec - elapsedSec);
-    const progressPercent = Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
-    const nextItem = pool[(currentIndex + 1) % pool.length];
-    const nextStartTime = now + remainingSec;
-
-    return {
-      channel,
-      currentItem,
-      initialTimecode: elapsedSec,
-      elapsedSec,
-      remainingSec,
-      durationSec,
-      progressPercent,
-      nextItem,
-      nextStartTime,
-      formattedElapsed: formatTimecode(elapsedSec),
-      formattedDuration: formatTimecode(durationSec),
-      formattedTimeRemaining: formatTimeRemaining(remainingSec, language),
-      formattedNextTime: formatClockTime(nextStartTime),
-      slotIndex: currentIndex,
-      dayOfWeek
-    };
+  // Непрерывный сквозной прогон по всему пулу (для 100 фильмов полный цикл ~8.3 суток без единого повтора; для сериалов до 590 серий)
+  let totalCycleDurationSec = 0;
+  const defaultDuration = channel.category === 'series' ? 2700 : 7200;
+  for (let i = 0; i < pool.length; i++) {
+    totalCycleDurationSec += (pool[i].durationSec || defaultDuration);
   }
+  if (totalCycleDurationSec === 0) totalCycleDurationSec = pool.length * defaultDuration;
 
-  // ДЛЯ ФИЛЬМОВ: Еженедельная суточная ротация с Dayparting (Tier 1, Tier 2, Tier 3)
-  const dayItems = getDayItemsForChannel(channel, dayOfWeek, weekNumber);
-  let dayTotalSec = 0;
-  for (const item of dayItems) {
-    dayTotalSec += (item.durationSec || 7200);
-  }
-
-  const effectiveDaySec = dayTotalSec > 0 ? dayTotalSec : 86400;
-  // Смещение внутри суточного набора фильмов
-  const offsetInDay = ((secondsInDay % effectiveDaySec) + effectiveDaySec) % effectiveDaySec;
+  const channelOffset = getChannelPhaseOffset(channel);
+  const elapsedSinceEpoch = (now - EPOCH_ANCHOR_SEC) - channelOffset;
+  const offsetInCycle = ((elapsedSinceEpoch % totalCycleDurationSec) + totalCycleDurationSec) % totalCycleDurationSec;
 
   let accumulatedSec = 0;
   let currentIndex = 0;
   let elapsedInItem = 0;
 
-  for (let i = 0; i < dayItems.length; i++) {
-    const itemDuration = dayItems[i].durationSec || 7200;
-    if (offsetInDay < accumulatedSec + itemDuration) {
+  for (let i = 0; i < pool.length; i++) {
+    const itemDuration = pool[i].durationSec || defaultDuration;
+    if (offsetInCycle < accumulatedSec + itemDuration) {
       currentIndex = i;
-      elapsedInItem = offsetInDay - accumulatedSec;
+      elapsedInItem = offsetInCycle - accumulatedSec;
       break;
     }
     accumulatedSec += itemDuration;
   }
 
-  const currentItem = dayItems[currentIndex];
-  const durationSec = currentItem.durationSec || 7200;
+  const currentItem = pool[currentIndex];
+  const durationSec = currentItem.durationSec || defaultDuration;
   const elapsedSec = Math.max(0, Math.min(durationSec, elapsedInItem));
   const remainingSec = Math.max(0, durationSec - elapsedSec);
   const progressPercent = Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
-
-  let nextItem: TvPlaylistItem;
-  if (currentIndex + 1 < dayItems.length) {
-    nextItem = dayItems[currentIndex + 1];
-  } else {
-    const nextDay = (dayOfWeek + 1) % 7;
-    const nextWeek = nextDay === 0 ? weekNumber + 1 : weekNumber;
-    const nextDayItems = getDayItemsForChannel(channel, nextDay, nextWeek);
-    nextItem = nextDayItems[0] || currentItem;
-  }
+  const nextItem = pool[(currentIndex + 1) % pool.length];
   const nextStartTime = now + remainingSec;
 
   return {
@@ -897,8 +802,6 @@ export function getChannelUpcomingSchedule(
 
   const d = new Date(now * 1000);
   const currentDay = d.getDate();
-  const dayOfWeek = (d.getDay() + 6) % 7;
-  const weekNumber = Math.max(0, Math.floor((now - EPOCH_ANCHOR_SEC) / 604800));
 
   const result: Array<{ item: TvPlaylistItem; startTimeSec: number; formattedStartTime: string; isCurrent: boolean; slotNum: number; isTomorrow: boolean }> = [];
 
@@ -913,55 +816,24 @@ export function getChannelUpcomingSchedule(
     isTomorrow: false
   });
 
-  // Для сериалов: последовательно следующие серии очереди
-  if (channel.category === 'series') {
-    const currentIdx = pool.findIndex(it => 
-      it.id === state.currentItem.id && 
-      (it.type !== 'tv' || (it.season === state.currentItem.season && it.episode === state.currentItem.episode))
-    );
-    const baseIdx = currentIdx >= 0 ? currentIdx : 0;
-    let cumulativeTime = now + state.remainingSec;
-    for (let step = 1; step < 10; step++) {
-      const nextIdx = (baseIdx + step) % pool.length;
-      const nextItem = pool[nextIdx];
-      const isTomorrow = new Date(cumulativeTime * 1000).getDate() !== currentDay;
-      result.push({
-        item: nextItem,
-        startTimeSec: cumulativeTime,
-        formattedStartTime: formatClockTime(cumulativeTime),
-        isCurrent: false,
-        slotNum: step + 1,
-        isTomorrow
-      });
-      cumulativeTime += (nextItem.durationSec || 2700);
-    }
-    return result;
-  }
-
-  // Для фильмов: последовательно оставшиеся фильмы сегодняшней суточной сетки + фильмы следующего дня
-  const todayItems = getDayItemsForChannel(channel, dayOfWeek, weekNumber);
-  const tomorrowDay = (dayOfWeek + 1) % 7;
-  const tomorrowWeek = tomorrowDay === 0 ? weekNumber + 1 : weekNumber;
-  const tomorrowItems = getDayItemsForChannel(channel, tomorrowDay, tomorrowWeek);
-
-  const futureQueue: TvPlaylistItem[] = [
-    ...todayItems.slice(state.slotIndex + 1),
-    ...tomorrowItems
-  ];
-
+  // Последовательно следующие 9 передач из пула без повторов (для фильмов и сериалов)
+  const baseIdx = state.slotIndex >= 0 && state.slotIndex < pool.length ? state.slotIndex : 0;
   let cumulativeTime = now + state.remainingSec;
-  for (let step = 0; step < 9 && step < futureQueue.length; step++) {
-    const nextItem = futureQueue[step];
+  const defaultDuration = channel.category === 'series' ? 2700 : 7200;
+
+  for (let step = 1; step < 10; step++) {
+    const nextIdx = (baseIdx + step) % pool.length;
+    const nextItem = pool[nextIdx];
     const isTomorrow = new Date(cumulativeTime * 1000).getDate() !== currentDay;
     result.push({
       item: nextItem,
       startTimeSec: cumulativeTime,
       formattedStartTime: formatClockTime(cumulativeTime),
       isCurrent: false,
-      slotNum: step + 2,
+      slotNum: step + 1,
       isTomorrow
     });
-    cumulativeTime += (nextItem.durationSec || 7200);
+    cumulativeTime += (nextItem.durationSec || defaultDuration);
   }
 
   return result;

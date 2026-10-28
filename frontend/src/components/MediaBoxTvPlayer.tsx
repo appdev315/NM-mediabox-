@@ -490,15 +490,17 @@ export function MediaBoxTvPlayer({
           const rawPos = data.time ?? data.currentTime ?? data.position;
           if (typeof rawPos === 'number') {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
-            // Если донор воспроизводит первые секунды (< 15с), а эфир ушёл вперёд (> 45с) — принудительно синхронизируем
-            if (rawPos < 15 && currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 3000) {
+            // Если донор воспроизводит первые секунды (< 15с), а эфир ушёл вперёд (> 45с) — принудительно синхронизируем через URL
+            if (rawPos < 15 && currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 4000) {
               lastLiveSyncSeekRef.current = Date.now();
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-              if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
-                ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
-                ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
-                ifr.contentWindow.postMessage({ event: 'play' }, '*');
+              if (ifr && ifr.src) {
+                try {
+                  const u = new URL(ifr.src);
+                  u.searchParams.set('time', String(currentLiveSec));
+                  u.searchParams.set('t', String(currentLiveSec));
+                  ifr.src = u.toString();
+                } catch (_) {}
               }
             }
           }
@@ -644,14 +646,15 @@ export function MediaBoxTvPlayer({
           // автоматически подхватываем следующий тайтл сетки вещания (до 2 попыток)
           if (fallbackAttemptsRef.current < 2 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
             fallbackAttemptsRef.current += 1;
+            const freshNextState = getChannelScheduleState(channel);
             setScheduleState(prev => ({
               ...prev,
               currentItem: prev.nextItem,
-              initialTimecode: 0,
-              elapsedSec: 0,
-              remainingSec: prev.nextItem.durationSec || 7200,
+              initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
+              elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
+              remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
               durationSec: prev.nextItem.durationSec || 7200,
-              progressPercent: 0
+              progressPercent: freshNextState.progressPercent || 0
             }));
             return;
           }
@@ -683,11 +686,17 @@ export function MediaBoxTvPlayer({
     : null;
   const maxDuration = validActual || catalogDuration;
 
+  // Прогресс трансляции в наивысший приоритет над нулевым запуском:
+  // Если initialTimecode равен 0 или не передан, берем актуальное смещение текущего эфира
+  const liveState = getChannelScheduleState(channel);
+  const liveElapsedSec = Math.floor(liveState.elapsedSec || 0);
+  const rawBroadcastTimecode = (initialTimecode && initialTimecode > 5) ? initialTimecode : liveElapsedSec;
+
   let safeTimecode: number;
-  if (initialTimecode >= maxDuration) {
+  if (rawBroadcastTimecode >= maxDuration) {
     safeTimecode = Math.max(0, maxDuration - 10);
   } else {
-    safeTimecode = Math.max(0, Math.floor(initialTimecode));
+    safeTimecode = Math.max(0, Math.floor(rawBroadcastTimecode));
   }
   const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
 

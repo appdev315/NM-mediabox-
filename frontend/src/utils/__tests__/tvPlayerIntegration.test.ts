@@ -110,22 +110,25 @@ describe('MediaBox TV & Player Integration Verification', () => {
   });
 
   it('verifies that TV Live Sync Watchdog correctly triggers resync when player starts from 0:00 instead of live timecode', () => {
-    // Симуляция логики Live TV Sync Watchdog
+    // Симуляция логики Live TV Sync Watchdog с URL перенавигацией
     const currentLiveSec = 5909; // Джуманджи на канале фэнтези (82% фильма)
     const rawPosStuckAtStart = 2; // Донор начал проигрывать с 0:02
-    let seekSent = false;
-    let targetSeekSec = 0;
+    let resyncedUrl = '';
 
     const lastLiveSyncSeek = 0;
     const now = 10000;
 
-    if (rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 3000) {
-      seekSent = true;
-      targetSeekSec = currentLiveSec;
+    if (rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 4000) {
+      const mockSrc = 'https://embed.liftw.ws/content/12345?time=0&t=0';
+      const u = new URL(mockSrc);
+      u.searchParams.set('time', String(currentLiveSec));
+      u.searchParams.set('t', String(currentLiveSec));
+      resyncedUrl = u.toString();
     }
 
-    expect(seekSent).toBe(true);
-    expect(targetSeekSec).toBe(5909);
+    expect(resyncedUrl).toContain('time=5909');
+    expect(resyncedUrl).toContain('t=5909');
+    expect(resyncedUrl).not.toContain('time=0');
 
     // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
     const rawPosSynced = 5910;
@@ -134,5 +137,51 @@ describe('MediaBox TV & Player Integration Verification', () => {
       duplicateSeekSent = true;
     }
     expect(duplicateSeekSent).toBe(false);
+  });
+
+  it('verifies zero duplicates in upcoming 10 slots across all movie channels', async () => {
+    const { getChannelUpcomingSchedule } = await import('../tvSchedule');
+    const movieChannels = TV_CHANNELS.filter(c => c.category !== 'series');
+    expect(movieChannels.length).toBeGreaterThan(15);
+
+    const testTimestamp = 1774780000; // произвольный таймстемп
+    for (const channel of movieChannels) {
+      const schedule = getChannelUpcomingSchedule(channel, testTimestamp);
+      expect(schedule.length).toBe(10);
+      const movieIds = schedule.map(s => s.item.id);
+      const uniqueIds = new Set(movieIds);
+      expect(uniqueIds.size).toBe(10); // Все 10 слотов строго уникальны
+    }
+  });
+
+  it('verifies no repeats between consecutive days on movie channels (continuous pool rotation)', async () => {
+    const { getChannelScheduleState } = await import('../tvSchedule');
+    const thrillerChan = TV_CHANNELS.find(c => c.id === 'ch-thriller');
+    expect(thrillerChan).toBeDefined();
+
+    // Симулируем последовательное воспроизведение 24 фильмов подряд (переход к следующему по nextStartTime)
+    let t = 1774780000;
+    const moviesPlayed: number[] = [];
+    for (let i = 0; i < 24; i++) {
+      const state = getChannelScheduleState(thrillerChan!, undefined, t);
+      moviesPlayed.push(state.currentItem.id);
+      t = state.nextStartTime + 5;
+    }
+
+    // Все 24 последовательных фильма в эфире уникальны (без повторов на следующие сутки)
+    const uniqueMovies = new Set(moviesPlayed);
+    expect(uniqueMovies.size).toBe(24);
+  });
+
+  it('verifies sanitization strips existing time and timecode query params preventing duplicate overrides', () => {
+    const rawUrlWithOldTime = 'https://embed.liftw.ws/content/999?time=0&t=0&timecode=0&start=0';
+    const cleanUrl = rawUrlWithOldTime
+      .replace(/[?&](start|t|time|timecode)=\d+/g, '')
+      .replace(/[?&](season|episode)=\d+/g, '')
+      .replace(/#t=\d+/g, '');
+
+    expect(cleanUrl).toBe('https://embed.liftw.ws/content/999');
+    expect(cleanUrl).not.toContain('time=');
+    expect(cleanUrl).not.toContain('t=');
   });
 });
