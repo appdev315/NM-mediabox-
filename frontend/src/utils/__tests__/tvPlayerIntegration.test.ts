@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TV_CHANNELS, getChannelPhaseOffset } from '../tvSchedule';
-import { findLowestQuality } from '../../components/Player';
+import { findLowestQuality, sortQualities } from '../../components/Player';
 
 describe('MediaBox TV & Player Integration Verification', () => {
   it('verifies that TV player mode passes canonical time and t parameters without hash or start duplicate', () => {
@@ -31,6 +31,13 @@ describe('MediaBox TV & Player Integration Verification', () => {
     expect(findLowestQuality(['1080', '720', '480'])).toBe('480');
     expect(findLowestQuality(['auto', '720p', '1080p', '480p'])).toBe('480p');
     expect(findLowestQuality([])).toBeNull();
+  });
+
+  it('verifies sortQualities canonically orders resolutions descending and places auto last', () => {
+    const mixed = ['360p', 'auto', '1080p', '480p', '720p'];
+    expect(sortQualities(mixed)).toEqual(['1080p', '720p', '480p', '360p', 'auto']);
+    expect(sortQualities(['auto', '1080', '720'])).toEqual(['1080', '720', 'auto']);
+    expect(sortQualities([])).toEqual([]);
   });
 
   it('verifies safe timecode calculation clamps against actual duration avoiding SEEK_PAST_EOF', () => {

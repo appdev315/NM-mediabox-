@@ -41,6 +41,26 @@ export function findLowestQuality(qualities: string[]): string | null {
   return qualities[qualities.length - 1] || qualities[0];
 }
 
+/**
+ * Сортирует доступные разрешения видеопотока по убыванию качества
+ * (напр. '1080p' -> '720p' -> '480p' -> '360p' -> 'auto')
+ * для стабильного, детерминированного отображения в меню настроек без прыжков.
+ */
+export function sortQualities(qualities: string[]): string[] {
+  if (!qualities || !Array.isArray(qualities)) return [];
+  return [...qualities].sort((a, b) => {
+    const isAutoA = /auto/i.test(a);
+    const isAutoB = /auto/i.test(b);
+    if (isAutoA && !isAutoB) return 1;
+    if (!isAutoA && isAutoB) return -1;
+    const matchA = a.match(/\d+/);
+    const matchB = b.match(/\d+/);
+    const numA = matchA ? parseInt(matchA[0], 10) : 0;
+    const numB = matchB ? parseInt(matchB[0], 10) : 0;
+    return numB - numA;
+  });
+}
+
 export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpisode, onEpisodeChange, onFullscreenChange, onClose, onMinimize, isTv = false }: PlayerProps) {
   const { t, language } = useLanguage();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -246,19 +266,21 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         if (data.event === 'playerReady' || data.event === 'startWatching' || data.event === 'play') {
           // Send adFree, play and initial seek handshake with confirmed player readiness
           sendPlayCommands(undefined, undefined, true);
-          // Запрашиваем список доступных качеств для автоматического выбора минимального на старте
-          try {
-            if (iframeRef.current?.contentWindow) {
-              iframeRef.current.contentWindow.postMessage({ req: 'setting ls', key: 'quality' }, '*');
-            }
-          } catch (_) {}
+          // Запрашиваем список доступных качеств для автоматического выбора минимального на старте в режиме фильма
+          if (!isTv) {
+            try {
+              if (iframeRef.current?.contentWindow) {
+                iframeRef.current.contentWindow.postMessage({ req: 'setting ls', key: 'quality' }, '*');
+              }
+            } catch (_) {}
+          }
           // If player became ready while an episode change is pending, dispatch command immediately
           if (pendingTargetRef.current) {
             sendPlayCommands(pendingTargetRef.current.season, pendingTargetRef.current.episode, true);
           }
         }
-        // Обработка списка качеств от плеера Liftw ('setting ls') для выбора минимального на старте
-        if (data.event === 'setting ls' && data.key === 'quality' && Array.isArray(data.ls)) {
+        // Обработка списка качеств от плеера Liftw ('setting ls') для выбора минимального на старте (в режиме фильма)
+        if (!isTv && data.event === 'setting ls' && data.key === 'quality' && Array.isArray(data.ls)) {
           if (!hasSetInitialQualityRef.current && data.ls.length > 0) {
             const minQuality = findLowestQuality(data.ls);
             if (minQuality && iframeRef.current?.contentWindow) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useNavigate } from 'react-router-dom';
 import { WebApp } from '../telegram';
-import { Player, findLowestQuality } from './Player';
+import { Player, findLowestQuality, sortQualities } from './Player';
 import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
@@ -81,8 +81,6 @@ export function MediaBoxTvPlayer({
   const [streamError, setStreamError] = useState(false);
   // Состояние активного воспроизведения прямого эфира
   const [isLivePlaying, setIsLivePlaying] = useState(false);
-  // Защита от блокировки автоплея браузером (флаг показа кнопки возобновления)
-  const [showAutoplayPrompt, setShowAutoplayPrompt] = useState(false);
 
   // Списки опций и текущие параметры потока из донорского плеера Liftw (player-venom)
   const [soundList, setSoundList] = useState<string[]>([]);
@@ -107,6 +105,10 @@ export function MediaBoxTvPlayer({
   // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
   const userSoundLockUntilRef = useRef<number>(0);
   const userSelectedSoundRef = useRef<string | null>(null);
+
+  // Блокировка отката качества видео: предотвращает прыжки дорожек при ABR-адаптации донора
+  const userQualityLockUntilRef = useRef<number>(0);
+  const userSelectedQualityRef = useRef<string | null>(null);
 
   // Отправка команды изменения настроек в iframe донора Liftw через postMessage API
   const sendDonorSetting = useCallback((key: 'sound' | 'quality' | 'cc', value: string) => {
@@ -137,6 +139,25 @@ export function MediaBoxTvPlayer({
     }, 850);
   }, [sendDonorSetting]);
 
+  // Надежный выбор качества видео с защитой от отката HLS-плеером донора
+  const selectQualityTrack = useCallback((item: string) => {
+    userQualityLockUntilRef.current = Date.now() + 4000;
+    userSelectedQualityRef.current = item;
+    setCurrentQuality(item);
+    try {
+      localStorage.setItem('mediabox_pref_quality', item);
+    } catch (_) {}
+
+    sendDonorSetting('quality', item);
+    // Double-tap handshake: повторная отправка для фиксации после перезапуска HLS-пайплайна
+    setTimeout(() => {
+      sendDonorSetting('quality', item);
+    }, 350);
+    setTimeout(() => {
+      sendDonorSetting('quality', item);
+    }, 850);
+  }, [sendDonorSetting]);
+
   // Запрос текущих списков настроек и активных значений из плеера Liftw
   const queryDonorSettings = useCallback(() => {
     try {
@@ -161,27 +182,12 @@ export function MediaBoxTvPlayer({
     setCcList([]);
     setCurrentCc('');
     hasSetInitialQualityRef.current = false;
+    userQualityLockUntilRef.current = 0;
+    userSelectedQualityRef.current = null;
     actualDurationRef.current = null;
     lastLiveSyncSeekRef.current = 0;
     setIframeUrl(null);
-    setShowAutoplayPrompt(false);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
-
-  // Детекция блокировки автоплея браузером (Autoplay Policy Block Guard):
-  // Если поток готов и загружен, но воспроизведение не началось за 3.5с (браузер заблокировал автоплей),
-  // показываем аккуратную плашку с кнопкой Play по центру для снятия блокировки одним кликом
-  useEffect(() => {
-    if (isLivePlaying || isLoadingStream || streamError || !iframeUrl) {
-      setShowAutoplayPrompt(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      if (!isLivePlaying) {
-        setShowAutoplayPrompt(true);
-      }
-    }, 3500);
-    return () => clearTimeout(timer);
-  }, [isLivePlaying, isLoadingStream, streamError, iframeUrl]);
 
   // Опрос доступных дорожек при готовности плеера.
   // ВАЖНО: шилд отныне активен С МОНТАЖА и не активируется по таймеру —
@@ -426,7 +432,8 @@ export function MediaBoxTvPlayer({
           data.event === 'playing' ||
           data.type === 'playing' ||
           data.status === 'playing' ||
-          ((data.event === 'viewProgress' || data.event === 'timeupdate') && typeof currentTimePos === 'number' && currentTimePos > 5)
+          data.event === 'viewProgress' ||
+          (data.event === 'timeupdate' && typeof currentTimePos === 'number' && currentTimePos > 0)
         ) {
           setIsLivePlaying(true);
         }
@@ -448,14 +455,25 @@ export function MediaBoxTvPlayer({
               }
             } catch (_) {}
           } else if (data.key === 'quality' && Array.isArray(data.ls)) {
-            setQualityList(data.ls);
-            // Если начальное качество еще не выбрано — автоматически выставляем минимальное для стабильного старта на слабом интернете
-            if (!hasSetInitialQualityRef.current && data.ls.length > 0) {
-              const minQuality = findLowestQuality(data.ls);
-              if (minQuality) {
-                hasSetInitialQualityRef.current = true;
-                sendDonorSetting('quality', minQuality);
-                setCurrentQuality(minQuality);
+            const sortedQualities = sortQualities(data.ls);
+            setQualityList(prev => (prev.length === sortedQualities.length && prev.every((v, i) => v === sortedQualities[i])) ? prev : sortedQualities);
+
+            // Проверяем сохраненное предпочтение пользователя
+            let targetQuality: string | null = null;
+            try {
+              const prefQuality = localStorage.getItem('mediabox_pref_quality');
+              if (prefQuality && sortedQualities.includes(prefQuality)) {
+                targetQuality = prefQuality;
+              }
+            } catch (_) {}
+
+            // Если начальное качество еще не выбрано: используем предпочтение пользователя либо минимальное для стабильного старта
+            if (!hasSetInitialQualityRef.current && sortedQualities.length > 0) {
+              hasSetInitialQualityRef.current = true;
+              const chosen = targetQuality || findLowestQuality(sortedQualities);
+              if (chosen) {
+                sendDonorSetting('quality', chosen);
+                setCurrentQuality(chosen);
               }
             }
           } else if (data.key === 'cc' && Array.isArray(data.ls)) {
@@ -479,7 +497,17 @@ export function MediaBoxTvPlayer({
               localStorage.setItem('mediabox_pref_sound', data.value);
             } catch (_) {}
           } else if (data.key === 'quality' && typeof data.value === 'string') {
+            // Если действует пользовательский лок выбора качества, блокируем промежуточные откаты HLS ABR
+            if (Date.now() < userQualityLockUntilRef.current) {
+              if (userSelectedQualityRef.current && data.value !== userSelectedQualityRef.current) {
+                sendDonorSetting('quality', userSelectedQualityRef.current);
+              }
+              return;
+            }
             setCurrentQuality(data.value);
+            try {
+              localStorage.setItem('mediabox_pref_quality', data.value);
+            } catch (_) {}
           } else if (data.key === 'cc' && typeof data.value === 'string') {
             setCurrentCc(data.value);
           }
@@ -998,32 +1026,6 @@ export function MediaBoxTvPlayer({
                   />
                 )}
 
-                {/* 4. ОВЕРЛЕЙ ВОЗОБНОВЛЕНИЯ ЭФИРА ПРИ БЛОКИРОВКЕ АВТОПЛЕЯ БРАУЗЕРОМ */}
-                {showAutoplayPrompt && !isLivePlaying && !isLoadingStream && !streamError && (
-                  <div 
-                    className="absolute inset-0 z-[36] flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm transition-all"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsLivePlaying(true);
-                      setShowAutoplayPrompt(false);
-                      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-                      if (ifr && ifr.contentWindow) {
-                        ifr.contentWindow.postMessage({ event: 'play' }, '*');
-                        ifr.contentWindow.postMessage({ api: 'play' }, '*');
-                        ifr.contentWindow.postMessage({ command: 'play' }, '*');
-                      }
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm shadow-2xl flex items-center gap-2.5 transition-all cursor-pointer border border-amber-300/40"
-                    >
-                      <span className="text-lg">▶</span>
-                      <span>{t('tvWatchLive') || 'Включить эфир'}</span>
-                    </button>
-                  </div>
-                )}
-
                 {/* 5. ЭКРАН ЗАЩИТЫ ВИДЕО (БЛОКИРОВКА ПАУЗЫ ПОСЛЕ СТАРТА): */}
                 {/* До старта потока (isLivePlaying=false) экран прозрачен: один нативный клик пользователя */}
                 {/* запускает Play донора. После старта (isLivePlaying=true) экран наглухо блокируется от тапов-пауз. */}
@@ -1183,8 +1185,7 @@ export function MediaBoxTvPlayer({
                               key={item}
                               type="button"
                               onClick={() => {
-                                sendDonorSetting('quality', item);
-                                setCurrentQuality(item);
+                                selectQualityTrack(item);
                               }}
                               className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
                                 isSelected
