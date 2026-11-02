@@ -233,7 +233,7 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     const action = TV_CHANNELS.find(c => c.id === 'ch-action')!;
     const hansel = action.moviePool?.find(m => m.id === 60304);
     expect(hansel).toBeDefined();
-    expect(hansel?.durationSec).toBe(5880); // 98 minutes (Unrated Cut matching actual CDN stream of 5876s)
+    expect(hansel?.durationSec).toBe(5220); // 87 minutes (Theatrical Cut matching actual CDN stream of 5220s)
   });
 
   it('should guarantee exact gapless boundary transitions and timing consistency across all 36 channels over multiple time horizons', () => {

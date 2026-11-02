@@ -1703,7 +1703,7 @@ export const CATALOG_ACTION: CatalogMovieItem[] = [
   { id: 188927, title: "Стартрек: Бесконечность", origin_title: "Star Trek Beyond", year: "2016", type: 'movie', durationSec: 7320, posterPath: "/mkcP3g7XwmXT3fznyBfvGDcPgjA.jpg", rating: 6.8 },
   { id: 76757, title: "Восхождение Юпитер", origin_title: "Jupiter Ascending", year: "2015", type: 'movie', durationSec: 7620, posterPath: "/owEYrXtomE9BJ3jli66QGk5McWv.jpg", rating: 5.5 },
   { id: 1576, title: "Обитель зла", origin_title: "Resident Evil", year: "2002", type: 'movie', durationSec: 6000, posterPath: "/5gEtXQXsv7DjtJSWwgLHQatzRZc.jpg", rating: 6.7 },
-  { id: 60304, title: "Охотники на ведьм", origin_title: "Hansel & Gretel: Witch Hunters", year: "2013", type: 'movie', durationSec: 5880, posterPath: "/8WV1Dgc4OUGFulAwx8AfclGZT4d.jpg", rating: 6.1 },
+  { id: 60304, title: "Охотники на ведьм", origin_title: "Hansel & Gretel: Witch Hunters", year: "2013", type: 'movie', durationSec: 5220, posterPath: "/8WV1Dgc4OUGFulAwx8AfclGZT4d.jpg", rating: 6.1 },
   { id: 335787, title: "Анчартед: На картах не значится", origin_title: "Uncharted", year: "2022", type: 'movie', durationSec: 6960, posterPath: "/gCeTyPG6g03DGsSvNOjEIAjmC9j.jpg", rating: 6.9 },
   { id: 337401, title: "Мулан", origin_title: "Mulan", year: "2020", type: 'movie', durationSec: 6900, posterPath: "/uxPauLtzjl9oWZtS1Bwp9mCDRFh.jpg", rating: 6.8 },
   { id: 53182, title: "300 спартанцев: Расцвет империи", origin_title: "300: Rise of an Empire", year: "2014", type: 'movie', durationSec: 6120, posterPath: "/mhndRhrC0Xh8MV13yRXx5Zvivsm.jpg", rating: 6.1 },

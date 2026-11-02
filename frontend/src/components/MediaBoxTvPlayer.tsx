@@ -421,7 +421,28 @@ export function MediaBoxTvPlayer({
 
         // Фиксация естественного завершения потока донором: бесшовный переход на следующий слот сетки
         if (data.event === 'ended' || data.type === 'ended' || data.status === 'ended') {
-          setScheduleState(getChannelScheduleState(channel));
+          const fresh = getChannelScheduleState(channel);
+          if (
+            fresh.currentItem.id === scheduleStateRef.current.currentItem.id && 
+            fresh.slotIndex === scheduleStateRef.current.slotIndex && 
+            scheduleStateRef.current.nextItem
+          ) {
+            // Фактический видеопоток завершился раньше окончания слота сетки (титры/ранний EOF).
+            // Мгновенно переключаем трансляцию на следующий тайтл сетки вещания:
+            const next = scheduleStateRef.current.nextItem;
+            setScheduleState(prev => ({
+              ...prev,
+              currentItem: next,
+              initialTimecode: 0,
+              elapsedSec: 0,
+              remainingSec: next.durationSec || 7200,
+              durationSec: next.durationSec || 7200,
+              progressPercent: 0,
+              slotIndex: prev.slotIndex + 1
+            }));
+          } else {
+            setScheduleState(fresh);
+          }
           return;
         }
 
@@ -556,11 +577,19 @@ export function MediaBoxTvPlayer({
             if (safeSeekSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 6000) {
               lastLiveSyncSeekRef.current = Date.now();
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-              if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage({ event: 'seek', time: safeSeekSec }, '*');
-                ifr.contentWindow.postMessage({ api: 'seek', set: safeSeekSec }, '*');
-                ifr.contentWindow.postMessage({ command: 'seek', time: safeSeekSec }, '*');
-                ifr.contentWindow.postMessage({ event: 'play' }, '*');
+              if (ifr) {
+                // Донор Liftw не поддерживает postMessage 'seek'. Если поток начал играть с 0:00 (rawPos < 15),
+                // перезагружаем iframe src с вычисленным таймкодом time=<safeSeekSec>&t=<safeSeekSec>
+                try {
+                  const currentSrc = ifr.src;
+                  if (currentSrc && /^https?:\/\//i.test(currentSrc)) {
+                    let cleanSrc = currentSrc.replace(/[?&](start|t|time|timecode)=\d+/g, '');
+                    if (cleanSrc.includes('?&')) cleanSrc = cleanSrc.replace('?&', '?');
+                    if (cleanSrc.endsWith('?')) cleanSrc = cleanSrc.slice(0, -1);
+                    const sep = cleanSrc.includes('?') ? '&' : '?';
+                    ifr.src = `${cleanSrc}${sep}time=${safeSeekSec}&t=${safeSeekSec}&autoplay=1`;
+                  }
+                } catch (_) {}
               }
             }
           }
@@ -595,7 +624,7 @@ export function MediaBoxTvPlayer({
         }
         return {
           ...fresh,
-          initialTimecode: prevState.initialTimecode,
+          initialTimecode: fresh.elapsedSec,
           elapsedSec: fresh.elapsedSec,
           progressPercent: fresh.progressPercent
         };
@@ -749,7 +778,7 @@ export function MediaBoxTvPlayer({
     };
   }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id]);
 
-  const { currentItem, initialTimecode, nextItem, formattedNextTime } = scheduleState;
+  const { currentItem, nextItem, formattedNextTime } = scheduleState;
   const isSeries = currentItem.type === 'tv';
 
   // Вычисляем безопасный таймкод с учетом реальной длительности потока из манифеста донора.
@@ -762,10 +791,8 @@ export function MediaBoxTvPlayer({
     : null;
   const maxDuration = validActual || catalogDuration;
 
-  // Начальный таймкод трансляции фиксируется для текущего тайтла эфира
-  const broadcastStartSec = (initialTimecode && initialTimecode > 5)
-    ? initialTimecode
-    : Math.floor(scheduleState.elapsedSec || 0);
+  // Начальный таймкод трансляции: всегда берем актуальный elapsedSec эфира
+  const broadcastStartSec = Math.floor(scheduleState.elapsedSec || 0);
 
   let safeTimecode: number;
   if (broadcastStartSec >= maxDuration) {
@@ -1017,7 +1044,7 @@ export function MediaBoxTvPlayer({
                 {/* Видеоплеер с уникальным ключом для детерминированного перемонтирования при смене фильма или серии */}
                 {iframeUrl && !streamError && (
                   <Player
-                    key={`${currentItem.id}_${currentItem.type}_${currentItem.season || ''}_${currentItem.episode || ''}_${scheduleState.slotIndex}`}
+                    key={`${channel.id}_${currentItem.id}_${currentItem.type}_${currentItem.season || ''}_${currentItem.episode || ''}_${scheduleState.slotIndex}`}
                     iframeUrl={iframeUrl}
                     initialTimecode={finalTimecode}
                     targetEpisode={isSeries && currentItem.season ? { season: currentItem.season, episode: currentItem.episode || '1' } : undefined}

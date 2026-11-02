@@ -109,11 +109,13 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const initialEpisodeRef = useRef(targetEpisode);
   const lastSourceKeyRef = useRef('');
 
-  if (lastSourceKeyRef.current !== sourceKey) {
-    lastSourceKeyRef.current = sourceKey;
+  if (lastSourceKeyRef.current !== sourceKey || isTv) {
+    if (lastSourceKeyRef.current !== sourceKey) {
+      lastSourceKeyRef.current = sourceKey;
+      hasSentInitialSeekRef.current = false;
+    }
     initialTimecodeRef.current = initialTimecode;
     initialEpisodeRef.current = targetEpisode;
-    hasSentInitialSeekRef.current = false;
   }
 
   // Base iframe URL: embeds target season & episode for instant server-rendered series playback
@@ -140,7 +142,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     );
     // Прогресс трансляции ТВ ставится в наивысший приоритет над нулевым запуском
     const timecode = isTv 
-      ? (initialTimecodeRef.current || initialTimecode || 0)
+      ? (initialTimecode ?? initialTimecodeRef.current ?? 0)
       : (isInitialEpisode ? initialTimecodeRef.current : 0);
     const startSec = Math.floor(timecode || 0);
     // Адаптация аудиодорожки под язык интерфейса: для не-русских интерфейсов передаем флаги автовыбора оригинальной/английской дорожки
@@ -157,7 +159,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
       return `${cleanUrl}${startParams}`;
     }
     return `${cleanUrl}?${startParams.slice(1)}`;
-  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language, isTv]);
+  }, [rawUrl, targetEpisode?.season, targetEpisode?.episode, language, isTv, initialTimecode]);
 
   // Locked src state: tracks iframe URL. Fast-path uses postMessage('playlist go'),
   // verified fallback or season changes navigate iframe.src directly.
@@ -167,12 +169,19 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const pendingTargetRef = useRef<{ season: string; episode: string } | null>(null);
   const fallbackNavTimerRef = useRef<any>(null);
 
-  // Reload iframe when source URL/origin changes
-  if (activeSourceKeyRef.current !== sourceKey) {
-    activeSourceKeyRef.current = sourceKey;
-    activeSeasonRef.current = targetEpisode?.season || initialEpisodeRef.current?.season || '1';
-    setLockedSrc(currentUrl);
-  }
+  // In TV mode, lockedSrc directly tracks currentUrl to immediately navigate to live timecode & episode.
+  // In movie mode, iframe URL reloads when sourceKey changes.
+  useEffect(() => {
+    if (isTv) {
+      setLockedSrc(currentUrl);
+      activeSourceKeyRef.current = sourceKey;
+      activeSeasonRef.current = targetEpisode?.season || initialEpisodeRef.current?.season || '1';
+    } else if (activeSourceKeyRef.current !== sourceKey) {
+      activeSourceKeyRef.current = sourceKey;
+      activeSeasonRef.current = targetEpisode?.season || initialEpisodeRef.current?.season || '1';
+      setLockedSrc(currentUrl);
+    }
+  }, [isTv, currentUrl, sourceKey, targetEpisode?.season]);
 
   // Verified donor commands: adFree (player-venom) + playlist go (opts.playlist).
   // Note: 'playlist hook' is intentionally excluded to preserve native autoPlay on stream change.
@@ -206,7 +215,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }
 
         // 2. For series: command target season and episode without race-inducing repeats
-        if (targetSeason || targetEp) {
+        // В ТВ-эфире (isTv = true) 'playlist go' строго запрещен: обработчик player-venom
+        // changeEpisode жестко сбрасывает time: 0.01 и ignoreUrlTime: true, обнуляя воспроизведение на 0:00.
+        // Для ТВ номер сезона, серии и эфирный таймкод передаются строго в iframe.src URL.
+        if (!isTv && (targetSeason || targetEp)) {
           const sNum = parseInt(targetSeason || '1', 10);
           const eNum = parseInt(targetEp || '1', 10);
           iframeRef.current.contentWindow.postMessage(
@@ -232,7 +244,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         }
       }
     } catch (_) {}
-  }, [language]);
+  }, [language, isTv]);
 
   // Listen for episode changes and player events inside embedded player
   useEffect(() => {
@@ -319,7 +331,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const lastTargetTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!targetEpisode) return;
+    if (!targetEpisode || isTv) return;
     const token = targetEpisode.token ?? Date.now();
     if (token === lastTargetTokenRef.current) return;
     lastTargetTokenRef.current = token;

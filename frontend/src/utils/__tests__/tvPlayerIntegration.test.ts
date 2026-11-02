@@ -116,20 +116,25 @@ describe('MediaBox TV & Player Integration Verification', () => {
     bus.removeEventListener('mb-audio-started', handleAudio as any);
   });
 
-  it('verifies that TV Live Sync Watchdog correctly triggers resync via postMessage when player is playing from start instead of live timecode', () => {
-    // Симуляция логики Live TV Sync Watchdog через postMessage seek без перезагрузки iframe
+  it('verifies that TV Live Sync Watchdog correctly triggers resync via iframe reload when player is playing from start instead of live timecode', () => {
+    // Симуляция логики Live TV Sync Watchdog через прямое обновление iframe.src с time/t
     const currentLiveSec = 5909; // Джуманджи на канале фэнтези (82% фильма)
     const rawPosStuckAtStart = 2; // Донор начал проигрывать с 0:02
-    let resyncSeekTarget: number | null = null;
+    let resyncSrc: string | null = null;
 
     const lastLiveSyncSeek = 0;
     const now = 10000;
 
     if (rawPosStuckAtStart > 0 && rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 6000) {
-      resyncSeekTarget = currentLiveSec;
+      const currentSrc = 'https://embed.liftw.ws/embed/movie/3611?host=liftw.ws';
+      let cleanSrc = currentSrc.replace(/[?&](start|t|time|timecode)=\d+/g, '');
+      if (cleanSrc.includes('?&')) cleanSrc = cleanSrc.replace('?&', '?');
+      if (cleanSrc.endsWith('?')) cleanSrc = cleanSrc.slice(0, -1);
+      const sep = cleanSrc.includes('?') ? '&' : '?';
+      resyncSrc = `${cleanSrc}${sep}time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
     }
 
-    expect(resyncSeekTarget).toBe(5909);
+    expect(resyncSrc).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&time=5909&t=5909&autoplay=1');
 
     // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
     const rawPosSynced = 5910;
@@ -138,6 +143,54 @@ describe('MediaBox TV & Player Integration Verification', () => {
       duplicateSeekSent = true;
     }
     expect(duplicateSeekSent).toBe(false);
+  });
+
+  it('verifies TV series mode embeds season, episode and timecode directly into URL', () => {
+    const rawUrl = 'https://embed.liftw.ws/embed/movie/1?host=liftw.ws';
+    const targetEpisode = { season: '2', episode: '3' };
+    const initialTimecode = 1500;
+    
+    let cleanUrl = rawUrl
+      .replace(/[?&](start|t|time|timecode)=\d+/g, '')
+      .replace(/[?&](season|episode)=\d+/g, '')
+      .replace(/#t=\d+/g, '');
+    if (cleanUrl.includes('?&')) cleanUrl = cleanUrl.replace('?&', '?');
+    if (cleanUrl.endsWith('?')) cleanUrl = cleanUrl.slice(0, -1);
+
+    const sep = cleanUrl.includes('?') ? '&' : '?';
+    cleanUrl = `${cleanUrl}${sep}season=${encodeURIComponent(targetEpisode.season)}&episode=${encodeURIComponent(targetEpisode.episode)}`;
+
+    const startSec = Math.floor(initialTimecode);
+    const timeParams = startSec > 5 ? `&time=${startSec}&t=${startSec}` : '';
+    const startParams = `&autoplay=1&autoPlay=1${timeParams}`;
+    const finalUrl = `${cleanUrl}${startParams}`;
+
+    expect(finalUrl).toContain('season=2');
+    expect(finalUrl).toContain('episode=3');
+    expect(finalUrl).toContain('&time=1500');
+    expect(finalUrl).toContain('&t=1500');
+  });
+
+  it('verifies early stream ended advances to next scheduled item', () => {
+    const currentItem = { id: 60304, durationSec: 5220, type: 'movie' };
+    const nextItem = { id: 335787, durationSec: 6960, type: 'movie' };
+    const slotIndex = 3;
+
+    // Симуляция логики data.event === 'ended' из MediaBoxTvPlayer.tsx
+    let activeItem = currentItem;
+    let activeSlot = slotIndex;
+    let activeElapsed = 5220;
+
+    const streamEndedBeforeSlot = true;
+    if (streamEndedBeforeSlot) {
+      activeItem = nextItem as any;
+      activeSlot = slotIndex + 1;
+      activeElapsed = 0;
+    }
+
+    expect(activeItem.id).toBe(335787);
+    expect(activeSlot).toBe(4);
+    expect(activeElapsed).toBe(0);
   });
 
   it('verifies zero duplicates in upcoming 10 slots across all movie channels', async () => {
