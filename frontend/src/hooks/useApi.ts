@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { WebApp } from '../telegram';
 import { useLanguage } from '../context/LanguageContext';
 import { clientCache } from '../utils/clientCache';
-import { deduplicateMediaList, isRussianOrigin, isNonRussianLang } from '../utils/mediaUtils';
+import { deduplicateMediaList, isRussianOrigin, isNonRussianLang, pickBestTmdbMatch } from '../utils/mediaUtils';
 
 export const CF_API_BASE = import.meta.env.VITE_CF_API_BASE || 'https://api.media-box.xyz/api';
 export const EXPRESS_API_BASE = import.meta.env.VITE_EXPRESS_API_BASE || 'https://evro90-nm6.hf.space/api';
@@ -541,8 +541,20 @@ export function useApi() {
           if (cleanQ) {
             (async () => {
               try {
-                const searchRes = await tmdbFetch(`/search/${type}`, { query: cleanQ, ...(cleanYear > 0 ? { year: cleanYear } : {}) }, 3600, AbortSignal.timeout(4500));
-                const bestMatch = searchRes?.results?.[0];
+                const searchParams: Record<string, string | number> = { query: cleanQ };
+                if (cleanYear > 0) {
+                  if (type === 'tv') {
+                    searchParams.first_air_date_year = cleanYear;
+                  } else {
+                    searchParams.year = cleanYear;
+                  }
+                }
+                const searchRes = await tmdbFetch(`/search/${type}`, searchParams, 3600, AbortSignal.timeout(4500));
+                let bestMatch = pickBestTmdbMatch(searchRes?.results || [], cleanQ, cleanYear);
+                if (!bestMatch && cleanYear > 0) {
+                  const relaxedRes = await tmdbFetch(`/search/${type}`, { query: cleanQ }, 3600, AbortSignal.timeout(4500));
+                  bestMatch = pickBestTmdbMatch(relaxedRes?.results || [], cleanQ, cleanYear);
+                }
                 if (bestMatch?.id) {
                   const tmdbDetails = await fetchMovieDetails(bestMatch.id, type);
                   const mergedDetails = {
@@ -630,8 +642,20 @@ export function useApi() {
               if (query) {
                 (async () => {
                   try {
-                    const searchRes = await tmdbFetch(`/search/${resolvedType}`, { query, ...(year > 0 ? { year } : {}) }, 3600, AbortSignal.timeout(4000));
-                    const bestMatch = searchRes?.results?.[0];
+                    const searchParams: Record<string, string | number> = { query };
+                    if (year > 0) {
+                      if (resolvedType === 'tv') {
+                        searchParams.first_air_date_year = year;
+                      } else {
+                        searchParams.year = year;
+                      }
+                    }
+                    const searchRes = await tmdbFetch(`/search/${resolvedType}`, searchParams, 3600, AbortSignal.timeout(4000));
+                    let bestMatch = pickBestTmdbMatch(searchRes?.results || [], query, year);
+                    if (!bestMatch && year > 0) {
+                      const relaxedRes = await tmdbFetch(`/search/${resolvedType}`, { query }, 3600, AbortSignal.timeout(4000));
+                      bestMatch = pickBestTmdbMatch(relaxedRes?.results || [], query, year);
+                    }
                     if (bestMatch?.id) {
                       const tmdbDetails = await fetchMovieDetails(bestMatch.id, resolvedType);
                       const mergedDetails = {

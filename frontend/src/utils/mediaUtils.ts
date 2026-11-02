@@ -91,3 +91,100 @@ export function isRussianOrigin(item: any): boolean {
 export function isNonRussianLang(lang: string): boolean {
   return !String(lang || '').toLowerCase().startsWith('ru');
 }
+
+/**
+ * Выбирает наиболее подходящий результат поиска TMDB для заданного названия и года.
+ * Защищает от ложных срабатываний (коллизий), когда подстрока запроса совпадает
+ * с другим тайтлом (например, запрос «Бригада» vs «Женская бригада»).
+ */
+export function pickBestTmdbMatch<T extends {
+  id?: any;
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+  first_air_date?: string;
+  release_date?: string;
+  popularity?: number;
+}>(
+  results: T[],
+  targetTitle: string,
+  targetYear?: number | string
+): T | null {
+  if (!Array.isArray(results) || results.length === 0 || !targetTitle) {
+    return null;
+  }
+
+  const norm = (s?: string) =>
+    (s || '')
+      .toLowerCase()
+      .replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]/gi, '')
+      .trim();
+
+  const normTarget = norm(targetTitle);
+  if (!normTarget) return results[0] || null;
+
+  const numTargetYear = typeof targetYear === 'string' ? parseInt(targetYear, 10) : (targetYear || 0);
+
+  let bestItem: T | null = null;
+  let highestScore = -1;
+
+  for (const item of results) {
+    if (!item) continue;
+
+    const titles = [
+      norm(item.title),
+      norm(item.name),
+      norm(item.original_title),
+      norm(item.original_name),
+    ].filter(Boolean);
+
+    let titleScore = 0;
+    const isExact = titles.some(t => t === normTarget);
+
+    if (isExact) {
+      titleScore = 100;
+    } else {
+      // Подстрочные совпадения
+      const isSub = titles.some(t => t.includes(normTarget) || normTarget.includes(t));
+      if (isSub) {
+        const minLenDelta = Math.min(...titles.map(t => Math.abs(t.length - normTarget.length)));
+        titleScore = Math.max(10, 60 - minLenDelta * 4);
+      } else {
+        titleScore = 0;
+      }
+    }
+
+    if (titleScore === 0) continue;
+
+    // Оценка совпадения года
+    const rawDate = item.first_air_date || item.release_date || '';
+    const itemYear = parseInt(String(rawDate).slice(0, 4), 10) || 0;
+    let yearBonus = 0;
+
+    if (numTargetYear > 0 && itemYear > 0) {
+      const delta = Math.abs(itemYear - numTargetYear);
+      if (delta === 0) {
+        yearBonus = 25;
+      } else if (delta === 1) {
+        yearBonus = 15;
+      } else if (delta === 2) {
+        yearBonus = 5;
+      } else {
+        yearBonus = -Math.min(50, delta * 10);
+      }
+    }
+
+    const popBonus = Math.min(5, (item.popularity || 0) * 0.05);
+    const totalScore = titleScore + yearBonus + popBonus;
+
+    if (totalScore > highestScore) {
+      highestScore = totalScore;
+      bestItem = item;
+    }
+  }
+
+  return highestScore >= 30 ? bestItem : null;
+}
+
