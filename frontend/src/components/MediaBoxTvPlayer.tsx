@@ -7,6 +7,7 @@ import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useLanguage } from '../context/LanguageContext';
+import { prewarmStream } from '../utils/streamPreloader';
 import { 
   type TvChannel, 
   type ChannelScheduleState, 
@@ -80,6 +81,8 @@ export function MediaBoxTvPlayer({
   const [streamError, setStreamError] = useState(false);
   // Состояние активного воспроизведения прямого эфира
   const [isLivePlaying, setIsLivePlaying] = useState(false);
+  // Защита от блокировки автоплея браузером (флаг показа кнопки возобновления)
+  const [showAutoplayPrompt, setShowAutoplayPrompt] = useState(false);
 
   // Списки опций и текущие параметры потока из донорского плеера Liftw (player-venom)
   const [soundList, setSoundList] = useState<string[]>([]);
@@ -160,7 +163,25 @@ export function MediaBoxTvPlayer({
     hasSetInitialQualityRef.current = false;
     actualDurationRef.current = null;
     lastLiveSyncSeekRef.current = 0;
+    setIframeUrl(null);
+    setShowAutoplayPrompt(false);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
+
+  // Детекция блокировки автоплея браузером (Autoplay Policy Block Guard):
+  // Если поток готов и загружен, но воспроизведение не началось за 3.5с (браузер заблокировал автоплей),
+  // показываем аккуратную плашку с кнопкой Play по центру для снятия блокировки одним кликом
+  useEffect(() => {
+    if (isLivePlaying || isLoadingStream || streamError || !iframeUrl) {
+      setShowAutoplayPrompt(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (!isLivePlaying) {
+        setShowAutoplayPrompt(true);
+      }
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [isLivePlaying, isLoadingStream, streamError, iframeUrl]);
 
   // Опрос доступных дорожек при готовности плеера.
   // ВАЖНО: шилд отныне активен С МОНТАЖА и не активируется по таймеру —
@@ -386,6 +407,18 @@ export function MediaBoxTvPlayer({
         }
         if (!data || typeof data !== 'object') return;
 
+        // Динамический захват фактической длительности потока от донорского плеера
+        const rawDuration = data.duration ?? data.durationSec;
+        if (typeof rawDuration === 'number' && rawDuration >= 300) {
+          actualDurationRef.current = Math.floor(rawDuration);
+        }
+
+        // Фиксация естественного завершения потока донором: бесшовный переход на следующий слот сетки
+        if (data.event === 'ended' || data.type === 'ended' || data.status === 'ended') {
+          setScheduleState(getChannelScheduleState(channel));
+          return;
+        }
+
         // Фиксация старта прямого эфира: донор начал фактическое воспроизведение потока
         const currentTimePos = data.time ?? data.currentTime;
         if (
@@ -462,14 +495,17 @@ export function MediaBoxTvPlayer({
           }
         }
 
-        // Защита от попыток перемотки эфира (Anti-Seek Watchdog): немедленный возврат к реальному таймкоду
+        // Защита от попыток перемотки эфира (Anti-Seek Watchdog): немедленный возврат к реальному таймкоду без вылета за EOF
         if (data.event === 'seek' || data.event === 'seeking' || data.type === 'seek' || data.action === 'seek') {
           const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
           if (ifr && ifr.contentWindow) {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
-            ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
-            ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
-            ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
+            const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
+            const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
+            const safeSeekSec = Math.min(currentLiveSec, Math.max(0, currentMaxDur - 10));
+            ifr.contentWindow.postMessage({ event: 'seek', time: safeSeekSec }, '*');
+            ifr.contentWindow.postMessage({ api: 'seek', set: safeSeekSec }, '*');
+            ifr.contentWindow.postMessage({ command: 'seek', time: safeSeekSec }, '*');
             ifr.contentWindow.postMessage({ event: 'play' }, '*');
           }
         }
@@ -486,13 +522,16 @@ export function MediaBoxTvPlayer({
           // Синхронизируем ТОЛЬКО если донор начал фактическое воспроизведение (rawPos > 0), но отстаёт от эфира
           if (typeof rawPos === 'number' && rawPos > 0 && rawPos < 15) {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
-            if (currentLiveSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 6000) {
+            const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
+            const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
+            const safeSeekSec = Math.min(currentLiveSec, Math.max(0, currentMaxDur - 10));
+            if (safeSeekSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 6000) {
               lastLiveSyncSeekRef.current = Date.now();
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
               if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage({ event: 'seek', time: currentLiveSec }, '*');
-                ifr.contentWindow.postMessage({ api: 'seek', set: currentLiveSec }, '*');
-                ifr.contentWindow.postMessage({ command: 'seek', time: currentLiveSec }, '*');
+                ifr.contentWindow.postMessage({ event: 'seek', time: safeSeekSec }, '*');
+                ifr.contentWindow.postMessage({ api: 'seek', set: safeSeekSec }, '*');
+                ifr.contentWindow.postMessage({ command: 'seek', time: safeSeekSec }, '*');
                 ifr.contentWindow.postMessage({ event: 'play' }, '*');
               }
             }
@@ -549,6 +588,21 @@ export function MediaBoxTvPlayer({
 
     return () => clearTimeout(slotTimer);
   }, [channel, scheduleState.currentItem.id, scheduleState.remainingSec]);
+
+  // 4.1. УПРЕЖДАЮЩИЙ ПРЕДПРОГРЕВ СЛЕДУЮЩЕГО ТАЙТЛА (Smart Next Stream Prewarm):
+  // За 45 секунд до окончания текущего слота фоново прогреваем следующий тайтл в clientCache,
+  // чтобы в момент перехода на следующий фильм/серию он открылся МГНОВЕННО без сетевых задержек.
+  useEffect(() => {
+    if (scheduleState.remainingSec <= 45 && scheduleState.remainingSec > 0 && scheduleState.nextItem) {
+      const next = scheduleState.nextItem;
+      prewarmStream(next.id, {
+        title: next.title,
+        original_title: next.origin_title,
+        year: next.year,
+        type: next.type === 'tv' ? 'tv' : 'movie'
+      }, language);
+    }
+  }, [scheduleState.remainingSec, scheduleState.nextItem, language]);
 
   // 5. СИНХРОНИЗАЦИЯ СЕТКИ ПРИ ПРОБУЖДЕНИИ ВКЛАДКИ (Page Visibility API):
   // При возврате пользователя из другой вкладки или после разблокировки экрана
@@ -942,6 +996,32 @@ export function MediaBoxTvPlayer({
                     isTv={true}
                     onReady={handlePlayerReady}
                   />
+                )}
+
+                {/* 4. ОВЕРЛЕЙ ВОЗОБНОВЛЕНИЯ ЭФИРА ПРИ БЛОКИРОВКЕ АВТОПЛЕЯ БРАУЗЕРОМ */}
+                {showAutoplayPrompt && !isLivePlaying && !isLoadingStream && !streamError && (
+                  <div 
+                    className="absolute inset-0 z-[36] flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLivePlaying(true);
+                      setShowAutoplayPrompt(false);
+                      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+                      if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.postMessage({ event: 'play' }, '*');
+                        ifr.contentWindow.postMessage({ api: 'play' }, '*');
+                        ifr.contentWindow.postMessage({ command: 'play' }, '*');
+                      }
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold text-sm shadow-2xl flex items-center gap-2.5 transition-all cursor-pointer border border-amber-300/40"
+                    >
+                      <span className="text-lg">▶</span>
+                      <span>{t('tvWatchLive') || 'Включить эфир'}</span>
+                    </button>
+                  </div>
                 )}
 
                 {/* 5. ЭКРАН ЗАЩИТЫ ВИДЕО (БЛОКИРОВКА ПАУЗЫ ПОСЛЕ СТАРТА): */}

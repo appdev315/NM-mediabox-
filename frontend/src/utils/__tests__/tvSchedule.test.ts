@@ -219,7 +219,7 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     }
   });
 
-  it('should have accurate real runtimes for Deadpool & Wolverine and Nightmare Before Christmas', () => {
+  it('should have accurate real runtimes for Deadpool & Wolverine, Nightmare Before Christmas, and Hansel & Gretel', () => {
     const scifi = TV_CHANNELS.find(c => c.id === 'ch-scifi')!;
     const deadpool = scifi.moviePool?.find(m => m.id === 533535);
     expect(deadpool).toBeDefined();
@@ -229,6 +229,61 @@ describe('MediaBox TV Schedule Engine (tvSchedule.ts)', () => {
     const nightmare = animation.moviePool?.find(m => m.id === 9479);
     expect(nightmare).toBeDefined();
     expect(nightmare?.durationSec).toBe(4560); // 76 minutes
+
+    const action = TV_CHANNELS.find(c => c.id === 'ch-action')!;
+    const hansel = action.moviePool?.find(m => m.id === 60304);
+    expect(hansel).toBeDefined();
+    expect(hansel?.durationSec).toBe(5880); // 98 minutes (Unrated Cut matching actual CDN stream of 5876s)
+  });
+
+  it('should guarantee exact gapless boundary transitions and timing consistency across all 36 channels over multiple time horizons', () => {
+    const testOffsets = [
+      0, // now
+      3600, // +1 hour
+      86400, // +1 day
+      86400 * 7, // +1 week
+      86400 * 30, // +1 month
+      86400 * 365 // +1 year
+    ];
+
+    const baseNow = Math.floor(Date.now() / 1000);
+
+    for (const channel of TV_CHANNELS) {
+      for (const offset of testOffsets) {
+        const testTime = baseNow + offset;
+        const state = getChannelScheduleState(channel, undefined, testTime);
+
+        // Инварианты таймингов текущего эфира
+        expect(state.elapsedSec).toBeGreaterThanOrEqual(0);
+        expect(state.remainingSec).toBeGreaterThanOrEqual(0);
+        expect(state.elapsedSec).toBeLessThanOrEqual(state.durationSec);
+        expect(state.elapsedSec + state.remainingSec).toBe(state.durationSec);
+        expect(state.initialTimecode).toBe(state.elapsedSec);
+        expect(state.nextStartTime).toBe(testTime + state.remainingSec);
+
+        // Инварианты расписания upcoming: непрерывность секунда-в-секунду
+        const upcoming = getChannelUpcomingSchedule(channel, testTime);
+        expect(upcoming).toHaveLength(10);
+        expect(upcoming[0].isCurrent).toBe(true);
+        expect(upcoming[0].item.id).toBe(state.currentItem.id);
+
+        for (let i = 0; i < upcoming.length - 1; i++) {
+          const currentSlot = upcoming[i];
+          const nextSlot = upcoming[i + 1];
+          const expectedNextStart = currentSlot.startTimeSec + (currentSlot.item.durationSec || (channel.category === 'series' ? 2700 : 7200));
+
+          // Абсолютная бесшовность: время старта следующего слота строго равно времени окончания текущего
+          expect(nextSlot.startTimeSec).toBe(expectedNextStart);
+        }
+
+        // Проверка точки квантового перехода: в секунду nextStartTime эфир мгновенно переключается на nextItem с таймкодом 0
+        const boundaryState = getChannelScheduleState(channel, undefined, state.nextStartTime);
+        expect(boundaryState.currentItem.id).toBe(state.nextItem.id);
+        expect(boundaryState.elapsedSec).toBe(0);
+        expect(boundaryState.initialTimecode).toBe(0);
+        expect(boundaryState.remainingSec).toBe(boundaryState.durationSec);
+      }
+    }
   });
 });
 
