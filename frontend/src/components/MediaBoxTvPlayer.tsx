@@ -802,6 +802,15 @@ export function MediaBoxTvPlayer({
   }
   const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
 
+  // Фиксируем таймкод запуска один раз на слот/тайтл: живой elapsedSec растёт каждую секунду,
+  // но URL плеера и iframe не должны пересобираться/перезагружаться в реальном времени,
+  // иначе трансляция сбрасывается в начало и не стартует. Актуальная синхронизация эфира
+  // выполняется Live Sync Watchdog ниже.
+  const stableInitialTimecode = useMemo(
+    () => finalTimecode,
+    [currentItem.id, currentItem.season, currentItem.episode, scheduleState.slotIndex]
+  );
+
   return (
     <div 
       className={
@@ -1046,7 +1055,7 @@ export function MediaBoxTvPlayer({
                   <Player
                     key={`${channel.id}_${currentItem.id}_${currentItem.type}_${currentItem.season || ''}_${currentItem.episode || ''}_${scheduleState.slotIndex}`}
                     iframeUrl={iframeUrl}
-                    initialTimecode={finalTimecode}
+                    initialTimecode={stableInitialTimecode}
                     targetEpisode={isSeries && currentItem.season ? { season: currentItem.season, episode: currentItem.episode || '1' } : undefined}
                     isTv={true}
                     onReady={handlePlayerReady}
