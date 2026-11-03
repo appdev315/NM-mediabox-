@@ -568,8 +568,9 @@ export function MediaBoxTvPlayer({
           data.type === 'time'
         ) {
           const rawPos = data.time ?? data.currentTime ?? data.position;
-          // Синхронизируем ТОЛЬКО если донор начал фактическое воспроизведение (rawPos > 0), но отстаёт от эфира
-          if (typeof rawPos === 'number' && rawPos > 0 && rawPos < 15) {
+          // Синхронизируем, если донор стартовал с начала (или около нуля) вместо актуального таймкода эфира.
+          // rawPos <= 10 означает старт с начала (включая 0, который раньше исключался и ломал синхронизацию).
+          if (typeof rawPos === 'number' && rawPos <= 10) {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
             const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
             const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
