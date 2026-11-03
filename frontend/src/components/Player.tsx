@@ -152,7 +152,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     // ProgressTracker (player-venom) парсит URL-параметр t=<секунды>, гарантируя запуск с точного момента.
     // Исключаем хэш #t= и сторонние start=, вызывавшие дедлок буфера HLS донора.
     const timeParams = startSec > 5
-      ? (isTv ? `&time=${startSec}&t=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
+      ? (isTv ? `&start=${startSec}&time=${startSec}&t=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
       : '';
     const startParams = `&autoplay=1&autoPlay=1${timeParams}${langParams}`;
     if (cleanUrl.includes('?')) {

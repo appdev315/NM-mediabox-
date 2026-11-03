@@ -12,7 +12,7 @@ describe('MediaBox TV & Player Integration Verification', () => {
 
     const langParams = !language.startsWith('ru') ? '&lang=en&audio=en&audio_lang=en' : '';
     const timeParams = startSec > 5
-      ? (isTv ? `&time=${startSec}&t=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
+      ? (isTv ? `&start=${startSec}&time=${startSec}&t=${startSec}` : `&start=${startSec}&time=${startSec}&t=${startSec}&timecode=${startSec}#t=${startSec}`)
       : '';
     const startParams = `&autoplay=1&autoPlay=1${timeParams}${langParams}`;
     
@@ -20,9 +20,9 @@ describe('MediaBox TV & Player Integration Verification', () => {
 
     // В ТВ-режиме передается time=4500 и t=4500 для одновременной поддержки Liftw server render opts.time и client-side player-venom ProgressTracker
     expect(finalUrl).toContain('&autoplay=1');
+    expect(finalUrl).toContain('&start=4500');
     expect(finalUrl).toContain('&time=4500');
     expect(finalUrl).toContain('&t=4500');
-    expect(finalUrl).not.toContain('&start=');
     expect(finalUrl).not.toContain('#t=');
   });
 
@@ -131,10 +131,10 @@ describe('MediaBox TV & Player Integration Verification', () => {
       if (cleanSrc.includes('?&')) cleanSrc = cleanSrc.replace('?&', '?');
       if (cleanSrc.endsWith('?')) cleanSrc = cleanSrc.slice(0, -1);
       const sep = cleanSrc.includes('?') ? '&' : '?';
-      resyncSrc = `${cleanSrc}${sep}time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
+      resyncSrc = `${cleanSrc}${sep}start=${currentLiveSec}&time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
     }
 
-    expect(resyncSrc).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&time=5909&t=5909&autoplay=1');
+    expect(resyncSrc).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&start=5909&time=5909&t=5909&autoplay=1');
 
     // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
     const rawPosSynced = 5910;

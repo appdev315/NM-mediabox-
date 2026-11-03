@@ -569,8 +569,9 @@ export function MediaBoxTvPlayer({
         ) {
           const rawPos = data.time ?? data.currentTime ?? data.position;
           // Синхронизируем, если донор стартовал с начала (или около нуля) вместо актуального таймкода эфира.
-          // rawPos <= 10 означает старт с начала (включая 0, который раньше исключался и ломал синхронизацию).
-          if (typeof rawPos === 'number' && rawPos <= 10) {
+          // Старт с начала: донор игнорирует таймкод и начинает с 0..30 сек.
+          // (раньше порог 0..10 пропускал случаи, когда донор успевал уйти на 15–30 сек, но всё ещё был далеко от эфира)
+          if (typeof rawPos === 'number' && rawPos <= 30) {
             const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
             const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
             const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
@@ -588,7 +589,7 @@ export function MediaBoxTvPlayer({
                     if (cleanSrc.includes('?&')) cleanSrc = cleanSrc.replace('?&', '?');
                     if (cleanSrc.endsWith('?')) cleanSrc = cleanSrc.slice(0, -1);
                     const sep = cleanSrc.includes('?') ? '&' : '?';
-                    ifr.src = `${cleanSrc}${sep}time=${safeSeekSec}&t=${safeSeekSec}&autoplay=1`;
+                    ifr.src = `${cleanSrc}${sep}start=${safeSeekSec}&time=${safeSeekSec}&t=${safeSeekSec}&autoplay=1`;
                   }
                 } catch (_) {}
               }
