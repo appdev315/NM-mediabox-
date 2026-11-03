@@ -423,11 +423,20 @@ function checkBuildVersionAndPurge(): void {
   const lastBuild = localStorage.getItem(BUILD_VERSION_KEY);
 
   if (lastBuild && lastBuild !== currentBuild) {
-    memoryCache.clear();
+    // Мягкая инвалидация: при обновлении билда очищаем только устаревающий
+    // стрим-кэш (Liftw/стримы), чтобы избежать 404/битых ссылок.
+    // Музыка, поиск, резолверы и источники сохраняются между обновлениями.
+    const isStreamKey = (k: string) =>
+      k.includes('liftw_stream_') || k.includes('_stream_');
+
+    for (const k of Array.from(memoryCache.keys())) {
+      if (isStreamKey(k)) memoryCache.delete(k);
+    }
+
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && k.startsWith(CACHE_PREFIX)) {
+        if (k && k.startsWith(CACHE_PREFIX) && isStreamKey(k)) {
           localStorage.removeItem(k);
         }
       }
@@ -435,7 +444,16 @@ function checkBuildVersionAndPurge(): void {
 
     getDB().then((db) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).clear();
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.openCursor();
+      request.onsuccess = (event: any) => {
+        const cursor = event.target.result as IDBCursorWithValue;
+        if (!cursor) return;
+        if (isStreamKey(String(cursor.key))) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
     }).catch(() => {});
   }
 
