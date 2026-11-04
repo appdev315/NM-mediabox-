@@ -61,8 +61,14 @@ export function MediaBoxTvPlayer({
   );
   // Актуальная ссылка на состояние эфира для безопасного доступа внутри таймеров и обработчиков событий
   const scheduleStateRef = useRef(scheduleState);
+  // Метка времени последнего тика состояния сетки: elapsedSec замерзает, когда OSD спит
+  // (минуточный таймер сетки остановлен ради CPU sleep mode), но watchdog'и обязаны
+  // вычислять «живую» эфирную точку с учётом прошедшего без тика времени.
+  // Инициализация 0 и ленивое Date.now() в getLiveGridSec: Date.now() вне рендера.
+  const lastScheduleTickRef = useRef<number>(0);
   useEffect(() => {
     scheduleStateRef.current = scheduleState;
+    lastScheduleTickRef.current = Date.now();
   }, [scheduleState]);
 
   // Немедленный сброс и синхронизация состояния эфира при смене канала
@@ -72,6 +78,18 @@ export function MediaBoxTvPlayer({
     setIsLoadingStream(true);
     setIframeUrl(null);
   }, [channel.id]);
+
+  // «Живая» эфирная точка сетки: elapsedSec замерзает, когда OSD спит и минуточный таймер
+  // сетки не работает. Для watchdog'ов (anti-seek, live sync) это давало устаревший таймкод —
+  // «возврат эфира» уходил на точку, на которой сетка стояла в момент засыпания OSD.
+  // Формула O(1): elapsedSec + секунды с последнего коммита состояния, кап на длительность тайтла.
+  const getLiveGridSec = useCallback(() => {
+    const state = scheduleStateRef.current;
+    const lastTick = lastScheduleTickRef.current || (lastScheduleTickRef.current = Date.now());
+    const durationSec = state?.currentItem?.durationSec || 7200;
+    const advanced = Math.max(0, Math.floor((Date.now() - lastTick) / 1000));
+    return Math.min(durationSec, Math.max(0, (state?.elapsedSec || 0) + advanced));
+  }, []);
 
   // Ссылка на контейнер плеера для перехвата событий колесика мыши
   const videoBoxRef = useRef<HTMLDivElement>(null);
@@ -100,6 +118,9 @@ export function MediaBoxTvPlayer({
   const fallbackAttemptsRef = useRef(0);
   // Метка времени последней синхронизации эфира (защита от частых сиков)
   const lastLiveSyncSeekRef = useRef<number>(0);
+  // Счётчик ресинков watchdog в рамках текущего тайтла: анти-луп против донора,
+  // который повторно игнорирует time-параметры при рестарте (максимум 3 попытки на тайтл)
+  const resyncAttemptsRef = useRef(0);
 
   // Блокировка отката дорожки донором Liftw: после ручного выбора пользователем
   // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
@@ -186,6 +207,8 @@ export function MediaBoxTvPlayer({
     userSelectedQualityRef.current = null;
     actualDurationRef.current = null;
     lastLiveSyncSeekRef.current = 0;
+    // Новый тайтл — новая квота ресинков watchdog
+    resyncAttemptsRef.current = 0;
     setIframeUrl(null);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
@@ -548,7 +571,8 @@ export function MediaBoxTvPlayer({
         if (data.event === 'seek' || data.event === 'seeking' || data.type === 'seek' || data.action === 'seek') {
           const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
           if (ifr && ifr.contentWindow) {
-            const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
+            // Живая эфирная точка: elapsedSec мог замерзнуть вместе с уснувшим OSD-таймером
+            const currentLiveSec = getLiveGridSec();
             const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
             const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
             const safeSeekSec = Math.min(currentLiveSec, Math.max(0, currentMaxDur - 10));
@@ -559,7 +583,11 @@ export function MediaBoxTvPlayer({
           }
         }
 
-        // Синхронизация прямого эфира (Live TV Sync Watchdog): если донор начал воспроизведение сначала, а эфир ушёл вперёд
+        // Синхронизация прямого эфира (Live TV Sync Watchdog): стрим обязан сидеть на эфирной точке сетки.
+        // Детекция ведётся по ДРЕЙФУ позиции донора от живого таймкода сетки, а не только по старту с нуля:
+        // прежнее окно rawPos <= 30 пропускало гонку «плеер загрузился раньше подхвата эфира», когда донор
+        // после потерянного seek-handshake стартовал на 40..600+ сек и навсегда выпадал из эфирной сетки,
+        // оставаясь на воспроизводимом, но несинхронизированном потоке.
         if (
           data.event === 'timeupdate' || 
           data.event === 'viewProgress' || 
@@ -568,20 +596,29 @@ export function MediaBoxTvPlayer({
           data.type === 'time'
         ) {
           const rawPos = data.time ?? data.currentTime ?? data.position;
-          // Синхронизируем, если донор стартовал с начала (или около нуля) вместо актуального таймкода эфира.
-          // Старт с начала: донор игнорирует таймкод и начинает с 0..30 сек.
-          // (раньше порог 0..10 пропускал случаи, когда донор успевал уйти на 15–30 сек, но всё ещё был далеко от эфира)
-          if (typeof rawPos === 'number' && rawPos <= 30) {
-            const currentLiveSec = Math.floor(scheduleStateRef.current.elapsedSec);
+          if (typeof rawPos === 'number' && rawPos >= 0) {
+            // Живая эфирная точка: elapsedSec может быть заморожен спящим OSD-таймером
+            const currentLiveSec = getLiveGridSec();
             const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
             const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
             const safeSeekSec = Math.min(currentLiveSec, Math.max(0, currentMaxDur - 10));
-            if (safeSeekSec > 45 && Date.now() - lastLiveSyncSeekRef.current > 6000) {
+            // Дрейф позиции донора от эфира: > 0 — стрим отстаёт от сетки, < 0 — опережает
+            const driftSec = currentLiveSec - rawPos;
+            // Свежий слот (эфир начался < 60 сек назад) законно играет с нуля — дрейф не лечим
+            const isFreshSlotStart = currentLiveSec <= 60;
+            const shouldResync =
+              !isFreshSlotStart &&
+              resyncAttemptsRef.current < 3 &&
+              Date.now() - lastLiveSyncSeekRef.current > 6000 &&
+              // Отставание либо опережение эфира больше допустимого порога дрейфа
+              Math.abs(driftSec) >= 45;
+            if (shouldResync) {
               lastLiveSyncSeekRef.current = Date.now();
+              resyncAttemptsRef.current += 1;
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
               if (ifr) {
-                // Донор Liftw не поддерживает postMessage 'seek'. Если поток начал играть с 0:00 (rawPos < 15),
-                // перезагружаем iframe src с вычисленным таймкодом time=<safeSeekSec>&t=<safeSeekSec>
+                // Донор Liftw не поддерживает postMessage 'seek' в iframe: перезагружаем src
+                // с актуальным эфирным таймкодом start=<safeSeekSec>&time=<safeSeekSec>&t=<safeSeekSec>
                 try {
                   const currentSrc = ifr.src;
                   if (currentSrc && /^https?:\/\//i.test(currentSrc)) {
@@ -605,7 +642,7 @@ export function MediaBoxTvPlayer({
       window.removeEventListener('message', handleTvMessage);
       if (clickTimer) clearTimeout(clickTimer);
     };
-  }, [queryDonorSettings, sendDonorSetting]);
+  }, [queryDonorSettings, sendDonorSetting, getLiveGridSec]);
 
   // 3. ОПТИМИЗАЦИЯ CPU (SLEEP MODE ДЛЯ ТАЙМЕРА):
   // Таймер 1 сек работает ИСКЛЮЧИТЕЛЬНО пока открыто OSD (isControlsVisible === true).

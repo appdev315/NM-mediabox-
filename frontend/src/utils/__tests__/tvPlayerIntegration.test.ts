@@ -116,33 +116,56 @@ describe('MediaBox TV & Player Integration Verification', () => {
     bus.removeEventListener('mb-audio-started', handleAudio as any);
   });
 
-  it('verifies that TV Live Sync Watchdog correctly triggers resync via iframe reload when player is playing from start instead of live timecode', () => {
-    // Симуляция логики Live TV Sync Watchdog через прямое обновление iframe.src с time/t
-    const currentLiveSec = 5909; // Джуманджи на канале фэнтези (82% фильма)
-    const rawPosStuckAtStart = 2; // Донор начал проигрывать с 0:02
-    let resyncSrc: string | null = null;
-
-    const lastLiveSyncSeek = 0;
-    const now = 10000;
-
-    if (rawPosStuckAtStart > 0 && rawPosStuckAtStart < 15 && currentLiveSec > 45 && now - lastLiveSyncSeek > 6000) {
+  it('verifies TV Live Sync Watchdog resyncs donors that start outside the live grid point (start-from-zero AND mid-position race)', () => {
+    // Симуляция дрейфовой логики Live TV Sync Watchdog из MediaBoxTvPlayer.tsx:
+    // детекция по дрейфу позиции донора от живого таймкода сетки вместо узкого окна rawPos <= 30
+    const buildResyncSrc = (currentLiveSec: number) => {
       const currentSrc = 'https://embed.liftw.ws/embed/movie/3611?host=liftw.ws';
       let cleanSrc = currentSrc.replace(/[?&](start|t|time|timecode)=\d+/g, '');
       if (cleanSrc.includes('?&')) cleanSrc = cleanSrc.replace('?&', '?');
       if (cleanSrc.endsWith('?')) cleanSrc = cleanSrc.slice(0, -1);
       const sep = cleanSrc.includes('?') ? '&' : '?';
-      resyncSrc = `${cleanSrc}${sep}start=${currentLiveSec}&time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
-    }
+      return `${cleanSrc}${sep}start=${currentLiveSec}&time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
+    };
+    const watchdogDecision = (rawPos: number, currentLiveSec: number) => {
+      const driftSec = currentLiveSec - rawPos;
+      const isFreshSlotStart = currentLiveSec <= 60;
+      return !isFreshSlotStart && Math.abs(driftSec) >= 45;
+    };
 
-    expect(resyncSrc).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&start=5909&time=5909&t=5909&autoplay=1');
+    // 1. Донор проигрывает с 0:02, эфир на 5909 — отставание → ресинк на эфирную точку
+    expect(watchdogDecision(2, 5909)).toBe(true);
+    expect(buildResyncSrc(5909)).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&start=5909&time=5909&t=5909&autoplay=1');
 
-    // Когда позиция плеера догнала реальный эфир — повторный сик не срабатывает
-    const rawPosSynced = 5910;
-    let duplicateSeekSent = false;
-    if (rawPosSynced < 15 && currentLiveSec > 45) {
-      duplicateSeekSent = true;
-    }
-    expect(duplicateSeekSent).toBe(false);
+    // 2. Слепое пятно прежнего watchdog («плеер загрузился быстрее подхвата эфира»):
+    // донор стартует на 120й секунде при эфире 5909 — прежнее условие rawPos <= 30
+    // ПРОПУСКАЛО этот кейс, стрим навсегда выпадал из эфирной сетки
+    expect(watchdogDecision(120, 5910)).toBe(true);
+    expect(watchdogDecision(2500, 5910)).toBe(true);
+
+    // 3. Позиция донора соответствует эфиру — дрейф в пределах порога, ресинк не выполняется
+    expect(watchdogDecision(5910, 5910)).toBe(false);
+
+    // 4. Свежий слот (эфир < 60 сек) законно играет с нуля — без ресинка
+    expect(watchdogDecision(2, 30)).toBe(false);
+  });
+
+  it('verifies live grid point advances frozen elapsedSec by seconds since last schedule tick, capped by item duration', () => {
+    // Симуляция getLiveGridSec из MediaBoxTvPlayer.tsx: elapsedSec замерзает вместе
+    // с уснувшим OSD-таймером, watchdog'и обязаны докручивать живую эфирную точку
+    const getLiveGridSec = (elapsedSec: number, durationSec: number, tickAgeMs: number) => {
+      const advanced = Math.max(0, Math.floor(tickAgeMs / 1000));
+      return Math.min(durationSec, Math.max(0, elapsedSec + advanced));
+    };
+
+    // OSD спит 10 секунд: за это время эфир ушёл вперёд, а elapsedSec остался на месте тика
+    expect(getLiveGridSec(3000, 7200, 10_000)).toBe(3010);
+
+    // Кап на длительность тайтла: живая точка не вылетает за EOF (7000 + 500 > 7200)
+    expect(getLiveGridSec(7000, 7200, 500_000)).toBe(7200);
+
+    // Свежий тик: дрейф отсутствует
+    expect(getLiveGridSec(3000, 7200, 0)).toBe(3000);
   });
 
   it('verifies TV series mode embeds season, episode and timecode directly into URL', () => {

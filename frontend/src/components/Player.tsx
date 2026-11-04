@@ -168,10 +168,18 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const activeSeasonRef = useRef<string>(targetEpisode?.season || initialEpisodeRef.current?.season || '1');
   const pendingTargetRef = useRef<{ season: string; episode: string } | null>(null);
   const fallbackNavTimerRef = useRef<any>(null);
+  // Таймеры burst-ретрансляции начального сика (см. sendPlayCommands): отзываются при навигации
+  // iframe и на размонтировании, чтобы устаревший таймкод не улетел в перезапущенного донора
+  const handshakeBurstTimersRef = useRef<any[]>([]);
 
   // In TV mode, lockedSrc directly tracks currentUrl to immediately navigate to live timecode & episode.
   // In movie mode, iframe URL reloads when sourceKey changes.
   useEffect(() => {
+    // Любая навигация iframe перезапускает донора: отзываем burst-ретрансляции устаревшего сика
+    if (handshakeBurstTimersRef.current.length > 0) {
+      handshakeBurstTimersRef.current.forEach((id) => clearTimeout(id));
+      handshakeBurstTimersRef.current = [];
+    }
     if (isTv) {
       setLockedSrc(currentUrl);
       activeSourceKeyRef.current = sourceKey;
@@ -209,9 +217,28 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
             hasSentInitialSeekRef.current = true;
           }
           const s = Math.floor(initialTimecodeRef.current);
-          iframeRef.current.contentWindow.postMessage({ event: 'seek', time: s }, '*');
-          iframeRef.current.contentWindow.postMessage({ api: 'seek', set: s }, '*');
-          iframeRef.current.contentWindow.postMessage({ command: 'seek', time: s }, '*');
+          // Гонка «iframe.onload раньше инициализации внутренних воркеров донора»: ранние
+          // seek-команды донор молча теряет и стрим стартует не с эфирной точки. Пока
+          // подтверждение не получено (isPlayerAck=false), ретранслируем burst через
+          // 350/850 мс — по аналогии с double-tap выбором дорожек (selectSoundTrack/QualityTrack).
+          const sendSeekBurst = () => {
+            try {
+              if (!iframeRef.current?.contentWindow) return;
+              iframeRef.current.contentWindow.postMessage({ event: 'seek', time: s }, '*');
+              iframeRef.current.contentWindow.postMessage({ api: 'seek', set: s }, '*');
+              iframeRef.current.contentWindow.postMessage({ command: 'seek', time: s }, '*');
+            } catch (_) {}
+          };
+          sendSeekBurst();
+          if (!isPlayerAck) {
+            if (handshakeBurstTimersRef.current.length > 0) {
+              handshakeBurstTimersRef.current.forEach((id) => clearTimeout(id));
+            }
+            handshakeBurstTimersRef.current = [
+              setTimeout(sendSeekBurst, 350),
+              setTimeout(sendSeekBurst, 850)
+            ];
+          }
         }
 
         // 2. For series: command target season and episode without race-inducing repeats
@@ -320,6 +347,10 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     window.addEventListener('message', handlePlayerMessage);
     return () => {
       window.removeEventListener('message', handlePlayerMessage);
+      if (handshakeBurstTimersRef.current.length > 0) {
+        handshakeBurstTimersRef.current.forEach((id) => clearTimeout(id));
+        handshakeBurstTimersRef.current = [];
+      }
       if (fallbackNavTimerRef.current) {
         clearTimeout(fallbackNavTimerRef.current);
         fallbackNavTimerRef.current = null;
