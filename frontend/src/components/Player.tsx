@@ -76,11 +76,14 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
   const hasSetInitialQualityRef = useRef(false);
   // Флаг однократного стартового сика: предотвращает сброс HLS-буфера при повторных play-событиях
   const hasSentInitialSeekRef = useRef(false);
+  // Гвардия ack-сика: один рукопожатный burst на подтверждение готовности донора
+  const seekAckConfirmedRef = useRef(false);
   useEffect(() => {
     // Новый фильм/новый список зеркал — счётчик попыток и флаги начинаем заново
     mirrorAttemptsRef.current = 0;
     hasSetInitialQualityRef.current = false;
     hasSentInitialSeekRef.current = false;
+    seekAckConfirmedRef.current = false;
   }, [iframeUrl, mirrors, targetEpisode?.season, targetEpisode?.episode]);
 
   // Compute full mirror list
@@ -113,6 +116,7 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
     if (lastSourceKeyRef.current !== sourceKey) {
       lastSourceKeyRef.current = sourceKey;
       hasSentInitialSeekRef.current = false;
+      seekAckConfirmedRef.current = false;
     }
     initialTimecodeRef.current = initialTimecode;
     initialEpisodeRef.current = targetEpisode;
@@ -213,14 +217,12 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
         // Фиксируем hasSentInitialSeekRef.current при подтверждении готовности плеера (playerReady/startWatching/play),
         // исключая сброс HLS-буфера и задержку старта при последующих событиях воспроизведения.
         if (initialTimecodeRef.current && initialTimecodeRef.current > 5 && !hasSentInitialSeekRef.current) {
-          if (isPlayerAck) {
-            hasSentInitialSeekRef.current = true;
-          }
           const s = Math.floor(initialTimecodeRef.current);
           // Гонка «iframe.onload раньше инициализации внутренних воркеров донора»: ранние
-          // seek-команды донор молча теряет и стрим стартует не с эфирной точки. Пока
-          // подтверждение не получено (isPlayerAck=false), ретранслируем burst через
-          // 350/850 мс — по аналогии с double-tap выбором дорожек (selectSoundTrack/QualityTrack).
+          // seek-команды донор молча теряет и стрим стартует не с эфирной точки.
+          // До подтверждения (isPlayerAck=false) ретранслируем burst 350/850/1500/2500 мс;
+          // после playerReady — контрольный re-seek через 500 мс, т.к. донор может сбросить
+          // позицию в ноль при финальной инициализации HLS-пайплайна.
           const sendSeekBurst = () => {
             try {
               if (!iframeRef.current?.contentWindow) return;
@@ -229,15 +231,33 @@ export function Player({ iframeUrl, mirrors, initialTimecode, onReady, targetEpi
               iframeRef.current.contentWindow.postMessage({ command: 'seek', time: s }, '*');
             } catch (_) {}
           };
-          sendSeekBurst();
-          if (!isPlayerAck) {
+          const scheduleRetransmit = (ms: number) => {
+            handshakeBurstTimersRef.current.push(
+              setTimeout(() => {
+                if (!seekAckConfirmedRef.current) sendSeekBurst();
+              }, ms)
+            );
+          };
+          if (isPlayerAck) {
+            if (!seekAckConfirmedRef.current) {
+              seekAckConfirmedRef.current = true;
+              sendSeekBurst();
+              handshakeBurstTimersRef.current.push(
+                setTimeout(() => {
+                  sendSeekBurst();
+                  // Флаг закрываем только после контрольного re-seek — иначе поздняя
+                  // внутренняя инициализация донора может обнулить позицию
+                  hasSentInitialSeekRef.current = true;
+                }, 500)
+              );
+            }
+          } else {
+            sendSeekBurst();
             if (handshakeBurstTimersRef.current.length > 0) {
               handshakeBurstTimersRef.current.forEach((id) => clearTimeout(id));
             }
-            handshakeBurstTimersRef.current = [
-              setTimeout(sendSeekBurst, 350),
-              setTimeout(sendSeekBurst, 850)
-            ];
+            handshakeBurstTimersRef.current = [];
+            [350, 850, 1500, 2500].forEach(scheduleRetransmit);
           }
         }
 

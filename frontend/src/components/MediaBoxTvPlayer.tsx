@@ -125,6 +125,13 @@ export function MediaBoxTvPlayer({
   // Счётчик ресинков watchdog в рамках текущего тайтла: анти-луп против донора,
   // который повторно игнорирует time-параметры при рестарте (максимум 3 попытки на тайтл)
   const resyncAttemptsRef = useRef(0);
+  // Актуальный эфирный таймкод слота: читается в handleTriggerPlay для
+  // ручного seek-рукопожатия при запуске эфира по тапу
+  const broadcastTimecodeRef = useRef(0);
+  // Страховка «первый play с нуля»: флаг страховочного seek (однократно на слот)
+  const initialSeekConfirmedRef = useRef(false);
+  // Метка времени фактического старта воспроизведения (окно страховочного seek 0..4 c)
+  const livePlayStartAtRef = useRef(0);
 
   // Блокировка отката дорожки донором Liftw: после ручного выбора пользователем
   // игнорируем любые попытки донора сбросить дорожку на дефолтный русский дубляж
@@ -213,6 +220,8 @@ export function MediaBoxTvPlayer({
     lastLiveSyncSeekRef.current = 0;
     // Новый тайтл — новая квота ресинков watchdog
     resyncAttemptsRef.current = 0;
+    initialSeekConfirmedRef.current = false;
+    livePlayStartAtRef.current = 0;
     setIframeUrl(null);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
@@ -352,23 +361,42 @@ export function MediaBoxTvPlayer({
     triggerUserActivity();
   }, [triggerUserActivity]);
 
-  // Ручной запуск прямого эфира по тапу на плашку (снятие автоплей-блока браузера)
+  // Ручной запуск прямого эфира по тапу на плашку (снятие автоплей-блока браузера).
+  // ВАЖНО: вместе с play отправляем seek к эфирной точке — донор может игнорировать
+  // URL-параметры time/t до полной внутренней инициализации, и тогда play стартует с 0:00.
+  // Пакет seek→adFree→play повторяется burst-ом 0/350/850 мс, покрывая «не готового» донора.
   const handleTriggerPlay = useCallback(() => {
-    try {
-      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
-      if (ifr && ifr.contentWindow) {
-        ifr.contentWindow.postMessage({ event: 'adFree', free: true }, '*');
-        ifr.contentWindow.postMessage({ event: 'play' }, '*');
-        ifr.contentWindow.postMessage({ api: 'play' }, '*');
-        ifr.contentWindow.postMessage({ command: 'play' }, '*');
-      }
-    } catch (_) {}
+    const sendSeekPlay = () => {
+      try {
+        const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+        if (ifr && ifr.contentWindow) {
+          const tc = Math.floor(broadcastTimecodeRef.current || 0);
+          if (tc > 5) {
+            ifr.contentWindow.postMessage({ event: 'seek', time: tc }, '*');
+            ifr.contentWindow.postMessage({ api: 'seek', set: tc }, '*');
+            ifr.contentWindow.postMessage({ command: 'seek', time: tc }, '*');
+          }
+          ifr.contentWindow.postMessage({ event: 'adFree', free: true }, '*');
+          ifr.contentWindow.postMessage({ event: 'play' }, '*');
+          ifr.contentWindow.postMessage({ api: 'play' }, '*');
+          ifr.contentWindow.postMessage({ command: 'play' }, '*');
+        }
+      } catch (_) {}
+    };
+    sendSeekPlay();
+    setTimeout(sendSeekPlay, 350);
+    setTimeout(sendSeekPlay, 850);
     triggerUserActivity();
   }, [triggerUserActivity]);
 
   // Реакция OSD на фактический старт эфира: один раз показываем панель
   useEffect(() => {
     if (isLivePlaying) {
+      // Фиксируем момент фактического старта эфира: в первые ~4 секунды
+      // действует окно страховочного seek «первый play с нуля»
+      if (!livePlayStartAtRef.current) {
+        livePlayStartAtRef.current = Date.now();
+      }
       triggerUserActivity();
     }
   }, [isLivePlaying, triggerUserActivity]);
@@ -639,6 +667,26 @@ export function MediaBoxTvPlayer({
             const currentCatalogDur = scheduleStateRef.current.currentItem?.durationSec || 7200;
             const currentMaxDur = (actualDurationRef.current && actualDurationRef.current >= 300) ? actualDurationRef.current : currentCatalogDur;
             const safeSeekSec = Math.min(currentLiveSec, Math.max(0, currentMaxDur - 10));
+            // СТРАХОВКА «ПЕРВЫЙ PLAY С НУЛЯ»: воспроизведение началось, но донор в первые
+            // ~4 секунды после старта докладывает позицию близкую к нулю при эфирной точке > 60 с —
+            // значит seek-рукопожатие не применилось. Однократно форсируем seek к эфирной точке
+            // (перегрузка iframe в этом окне запрещена guard'ом Live Sync Watchdog'а).
+            if (
+              isLivePlayingRef.current &&
+              !initialSeekConfirmedRef.current &&
+              livePlayStartAtRef.current &&
+              Date.now() - livePlayStartAtRef.current < 4000 &&
+              rawPos < 10 &&
+              currentLiveSec > 60
+            ) {
+              initialSeekConfirmedRef.current = true;
+              const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+              if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage({ event: 'seek', time: safeSeekSec }, '*');
+                ifr.contentWindow.postMessage({ api: 'seek', set: safeSeekSec }, '*');
+                ifr.contentWindow.postMessage({ command: 'seek', time: safeSeekSec }, '*');
+              }
+            }
             // Дрейф позиции донора от эфира: > 0 — стрим отстаёт от сетки, < 0 — опережает
             const driftSec = currentLiveSec - rawPos;
             // Свежий слот (эфир начался < 60 сек назад) законно играет с нуля — дрейф не лечим
@@ -883,6 +931,8 @@ export function MediaBoxTvPlayer({
     safeTimecode = Math.max(0, Math.floor(broadcastStartSec));
   }
   const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
+  // Актуальный таймкод слота для ручного запуска эфира по тапу
+  broadcastTimecodeRef.current = finalTimecode;
 
   // Фиксируем таймкод запуска один раз на слот/тайтл: живой elapsedSec растёт каждую секунду,
   // но URL плеера и iframe не должны пересобираться/перезагружаться в реальном времени,
