@@ -99,6 +99,10 @@ export function MediaBoxTvPlayer({
   const [streamError, setStreamError] = useState(false);
   // Состояние активного воспроизведения прямого эфира
   const [isLivePlaying, setIsLivePlaying] = useState(false);
+  // Ref-зеркало isLivePlaying для безопасного чтения внутри message-listener watchdog'а
+  // (не пересоздаём слушатель при каждом изменении статуса воспроизведения)
+  const isLivePlayingRef = useRef(false);
+  useEffect(() => { isLivePlayingRef.current = isLivePlaying; }, [isLivePlaying]);
 
   // Списки опций и текущие параметры потока из донорского плеера Liftw (player-venom)
   const [soundList, setSoundList] = useState<string[]>([]);
@@ -211,6 +215,25 @@ export function MediaBoxTvPlayer({
     resyncAttemptsRef.current = 0;
     setIframeUrl(null);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
+
+  // Гарантированный список качеств (устранение вечного лоадера при задержке ответа от донора)
+  const effectiveQualityList = useMemo(() => {
+    if (qualityList.length > 0) return qualityList;
+    return ['1080p', '720p', '480p', '360p', 'auto'];
+  }, [qualityList]);
+
+  // При открытии меню настроек (шестеренки) или смене вкладки повторно опрашиваем доступные дорожки
+  useEffect(() => {
+    if (isSettingsOpen) {
+      queryDonorSettings();
+      const t1 = setTimeout(queryDonorSettings, 400);
+      const t2 = setTimeout(queryDonorSettings, 1200);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [isSettingsOpen, activeSettingsTab, queryDonorSettings]);
 
   // Опрос доступных дорожек при готовности плеера.
   // ВАЖНО: шилд отныне активен С МОНТАЖА и не активируется по таймеру —
@@ -326,6 +349,20 @@ export function MediaBoxTvPlayer({
 
   // Тап по активному шилду: пробуждаем OSD-элементы интерфейса
   const handleShieldTap = useCallback(() => {
+    triggerUserActivity();
+  }, [triggerUserActivity]);
+
+  // Ручной запуск прямого эфира по тапу на плашку (снятие автоплей-блока браузера)
+  const handleTriggerPlay = useCallback(() => {
+    try {
+      const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
+      if (ifr && ifr.contentWindow) {
+        ifr.contentWindow.postMessage({ event: 'adFree', free: true }, '*');
+        ifr.contentWindow.postMessage({ event: 'play' }, '*');
+        ifr.contentWindow.postMessage({ api: 'play' }, '*');
+        ifr.contentWindow.postMessage({ command: 'play' }, '*');
+      }
+    } catch (_) {}
     triggerUserActivity();
   }, [triggerUserActivity]);
 
@@ -607,6 +644,12 @@ export function MediaBoxTvPlayer({
             // Свежий слот (эфир начался < 60 сек назад) законно играет с нуля — дрейф не лечим
             const isFreshSlotStart = currentLiveSec <= 60;
             const shouldResync =
+              // Ресинк через перезагрузку iframe разрешён ТОЛЬКО после подтверждённого
+              // старта воспроизведения: до старта потока на десктопе программная
+              // перезагрузка iframe.src блокируется политикой автоплея (Stop Media
+              // with Sound) и навсегда зависает на спиннере буферизации.
+              // Исходный iframe.src уже содержит точный эфирный таймкод start/time/t.
+              isLivePlayingRef.current &&
               !isFreshSlotStart &&
               resyncAttemptsRef.current < 3 &&
               Date.now() - lastLiveSyncSeekRef.current > 6000 &&
@@ -1043,6 +1086,28 @@ export function MediaBoxTvPlayer({
 
           {/* 3. Рабочая область плеера с защитным экраном против паузы */}
             <div className="relative flex-1 w-full h-full flex items-center justify-center bg-black overflow-hidden">
+              {/* Плашка «Tap to play» в полноэкранном режиме под верхним OSD */}
+              {isFullscreen && !isLoadingStream && !streamError && !isLivePlaying && (
+                <div 
+                  className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-auto animate-fade-in"
+                  style={{ top: 'calc(4rem + env(safe-area-inset-top, 0px))' }}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTriggerPlay();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black text-xs font-black shadow-2xl border border-white/25 cursor-pointer backdrop-blur-md select-none animate-pulse hover:scale-105 active:scale-95 transition-all"
+                    title={t('tvTapToStart') || 'Нажмите для запуска'}
+                  >
+                    <span className="text-sm shrink-0">👆</span>
+                    <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Нажмите для запуска'}</span>
+                    <span className="text-xs font-black shrink-0">▶</span>
+                  </button>
+                </div>
+              )}
+
               {isLoadingStream && (
                 <div className="absolute inset-0 z-[35] flex flex-col items-center justify-center bg-black gap-3 text-white">
                   <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -1252,32 +1317,28 @@ export function MediaBoxTvPlayer({
                     )}
 
                     {activeSettingsTab === 'quality' && (
-                      qualityList.length > 0 ? (
-                        qualityList.map((item) => {
-                          const isSelected = item === currentQuality;
-                          return (
-                            <button
-                              key={item}
-                              type="button"
-                              onClick={() => {
-                                selectQualityTrack(item);
-                              }}
-                              className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
-                                isSelected
-                                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
-                                  : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10 hover:text-white'
-                              }`}
-                            >
-                              <span className="truncate pr-2">{item}</span>
-                              {isSelected && <span className="text-amber-400 font-bold text-sm shrink-0">✓</span>}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="text-center py-4 text-white/50 text-[11px]">
-                          {t('loading')}
-                        </div>
-                      )
+                      effectiveQualityList.map((item) => {
+                        const isSelected = currentQuality 
+                          ? item.toLowerCase() === currentQuality.toLowerCase() 
+                          : item.toLowerCase() === 'auto';
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => {
+                              selectQualityTrack(item);
+                            }}
+                            className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between transition-all cursor-pointer border ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
+                                : 'bg-white/5 border-white/5 text-white/80 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <span className="truncate pr-2">{item}</span>
+                            {isSelected && <span className="text-amber-400 font-bold text-sm shrink-0">✓</span>}
+                          </button>
+                        );
+                      })
                     )}
 
                     {activeSettingsTab === 'cc' && (
@@ -1314,6 +1375,25 @@ export function MediaBoxTvPlayer({
               )}
             </div>
           </div>
+
+          {/* Всплывающая плашка «Tap to play» под плеером до фактического старта воспроизведения */}
+          {!isLoadingStream && !streamError && !isLivePlaying && !isFullscreen && !isMinimized && (
+            <div className="w-full flex items-center justify-center mt-2.5 pointer-events-auto animate-fade-in">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTriggerPlay();
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black text-xs font-black shadow-xl border border-white/25 cursor-pointer backdrop-blur-md select-none animate-pulse hover:scale-105 active:scale-95 transition-all"
+                title={t('tvTapToStart') || 'Нажмите для запуска'}
+              >
+                <span className="text-sm shrink-0">👆</span>
+                <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Нажмите для запуска'}</span>
+                <span className="text-xs font-black shrink-0">▶</span>
+              </button>
+            </div>
+          )}
 
           {/* Плашка «ДАЛЕЕ» вынесена под плеер в вертикальном/оконном положении; в горизонтальном/полноэкранном режиме и PiP отсутствует */}
           {!isFullscreen && !isMinimized && (
