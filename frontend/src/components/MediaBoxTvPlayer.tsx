@@ -1099,10 +1099,10 @@ export function MediaBoxTvPlayer({
                       handleTriggerPlay();
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black text-xs font-black shadow-2xl border border-white/25 cursor-pointer backdrop-blur-md select-none animate-pulse hover:scale-105 active:scale-95 transition-all"
-                    title={t('tvTapToStart') || 'Нажмите для запуска'}
+                    title={t('tvTapToStart') || 'Тапните по экрану плеера для старта'}
                   >
                     <span className="text-sm shrink-0">👆</span>
-                    <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Нажмите для запуска'}</span>
+                    <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Тапните по экрану плеера для старта'}</span>
                     <span className="text-xs font-black shrink-0">▶</span>
                   </button>
                 </div>
@@ -1386,10 +1386,10 @@ export function MediaBoxTvPlayer({
                   handleTriggerPlay();
                 }}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black text-xs font-black shadow-xl border border-white/25 cursor-pointer backdrop-blur-md select-none animate-pulse hover:scale-105 active:scale-95 transition-all"
-                title={t('tvTapToStart') || 'Нажмите для запуска'}
+                title={t('tvTapToStart') || 'Тапните по экрану плеера для старта'}
               >
                 <span className="text-sm shrink-0">👆</span>
-                <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Нажмите для запуска'}</span>
+                <span className="tracking-wide uppercase text-[11px] font-black">{t('tvTapToStart') || 'Тапните по экрану плеера для старта'}</span>
                 <span className="text-xs font-black shrink-0">▶</span>
               </button>
             </div>
