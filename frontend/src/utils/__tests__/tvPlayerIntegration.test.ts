@@ -127,27 +127,49 @@ describe('MediaBox TV & Player Integration Verification', () => {
       const sep = cleanSrc.includes('?') ? '&' : '?';
       return `${cleanSrc}${sep}start=${currentLiveSec}&time=${currentLiveSec}&t=${currentLiveSec}&autoplay=1`;
     };
-    const watchdogDecision = (rawPos: number, currentLiveSec: number) => {
+    const watchdogDecision = (
+      rawPos: number,
+      currentLiveSec: number,
+      isLivePlaying: boolean = true,
+      livePlayStartAt: number = Date.now() - 15000,
+      lastSyncTime: number = 0,
+      resyncAttempts: number = 0
+    ) => {
       const driftSec = currentLiveSec - rawPos;
       const isFreshSlotStart = currentLiveSec <= 60;
-      return !isFreshSlotStart && Math.abs(driftSec) >= 45;
+      const isWarmupPhase = !livePlayStartAt || (Date.now() - livePlayStartAt < 10000);
+      return (
+        isLivePlaying &&
+        !isWarmupPhase &&
+        !isFreshSlotStart &&
+        resyncAttempts < 3 &&
+        Date.now() - lastSyncTime > 10000 &&
+        Math.abs(driftSec) >= 45
+      );
     };
 
-    // 1. Донор проигрывает с 0:02, эфир на 5909 — отставание → ресинк на эфирную точку
+    // 1. Донор проигрывает с 0:02, эфир на 5909 — после warm-up отставание → ресинк на эфирную точку
     expect(watchdogDecision(2, 5909)).toBe(true);
     expect(buildResyncSrc(5909)).toBe('https://embed.liftw.ws/embed/movie/3611?host=liftw.ws&start=5909&time=5909&t=5909&autoplay=1');
 
-    // 2. Слепое пятно прежнего watchdog («плеер загрузился быстрее подхвата эфира»):
-    // донор стартует на 120й секунде при эфире 5909 — прежнее условие rawPos <= 30
-    // ПРОПУСКАЛО этот кейс, стрим навсегда выпадал из эфирной сетки
+    // 2. Warm-up защита: в первые 10 секунд воспроизведения перезагрузка запрещена даже при большом дрейфе
+    expect(watchdogDecision(0, 5909, true, Date.now() - 3000)).toBe(false);
+    expect(watchdogDecision(2, 5909, true, 0)).toBe(false); // livePlayStartAt не начался
+
+    // 3. Слепое пятно прежнего watchdog («плеер загрузился быстрее подхвата эфира»):
+    // донор стартует на 120й секунде при эфире 5909 — ресинк выполняется
     expect(watchdogDecision(120, 5910)).toBe(true);
     expect(watchdogDecision(2500, 5910)).toBe(true);
 
-    // 3. Позиция донора соответствует эфиру — дрейф в пределах порога, ресинк не выполняется
+    // 4. Позиция донора соответствует эфиру — дрейф в пределах порога, ресинк не выполняется
     expect(watchdogDecision(5910, 5910)).toBe(false);
 
-    // 4. Свежий слот (эфир < 60 сек) законно играет с нуля — без ресинка
+    // 5. Свежий слот (эфир < 60 сек) законно играет с нуля — без ресинка
     expect(watchdogDecision(2, 30)).toBe(false);
+
+    // 6. Лимит ресинков (максимум 3) и кулдаун 10с
+    expect(watchdogDecision(2, 5909, true, Date.now() - 15000, Date.now() - 5000, 0)).toBe(false); // кулдаун
+    expect(watchdogDecision(2, 5909, true, Date.now() - 15000, 0, 3)).toBe(false); // исчерпан лимит
   });
 
   it('verifies live grid point advances frozen elapsedSec by seconds since last schedule tick, capped by item duration', () => {
@@ -214,6 +236,20 @@ describe('MediaBox TV & Player Integration Verification', () => {
     expect(activeItem.id).toBe(335787);
     expect(activeSlot).toBe(4);
     expect(activeElapsed).toBe(0);
+  });
+
+  it('verifies early transition to next scheduled item when elapsedSec approaches or exceeds known stream duration', () => {
+    const elapsedSec = 5180;
+    const durationSec = 5200; // остаток всего 20 сек (< 25 сек)
+    const currentItem = { id: 101, title: 'Item 1' };
+    const nextItem = { id: 102, title: 'Item 2' };
+
+    const shouldAdvance = elapsedSec >= durationSec - 25 && nextItem && nextItem.id !== currentItem.id;
+    expect(shouldAdvance).toBe(true);
+
+    const normalElapsed = 4000;
+    const shouldNotAdvance = normalElapsed >= durationSec - 25 && nextItem && nextItem.id !== currentItem.id;
+    expect(shouldNotAdvance).toBe(false);
   });
 
   it('verifies zero duplicates in upcoming 10 slots across all movie channels', async () => {

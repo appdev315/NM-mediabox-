@@ -121,7 +121,7 @@ export function MediaBoxTvPlayer({
   // Счётчик попыток перехода на следующий тайтл при 404 (до 2 подряд)
   const fallbackAttemptsRef = useRef(0);
   // Метка времени последней синхронизации эфира (защита от частых сиков)
-  const lastLiveSyncSeekRef = useRef<number>(0);
+  const lastLiveSyncSeekRef = useRef<number>(Date.now());
   // Счётчик ресинков watchdog в рамках текущего тайтла: анти-луп против донора,
   // который повторно игнорирует time-параметры при рестарте (максимум 3 попытки на тайтл)
   const resyncAttemptsRef = useRef(0);
@@ -217,7 +217,7 @@ export function MediaBoxTvPlayer({
     userQualityLockUntilRef.current = 0;
     userSelectedQualityRef.current = null;
     actualDurationRef.current = null;
-    lastLiveSyncSeekRef.current = 0;
+    lastLiveSyncSeekRef.current = Date.now();
     // Новый тайтл — новая квота ресинков watchdog
     resyncAttemptsRef.current = 0;
     initialSeekConfirmedRef.current = false;
@@ -691,20 +691,24 @@ export function MediaBoxTvPlayer({
             const driftSec = currentLiveSec - rawPos;
             // Свежий слот (эфир начался < 60 сек назад) законно играет с нуля — дрейф не лечим
             const isFreshSlotStart = currentLiveSec <= 60;
+            // Warm-up период старта: в первые 10 секунд воспроизведения или пока донор
+            // инициализирует и буферизует стрим, перезагрузка iframe строго запрещена
+            const isWarmupPhase = !livePlayStartAtRef.current || (Date.now() - livePlayStartAtRef.current < 10000);
             const shouldResync =
               // Ресинк через перезагрузку iframe разрешён ТОЛЬКО после подтверждённого
-              // старта воспроизведения: до старта потока на десктопе программная
-              // перезагрузка iframe.src блокируется политикой автоплея (Stop Media
-              // with Sound) и навсегда зависает на спиннере буферизации.
-              // Исходный iframe.src уже содержит точный эфирный таймкод start/time/t.
+              // старта воспроизведения и завершения начального warm-up окна:
+              // до завершения warm-up программная перезагрузка iframe.src блокируется
+              // политикой автоплея браузера и срывает начальную буферизацию.
               isLivePlayingRef.current &&
+              !isWarmupPhase &&
               !isFreshSlotStart &&
               resyncAttemptsRef.current < 3 &&
-              Date.now() - lastLiveSyncSeekRef.current > 6000 &&
+              Date.now() - lastLiveSyncSeekRef.current > 10000 &&
               // Отставание либо опережение эфира больше допустимого порога дрейфа
               Math.abs(driftSec) >= 45;
             if (shouldResync) {
               lastLiveSyncSeekRef.current = Date.now();
+              livePlayStartAtRef.current = 0; // Для перезагруженного фрейма возобновляем warm-up guard
               resyncAttemptsRef.current += 1;
               const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
               if (ifr) {
@@ -827,6 +831,21 @@ export function MediaBoxTvPlayer({
         if (cached && cached.iframe && !isCancelled) {
           if (cached.durationSec && cached.durationSec >= minRealisticSec) {
             actualDurationRef.current = cached.durationSec;
+            // Если фильм/серия фактически завершились до конца слота сетки, переходим к следующему тайтлу
+            if (scheduleState.elapsedSec >= cached.durationSec - 25 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
+              const freshNextState = getChannelScheduleState(channel);
+              setScheduleState(prev => ({
+                ...prev,
+                currentItem: prev.nextItem,
+                initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
+                elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
+                remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
+                durationSec: prev.nextItem.durationSec || 7200,
+                progressPercent: freshNextState.progressPercent || 0,
+                slotIndex: prev.slotIndex + 1
+              }));
+              return;
+            }
           }
           setIframeUrl(cached.iframe);
           setIsLoadingStream(false);
@@ -865,6 +884,21 @@ export function MediaBoxTvPlayer({
           clientCache.set(cacheKey, data, ttlSeconds);
           if (data.durationSec && data.durationSec >= minRealisticSec) {
             actualDurationRef.current = data.durationSec;
+            // Если фильм/серия фактически завершились до конца слота сетки, переходим к следующему тайтлу
+            if (scheduleState.elapsedSec >= data.durationSec - 25 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
+              const freshNextState = getChannelScheduleState(channel);
+              setScheduleState(prev => ({
+                ...prev,
+                currentItem: prev.nextItem,
+                initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
+                elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
+                remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
+                durationSec: prev.nextItem.durationSec || 7200,
+                progressPercent: freshNextState.progressPercent || 0,
+                slotIndex: prev.slotIndex + 1
+              }));
+              return;
+            }
           }
           setIframeUrl(data.iframe);
           setIsLoadingStream(false);
@@ -926,11 +960,11 @@ export function MediaBoxTvPlayer({
 
   let safeTimecode: number;
   if (broadcastStartSec >= maxDuration) {
-    safeTimecode = Math.max(0, maxDuration - 10);
+    safeTimecode = Math.max(0, maxDuration - 15);
   } else {
     safeTimecode = Math.max(0, Math.floor(broadcastStartSec));
   }
-  const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 10));
+  const finalTimecode = Math.min(safeTimecode, Math.max(0, maxDuration - 15));
   // Актуальный таймкод слота для ручного запуска эфира по тапу
   broadcastTimecodeRef.current = finalTimecode;
 
@@ -940,8 +974,25 @@ export function MediaBoxTvPlayer({
   // выполняется Live Sync Watchdog ниже.
   const stableInitialTimecode = useMemo(
     () => finalTimecode,
-    [currentItem.id, currentItem.season, currentItem.episode, scheduleState.slotIndex]
+    [currentItem.id, currentItem.season, currentItem.episode, scheduleState.slotIndex, iframeUrl]
   );
+
+  // Диагностика старта эфира: помогает увидеть, с каким таймкодом реально монтируется плеер
+  // и совпадает ли он с реальной длительностью донора (иначе донор сбрасывает в 0:00).
+  useEffect(() => {
+    if (!iframeUrl) return;
+    console.debug('[MediaBoxTv] timecode lock', {
+      channel: channel.id,
+      item: currentItem.id,
+      slotIndex: scheduleState.slotIndex,
+      elapsedSec: scheduleState.elapsedSec,
+      actualDuration: actualDurationRef.current,
+      catalogDuration: currentItem.durationSec,
+      finalTimecode,
+      stableInitialTimecode,
+      iframeUrl,
+    });
+  }, [iframeUrl, stableInitialTimecode, channel.id, currentItem.id, scheduleState.slotIndex, scheduleState.elapsedSec, currentItem.durationSec, finalTimecode]);
 
   return (
     <div 
