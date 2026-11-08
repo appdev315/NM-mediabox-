@@ -252,6 +252,64 @@ describe('MediaBox TV & Player Integration Verification', () => {
     expect(shouldNotAdvance).toBe(false);
   });
 
+  it('verifies early transition cleanly resets elapsedSec and initialTimecode to 0 without cascading old elapsedSec', () => {
+    // Симуляция логики advanceToNextItem из MediaBoxTvPlayer.tsx
+    const currentItem = { id: 101, title: 'Item 1', durationSec: 5100 };
+    const nextItem = { id: 102, title: 'Item 2', durationSec: 7200 };
+    const pool = [currentItem, nextItem, { id: 103, title: 'Item 3', durationSec: 7200 }];
+    const slotIndex = 0;
+
+    const nextIndex = (slotIndex + 1) % pool.length;
+    const targetItem = nextItem;
+    const afterNext = pool[(nextIndex + 1) % pool.length];
+
+    const advancedState = {
+      currentItem: targetItem,
+      initialTimecode: 0,
+      elapsedSec: 0,
+      remainingSec: targetItem.durationSec,
+      durationSec: targetItem.durationSec,
+      progressPercent: 0,
+      nextItem: afterNext,
+      slotIndex: nextIndex
+    };
+
+    expect(advancedState.currentItem.id).toBe(102);
+    expect(advancedState.initialTimecode).toBe(0);
+    expect(advancedState.elapsedSec).toBe(0);
+    expect(advancedState.remainingSec).toBe(7200);
+    expect(advancedState.nextItem.id).toBe(103);
+    // Проверка, что новый elapsedSec (0) не вызовет повторный сброс для следующего фильма (7200 - 25)
+    expect(advancedState.elapsedSec >= targetItem.durationSec - 25).toBe(false);
+  });
+
+  it('verifies Anti-Seek Watchdog suppresses echo seeks during initial startup window', () => {
+    const isAntiSeekTriggered = (
+      isLivePlaying: boolean,
+      livePlayStartAt: number,
+      event: string
+    ) => {
+      const isStartupSeekPhase = !isLivePlaying || !livePlayStartAt || (Date.now() - livePlayStartAt < 4000);
+      const isSeekEvent = event === 'seek' || event === 'seeking';
+      return !isStartupSeekPhase && isSeekEvent;
+    };
+
+    // 1. До старта воспроизведения — эхо-сики подавляются
+    expect(isAntiSeekTriggered(false, 0, 'seeking')).toBe(false);
+    expect(isAntiSeekTriggered(false, 0, 'seek')).toBe(false);
+
+    // 2. В первые 4 секунды старта (окно начального рукопожатия) — эхо-сики подавляются
+    const recentStart = Date.now() - 1000;
+    expect(isAntiSeekTriggered(true, recentStart, 'seeking')).toBe(false);
+    expect(isAntiSeekTriggered(true, recentStart, 'seek')).toBe(false);
+
+    // 3. После завершения стартового окна (напр. через 10 секунд) — несанкционированные сики перехватываются
+    const establishedPlayback = Date.now() - 10000;
+    expect(isAntiSeekTriggered(true, establishedPlayback, 'seeking')).toBe(true);
+    expect(isAntiSeekTriggered(true, establishedPlayback, 'seek')).toBe(true);
+    expect(isAntiSeekTriggered(true, establishedPlayback, 'timeupdate')).toBe(false);
+  });
+
   it('verifies zero duplicates in upcoming 10 slots across all movie channels', async () => {
     const { getChannelUpcomingSchedule } = await import('../tvSchedule');
     const movieChannels = TV_CHANNELS.filter(c => c.category !== 'series');

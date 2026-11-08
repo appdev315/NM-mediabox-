@@ -7,7 +7,7 @@ import { CF_API_BASE, getTmdbImageUrl } from '../hooks/useApi';
 import { clientCache } from '../utils/clientCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useLanguage } from '../context/LanguageContext';
-import { prewarmStream } from '../utils/streamPreloader';
+import { prewarmStream, inFlightStreamMap } from '../utils/streamPreloader';
 import { 
   type TvChannel, 
   type ChannelScheduleState, 
@@ -15,6 +15,10 @@ import {
   getChannelUpcomingSchedule,
   getItemTitle,
   getChannelName,
+  getChannelPool,
+  formatTimecode,
+  formatTimeRemaining,
+  formatClockTime,
   TV_CHANNELS
 } from '../utils/tvSchedule';
 
@@ -72,11 +76,15 @@ export function MediaBoxTvPlayer({
   }, [scheduleState]);
 
   // Немедленный сброс и синхронизация состояния эфира при смене канала
+  const prevChannelIdRef = useRef(channel.id);
   useEffect(() => {
-    setScheduleState(getChannelScheduleState(channel));
-    setStreamError(false);
-    setIsLoadingStream(true);
-    setIframeUrl(null);
+    if (prevChannelIdRef.current !== channel.id) {
+      prevChannelIdRef.current = channel.id;
+      setScheduleState(getChannelScheduleState(channel));
+      setStreamError(false);
+      setIsLoadingStream(true);
+      setIframeUrl(null);
+    }
   }, [channel.id]);
 
   // «Живая» эфирная точка сетки: elapsedSec замерзает, когда OSD спит и минуточный таймер
@@ -204,7 +212,15 @@ export function MediaBoxTvPlayer({
   }, []);
 
   // Сброс статуса воспроизведения и настроек при смене канала, тайтла или эпизода эфира
+  const prevItemSignatureRef = useRef(`${channel.id}_${scheduleState.currentItem.id}_${scheduleState.currentItem.season || ''}_${scheduleState.currentItem.episode || ''}`);
   useEffect(() => {
+    const signature = `${channel.id}_${scheduleState.currentItem.id}_${scheduleState.currentItem.season || ''}_${scheduleState.currentItem.episode || ''}`;
+    if (prevItemSignatureRef.current === signature) return;
+    prevItemSignatureRef.current = signature;
+
+    isLivePlayingRef.current = false;
+    livePlayStartAtRef.current = 0;
+    initialSeekConfirmedRef.current = false;
     setIsLivePlaying(false);
     setIsSettingsOpen(false);
     setSoundList([]);
@@ -220,8 +236,6 @@ export function MediaBoxTvPlayer({
     lastLiveSyncSeekRef.current = Date.now();
     // Новый тайтл — новая квота ресинков watchdog
     resyncAttemptsRef.current = 0;
-    initialSeekConfirmedRef.current = false;
-    livePlayStartAtRef.current = 0;
     setIframeUrl(null);
   }, [channel.id, scheduleState.currentItem.id, scheduleState.currentItem.season, scheduleState.currentItem.episode]);
 
@@ -480,6 +494,39 @@ export function MediaBoxTvPlayer({
     };
   }, [onClose]);
 
+  // Бесшовный переход к следующему тайтлу эфира при досрочном окончании стрима или 404
+  const advanceToNextItem = useCallback(() => {
+    setScheduleState(prev => {
+      const pool = getChannelPool(channel);
+      const nextIndex = (prev.slotIndex + 1) % (pool.length || 1);
+      const next = prev.nextItem || pool[nextIndex];
+      const afterNext = pool[(nextIndex + 1) % (pool.length || 1)] || next;
+      const targetDuration = next?.durationSec || 7200;
+      const nowSec = Math.floor(Date.now() / 1000);
+
+      return {
+        ...prev,
+        currentItem: next,
+        initialTimecode: 0,
+        elapsedSec: 0,
+        remainingSec: targetDuration,
+        durationSec: targetDuration,
+        progressPercent: 0,
+        nextItem: afterNext,
+        nextStartTime: nowSec + targetDuration,
+        formattedElapsed: '0:00',
+        formattedDuration: formatTimecode(targetDuration),
+        formattedTimeRemaining: formatTimeRemaining(targetDuration, language),
+        formattedNextTime: formatClockTime(nowSec + targetDuration),
+        slotIndex: nextIndex
+      };
+    });
+    actualDurationRef.current = null;
+    resyncAttemptsRef.current = 0;
+    initialSeekConfirmedRef.current = false;
+    livePlayStartAtRef.current = 0;
+  }, [channel, language]);
+
   // 2. ЗАЩИТА ОТ ПАУЗЫ И ПЕРЕМОТКИ (Anti-Pause & Anti-Seek Watchdog):
   useEffect(() => {
     let clickTimer: any = null;
@@ -517,17 +564,7 @@ export function MediaBoxTvPlayer({
           ) {
             // Фактический видеопоток завершился раньше окончания слота сетки (титры/ранний EOF).
             // Мгновенно переключаем трансляцию на следующий тайтл сетки вещания:
-            const next = scheduleStateRef.current.nextItem;
-            setScheduleState(prev => ({
-              ...prev,
-              currentItem: next,
-              initialTimecode: 0,
-              elapsedSec: 0,
-              remainingSec: next.durationSec || 7200,
-              durationSec: next.durationSec || 7200,
-              progressPercent: 0,
-              slotIndex: prev.slotIndex + 1
-            }));
+            advanceToNextItem();
           } else {
             setScheduleState(fresh);
           }
@@ -544,6 +581,10 @@ export function MediaBoxTvPlayer({
           data.event === 'viewProgress' ||
           (data.event === 'timeupdate' && typeof currentTimePos === 'number' && currentTimePos > 0)
         ) {
+          isLivePlayingRef.current = true;
+          if (!livePlayStartAtRef.current) {
+            livePlayStartAtRef.current = Date.now();
+          }
           setIsLivePlaying(true);
         }
 
@@ -632,8 +673,10 @@ export function MediaBoxTvPlayer({
           }
         }
 
-        // Защита от попыток перемотки эфира (Anti-Seek Watchdog): немедленный возврат к реальному таймкоду без вылета за EOF
-        if (data.event === 'seek' || data.event === 'seeking' || data.type === 'seek' || data.action === 'seek') {
+        // Защита от попыток перемотки эфира (Anti-Seek Watchdog): немедленный возврат к реальному таймкоду без вылета за EOF.
+        // Игнорируем эхо-сики во время стартового окна (первые 4 с) и до подтвержденного старта воспроизведения.
+        const isStartupSeekPhase = !isLivePlayingRef.current || !livePlayStartAtRef.current || (Date.now() - livePlayStartAtRef.current < 4000);
+        if (!isStartupSeekPhase && (data.event === 'seek' || data.event === 'seeking' || data.type === 'seek' || data.action === 'seek')) {
           const ifr = document.querySelector<HTMLIFrameElement>('#video-iframe');
           if (ifr && ifr.contentWindow) {
             // Живая эфирная точка: elapsedSec мог замерзнуть вместе с уснувшим OSD-таймером
@@ -737,16 +780,20 @@ export function MediaBoxTvPlayer({
       window.removeEventListener('message', handleTvMessage);
       if (clickTimer) clearTimeout(clickTimer);
     };
-  }, [queryDonorSettings, sendDonorSetting, getLiveGridSec]);
+  }, [queryDonorSettings, sendDonorSetting, getLiveGridSec, advanceToNextItem]);
 
   // 3. ОПТИМИЗАЦИЯ CPU (SLEEP MODE ДЛЯ ТАЙМЕРА):
   // Таймер 1 сек работает ИСКЛЮЧИТЕЛЬНО пока открыто OSD (isControlsVisible === true).
   // Когда OSD скрыто, таймер спит и расходует 0.0% CPU!
+  const isInitialOsdRef = useRef(true);
   useEffect(() => {
     if (!isControlsVisible) return;
 
-    // Синхронизируем состояние немедленно при пробуждении OSD
-    setScheduleState(getChannelScheduleState(channel));
+    if (!isInitialOsdRef.current) {
+      // Синхронизируем состояние немедленно при пробуждении OSD (после сна)
+      setScheduleState(getChannelScheduleState(channel));
+    }
+    isInitialOsdRef.current = false;
 
     const interval = setInterval(() => {
       setScheduleState(prevState => {
@@ -833,23 +880,33 @@ export function MediaBoxTvPlayer({
             actualDurationRef.current = cached.durationSec;
             // Если фильм/серия фактически завершились до конца слота сетки, переходим к следующему тайтлу
             if (scheduleState.elapsedSec >= cached.durationSec - 25 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
-              const freshNextState = getChannelScheduleState(channel);
-              setScheduleState(prev => ({
-                ...prev,
-                currentItem: prev.nextItem,
-                initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
-                elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
-                remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
-                durationSec: prev.nextItem.durationSec || 7200,
-                progressPercent: freshNextState.progressPercent || 0,
-                slotIndex: prev.slotIndex + 1
-              }));
+              advanceToNextItem();
               return;
             }
           }
           setIframeUrl(cached.iframe);
           setIsLoadingStream(false);
           return;
+        }
+
+        // 1.1 Подхват активного in-flight запроса предпрогрева (если канал предпрогревался в каталоге)
+        if (inFlightStreamMap.has(cacheKey)) {
+          try {
+            const prewarmed = await inFlightStreamMap.get(cacheKey);
+            if (prewarmed && prewarmed.iframe && !isCancelled) {
+              fallbackAttemptsRef.current = 0;
+              if (prewarmed.durationSec && prewarmed.durationSec >= minRealisticSec) {
+                actualDurationRef.current = prewarmed.durationSec;
+                if (scheduleState.elapsedSec >= prewarmed.durationSec - 25 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
+                  advanceToNextItem();
+                  return;
+                }
+              }
+              setIframeUrl(prewarmed.iframe);
+              setIsLoadingStream(false);
+              return;
+            }
+          } catch (_) {}
         }
       }
 
@@ -886,17 +943,7 @@ export function MediaBoxTvPlayer({
             actualDurationRef.current = data.durationSec;
             // Если фильм/серия фактически завершились до конца слота сетки, переходим к следующему тайтлу
             if (scheduleState.elapsedSec >= data.durationSec - 25 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
-              const freshNextState = getChannelScheduleState(channel);
-              setScheduleState(prev => ({
-                ...prev,
-                currentItem: prev.nextItem,
-                initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
-                elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
-                remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
-                durationSec: prev.nextItem.durationSec || 7200,
-                progressPercent: freshNextState.progressPercent || 0,
-                slotIndex: prev.slotIndex + 1
-              }));
+              advanceToNextItem();
               return;
             }
           }
@@ -915,16 +962,7 @@ export function MediaBoxTvPlayer({
           // автоматически подхватываем следующий тайтл сетки вещания (до 2 попыток)
           if (fallbackAttemptsRef.current < 2 && scheduleState.nextItem && scheduleState.nextItem.id !== currentItem.id) {
             fallbackAttemptsRef.current += 1;
-            const freshNextState = getChannelScheduleState(channel);
-            setScheduleState(prev => ({
-              ...prev,
-              currentItem: prev.nextItem,
-              initialTimecode: Math.floor(freshNextState.elapsedSec || 0),
-              elapsedSec: Math.floor(freshNextState.elapsedSec || 0),
-              remainingSec: freshNextState.remainingSec || prev.nextItem.durationSec || 7200,
-              durationSec: prev.nextItem.durationSec || 7200,
-              progressPercent: freshNextState.progressPercent || 0
-            }));
+            advanceToNextItem();
             return;
           }
 
@@ -940,7 +978,7 @@ export function MediaBoxTvPlayer({
     return () => {
       isCancelled = true;
     };
-  }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id]);
+  }, [scheduleState.currentItem.id, scheduleState.currentItem.episode, scheduleState.slotIndex, channel.id, advanceToNextItem]);
 
   const { currentItem, nextItem, formattedNextTime } = scheduleState;
   const isSeries = currentItem.type === 'tv';
