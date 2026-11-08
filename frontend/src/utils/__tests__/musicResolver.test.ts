@@ -84,6 +84,24 @@ describe('musicResolver unit tests', () => {
       expect(parsed.artist).toBe('Rammstein');
       expect(parsed.title).toBe('Sonne');
     });
+
+    it('cleans suffixes like (Official Video) and [Remastered]', () => {
+      const parsed = parseYtTrackInfo('Queen – Bohemian Rhapsody (Official Video Remastered)', 'Queen Official');
+      expect(parsed.artist).toBe('Queen');
+      expect(parsed.title).toBe('Bohemian Rhapsody');
+    });
+
+    it('handles quoted titles properly', () => {
+      const parsed = parseYtTrackInfo('КОРОЛЬ И ШУТ "КУКЛА КОЛДУНА"', 'RUSSIAN ROCK');
+      expect(parsed.artist).toBe('КОРОЛЬ И ШУТ');
+      expect(parsed.title).toBe('КУКЛА КОЛДУНА');
+    });
+
+    it('resolves inverted Title - Artist order based on query', () => {
+      const parsed = parseYtTrackInfo('Кукла колдуна - Король и Шут', 'ChannelName', 'кукла колдуна');
+      expect(parsed.artist).toBe('Король и Шут');
+      expect(parsed.title).toBe('Кукла колдуна');
+    });
   });
 
   describe('extractAudioUrl and extractInvidiousAudio', () => {

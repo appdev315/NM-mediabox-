@@ -297,18 +297,48 @@ export const parseYtDuration = (item: any): number => {
   return 0;
 };
 
-export const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
-  let title = rawTitle;
-  let artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
-  const splitMatch = rawTitle.match(/^([^\-–—]+)\s*[\-–—]\s*(.+)$/);
-  if (splitMatch) {
-    const candArtist = splitMatch[1].trim();
-    const candTitle = splitMatch[2].trim();
-    if (candArtist.length > 0 && candTitle.length > 0) {
-      artist = candArtist;
-      title = candTitle;
-    }
+export const cleanYtTitle = (raw: string): string => {
+  return (raw || '')
+    .replace(/\s*[([]\s*[^)\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version|clip|клип|премьера|нашествие|концерт|soundtrack|саундтрек|ost|hd|4k|hq|cam|subtitles|subs|текст)[^)\]]*[)\]]/gi, '')
+    .replace(/\s*(?:\||–|-|•)\s*(?:official\s*video|official\s*audio|клип|премьера\s*\d{4}|4k|hd|remastered?|текст\s*песни|lyrics?|live).*$/gi, '')
+    .replace(/\s*\|.*$/g, '')
+    .replace(/\b(?:текст\s*песни|lyrics?)\b/gi, '')
+    .trim();
+};
+
+export const parseYtTrackInfo = (rawTitle: string, rawAuthor: string, query = '') => {
+  const title = cleanYtTitle(rawTitle);
+  const artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
+
+  const authorNorm = (artist.replace(/\b(?:official|music|records|vevo|channel|группа)\b/gi, '')).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+  const quoteMatch = title.match(/^([^"«»]+)\s*["«]([^"»]+)["»]$/);
+  if (quoteMatch) {
+    return { title: quoteMatch[2].trim(), artist: quoteMatch[1].trim() };
   }
+
+  const splitMatch = title.match(/^([^-–—]+)\s*[-–—]\s*(.+)$/);
+  if (splitMatch) {
+    const p1 = splitMatch[1].trim();
+    const p2 = splitMatch[2].trim();
+    const p1Norm = p1.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const p2Norm = p2.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const normQ = query.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+    if (authorNorm && (p2Norm.includes(authorNorm) || authorNorm.includes(p2Norm)) && !p1Norm.includes(authorNorm)) {
+      return { title: p1.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p2 };
+    }
+
+    if (p1Norm === normQ || (normQ.length > 3 && p1Norm.includes(normQ))) {
+      return { title: p1.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p2 };
+    }
+    if (p2Norm === normQ || (normQ.length > 3 && p2Norm.includes(normQ))) {
+      return { title: p2.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p1 };
+    }
+
+    return { title: p2.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p1.replace(/^["'«]+|["'»]+$/g, '').trim() };
+  }
+
   return { title, artist };
 };
 

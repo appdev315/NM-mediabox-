@@ -57,7 +57,7 @@ const handleMusicSearch = async (c: Context) => {
     // На первых 3-х страницах параллельно ищем совпадение по имени исполнителя (например, Rammstein -> id: 610801):
     // на 1-й странице подтягиваем verified Top Songs, а на 2-й и 3-й — дискографию альбомов/песен артиста (/artists/:id/songs?page=N)
     const artistSearchPromise = page <= 3
-      ? fetchFromSaavnPool(`/search/artists?query=${encoded}&limit=3`, 5000)
+      ? fetchFromSaavnPool(`/search/artists?query=${encoded}&limit=5`, 5000)
       : Promise.resolve(null);
 
     // Запрашиваем оверсэмплинг у апстрима (40 треков), чтобы после отсечения дублей и сборников гарантированно отдать полные 20 уникальных треков
@@ -110,43 +110,125 @@ const handleMusicSearch = async (c: Context) => {
       }
     };
 
-// Словарь распространенных псевдонимов и транслитераций для точного поиска
+// --- ТРАНСЛИТЕРАЦИЯ И СЛОВАРЬ АЛИАСОВ ДЛЯ ТОЧНОГО ПОИСКА ---
+const RU_TO_EN: Record<string, string> = {
+  'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z',
+  'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+  'с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch',
+  'ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+};
+
+const transliterateRuToEn = (str: string): string => {
+  return (str || '').toLowerCase().split('').map(ch => RU_TO_EN[ch] !== undefined ? RU_TO_EN[ch] : ch).join('');
+};
+
+const normalizeStr = (str: string): string => {
+  return (str || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+};
+
+const tokenize = (str: string): string[] => {
+  return (str || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 0 && !['и', 'в', 'на', 'с', 'по', 'the', 'a', 'an', 'of', 'and'].includes(w));
+};
+
 const MUSIC_SEARCH_ALIASES: Record<string, string> = {
   'нагано': 'ноггано',
   'nagano': 'ноггано',
   'noggano': 'ноггано',
   'basta': 'баста',
+  'кино': 'группа кино',
+  'цой': 'виктор цой',
+  'tsoi': 'виктор цой',
+  'kino': 'группа кино',
+  'король и шут': 'киш',
+  'миаги': 'miyagi',
+  'мияги': 'miyagi',
+  'эндшпиль': 'endshpil',
+  'скрип': 'скриптонит',
+  'scryptonite': 'скриптонит',
+  'scriptonite': 'скриптонит'
 };
 
-// Интеллектуальный разбор метаданных YouTube Music: вычленение исполнителя и названия («Ноггано - Зять»)
-const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
-  let title = rawTitle;
-  let artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
-  const splitMatch = rawTitle.match(/^([^\-–—]+)\s*[\-–—]\s*(.+)$/);
+const cleanYtTitle = (raw: string): string => {
+  return (raw || '')
+    .replace(/\s*[([]\s*[^)\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version|clip|клип|премьера|нашествие|концерт|soundtrack|саундтрек|ost|hd|4k|hq|cam|subtitles|subs|текст)[^)\]]*[)\]]/gi, '')
+    .replace(/\s*(?:\||–|-|•)\s*(?:official\s*video|official\s*audio|клип|премьера\s*\d{4}|4k|hd|remastered?|текст\s*песни|lyrics?|live).*$/gi, '')
+    .replace(/\s*\|.*$/g, '')
+    .replace(/\b(?:текст\s*песни|lyrics?)\b/gi, '')
+    .trim();
+};
+
+const parseYtTrackInfo = (rawTitle: string, rawAuthor: string, query = '') => {
+  const title = cleanYtTitle(rawTitle);
+  const artist = (rawAuthor || 'Unknown Artist').replace(/ - Topic$/i, '').trim();
+
+  const authorNorm = normalizeStr(artist.replace(/\b(?:official|music|records|vevo|channel|группа)\b/gi, ''));
+
+  const quoteMatch = title.match(/^([^"«»]+)\s*["«]([^"»]+)["»]$/);
+  if (quoteMatch) {
+    return { title: quoteMatch[2].trim(), artist: quoteMatch[1].trim() };
+  }
+
+  const splitMatch = title.match(/^([^-–—]+)\s*[-–—]\s*(.+)$/);
   if (splitMatch) {
-    const candArtist = splitMatch[1].trim();
-    const candTitle = splitMatch[2].trim();
-    if (candArtist.length > 0 && candTitle.length > 0) {
-      artist = candArtist;
-      title = candTitle;
+    const p1 = splitMatch[1].trim();
+    const p2 = splitMatch[2].trim();
+    const p1Norm = normalizeStr(p1);
+    const p2Norm = normalizeStr(p2);
+    const normQ = normalizeStr(query);
+
+    if (authorNorm && (p2Norm.includes(authorNorm) || authorNorm.includes(p2Norm)) && !p1Norm.includes(authorNorm)) {
+      return { title: p1.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p2 };
+    }
+
+    if (p1Norm === normQ || (normQ.length > 3 && p1Norm.includes(normQ))) {
+      return { title: p1.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p2 };
+    }
+    if (p2Norm === normQ || (normQ.length > 3 && p2Norm.includes(normQ))) {
+      return { title: p2.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p1 };
+    }
+
+    return { title: p2.replace(/^["'«]+|["'»]+$/g, '').trim(), artist: p1.replace(/^["'«]+|["'»]+$/g, '').trim() };
+  }
+
+  return { title, artist };
+};
+
+const findBestMatchedArtist = (candidates: any[], query: string) => {
+  const normQ = normalizeStr(query);
+  const aliasNormQ = normalizeStr(MUSIC_SEARCH_ALIASES[normQ] || '');
+  const translitNormQ = normalizeStr(transliterateRuToEn(query));
+
+  let bestCand: any = null;
+  let bestScore = 0;
+
+  for (const cand of candidates) {
+    const normC = normalizeStr(cand?.name);
+    const translitNormC = normalizeStr(transliterateRuToEn(cand?.name || ''));
+    let score = 0;
+    if (normC === normQ) score = 100;
+    else if (aliasNormQ && normC === aliasNormQ) score = 95;
+    else if (translitNormC === normQ || normC === translitNormQ) score = 90;
+    else if (normC.includes(normQ) || (aliasNormQ && normC.includes(aliasNormQ))) score = 80;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestCand = cand;
     }
   }
-  return { title, artist };
+
+  return bestScore >= 80 ? bestCand : null;
 };
 
     // 1. Топ-песни артиста (если запрос — это имя известного исполнителя)
     if (artistRes.status === 'fulfilled' && artistRes.value && artistRes.value.ok) {
       try {
         const aData = await artistRes.value.json() as any;
-        const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
-        const aliasNormQ = MUSIC_SEARCH_ALIASES[normQ] || normQ;
-        const normArtistOf = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
         const artistCandidates: any[] = aData?.data?.results || [];
-        // Строгое сопоставление артиста: полное совпадение имени или псевдонима (защита от «Наганов Александр»)
-        const matchedArtist = artistCandidates.find((r: any) => {
-          const na = normArtistOf(r?.name);
-          return na === normQ || na === aliasNormQ;
-        });
+        const matchedArtist = findBestMatchedArtist(artistCandidates, query);
 
         if (matchedArtist?.id) {
           const songsPath = page === 1 ? `/artists?id=${matchedArtist.id}` : `/artists/${matchedArtist.id}/songs?page=${page}`;
@@ -218,7 +300,7 @@ const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
       } catch (_) {}
     }
 
-    // 3. Результаты YouTube Music (с отделением исполнителя от названия)
+    // 3. Результаты YouTube Music (с фильтрацией каналов и вычленением метаданных)
     if (ytRes.status === 'fulfilled' && ytRes.value.ok) {
       try {
         const ytList = await ytRes.value.json() as any[];
@@ -226,6 +308,9 @@ const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
           const startIndex = (page - 1) * 15;
           const pageYt = ytList.slice(startIndex, startIndex + 25);
           for (const item of pageYt) {
+            // Исключаем каналы и плейлисты
+            if (item.type === 'channel' || item.type === 'playlist') continue;
+
             let dur = 0;
             if (typeof item.duration === 'string') {
               const parts = item.duration.split(':').map(Number);
@@ -237,11 +322,14 @@ const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
             // Отсекаем немузыкальные ролики > 10 минут (600 сек) и короткие превью (< 20 сек)
             if (dur > 600 || (dur > 0 && dur < 20)) continue;
             if (NON_MUSIC_REGEX.test(item.title || '') || NON_MUSIC_REGEX.test(item.author || '')) continue;
-            const cleanTitle = (item.title || '')
-              .replace(/\s*\([^)]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^)]*\)/gi, '')
-              .replace(/\s*\[[^\]]*(?:official|video|audio|lyric|remaster|explicit|edit|version)[^\]]*\]/gi, '')
-              .trim();
-            const parsedYt = parseYtTrackInfo(cleanTitle || item.title || '', item.author || '');
+
+            let views = 0;
+            if (typeof item.subtext === 'string') {
+              const vMatch = item.subtext.replace(/,/g, '').match(/(\d+)\s*views/i);
+              if (vMatch) views = parseInt(vMatch[1], 10);
+            }
+
+            const parsedYt = parseYtTrackInfo(item.title || '', item.author || '', query);
             addTrack({
               id: `yt_${item.id}`,
               title: parsedYt.title,
@@ -252,72 +340,113 @@ const parseYtTrackInfo = (rawTitle: string, rawAuthor: string) => {
               duration: dur,
               genre: 'Music',
               isResolved: false,
+              views,
             });
           }
         }
       } catch (_) {}
     }
 
-    // --- УМНОЕ РАНЖИРОВАНИЕ РЕЛЕВАНТНОСТИ (Smart Relevance Scoring) ---
-    // Исключает ситуацию, когда случайные каверы или сторонние альбомы вытесняют реального артиста
-    const normQ = query.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
-    const aliasNormQ = MUSIC_SEARCH_ALIASES[normQ] || normQ;
-    const junkRe = /\b(?:8-bit|16-bit|emulation|tribute|karaoke|ringtone|remix|cover)\b/i;
-
-    const scoredTracks = rawTracks.map(t => {
+    // --- УМНОЕ РАНЖИРОВАНИЕ РЕЛЕВАНТНОСТИ (Smart Relevance Scoring & Multi-word Token Coverage) ---
+    const scoreTrack = (t: any): number => {
       let score = 0;
-      const tArtist = (t.artist || '').toLowerCase();
-      const normA = tArtist.replace(/[^a-z0-9а-яё]/gi, '');
-      const tTitle = (t.title || '').toLowerCase();
-      const normT = tTitle.replace(/[^a-z0-9а-яё]/gi, '');
-      const tAlbum = (t.album || '').toLowerCase();
-      const normAlb = tAlbum.replace(/[^a-z0-9а-яё]/gi, '');
+      const qTokens = tokenize(query);
+      const normQ = normalizeStr(query);
+      const aliasNormQ = normalizeStr(MUSIC_SEARCH_ALIASES[normQ] || '');
+      const translitNormQ = normalizeStr(transliterateRuToEn(query));
 
-      const isMatchArtist = (normA === normQ || normA === aliasNormQ);
-      const isPartialArtist = (normA.startsWith(normQ) || normA.includes(normQ) ||
-                               normA.startsWith(aliasNormQ) || normA.includes(aliasNormQ));
+      const tArtist = t.artist || '';
+      const tTitle = t.title || '';
+      const tAlbum = t.album || '';
 
+      const normA = normalizeStr(tArtist);
+      const translitNormA = normalizeStr(transliterateRuToEn(tArtist));
+      const normT = normalizeStr(tTitle);
+      const translitNormT = normalizeStr(transliterateRuToEn(tTitle));
+      const normAlb = normalizeStr(tAlbum);
+
+      const aTokens = tokenize(tArtist);
+      const tTokens = tokenize(tTitle);
+
+      // 1. Официальные хиты подтверждённого исполнителя всегда в топе
       if (t.isOfficialArtistTop) {
-        score += 150; // Официальные хиты подтверждённого исполнителя всегда в самом верху
-      }
-      // Составные запросы «Артист + Трек» (например, "Rammstein Sonne"):
-      const normBoth = `${normA}${normT}`;
-      const normBothRev = `${normT}${normA}`;
-      if (isMatchArtist) {
-        score += 120; // Точное совпадение артиста (или псевдонима): приоритет над чужой песней с таким же названием
-      } else if (isPartialArtist) {
-        score += 80;
+        score += 150;
       }
 
-      if (normT === normQ || normT === aliasNormQ) {
-        score += 50; // Точное совпадение названия трека (понижено с 70, чтобы не перебивать треки автора)
-      } else if (normT.startsWith(normQ) || normT.includes(normQ) || normT.startsWith(aliasNormQ) || normT.includes(aliasNormQ)) {
-        score += 30;
+      // 2. Точное совпадение имени артиста
+      const isExactArtist = normA === normQ || (aliasNormQ && normA === aliasNormQ) || translitNormA === normQ || normA === translitNormQ;
+      if (isExactArtist) {
+        score += 140;
+      } else if (normA.startsWith(normQ) || normQ.startsWith(normA) || (aliasNormQ && normA.includes(aliasNormQ))) {
+        score += 70;
       }
 
-      if (normBoth && (normBoth === normQ || normBothRev === normQ || normBoth === aliasNormQ || normBothRev === aliasNormQ)) {
-        score += 140; // Точное совпадение Артист + Трек
-      } else if (normBoth && (normBoth.includes(normQ) || normQ.includes(normBoth) || normBoth.includes(aliasNormQ) || aliasNormQ.includes(normBoth))) {
-        score += 70; // Частичное совпадение составного запроса
-      } else if (normAlb === normQ || normAlb === aliasNormQ) {
-        // Совпадение только по альбому (например, Monte Pons с альбомом "Rammstein")
-        score += 10;
+      // 3. Точное совпадение названия трека
+      const isExactTitle = normT === normQ || (aliasNormQ && normT === aliasNormQ) || translitNormT === normQ || normT === translitNormQ;
+      if (isExactTitle) {
+        score += 120;
+      } else if (normT.startsWith(normQ) || normQ.startsWith(normT)) {
+        score += 60;
       }
 
-      // Штраф за мусорные эмуляции, 8-битки и караоке
+      // 4. Пословный поиск нескольких слов запроса (Token coverage)
+      if (qTokens.length > 0) {
+        let matchedQTokens = 0;
+        let matchedInArtist = 0;
+        let matchedInTitle = 0;
+
+        for (const qt of qTokens) {
+          const translitQt = transliterateRuToEn(qt);
+          const inA = aTokens.some(at => at === qt || at.startsWith(qt) || transliterateRuToEn(at) === qt || at === translitQt);
+          const inT = tTokens.some(tt => tt === qt || tt.startsWith(qt) || transliterateRuToEn(tt) === qt || tt === translitQt);
+          if (inA || inT) {
+            matchedQTokens++;
+            if (inA) matchedInArtist++;
+            if (inT) matchedInTitle++;
+          }
+        }
+
+        const coverage = matchedQTokens / qTokens.length;
+        score += Math.round(coverage * 100);
+
+        // Если запрос содержит и исполнителя, и трек (например, «Кино Группа крови»)
+        if (matchedInArtist > 0 && matchedInTitle > 0) {
+          score += 120;
+        }
+      }
+
+      // 5. Совпадение по названию альбома
+      if (normAlb === normQ || (aliasNormQ && normAlb === aliasNormQ)) {
+        score += 20;
+      }
+
+      // 6. Штраф за мусорные эмуляции, караоке и каверы
+      const junkRe = /\b(?:8-bit|16-bit|emulation|tribute|karaoke|ringtone|remix|cover|минус|караоке|кавер)\b/i;
       if (junkRe.test(tTitle) || junkRe.test(tAlbum)) {
-        score -= 40;
+        score -= 60;
       }
 
-      return { track: t, score };
-    });
+      // 7. Бонус популярности по просмотрам
+      if (typeof t.views === 'number' && t.views > 0) {
+        if (t.views > 10000000) score += 30;
+        else if (t.views > 1000000) score += 20;
+        else if (t.views > 100000) score += 10;
+      }
+
+      return score;
+    };
+
+    const scoredTracks = rawTracks.map(t => ({
+      track: t,
+      score: scoreTrack(t)
+    }));
 
     // Сортировка по убыванию релевантности и отсечение по лимиту (20 треков на страницу)
     scoredTracks.sort((a, b) => b.score - a.score);
     const finalTracks = scoredTracks.slice(0, limit).map(item => item.track);
 
     const response = c.json(finalTracks, 200, {
-      'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
+      'Cache-Control': 'public, max-age=1800, s-maxage=43200, stale-while-revalidate=3600',
       'Access-Control-Allow-Origin': '*',
     });
 
@@ -544,4 +673,5 @@ musicRouter.get('/api/music/resolve', async (c: Context) => {
 
 musicRouter.get('/api/music/search', handleMusicSearch);
 musicRouter.get('/api/music/v2/search', handleMusicSearch);
+musicRouter.get('/api/music/v3/search', handleMusicSearch);
 
