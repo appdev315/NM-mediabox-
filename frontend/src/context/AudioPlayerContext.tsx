@@ -3,6 +3,7 @@ import { useHlsPlayer } from '../hooks/useHlsPlayer';
 import { EXPRESS_API_BASE } from '../hooks/useApi';
 import { trackOpen, trackError } from '../utils/analytics';
 import { audioEqualizerManager } from '../utils/audioEqualizerManager';
+import { seekAfterLoadedMetadata, type SeekHandle } from '../utils/audioPlaybackRecovery';
 import { audioOfflineManager } from '../utils/audioOfflineManager';
 import { favoritesManager } from '../utils/favoritesManager';
 import { resolveFullAudioUrl, getNetworkSpeed, isMusicDataSaverEnabled } from '../hooks/useMusicApi';
@@ -222,6 +223,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const lastTimeRef = useRef(0);
   const stalledCountRef = useRef(0);
   const isRefreshingSrcRef = useRef(false);
+  const pendingSeekRef = useRef<SeekHandle | null>(null);
   const lastPauseTimeRef = useRef(0);
   const activeBlobUrlRef = useRef<string | null>(null);
   const musicResolveRef = useRef(0); // invalidates stale music prefetch pipelines
@@ -570,43 +572,48 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           syncToPeers(track, true, false);
         }).catch((err) => {
           console.warn('[Audio] Music unpause direct play failed, attempting soft reload:', err);
-          if (audio.src) {
-            const currentPos = audio.currentTime;
-            audio.load();
-            if (currentPos > 0) {
-              try { audio.currentTime = currentPos; } catch (_) {}
-            }
-            audio.play().then(() => {
-              setIsPlaying(true);
-              setIsBuffering(false);
-              syncToPeers(track, true, false);
-            }).catch((err2) => {
-              console.warn('[Audio] Music unpause reload failed, refreshing stream URL:', err2);
-              // Background pause recovery: if CDN socket closed during sleep, re-resolve and resume at current position
-              (async () => {
-                try {
-                  const refreshed = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id, true);
-                  if (refreshed) {
-                    audio.src = refreshed;
-                    audio.load();
-                    if (currentPos > 0) {
-                      try { audio.currentTime = currentPos; } catch (_) {}
-                    }
-                    await audio.play();
-                    setIsPlaying(true);
-                    setIsBuffering(false);
-                    syncToPeers({ ...track, url: refreshed }, true, false);
-                  } else {
-                    setIsBuffering(false);
-                  }
-                } catch (_) {
-                  setIsBuffering(false);
-                }
-              })();
-            });
-          } else {
+          if (!audio.src) {
             setIsBuffering(false);
+            return;
           }
+          const currentPos = audio.currentTime;
+          const stillCurrent = () => !isUserPausedRef.current && currentTrackRef.current?.id === track.id;
+          const reloadAt = async (nextSrc?: string) => {
+            if (!stillCurrent()) return;
+            pendingSeekRef.current?.cancel();
+            isRefreshingSrcRef.current = true;
+            if (nextSrc) audio.src = nextSrc;
+            const seek = seekAfterLoadedMetadata(audio, currentPos);
+            pendingSeekRef.current = seek;
+            audio.load();
+            await seek.done;
+            await audioEqualizerManager.resumeContext();
+            if (!stillCurrent()) return;
+            await audio.play();
+            setIsPlaying(true);
+            setIsBuffering(false);
+            syncToPeers(nextSrc ? { ...track, url: nextSrc } : track, true, false);
+          };
+          void (async () => {
+            try {
+              await reloadAt();
+            } catch (err2) {
+              console.warn('[Audio] Music unpause reload failed, refreshing stream URL:', err2);
+              try {
+                const refreshed = await resolveFullAudioUrl(track.artist, track.title, track.url, track.id, true);
+                if (!refreshed || !stillCurrent()) {
+                  setIsBuffering(false);
+                  return;
+                }
+                await reloadAt(refreshed);
+              } catch (_) {
+                setIsBuffering(false);
+              }
+            } finally {
+              isRefreshingSrcRef.current = false;
+              pendingSeekRef.current = null;
+            }
+          })();
         });
       }
     }
@@ -764,6 +771,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        await audioEqualizerManager.resumeContext();
+        if (isStale() || isUserPausedRef.current) {
+          try { audio.pause(); } catch (_) {}
+          return;
+        }
         await audio.play();
         if (isStale()) {
           try { audio.pause(); } catch (_) {}
@@ -892,6 +904,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         }
         resolvingIdRef.current = null;
         try {
+          audioEqualizerManager.resumeContext().catch(() => {});
           await audio.play();
           if (myToken !== musicResolveRef.current) {
             try { audio.pause(); } catch (_) {}
@@ -916,6 +929,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     audio.preload = 'auto';
 
     const isHls = track.url.includes('.m3u8') || track.url.includes('/playlist');
+    let gestureAlreadyYielded = false;
       
     if (isHls) {
       if (audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -924,6 +938,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         isRefreshingSrcRef.current = false;
       } else {
         const bufferCfg = getOptimalBufferConfig();
+        gestureAlreadyYielded = true;
         const hls = await initHls({
           url: track.url,
           media: audio,
@@ -980,6 +995,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     // src нового трека старым URL и не врём в UI.
     if (myToken !== musicResolveRef.current || isUserPausedRef.current) {
       return;
+    }
+
+    if (gestureAlreadyYielded) {
+      await audioEqualizerManager.resumeContext();
+      if (myToken !== musicResolveRef.current || isUserPausedRef.current) return;
     }
 
     audio.play().then(() => {
